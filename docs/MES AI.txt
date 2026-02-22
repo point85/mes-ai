@@ -1,0 +1,44 @@
+MES AI
+
+Objective
+I want to build a free and open source Manufacturing Execution System (MES) that will be designed, coded and tested solely by an AI (you).  
+The code should never need to be looked at or maintained by a human, but rather by an AI coding agent.  
+Therefore the implementation should be optimized for ease of maintenance and enhancements by an AI, not by a human.
+
+The duration of the project will be many weeks and will cross sessions, therefore there must be a procedure in place to resume work where a previous session left off without needing to understand the implementation from scratch.  
+Also, I need to be able to refer to a module of functionality by an identifier for enhancements rather than describe what it does to save time and token expense.
+
+The project deliverable will be an MES framework with plug-in functionality (much like a coding IDE has plugins).  
+An end user will download the framework from GitHub and proceed to customize the functionality based on their unique requirements.  
+Using their preferred IDE (e.g. Claude Code, Visual Studio Code, etc.), they will describe to the AI agent what customizations they require, and the AI will proceed to implement them.
+
+The first task is to create and document a project plan describing step-by-step what implementation tasks will be accomplished.  
+I will decide if a task has been completed and we will move on to the next task.
+
+Features
+A MES is software used in a factory to produce goods effectively.  
+It interfaces to an Enterprise Resource Planning (ERP) at inbound touchpoints (e.g. production orders, and manufactured materials) as well as at outbound touchpoints (e.g. work in process reporting and consumption of raw materials).  
+An MES also interfaces to production equipment controllers (e.g. Programmable Logic Controllers or PLCs and microcontrollers) as well as test equipment for test results.
+
+An MES tracks the progress of work-in-process (WIP) represented by units or lots of material through the physical model of production lines, work centers and equipment.  
+A dispatching algorithm upon the occurance of a production event decides what work center or equipment to move the work (unit or lot) to.  
+The dispatching could be manual in which case an operator enters a disposition mapped to a destination.  
+Or the dispatching could be automated based on the downstream equipment’s capability and capacity to receive additional work.
+
+The end user will use an IDE such as Claude Code or VS Code to implement new features.  We will use VS Code to develop the MES framework.  
+A Git repository will be used to store all artifacts from which the end user will download the framework and proceed to make their customizations.
+
+Implementation
+The major phases to accomplish the goals of this project are:
+!1)	Survey existing commercial MES’s and their capabilities and create a list of required functionality, then document the conclusions.
+(2)	Propose an implementation architecture.  The system should be client/server with a REST HTTP/HTTPS interface between clients and a server.  
+The clients can be written in the programming language of the end user’s choice.  
+A runtime client that manipulates WIP can have a GUI for use by a human or can be headless if interfacing to automated equipment for example.  
+A design time client will allow the end user to view what funtionality has been implemented and how the pieces “fit together”.  
+The server will provide MES capabilities and store data in a Relational Database Management System (RDBMS) for tracking and reporting purposes.
+(3)	Divide up the implementation into a series of manageable implementation tasks starting with the server. 
+Automated testing needs to be implemented to verify that a task has been complemented.  
+For the physical environment of an ERP, controllers or test equipment, it is not feasible to test against “real” interfaces or devices.  In this case, mocking up an interface will be required.
+
+
+

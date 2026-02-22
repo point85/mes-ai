@@ -1,0 +1,90 @@
+{
+  "project": "MES AI",
+  "version": "0.1.0",
+  "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
+  "repository": "https://github.com/TODO/mes-ai",
+  "lastUpdated": "2026-02-22",
+  "lastSessionId": "S001",
+
+  "phases": [
+    {
+      "id": "P1",
+      "name": "Survey & Requirements",
+      "status": "not-started",
+      "description": "Survey existing commercial MES systems, compile required functionality list, document conclusions",
+      "tasks": []
+    },
+    {
+      "id": "P2",
+      "name": "Architecture & Design",
+      "status": "not-started",
+      "description": "Propose and document implementation architecture: client/server, REST API, RDBMS, plugin framework",
+      "tasks": []
+    },
+    {
+      "id": "P3",
+      "name": "Core Server Implementation",
+      "status": "not-started",
+      "description": "Build core server: data model, REST API, plugin framework, dispatching engine",
+      "tasks": []
+    },
+    {
+      "id": "P4",
+      "name": "Integration Adapters",
+      "status": "not-started",
+      "description": "ERP adapters, equipment/PLC adapters, test equipment adapters (with mocks)",
+      "tasks": []
+    },
+    {
+      "id": "P5",
+      "name": "Client Implementations",
+      "status": "not-started",
+      "description": "Runtime client (GUI + headless) and design-time client",
+      "tasks": []
+    },
+    {
+      "id": "P6",
+      "name": "Testing & CI",
+      "status": "not-started",
+      "description": "Automated test harness, CI pipeline, mock simulation layer",
+      "tasks": []
+    }
+  ],
+
+  "currentPhase": "P1",
+  "currentTask": null,
+
+  "modules": {
+    "_comment": "Module registry. Each module gets a short ID for reference. Populated as modules are implemented.",
+    "registry": {}
+  },
+
+  "decisions": [
+    {
+      "id": "D001",
+      "date": "2026-02-22",
+      "decision": "Session continuity via PROJECT_STATE.json + SESSION_LOG.md + ARCHITECTURE.md in docs/",
+      "rationale": "AI agent reads PROJECT_STATE.json on session start to resume; SESSION_LOG.md provides narrative context; ARCHITECTURE.md is living design doc"
+    },
+    {
+      "id": "D002",
+      "date": "2026-02-22",
+      "decision": "Code optimized for AI maintainability, not human readability",
+      "rationale": "Per project objective: AI is sole developer and maintainer"
+    },
+    {
+      "id": "D003",
+      "date": "2026-02-22",
+      "decision": "Plugin architecture modeled after IDE extensibility",
+      "rationale": "End users customize via AI-driven IDE; framework must have clean extension points"
+    },
+    {
+      "id": "D004",
+      "date": "2026-02-22",
+      "decision": "Client/server with REST HTTP/HTTPS; RDBMS for persistence",
+      "rationale": "Per project requirements; well-understood patterns with broad language support"
+    }
+  ],
+
+  "resumeInstructions": "On session start, read this file first, then SESSION_LOG.md for narrative context. Check 'currentPhase' and 'currentTask' to know exactly where to resume. Reference module IDs from 'modules.registry' when discussing functionality."
+}
