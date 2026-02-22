@@ -23,22 +23,28 @@ An MES also interfaces to production equipment controllers (e.g. Programmable Lo
 An MES tracks the progress of work-in-process (WIP) represented by units or lots of material through the physical model of production lines, work centers and equipment.  
 A dispatching algorithm upon the occurance of a production event decides what work center or equipment to move the work (unit or lot) to.  
 The dispatching could be manual in which case an operator enters a disposition mapped to a destination.  
-Or the dispatching could be automated based on the downstream equipment’s capability and capacity to receive additional work.
+Or the dispatching could be automated based on the downstream equipmentï¿½s capability and capacity to receive additional work.
 
 The end user will use an IDE such as Claude Code or VS Code to implement new features.  We will use VS Code to develop the MES framework.  
 A Git repository will be used to store all artifacts from which the end user will download the framework and proceed to make their customizations.
 
 Implementation
 The major phases to accomplish the goals of this project are:
-!1)	Survey existing commercial MES’s and their capabilities and create a list of required functionality, then document the conclusions.
+!1)	Survey existing commercial MESï¿½s and their capabilities and create a list of required functionality, then document the conclusions.
 (2)	Propose an implementation architecture.  The system should be client/server with a REST HTTP/HTTPS interface between clients and a server.  
-The clients can be written in the programming language of the end user’s choice.  
+The clients can be written in the programming language of the end userï¿½s choice.  
 A runtime client that manipulates WIP can have a GUI for use by a human or can be headless if interfacing to automated equipment for example.  
-A design time client will allow the end user to view what funtionality has been implemented and how the pieces “fit together”.  
+A design time client will allow the end user to view what funtionality has been implemented and how the pieces ï¿½fit togetherï¿½.  
 The server will provide MES capabilities and store data in a Relational Database Management System (RDBMS) for tracking and reporting purposes.
 (3)	Divide up the implementation into a series of manageable implementation tasks starting with the server. 
 Automated testing needs to be implemented to verify that a task has been complemented.  
-For the physical environment of an ERP, controllers or test equipment, it is not feasible to test against “real” interfaces or devices.  In this case, mocking up an interface will be required.
+For the physical environment of an ERP, controllers or test equipment, it is not feasible to test against ï¿½realï¿½ interfaces or devices.  In this case, mocking up an interface will be required.
 
 
+How to resume a future session: Say "Resume MES AI project" â€” I'll read PROJECT_STATE.json and SESSION_LOG.md to pick up exactly where we left off.
 
+How It Works
+Session start: You paste a single prompt like "Resume MES AI project" â€” the AI reads PROJECT_STATE.json and SESSION_LOG.md, instantly knows the current state, and picks up where it left off.
+During session: As work progresses, both files are updated incrementally.
+Session end: A final update captures exactly where we stopped and what's next.
+Module IDs: Every functional module gets a short identifier (e.g., WIP-TRACK, DISPATCH-ENGINE, ERP-ADAPTER) registered in PROJECT_STATE.json. You reference these IDs instead of describing functionality.
