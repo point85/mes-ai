@@ -10,8 +10,9 @@
     {
       "id": "P1",
       "name": "Survey & Requirements",
-      "status": "not-started",
+      "status": "complete",
       "description": "Survey existing commercial MES systems, compile required functionality list, document conclusions",
+      "deliverable": "docs/MES_SURVEY.md",
       "tasks": []
     },
     {
@@ -51,12 +52,38 @@
     }
   ],
 
-  "currentPhase": "P1",
+  "currentPhase": "P2",
   "currentTask": null,
 
   "modules": {
-    "_comment": "Module registry. Each module gets a short ID for reference. Populated as modules are implemented.",
-    "registry": {}
+    "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
+    "registry": {
+      "PHYS-MODEL":    { "name": "Physical Model",                  "phase": "P3", "status": "planned" },
+      "WIP-TRACK":     { "name": "WIP Tracking",                   "phase": "P3", "status": "planned" },
+      "ROUTE-DEF":     { "name": "Route Definition",               "phase": "P3", "status": "planned" },
+      "ROUTE-ENGINE":  { "name": "Routing Engine",                 "phase": "P3", "status": "planned" },
+      "DISPATCH":      { "name": "Dispatching Engine",             "phase": "P3", "status": "planned" },
+      "PROD-ORDER":    { "name": "Production Order Management",    "phase": "P3", "status": "planned" },
+      "MAT-MGMT":      { "name": "Material Management",            "phase": "P3", "status": "planned" },
+      "DATA-COLLECT":  { "name": "Data Collection",                "phase": "P3", "status": "planned" },
+      "PROD-DEF":      { "name": "Product Definition",             "phase": "P3", "status": "planned" },
+      "QUAL-MGMT":     { "name": "Quality Management",             "phase": "P3", "status": "planned" },
+      "PERF-ANALYSIS": { "name": "Performance Analysis",           "phase": "P3", "status": "planned" },
+      "GENEALOGY":     { "name": "Product Genealogy/Traceability", "phase": "P3", "status": "planned" },
+      "ERP-IBOUND":    { "name": "ERP Inbound Adapter",            "phase": "P4", "status": "planned" },
+      "ERP-OBOUND":    { "name": "ERP Outbound Adapter",           "phase": "P4", "status": "planned" },
+      "EQUIP-INTFC":   { "name": "Equipment Interface Adapter",    "phase": "P4", "status": "planned" },
+      "TEST-INTFC":    { "name": "Test Equipment Adapter",         "phase": "P4", "status": "planned" },
+      "RT-GUI":        { "name": "Runtime GUI Client",             "phase": "P5", "status": "planned" },
+      "RT-HEADLESS":   { "name": "Runtime Headless Client",        "phase": "P5", "status": "planned" },
+      "DT-CLIENT":     { "name": "Design-Time Client",             "phase": "P5", "status": "planned" },
+      "PLUGIN-FW":     { "name": "Plugin Framework",               "phase": "P3", "status": "planned" },
+      "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "planned" },
+      "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "planned" },
+      "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "planned" },
+      "AUTH":          { "name": "Authentication & Authorization", "phase": "P3", "status": "planned" },
+      "SESSION-META":  { "name": "AI Session Metadata",            "phase": "P3", "status": "planned" }
+    }
   },
 
   "decisions": [
@@ -83,6 +110,30 @@
       "date": "2026-02-22",
       "decision": "Client/server with REST HTTP/HTTPS; RDBMS for persistence",
       "rationale": "Per project requirements; well-understood patterns with broad language support"
+    },
+    {
+      "id": "D005",
+      "date": "2026-02-22",
+      "decision": "ISA-95/IEC 62264 alignment for data model and operations categories",
+      "rationale": "All major commercial MES systems align with ISA-95; ensures industry-standard interoperability"
+    },
+    {
+      "id": "D006",
+      "date": "2026-02-22",
+      "decision": "Event-driven architecture with internal event bus",
+      "rationale": "Dispatching, plugin hooks, and equipment integration all depend on event-driven patterns"
+    },
+    {
+      "id": "D007",
+      "date": "2026-02-22",
+      "decision": "Start with single-site discrete manufacturing; process/batch as future plugin",
+      "rationale": "Widest initial audience; ISA-88 batch support deferred to backlog"
+    },
+    {
+      "id": "D008",
+      "date": "2026-02-22",
+      "decision": "25 modules identified and registered with IDs for project tracking",
+      "rationale": "Enables referencing functionality by ID; documented in MES_SURVEY.md Section 4"
     }
   ],
 
