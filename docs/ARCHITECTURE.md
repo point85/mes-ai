@@ -314,9 +314,12 @@ Genealogy is built from the relationships between `Unit/Lot`, `UnitHistory/LotHi
 
 | Entity | Fields | Relations |
 |---|---|---|
-| **User** | `id`, `username`, `email`, `hashed_password`, `full_name`, `is_active`, `is_superuser` | → UserRoles |
+| **User** | `id`, `username`, `email`, `full_name`, `idp_subject` (IdP unique ID), `idp_issuer`, `is_active`, `is_superuser`, `last_login` | → UserRoles |
 | **Role** | `id`, `name`, `description`, `permissions` (JSON array of permission strings) | → UserRoles |
-| **UserRole** | `id`, `user_id`, `role_id` | → User, → Role |
+| **UserRole** | `id`, `user_id`, `role_id`, `assigned_at`, `assigned_by` (auto/manual) | → User, → Role |
+| **IdPGroupMapping** | `id`, `idp_group_name`, `role_id`, `is_active` | → Role |
+
+> **Note**: The `User` table has no `hashed_password` field. Credentials are managed by the external Identity Provider. The `idp_subject` + `idp_issuer` pair uniquely identifies a user across providers. Users are auto-provisioned (JIT) on first OIDC login.
 
 ### 5.3 Database Conventions
 
@@ -612,12 +615,16 @@ All relationship types are fully portable across PostgreSQL, SQL Server, Oracle,
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/auth/login` | Authenticate, receive JWT |
-| `POST` | `/api/v1/auth/refresh` | Refresh JWT token |
-| `GET` | `/api/v1/auth/me` | Get current user profile |
+| `GET` | `/api/v1/auth/login` | Redirect to IdP login page (OIDC Authorization Code flow) |
+| `GET` | `/api/v1/auth/callback` | OIDC callback — exchange code for tokens, JIT provision user, issue MES JWT |
+| `POST` | `/api/v1/auth/refresh` | Refresh MES JWT using refresh token |
+| `POST` | `/api/v1/auth/logout` | Revoke tokens, optionally trigger IdP logout (front-channel) |
+| `GET` | `/api/v1/auth/me` | Get current user profile and permissions |
 | `GET/POST` | `/api/v1/auth/users` | List / create users (admin) |
 | `GET/PUT` | `/api/v1/auth/users/{user_id}` | Get / update user (admin) |
 | `GET/POST` | `/api/v1/auth/roles` | List / create roles (admin) |
+| `GET/PUT` | `/api/v1/auth/group-mappings` | List / update IdP group → MES role mappings (admin) |
+| `GET` | `/api/v1/auth/.well-known/openid-configuration` | Proxy/cache IdP discovery document |
 
 #### Plugin Management (PLUGIN-FW)
 
@@ -665,6 +672,20 @@ version: 1.0.0
 description: Adds custom dispatching logic for multi-criteria optimization
 author: AI Agent
 min_mes_version: "0.1.0"
+
+# Custom permissions this plugin introduces (auto-registered on install)
+permissions:
+  - id: my_custom_plugin.config.read
+    description: View optimizer configuration
+  - id: my_custom_plugin.config.update
+    description: Modify optimizer weights and parameters
+  - id: my_custom_plugin.simulate
+    description: Run dispatch simulations
+
+# Existing core permissions this plugin's logic requires
+required_core_permissions:
+  - dispatch.read
+  - wip.read
 
 # What this plugin extends
 extension_points:
@@ -819,7 +840,9 @@ class MESEvent:
 | `data.collected` | DATA-COLLECT | `{definition_id, unit_id, value}` |
 | `plugin.loaded` | PLUGIN-FW | `{plugin_id, version}` |
 | `plugin.error` | PLUGIN-FW | `{plugin_id, error}` |
-| `auth.login` | AUTH | `{user_id}` |
+| `auth.login` | AUTH | `{user_id, auth_mode, idp_issuer}` |
+| `auth.user.provisioned` | AUTH | `{user_id, idp_subject, idp_issuer}` |
+| `auth.roles.synced` | AUTH | `{user_id, old_roles, new_roles}` |
 
 ### 8.4 Subscription
 
@@ -866,31 +889,333 @@ class BaseAdapter(ABC):
 
 ### 9.2 ERP Adapters (ERP-IBOUND, ERP-OBOUND)
 
-**Inbound (ERP → MES):**
-- Receive production orders (schedule, quantities, product, BOM)
-- Receive material master data
-- Receive product definition updates
+#### 9.2.1 Overview
 
-**Outbound (MES → ERP):**
-- Report production completions (good/reject quantities)
-- Report material consumption (backflush or real-time)
-- Report labor time
-- Report equipment downtime
+The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 boundaries. The adapter layer abstracts ERP-specific APIs behind a common interface, allowing the end user to swap ERP vendors by implementing a different adapter plugin — no core MES changes required.
 
-**Interface:**
-```python
-class ERPInboundAdapter(BaseAdapter):
-    async def sync_production_orders(self) -> list[ProductionOrder]: ...
-    async def sync_materials(self) -> list[MaterialDefinition]: ...
-    async def sync_products(self) -> list[ProductDefinition]: ...
+**Integration Pattern:**
 
-class ERPOutboundAdapter(BaseAdapter):
-    async def report_completion(self, order_id, qty_good, qty_reject) -> None: ...
-    async def report_consumption(self, order_id, materials: list) -> None: ...
-    async def report_downtime(self, equipment_id, duration, reason) -> None: ...
+```
+┌──────────────┐     ┌───────────────────────┐     ┌──────────────┐
+│              │     │   MES ERP Adapter       │     │              │
+│   ERP        │◄───►│   (vendor-specific      │◄───►│  MES Core    │
+│   System     │     │    plugin)              │     │  Modules     │
+│              │     │                         │     │              │
+└──────────────┘     │  ┌───────────────────┐  │     └──────────────┘
+                     │  │ ERPInboundAdapter  │  │
+                     │  │ ERPOutboundAdapter │  │
+                     │  │ ERPTransformLayer  │  │
+                     │  └───────────────────┘  │
+                     └───────────────────────────┘
 ```
 
-**Mock implementation:** File-based (JSON import/export) for development and testing.
+#### 9.2.2 Inbound Data Flows (ERP → MES)
+
+| Data | ERP Source | MES Destination | Trigger |
+|---|---|---|---|
+| **Production Orders** | ERP production planning/scheduling | PROD-ORDER module | Scheduled poll or ERP push (webhook/event) |
+| **Material Master** | ERP material management | MAT-MGMT module | Scheduled sync or on-demand |
+| **Bill of Materials** | ERP product engineering | PROD-DEF module | On production order receipt or scheduled sync |
+| **Product/Item Master** | ERP product management | PROD-DEF module | Scheduled sync |
+| **Routing** | ERP routing/recipe management | ROUTE-DEF module | On production order receipt |
+| **Work Center Master** | ERP work center definitions | PHYS-MODEL module | Initial setup + scheduled sync |
+
+#### 9.2.3 Outbound Data Flows (MES → ERP)
+
+| Data | MES Source | ERP Destination | Trigger |
+|---|---|---|---|
+| **Production Completion** | WIP-TRACK (unit/lot completes final step) | ERP production confirmation | Event: `wip.unit.completed` at final step |
+| **Material Consumption** | MAT-MGMT (materials consumed at step) | ERP goods movement (backflush or real-time) | Event: `material.consumed` |
+| **Scrap Reporting** | WIP-TRACK (unit/lot scrapped) | ERP scrap posting | Event: `wip.unit.scrapped` |
+| **Labor Reporting** | DATA-COLLECT (operator time at step) | ERP time confirmation | Event: `wip.unit.completed` (with labor data) |
+| **Equipment Downtime** | PERF-ANALYSIS (equipment state log) | ERP maintenance notification | Event: `equipment.state.changed` (to down) |
+| **Quality Results** | QUAL-MGMT (test pass/fail) | ERP quality notification | Event: `quality.test.failed` |
+| **WIP Status** | WIP-TRACK (current quantities, status) | ERP WIP reporting | Scheduled or on-demand |
+
+#### 9.2.4 Abstract ERP Interface
+
+```python
+class ERPInboundAdapter(BaseAdapter):
+    """Pulls data from ERP into MES."""
+
+    async def sync_production_orders(
+        self, since: datetime | None = None
+    ) -> list[ProductionOrderDTO]: ...
+
+    async def sync_materials(
+        self, since: datetime | None = None
+    ) -> list[MaterialDefinitionDTO]: ...
+
+    async def sync_products(
+        self, since: datetime | None = None
+    ) -> list[ProductDefinitionDTO]: ...
+
+    async def sync_boms(
+        self, product_id: str
+    ) -> list[BillOfMaterialDTO]: ...
+
+    async def sync_routings(
+        self, product_id: str
+    ) -> list[ProcessRouteDTO]: ...
+
+    async def sync_work_centers(self) -> list[WorkCenterDTO]: ...
+
+
+class ERPOutboundAdapter(BaseAdapter):
+    """Pushes data from MES back to ERP."""
+
+    async def report_completion(
+        self, order_id: str, qty_good: int, qty_reject: int,
+        step_id: str | None = None
+    ) -> ERPConfirmation: ...
+
+    async def report_consumption(
+        self, order_id: str, materials: list[MaterialConsumptionDTO]
+    ) -> ERPConfirmation: ...
+
+    async def report_scrap(
+        self, order_id: str, qty_scrapped: int, reason_code: str
+    ) -> ERPConfirmation: ...
+
+    async def report_labor(
+        self, order_id: str, operator_id: str, duration_minutes: float
+    ) -> ERPConfirmation: ...
+
+    async def report_downtime(
+        self, equipment_id: str, duration_minutes: float,
+        reason_code: str, started_at: datetime
+    ) -> ERPConfirmation: ...
+
+    async def report_quality_result(
+        self, order_id: str, test_id: str, result: str,
+        details: dict
+    ) -> ERPConfirmation: ...
+
+
+class ERPTransformLayer(ABC):
+    """Maps between MES internal models and ERP-specific data formats."""
+
+    @abstractmethod
+    def to_production_order(self, erp_data: dict) -> ProductionOrderDTO: ...
+
+    @abstractmethod
+    def from_completion(self, completion: CompletionReport) -> dict: ...
+
+    @abstractmethod
+    def to_material(self, erp_data: dict) -> MaterialDefinitionDTO: ...
+
+    @abstractmethod
+    def from_consumption(self, consumption: ConsumptionReport) -> dict: ...
+```
+
+#### 9.2.5 Supported ERP Vendors
+
+Each ERP vendor is implemented as a plugin that provides concrete `ERPInboundAdapter`, `ERPOutboundAdapter`, and `ERPTransformLayer` implementations.
+
+##### SAP S/4HANA & SAP ECC
+
+**Protocol**: OData REST APIs (S/4HANA) / BAPIs via RFC (ECC) / IDocs (async messaging)
+
+**Inbound APIs (ERP → MES):**
+
+| MES Data | SAP S/4HANA API (OData) | SAP ECC API (BAPI) |
+|---|---|---|
+| Production Orders | `API_PRODUCTION_ORDER_2_SRV` | `BAPI_PRODORD_GET_DETAIL` |
+| Material Master | `API_PRODUCT_SRV`, `API_MATERIAL_STOCK_SRV` | `BAPI_MATERIAL_GET_DETAIL` |
+| Bill of Materials | `API_BILL_OF_MATERIAL_SRV` | `CSAP_MAT_BOM_READ` |
+| Routing | `API_PRODUCTION_ROUTING` | `BAPI_ROUTING_GET` |
+| Work Centers | `API_WORK_CENTERS_SRV` | `BAPI_WORKCENTER_GET_DETAIL` |
+
+**Outbound APIs (MES → ERP):**
+
+| MES Report | SAP S/4HANA API (OData) | SAP ECC API (BAPI) |
+|---|---|---|
+| Production Confirmation | `API_PROD_ORDER_CONFIRMATION_2_SRV` | `BAPI_PRODORDCONF_CREATE_TT` |
+| Goods Movement (consumption) | `API_MATERIAL_DOCUMENT_SRV` | `BAPI_GOODSMVT_CREATE` |
+| Scrap Posting | `API_MATERIAL_DOCUMENT_SRV` (mvt type 551) | `BAPI_GOODSMVT_CREATE` (mvt type 551) |
+| Quality Notification | `API_QUALITY_NOTIFICATION_SRV` | `BAPI_QUALNOT_CREATE` |
+
+**Authentication**: OAuth 2.0 (S/4HANA Cloud), SAP Logon Ticket / Basic Auth (on-premise)
+
+**Python Libraries**: `httpx` (OData REST), `pyrfc` (RFC/BAPI for ECC)
+
+##### Oracle Cloud ERP (Fusion)
+
+**Protocol**: Oracle REST API
+
+**Inbound APIs (ERP → MES):**
+
+| MES Data | Oracle Cloud ERP REST API |
+|---|---|
+| Production Orders (Work Orders) | `GET /manufacturingWorkOrders` |
+| Item/Product Master | `GET /itemsV2` |
+| Bill of Materials | `GET /workDefinitions/{id}/workDefinitionOperationResources` |
+| On-hand Inventory | `GET /inventoryBalances` |
+| Work Centers / Resources | `GET /manufacturingResources` |
+
+**Outbound APIs (MES → ERP):**
+
+| MES Report | Oracle Cloud ERP REST API |
+|---|---|
+| Work Order Completion | `POST /workOrderCompletions` |
+| Material Transaction (consumption) | `POST /inventoryMaterialTransactions` |
+| Quality Results | `POST /qualityResults` |
+
+**Authentication**: OAuth 2.0 (Oracle Cloud); Oracle Integration Cloud (OIC) for on-premise EBS
+
+**Python Libraries**: `httpx` (REST)
+
+##### Oracle E-Business Suite (EBS) — Legacy
+
+**Protocol**: PL/SQL APIs via Oracle Integration Cloud (OIC) or direct DB connection
+
+| MES Data | Oracle EBS API |
+|---|---|
+| Work Orders | `WIP_MASSLOAD_PUB` |
+| Inventory | `INV_QUANTITY_TREE_PUB` |
+| Completions | `WIP_COMPLETION_PUB.complete` |
+| Material Issues | `INV_TXN_MANAGER_PUB` |
+
+##### Microsoft Dynamics 365 Finance & Operations
+
+**Protocol**: OData REST APIs (data entities)
+
+**Inbound APIs (ERP → MES):**
+
+| MES Data | D365 F&O OData Entity |
+|---|---|
+| Production Orders | `ProductionOrders` |
+| Released Products | `ReleasedProductsV2` |
+| Bill of Materials | `BillOfMaterialsHeaders`, `BillOfMaterialsLines` |
+| Route Operations | `RouteOperations` |
+| On-hand Inventory | `InventoryOnhandEntities` |
+
+**Outbound APIs (MES → ERP):**
+
+| MES Report | D365 F&O OData Entity / Action |
+|---|---|
+| Production Completion | `ProductionOrderReportAsFinished` (action) |
+| Material Consumption | `ProductionPickingListJournalLines` |
+| Route Card (labor) | `ProductionRouteCardJournalLines` |
+| Quality Orders | `QualityOrders` |
+
+**Authentication**: OAuth 2.0 via Microsoft Entra ID (Azure AD)
+
+**Python Libraries**: `httpx` (OData REST), `msal` (Microsoft auth)
+
+##### Infor CloudSuite / M3
+
+**Protocol**: Infor ION messaging (BODs) + Infor OS REST APIs
+
+**Data Format**: OAGIS-based Business Object Documents (BODs)
+
+| MES Data | Infor BOD / API |
+|---|---|
+| Production Orders | `SyncProductionOrder` BOD / REST `M3 MOS450MI` |
+| Item Master | `SyncItemMaster` BOD / REST `M3 MMS200MI` |
+| Bill of Materials | `SyncBillOfMaterial` BOD |
+| Completion Confirmation | `ConfirmProductionOrder` BOD / REST `M3 MOS450MI` |
+| Material Consumption | `SyncMaterialIssue` BOD |
+
+**Authentication**: Infor ION API Gateway (OAuth 2.0)
+
+**Python Libraries**: `httpx` (REST), XML libraries for BOD processing
+
+#### 9.2.6 Data Transformation Layer
+
+Each ERP vendor adapter includes a transform layer that maps between ERP-specific data formats and the MES canonical data model (DTOs). This isolates ERP-specific field names, data types, and conventions from core MES logic.
+
+**Example — SAP Production Order transformation:**
+
+```python
+class SAPTransformLayer(ERPTransformLayer):
+    def to_production_order(self, erp_data: dict) -> ProductionOrderDTO:
+        return ProductionOrderDTO(
+            erp_reference=erp_data["ManufacturingOrder"],
+            product_code=erp_data["Material"],
+            quantity_ordered=int(erp_data["TotalQuantity"]),
+            planned_start=parse_sap_datetime(erp_data["MfgOrderPlannedStartDate"]),
+            planned_end=parse_sap_datetime(erp_data["MfgOrderPlannedEndDate"]),
+            priority=int(erp_data.get("MfgOrderPriority", 500)),
+            uom=erp_data["ProductionUnit"],
+            bom_id=erp_data.get("BillOfMaterial"),
+            routing_id=erp_data.get("ProductionRouting"),
+        )
+
+    def from_completion(self, completion: CompletionReport) -> dict:
+        return {
+            "ManufacturingOrder": completion.erp_reference,
+            "OrderConfirmationType": "10",  # Final confirmation
+            "ConfirmationYieldQuantity": str(completion.qty_good),
+            "ConfirmationScrapQuantity": str(completion.qty_reject),
+            "ProductionUnit": completion.uom,
+        }
+```
+
+#### 9.2.7 Integration Patterns
+
+| Pattern | Description | When Used |
+|---|---|---|
+| **Polling** | MES periodically calls ERP APIs to check for new/changed data | Default for inbound; configurable interval (e.g., every 5 min) |
+| **Webhook / Push** | ERP pushes events to MES REST endpoint when data changes | Where ERP supports it (S/4HANA Event Mesh, D365 Business Events) |
+| **Message Queue** | Async messaging via middleware (Kafka, RabbitMQ, Infor ION) | High-volume environments; guaranteed delivery |
+| **File-based** | CSV/XML file exchange in shared directory | Legacy ERPs; air-gapped environments |
+| **Batch Sync** | Full table sync on schedule (nightly, shift start) | Initial load; master data refresh |
+
+**Retry and Error Handling:**
+- Failed outbound reports are queued in a `erp_outbound_queue` table with status (pending/sent/failed/retry)
+- Exponential backoff retry with configurable max attempts
+- Failed messages are logged and surfaced via event: `erp.outbound.failed`
+- Admin API endpoint to view and retry failed messages
+
+#### 9.2.8 ERP Adapter Configuration
+
+```python
+# .env
+MES_ERP_ADAPTER=sap_s4hana              # "sap_s4hana" | "sap_ecc" | "oracle_cloud" | "oracle_ebs" | "dynamics365" | "infor_m3" | "mock"
+MES_ERP_BASE_URL=https://sap-server.factory.com/sap/opu/odata/sap
+MES_ERP_AUTH_TYPE=oauth2                 # "oauth2" | "basic" | "api_key"
+MES_ERP_CLIENT_ID=mes-integration
+MES_ERP_CLIENT_SECRET=secret
+MES_ERP_TOKEN_URL=https://sap-server.factory.com/oauth/token
+MES_ERP_POLL_INTERVAL_SEC=300            # 5 minutes
+MES_ERP_RETRY_MAX_ATTEMPTS=5
+MES_ERP_RETRY_BACKOFF_SEC=30
+```
+
+#### 9.2.9 Mock ERP Adapter
+
+For development, testing, and demo environments:
+
+- **Inbound**: Reads production orders, materials, and BOMs from JSON files in a configurable directory
+- **Outbound**: Writes completion/consumption reports to JSON files (verifiable in tests)
+- **Simulates latency**: Configurable delay to mimic real ERP response times
+- **Simulates failures**: Configurable failure rate to test retry logic
+
+```python
+class MockERPInboundAdapter(ERPInboundAdapter):
+    async def sync_production_orders(self, since=None) -> list[ProductionOrderDTO]:
+        data = await self._read_json("production_orders.json")
+        return [self.transform.to_production_order(d) for d in data]
+
+class MockERPOutboundAdapter(ERPOutboundAdapter):
+    async def report_completion(self, order_id, qty_good, qty_reject, step_id=None):
+        report = {"order_id": order_id, "qty_good": qty_good, "qty_reject": qty_reject}
+        await self._write_json("completions.json", report)
+        return ERPConfirmation(success=True, erp_doc_number="MOCK-001")
+```
+
+#### 9.2.10 ISA-95 / B2MML Alignment
+
+The MES canonical data model (DTOs) aligns with ISA-95 Part 4 object models and can be serialized to B2MML XML for ERP systems that support it:
+
+| MES DTO | ISA-95 Object | B2MML Element |
+|---|---|---|
+| `ProductionOrderDTO` | Production Schedule / Production Request | `<ProductionSchedule>` |
+| `CompletionReport` | Production Performance | `<ProductionPerformance>` |
+| `MaterialConsumptionDTO` | Material Consumed Actual | `<MaterialConsumedActual>` |
+| `ProductDefinitionDTO` | Product Definition | `<ProductDefinition>` |
+| `ProcessRouteDTO` | Process Segment / Operations Schedule | `<ProcessSegment>` |
 
 ### 9.3 Equipment Adapter (EQUIP-INTFC)
 
@@ -975,19 +1300,251 @@ Unit completes step
 
 ## 11. Authentication & Authorization (AUTH)
 
-### 11.1 Authentication
+### 11.1 Authentication — OpenID Connect (OIDC) SSO
 
-- **Method**: JWT (JSON Web Token) via `Authorization: Bearer <token>` header
-- **Token lifetime**: Access token (15 min), Refresh token (7 days)
-- **Password storage**: bcrypt hash
-- **Login flow**: `POST /api/v1/auth/login` with `{username, password}` → receive `{access_token, refresh_token}`
+The MES delegates authentication to an external Identity Provider (IdP) via the **OpenID Connect** standard. The MES server never stores passwords.
 
-### 11.2 Authorization
+**Supported Identity Providers** (any OIDC-compliant IdP):
+
+| Provider | Type | Common In |
+|---|---|---|
+| **Microsoft Entra ID** (Azure AD) | Cloud | Microsoft-heavy enterprises, Office 365 shops |
+| **Keycloak** | Self-hosted (open source) | On-premise factories, air-gapped environments |
+| **WSO2 Identity Server** | Self-hosted (open source) | Manufacturing, integration-heavy environments |
+| **Okta** / **Auth0** | Cloud | Mid-to-large enterprises, SaaS-heavy environments |
+| **PingIdentity / PingFederate** | Hybrid | Large enterprises, legacy SAML environments |
+| **AWS Cognito** | Cloud | AWS-hosted deployments |
+| **Google Workspace** | Cloud | Google-centric organizations |
+| **ADFS** | Self-hosted | Windows Server environments, legacy Microsoft shops |
+
+**Authentication Flow** (OIDC Authorization Code with PKCE):
+
+```
+User opens MES client (browser)
+       │
+       ▼
+GET /api/v1/auth/login → 302 redirect to IdP authorization endpoint
+       │
+       ▼
+User authenticates at IdP (password, MFA, smart card, biometric, etc.)
+       │
+       ▼
+IdP redirects to GET /api/v1/auth/callback?code=...&state=...
+       │
+       ▼
+MES server exchanges authorization code for ID token + access token
+       │
+       ▼
+MES server reads user claims (sub, name, email, groups) from ID token
+       │
+       ▼
+JIT (Just-In-Time) user provisioning:
+  - If user (idp_subject + idp_issuer) exists → update last_login
+  - If user is new → create User record from token claims
+       │
+       ▼
+Map IdP groups → MES roles (via IdPGroupMapping table)
+       │
+       ▼
+Issue MES-internal JWT (short-lived) for subsequent API calls
+```
+
+**Token Details:**
+
+| Token | Lifetime | Purpose |
+|---|---|---|
+| MES Access Token (JWT) | 15 minutes | API authorization (`Authorization: Bearer <token>`) |
+| MES Refresh Token | 7 days | Obtain new access token without re-authenticating |
+| IdP ID Token | per IdP config | Used once during callback to read claims; not stored |
+
+**Key Design Points:**
+- The MES server is an **OIDC Relying Party** — it only validates tokens, never issues them at the IdP level
+- **PKCE** (Proof Key for Code Exchange) is required for public clients (browser SPAs)
+- **Headless clients** (equipment adapters, automation) use OIDC **Client Credentials** flow (machine-to-machine)
+- **Python library**: `authlib` — full OIDC client, async-compatible, well-maintained
+
+### 11.2 Local Authentication (Development/Fallback)
+
+For development, testing, and air-gapped environments where no IdP is available:
+
+- **Mode**: `MES_AUTH_MODE=local` in configuration
+- **Method**: Username/password with bcrypt hash, stored in `User.hashed_password` (nullable field, only populated in local mode)
+- **Login**: `POST /api/v1/auth/local/login` with `{username, password}` → MES JWT
+- **Disabled in production by default** — must be explicitly enabled via configuration
+
+### 11.3 Authorization
 
 - **Model**: Role-Based Access Control (RBAC)
-- **Permissions**: Dot-notation strings (`physical_model.create`, `wip.unit.move`, `quality.nc.resolve`, `plugin.manage`, etc.)
-- **Enforcement**: FastAPI dependency injection — routes declare required permissions
-- **Default roles**: `admin` (all), `engineer` (design + data), `operator` (runtime WIP), `viewer` (read-only)
+- **Granularity**: Per-endpoint — every REST API endpoint declares its required permission(s)
+- **Enforcement**: FastAPI dependency injection — routes declare required permissions; unauthorized requests receive HTTP 403
+- **Role mapping**: Configurable IdP group → MES role mapping via `IdPGroupMapping` table and `/api/v1/auth/group-mappings` API
+- **JIT role sync**: On every login, user's MES roles are re-synced from IdP group claims, ensuring changes in the IdP are immediately reflected
+
+**Endpoint-Level Enforcement Example:**
+
+```python
+@router.post("/api/v1/units/{unit_id}/move")
+async def move_unit(
+    unit_id: UUID,
+    current_user: User = Depends(require_permission("wip.unit.move"))
+):
+    ...
+# A user without "wip.unit.move" permission gets HTTP 403 Forbidden
+```
+
+#### 11.3.1 Permission Structure
+
+Permissions follow the pattern: **`module.resource.action`**
+
+| Component | Values |
+|---|---|
+| **module** | `physical_model`, `product_def`, `production`, `wip`, `dispatch`, `material`, `quality`, `data_collect`, `performance`, `plugin`, `auth` |
+| **resource** | `site`, `area`, `line`, `work_center`, `equipment`, `product`, `route`, `order`, `unit`, `lot`, `test`, `nc`, `user`, `role`, etc. |
+| **action** | `read`, `create`, `update`, `delete`, `execute` |
+
+**Wildcard matching** is supported at any level:
+- `*` — all permissions (admin only)
+- `wip.*` — all WIP operations
+- `*.read` — read access to everything
+- `quality.*` — all quality operations
+
+#### 11.3.2 Full Permission Map
+
+| Module | Permission | Description | Endpoints Guarded |
+|---|---|---|---|
+| **PHYS-MODEL** | `physical_model.read` | View sites, areas, lines, work centers, equipment | All GET endpoints |
+| | `physical_model.create` | Create physical model entities | All POST endpoints |
+| | `physical_model.update` | Update entities, change equipment status | All PUT/PATCH endpoints |
+| | `physical_model.delete` | Soft-delete entities | All DELETE endpoints |
+| **PROD-DEF** | `product_def.read` | View products, BOMs, routes, steps | All GET endpoints |
+| | `product_def.create` | Create products, routes, BOMs | All POST endpoints |
+| | `product_def.update` | Modify products, routes, BOMs | All PUT endpoints |
+| | `product_def.delete` | Soft-delete product definitions | All DELETE endpoints |
+| **PROD-ORDER** | `production.order.read` | View production orders | GET endpoints |
+| | `production.order.create` | Create production orders | POST create |
+| | `production.order.update` | Update order details | PUT endpoints |
+| | `production.order.execute` | Release, complete, close orders | POST release/complete |
+| **WIP-TRACK** | `wip.read` | View units, lots, history, genealogy | All GET endpoints |
+| | `wip.unit.create` | Create units | POST create |
+| | `wip.unit.move` | Start, complete, move units | POST start/complete/move |
+| | `wip.unit.hold` | Place/release hold on units | POST hold/release-hold |
+| | `wip.unit.scrap` | Scrap units | POST scrap |
+| | `wip.lot.*` | Same pattern for lots | Lot endpoints |
+| **DISPATCH** | `dispatch.read` | View dispatch queues, strategies | GET endpoints |
+| | `dispatch.execute` | Evaluate and execute dispatch decisions | POST evaluate/execute |
+| **MAT-MGMT** | `material.read` | View materials, lots, consumption | All GET endpoints |
+| | `material.create` | Create material definitions, lots | POST endpoints |
+| | `material.update` | Update materials, lots | PUT endpoints |
+| | `material.consume` | Record material consumption | POST consume |
+| **QUAL-MGMT** | `quality.read` | View tests, results, non-conformances | All GET endpoints |
+| | `quality.test.create` | Define quality tests | POST test definitions |
+| | `quality.result.record` | Record test results | POST test results |
+| | `quality.nc.create` | Create non-conformances | POST non-conformances |
+| | `quality.nc.resolve` | Resolve/disposition non-conformances | PUT non-conformances |
+| **DATA-COLLECT** | `data_collect.read` | View data definitions, data points | GET endpoints |
+| | `data_collect.define` | Create data definitions | POST definitions |
+| | `data_collect.record` | Collect data points | POST collect/collect-batch |
+| **PERF-ANALYSIS** | `performance.read` | View OEE, states, counters | GET endpoints |
+| | `performance.record` | Record equipment states, counters | POST endpoints |
+| **PLUGIN-FW** | `plugin.read` | View installed plugins, config | GET endpoints |
+| | `plugin.manage` | Install, uninstall, enable, disable, configure | POST/DELETE/PUT endpoints |
+| **AUTH** | `auth.user.read` | View user list | GET users |
+| | `auth.user.manage` | Create/update users | POST/PUT users |
+| | `auth.role.manage` | Create/update roles, group mappings | POST/PUT roles, group-mappings |
+
+#### 11.3.3 Default Roles
+
+| Role | Permissions | Typical User |
+|---|---|---|
+| **admin** | `*` (all permissions) | System administrator, IT |
+| **engineer** | `physical_model.*`, `product_def.*`, `production.order.*`, `dispatch.*`, `material.*`, `quality.*`, `data_collect.*`, `performance.*`, `wip.read`, `plugin.read` | Process engineer, manufacturing engineer |
+| **operator** | `wip.*`, `dispatch.read`, `dispatch.execute`, `data_collect.read`, `data_collect.record`, `quality.result.record`, `quality.nc.create`, `material.read`, `material.consume`, `performance.read`, `physical_model.read`, `product_def.read`, `production.order.read` | Shop floor operator |
+| **viewer** | `*.read` (all read permissions) | Management, reporting, auditors |
+
+#### 11.3.4 Example Scenarios
+
+1. **Operator scans a unit at a work center**: Needs `wip.unit.move` — allowed. Tries to modify a production route — needs `product_def.update` — **denied (403)**.
+2. **Engineer creates a new product definition**: Needs `product_def.create` — allowed. Tries to install a plugin — needs `plugin.manage` — **denied (403)**.
+3. **Headless equipment client reporting data**: Uses service account with only `data_collect.record` + `wip.unit.move` + `performance.record`.
+4. **Viewer dashboard querying OEE**: Needs `performance.read` — allowed. Tries to scrap a unit — needs `wip.unit.scrap` — **denied (403)**.
+
+#### 11.3.5 Plugin Permissions
+
+Plugins participate in the same RBAC permission system as core modules. No separate mechanism is needed.
+
+**Declaration:** Plugins declare custom permissions in `manifest.yaml` under the `permissions` key (see §7.2):
+
+```yaml
+# manifest.yaml
+permissions:
+  - id: my_plugin.config.read
+    description: View plugin configuration
+  - id: my_plugin.config.update
+    description: Modify plugin settings
+  - id: my_plugin.simulate
+    description: Run custom simulations
+```
+
+**Enforcement:** Plugin endpoints use the same `require_permission()` mechanism as core modules:
+
+```python
+# my_plugin/routes.py
+from mes.framework.auth import require_permission
+
+@router.get("/config")
+async def get_config(
+    user: User = Depends(require_permission("my_plugin.config.read"))
+):
+    ...
+
+@router.post("/simulate")
+async def run_simulation(
+    user: User = Depends(require_permission("my_plugin.simulate"))
+):
+    ...
+```
+
+**Auto-Registration:** On plugin install, the framework:
+1. Reads `permissions` from the manifest
+2. Registers them in the `Permission` registry (namespaced by plugin ID)
+3. Makes them available for assignment to roles via the admin API
+
+**Naming Convention:** Plugin permissions must use the plugin ID as prefix to prevent collisions:
+
+| Pattern | Example | Description |
+|---|---|---|
+| `{plugin_id}.read` | `my_plugin.read` | Read plugin data |
+| `{plugin_id}.{resource}.{action}` | `my_plugin.config.update` | Specific resource action |
+| `{plugin_id}.*` | `my_plugin.*` | Wildcard — all plugin permissions |
+
+A plugin cannot declare permissions in another plugin's namespace or in the core namespace.
+
+**Role Assignment:** Plugin permissions are assigned to roles the same way as core permissions:
+
+```
+POST /api/v1/auth/roles/{role_id}/permissions
+{ "add": ["my_plugin.config.read", "my_plugin.simulate"] }
+```
+
+IdP group mappings can include plugin permissions via the role they map to:
+
+```
+IdP Group "DispatchEngineers"
+  → MES Role "dispatch_engineer"
+    → Permissions: ["dispatch.*", "my_plugin.*", "wip.read"]
+```
+
+**Permission Behavior by Extension Point Type:**
+
+| Extension Point | Permission Behavior |
+|---|---|
+| **rest_endpoint** | Plugin declares and enforces its own custom permissions |
+| **dispatch_strategy** | Guarded by core `dispatch.execute` — no separate plugin permission needed |
+| **operation_hook** | Runs with the caller's existing core permissions (hook fires if the user can perform the core operation) |
+| **event_handler** | Internal — no user-facing permission (events are system-level) |
+| **data_processor** | Runs inline during data collection — guarded by `data_collect.record` |
+| **report_generator** | Plugin declares read permission for custom report endpoints |
+| **equipment_driver** | Runs as system service — uses service account credentials |
 
 ## 12. Configuration (SESSION-META / config)
 
@@ -1008,10 +1565,19 @@ class MESConfig(BaseSettings):
     cors_origins: list[str] = ["*"]
 
     # Auth
+    auth_mode: str = "oidc"             # "oidc" | "local" (dev only)
     jwt_secret: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
+
+    # OIDC (when auth_mode="oidc")
+    oidc_issuer: str = ""               # e.g. https://login.microsoftonline.com/tenant/v2.0
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_scopes: list[str] = ["openid", "profile", "email"]
+    oidc_role_claim: str = "groups"     # Token claim containing group/role info
+    oidc_redirect_uri: str = ""         # e.g. https://mes.factory.com/api/v1/auth/callback
 
     # Plugins
     plugin_dirs: list[str] = ["plugins"]
@@ -1038,7 +1604,140 @@ These conventions ensure any AI coding agent can navigate and modify the codebas
 9. **Changelog in commits**: Every git commit message references the module ID and what changed.
 10. **No database-specific SQL**: All queries use SQLAlchemy ORM/Core API. Never use `text()`, dialect-specific operators, or raw SQL in core modules. Database-specific features belong in plugins.
 
-## 14. Implementation Task Breakdown (Phase 3+)
+## 14. Multi-Agent Development Workflow
+
+When multiple humans and AI agents work on the system simultaneously, coordination is required to prevent conflicts. The architecture addresses this at multiple levels.
+
+### 14.1 Plugin Work: Fully Isolated (Zero Coordination Needed)
+
+Plugins are the primary customization mechanism, and they are designed for complete isolation:
+
+```
+plugins/
+├── custom_dispatch/          ← Agent A owns this entirely
+│   ├── manifest.yaml
+│   ├── plugin.py
+│   ├── routes.py
+│   └── ...
+│
+├── spc_engine/               ← Agent B owns this entirely
+│   ├── manifest.yaml
+│   ├── plugin.py
+│   ├── routes.py
+│   └── ...
+```
+
+| Isolation Dimension | How It's Enforced |
+|---|---|
+| **File system** | Each plugin in its own directory — no file overlap |
+| **Database tables** | Plugin tables prefixed: `plugin_custom_dispatch_*` vs `plugin_spc_engine_*` |
+| **API routes** | Plugin endpoints namespaced: `/api/v1/custom/dispatch/` vs `/api/v1/custom/spc/` |
+| **Permissions** | Plugin permissions namespaced: `custom_dispatch.*` vs `spc_engine.*` |
+| **Events** | Each plugin declares its own subscriptions in its manifest |
+| **Configuration** | Plugin config stored per plugin ID in `plugin_config` table |
+
+Multiple agents can build plugins simultaneously with **zero risk of conflict**. This is the same principle that makes VS Code extensions independent.
+
+### 14.2 Core Modifications: Git-Based Coordination
+
+When multiple agents modify core modules (less common but necessary), standard Git workflows apply:
+
+**Branching Model:**
+
+```
+main (protected — no direct pushes)
+  │
+  ├── feature/agent-a/custom-dispatch    ← Agent A's plugin work
+  │     └── PR → CI passes → review → merge
+  │
+  ├── feature/agent-b/spc-engine         ← Agent B's plugin work
+  │     └── PR → CI passes → review → merge
+  │
+  ├── feature/agent-c/add-equipment-field ← Agent C's core modification
+  │     └── PR → CI passes → review → merge
+  │
+  └── (each agent rebases from main before opening PR)
+```
+
+**Conflict Scenarios and Mitigations:**
+
+| Scenario | Risk | Mitigation |
+|---|---|---|
+| Two agents add a field to the same model | Merge conflict in `models.py` | Feature branches + PR review |
+| Two agents modify the same service function | Merge conflict in `service.py` | Feature branches + PR review |
+| Two agents each add an Alembic migration | Branched migration revision chain | Alembic `merge` command resolves branched heads |
+| An agent changes an API response schema | Could break another agent's client code | Versioned API (`/v1/` → `/v2/`) + backward compatibility tests |
+| An agent changes an event payload | Could break plugins consuming that event | Contract tests (see §14.4) |
+
+The uniform module structure (§4.1) helps — because every module has the same file layout, merge conflicts are localized and predictable. An AI agent resolving a conflict knows exactly which file does what.
+
+### 14.3 Ownership and Responsibility
+
+**Plugin ownership in manifest:**
+
+```yaml
+# manifest.yaml
+id: custom-dispatch-optimizer
+owner: "Team Dispatch / Agent A"
+contact: "dispatch-team@factory.com"
+```
+
+**CODEOWNERS file for repository-level ownership:**
+
+```
+# .github/CODEOWNERS
+# Core modules
+server/src/mes/core/physical_model/   @team-infrastructure
+server/src/mes/core/wip/              @team-production
+server/src/mes/core/dispatch/         @team-dispatch
+server/src/mes/core/quality/          @team-quality
+
+# Plugins
+plugins/custom_dispatch/              @agent-a
+plugins/spc_engine/                   @agent-b
+```
+
+GitHub enforces CODEOWNERS — a PR touching `dispatch/` requires approval from `@team-dispatch` before merge.
+
+### 14.4 Automated Safeguards
+
+The CI pipeline includes checks specifically for multi-agent safety:
+
+| CI Check | What It Catches |
+|---|---|
+| **Full test suite** | Any functional regression from any change |
+| **Alembic head check** | Detects branched migration heads — blocks merge until resolved |
+| **OpenAPI schema diff** | Compares current API schema to previous version, flags breaking changes |
+| **Plugin contract tests** | Verifies event payload schemas haven't changed for cross-plugin dependencies |
+| **Permission conflict check** | Ensures no two plugins declare permissions in the same namespace |
+| **Route conflict check** | Ensures no two plugins register the same API path prefix |
+
+### 14.5 Cross-Plugin Dependencies
+
+If Plugin A emits custom events that Plugin B consumes, or Plugin B calls Plugin A's API:
+
+1. **Plugin A declares its public contract** in `manifest.yaml` (event schemas, API schemas)
+2. **Plugin B declares a dependency** on Plugin A in its `manifest.yaml`
+3. **Contract tests** verify Plugin A's event payloads and API responses match the declared schema
+4. **The plugin framework** ensures Plugin A is loaded before Plugin B (dependency resolution)
+
+```yaml
+# Plugin B manifest
+dependencies:
+  - plugin_id: custom-dispatch-optimizer
+    min_version: "1.0.0"
+```
+
+### 14.6 Summary
+
+| Work Type | Agents Involved | Coordination Required |
+|---|---|---|
+| Independent plugins | Any number | None — fully isolated |
+| Plugins with cross-dependencies | 2+ | Dependency declared in manifest + contract tests |
+| Core module modifications | 1 at a time preferred | Feature branch + PR + CI |
+| Core + plugin simultaneously | Any number | Plugin work is isolated; core changes go through PR |
+
+## 15. Implementation Task Breakdown (Phase 3+)
 
 Phase 3 implementation will follow this dependency order:
 

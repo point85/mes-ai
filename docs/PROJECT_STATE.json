@@ -189,6 +189,18 @@
       "date": "2026-02-22",
       "decision": "Multi-RDBMS support: PostgreSQL (default), SQL Server, Oracle, SQLite (dev). End user selects via connection string.",
       "rationale": "Many manufacturing environments run SQL Server or Oracle due to enterprise licensing; SQLAlchemy dialect system makes this near-zero-cost; portability rules enforce ORM-only queries"
+    },
+    {
+      "id": "D018",
+      "date": "2026-02-22",
+      "decision": "OIDC SSO for authentication; MES never stores passwords; supports any OIDC-compliant IdP (Entra ID, Keycloak, WSO2, Okta, etc.); local auth as dev/fallback only",
+      "rationale": "Factory MES should delegate auth to enterprise IdP; OIDC is the industry standard; JIT user provisioning and IdP group-to-role mapping eliminate manual user management"
+    },
+    {
+      "id": "D019",
+      "date": "2026-02-22",
+      "decision": "ERP adapters as vendor-specific plugins behind abstract interface; 5 ERP vendors supported: SAP S/4HANA, SAP ECC, Oracle Cloud/EBS, Microsoft D365 F&O, Infor M3; transform layer isolates ERP field mappings from core",
+      "rationale": "Each factory has a different ERP; abstract interface + transform layer means swapping ERP is a plugin change; vendor APIs researched to ensure realistic interface design"
     }
   ],
 
