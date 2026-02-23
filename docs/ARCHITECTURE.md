@@ -865,7 +865,28 @@ async def on_any_quality_event(event: MESEvent) -> None:
 
 ### 8.5 Future: Distributed Event Bus
 
-For multi-server deployments, the in-process event bus can be replaced with Redis Pub/Sub or NATS by swapping the transport layer. The `MESEvent` schema and handler interface remain identical.
+For multi-server deployments, the in-process event bus can be replaced with an external message-oriented middleware (MOM) by swapping the transport layer. The `MESEvent` schema and handler interface remain identical.
+
+**Supported MOM Transports:**
+
+| MOM | Python Library | Protocol | Use Case |
+|---|---|---|---|
+| **Apache Kafka** | `aiokafka` (async) | Kafka native | High-throughput, persistent event streaming, replay |
+| **NATS JetStream** | `nats-py` (async) | NATS native | Ultra-lightweight, low-latency |
+| **Redis Streams** | `redis.asyncio` | Redis protocol | Simple deployment, adequate for most single-site MES |
+| **RabbitMQ** | `aio-pika` (async) | AMQP 0-9-1 | Enterprise messaging, complex routing |
+| **ActiveMQ / JMS brokers** | `stomp.py` / `proton` (Qpid) | STOMP / AMQP 1.0 | Environments with existing JMS infrastructure |
+
+**Configuration:**
+```python
+# .env
+MES_EVENT_BUS_TYPE=memory     # "memory" | "kafka" | "nats" | "redis" | "rabbitmq" | "activemq"
+MES_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+MES_NATS_URL=nats://nats:4222
+MES_RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+MES_ACTIVEMQ_HOST=activemq
+MES_ACTIVEMQ_PORT=61613       # STOMP port
+```
 
 ## 9. Integration Adapters
 
@@ -1219,37 +1240,214 @@ The MES canonical data model (DTOs) aligns with ISA-95 Part 4 object models and 
 
 ### 9.3 Equipment Adapter (EQUIP-INTFC)
 
-Communicates with production equipment (PLCs, microcontrollers, sensors).
+Communicates with production equipment (PLCs, microcontrollers, sensors) and collects real-time data for WIP tracking, data collection, and equipment state monitoring.
 
-**Protocols supported (via plugins):**
-- OPC-UA (primary industrial standard)
-- MQTT (lightweight IoT)
-- Modbus TCP (legacy equipment)
-- HTTP/REST (modern smart equipment)
+#### 9.3.1 Supported Protocols and Libraries
 
-**Interface:**
+| Protocol | Python Library | Async | Use Case | License |
+|---|---|---|---|---|
+| **OPC-UA** | `asyncua` | Yes (native) | PLCs, SCADA, DCS — primary industrial standard | LGPL |
+| **MQTT** | `aiomqtt` | Yes | IoT sensors, lightweight telemetry, edge devices | BSD |
+| **Modbus TCP** | `pymodbus` | Yes | Legacy PLCs, motor drives, power meters | BSD |
+| **HTTP/REST** | `httpx` | Yes | Modern smart equipment, IIoT gateways | BSD |
+| **ZeroMQ** | `pyzmq` | Yes | Brokerless direct equipment-to-MES, low-latency | BSD |
+
+##### OPC-UA (Primary Industrial Protocol)
+
+OPC-UA (Unified Architecture) is the industry-standard protocol for equipment communication in manufacturing. The `asyncua` library provides:
+
+- **Client mode**: Connect to PLC/SCADA OPC-UA servers, read/write tags, browse node trees
+- **Subscription mode**: Subscribe to tag value changes with configurable sampling intervals
+- **Security**: Supports OPC-UA security policies (Basic256Sha256, certificate-based auth)
+- **Discovery**: Browse server address space to discover available tags
+- **Data types**: Full OPC-UA data type support (scalars, arrays, structures, enums)
+
 ```python
-class EquipmentAdapter(BaseAdapter):
-    async def read_tag(self, tag_name: str) -> Any: ...
-    async def write_tag(self, tag_name: str, value: Any) -> None: ...
-    async def subscribe_tag(self, tag_name: str, callback) -> None: ...
-    async def get_equipment_state(self) -> EquipmentState: ...
+# OPC-UA usage example
+async with OPCUAEquipmentAdapter("opc.tcp://plc-01.factory.com:4840") as adapter:
+    # Read a tag
+    temperature = await adapter.read_tag("ns=2;s=Oven.Temperature")
+
+    # Subscribe to tag changes
+    await adapter.subscribe_tag(
+        "ns=2;s=Oven.Temperature",
+        callback=on_temperature_change,
+        sampling_interval_ms=500
+    )
+
+    # Write a setpoint
+    await adapter.write_tag("ns=2;s=Oven.Setpoint", 180.0)
 ```
 
-**Mock implementation:** In-memory tag store with simulated state changes and configurable latency.
+##### MQTT (IoT / Edge Devices)
+
+MQTT is a lightweight publish/subscribe protocol widely used for IoT sensors and edge computing:
+
+- **Topic-based**: Equipment publishes data to topics (e.g., `factory/line-1/oven-01/temperature`)
+- **QoS levels**: 0 (at most once), 1 (at least once), 2 (exactly once)
+- **Retained messages**: Last known equipment state available immediately on subscribe
+- **MQTT 5.0**: Shared subscriptions for load balancing, message expiry, user properties
+
+##### Message-Oriented Middleware (MOM) for Equipment Integration
+
+In environments where equipment data flows through enterprise middleware rather than direct connections:
+
+| MOM / JMS Broker | Python Access | Protocol | Notes |
+|---|---|---|---|
+| **Apache Kafka** | `aiokafka` (async) | Kafka native | High-throughput equipment telemetry streaming |
+| **RabbitMQ** | `aio-pika` (async) | AMQP 0-9-1 | Equipment events via message queues |
+| **Apache ActiveMQ Classic** | `stomp.py` | STOMP | JMS broker accessible via STOMP text protocol |
+| **Apache ActiveMQ Artemis** | `proton` (Apache Qpid) | AMQP 1.0 | JMS broker accessible via AMQP 1.0 |
+| **IBM MQ** | `proton` or `httpx` | AMQP 1.0 / REST | Enterprise JMS environments |
+| **TIBCO EMS** | `stomp.py` or `httpx` | STOMP / REST | Enterprise JMS environments |
+| **Oracle AQ** | `oracledb` | DB connector | Oracle-based messaging |
+
+> **Note on JMS**: JMS is a Java API specification, not a wire protocol. Python clients access JMS brokers via STOMP or AMQP 1.0 protocols, which all major JMS brokers support. This is well-established and production-proven.
+
+#### 9.3.2 Abstract Equipment Interface
+
+```python
+class EquipmentAdapter(BaseAdapter):
+    """Abstract interface for equipment communication."""
+
+    @abstractmethod
+    async def read_tag(self, tag_name: str) -> TagValue: ...
+
+    @abstractmethod
+    async def write_tag(self, tag_name: str, value: Any) -> None: ...
+
+    @abstractmethod
+    async def subscribe_tag(
+        self, tag_name: str, callback: Callable, interval_ms: int = 1000
+    ) -> SubscriptionHandle: ...
+
+    @abstractmethod
+    async def unsubscribe(self, handle: SubscriptionHandle) -> None: ...
+
+    @abstractmethod
+    async def get_equipment_state(self) -> EquipmentState: ...
+
+    @abstractmethod
+    async def browse_tags(self, root: str | None = None) -> list[TagInfo]: ...
+
+
+class MOMEquipmentAdapter(BaseAdapter):
+    """Abstract interface for equipment data via message-oriented middleware."""
+
+    @abstractmethod
+    async def subscribe_topic(
+        self, topic: str, callback: Callable
+    ) -> SubscriptionHandle: ...
+
+    @abstractmethod
+    async def publish(
+        self, topic: str, payload: dict
+    ) -> None: ...
+
+    @abstractmethod
+    async def consume_queue(
+        self, queue_name: str, callback: Callable
+    ) -> None: ...
+```
+
+**Data types:**
+```python
+@dataclass
+class TagValue:
+    tag_name: str
+    value: Any
+    quality: str          # "good" | "bad" | "uncertain"
+    timestamp: datetime   # Source timestamp from equipment
+    data_type: str        # "float" | "int" | "bool" | "string" | "array"
+
+@dataclass
+class TagInfo:
+    tag_name: str
+    data_type: str
+    access: str           # "read" | "write" | "readwrite"
+    description: str
+```
+
+#### 9.3.3 Equipment Adapter Configuration
+
+```python
+# .env — Direct equipment connection
+MES_EQUIP_ADAPTER=opcua                     # "opcua" | "mqtt" | "modbus" | "rest" | "mock"
+MES_EQUIP_OPCUA_URL=opc.tcp://plc-01:4840
+MES_EQUIP_OPCUA_SECURITY_POLICY=Basic256Sha256
+MES_EQUIP_OPCUA_CERT_PATH=/certs/client.pem
+MES_EQUIP_OPCUA_KEY_PATH=/certs/client.key
+
+# .env — MQTT
+MES_EQUIP_MQTT_BROKER=mqtt://broker.factory.com:1883
+MES_EQUIP_MQTT_TOPIC_PREFIX=factory/line-1
+MES_EQUIP_MQTT_QOS=1
+
+# .env — MOM-based equipment data
+MES_EQUIP_MOM_TYPE=kafka                    # "kafka" | "rabbitmq" | "activemq" | "ibmmq"
+MES_EQUIP_KAFKA_BOOTSTRAP=kafka:9092
+MES_EQUIP_KAFKA_TOPIC=equipment-data
+MES_EQUIP_KAFKA_GROUP_ID=mes-consumer
+
+# .env — Modbus
+MES_EQUIP_MODBUS_HOST=192.168.1.100
+MES_EQUIP_MODBUS_PORT=502
+MES_EQUIP_MODBUS_UNIT_ID=1
+```
+
+#### 9.3.4 Mock Equipment Adapter
+
+For development, testing, and demo environments:
+
+- **In-memory tag store** with configurable initial values
+- **Simulated state changes**: Tags change on a configurable schedule (e.g., temperature fluctuates ±2°C every second)
+- **Configurable latency**: Mimics real equipment response times
+- **Configurable failures**: Simulates communication errors at a configurable rate
+- **Record/replay**: Can replay recorded real equipment data from JSON files
+
+```python
+class MockEquipmentAdapter(EquipmentAdapter):
+    async def read_tag(self, tag_name: str) -> TagValue:
+        value = self._tag_store[tag_name] + random.gauss(0, self._noise)
+        return TagValue(
+            tag_name=tag_name, value=value,
+            quality="good", timestamp=datetime.utcnow(), data_type="float"
+        )
+```
 
 ### 9.4 Test Equipment Adapter (TEST-INTFC)
 
-Collects test results from quality/test equipment.
+Collects test results from quality/test equipment (e.g., coordinate measuring machines, electrical testers, optical inspection systems).
+
+**Supported protocols:** Same as equipment adapter (OPC-UA, MQTT, REST, MOM). Test equipment typically exposes results via:
+- **File drop**: Equipment writes result file (CSV/XML) to shared directory
+- **REST API**: Modern test equipment serves results via HTTP
+- **OPC-UA**: Inline test equipment integrated into PLC network
+- **MOM**: Test results published to message queue/topic
 
 **Interface:**
 ```python
 class TestEquipmentAdapter(BaseAdapter):
-    async def get_test_result(self, test_id: str) -> TestResult: ...
-    async def subscribe_results(self, callback) -> None: ...
+    """Abstract interface for test equipment data collection."""
+
+    async def get_test_result(self, test_id: str) -> TestResultDTO: ...
+
+    async def subscribe_results(
+        self, callback: Callable[[TestResultDTO], None]
+    ) -> SubscriptionHandle: ...
+
+    async def get_test_status(self, equipment_id: str) -> str: ...
+
+
+class FileDropTestAdapter(TestEquipmentAdapter):
+    """Watches a directory for test result files."""
+
+    async def watch_directory(
+        self, path: str, pattern: str = "*.csv"
+    ) -> None: ...
 ```
 
-**Mock implementation:** Generates random test results within configurable pass/fail distributions.
+**Mock implementation:** Generates random test results within configurable pass/fail distributions and measurement ranges.
 
 ## 10. Dispatching Engine (DISPATCH)
 

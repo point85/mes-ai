@@ -201,6 +201,12 @@
       "date": "2026-02-22",
       "decision": "ERP adapters as vendor-specific plugins behind abstract interface; 5 ERP vendors supported: SAP S/4HANA, SAP ECC, Oracle Cloud/EBS, Microsoft D365 F&O, Infor M3; transform layer isolates ERP field mappings from core",
       "rationale": "Each factory has a different ERP; abstract interface + transform layer means swapping ERP is a plugin change; vendor APIs researched to ensure realistic interface design"
+    },
+    {
+      "id": "D020",
+      "date": "2026-02-22",
+      "decision": "Equipment communication via OPC-UA (asyncua), MQTT (aiomqtt), Modbus TCP (pymodbus), HTTP/REST (httpx), ZeroMQ (pyzmq); MOM integration via Kafka (aiokafka), RabbitMQ (aio-pika), JMS brokers via STOMP (stomp.py) or AMQP 1.0 (proton/Qpid); distributed event bus supports Kafka, NATS, Redis Streams",
+      "rationale": "OPC-UA is the primary industrial standard; MQTT covers IoT/edge; MOM integration needed for factories with existing message infrastructure (JMS, Kafka, RabbitMQ); all Python libraries are async-capable and actively maintained"
     }
   ],
 

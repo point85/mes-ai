@@ -116,8 +116,29 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 | D015 | 5-layer implementation order (foundation → physical → production → execution → quality) |
 | D016 | UUIDs for PKs; soft deletes; cursor-based pagination |
 
+### Phase 2 Refinements (continued in same session)
+
+After the initial architecture was complete, the following refinements were discussed and incorporated:
+
+3. **Multi-RDBMS support (D017)**: PostgreSQL as default, but added SQLAlchemy dialect support for SQL Server, Oracle, SQLite. §5.4 added.
+4. **ORM relationship cardinality (§5.5)**: Documented SQLAlchemy support for 1:N, N:1, M:N, M:N-with-data patterns.
+5. **OIDC SSO authentication (D018)**: Rewrote §11 for OIDC standard auth, delegating to external IdPs (Entra ID, Keycloak, WSO2, Okta). Local auth as dev fallback only.
+6. **RBAC permission granularity**: Expanded §11.3 with full per-endpoint permission map, 4 default roles, permission scenarios.
+7. **Plugin permissions**: Updated §7.2 manifest to declare permissions; added §11.3.5 for plugin permission model.
+8. **Multi-agent development workflow (§14)**: Git + plugin isolation for concurrent AI agent work.
+9. **ERP vendor APIs (D019)**: Expanded §9.2 to 10 subsections with vendor-specific API details (SAP S/4HANA OData, SAP ECC RFC/BAPI/IDoc, Oracle Cloud REST, Oracle EBS PL/SQL, D365 F&O OData, Infor M3 MIPrograms).
+10. **Equipment adapters & MOM (D020)**: Expanded §9.3 with OPC-UA (asyncua), MQTT (aiomqtt), Modbus TCP, HTTP/REST, ZeroMQ, plus MOM integration (Kafka, RabbitMQ, JMS via STOMP/AMQP 1.0). Expanded §9.4 for test equipment. Updated §8.5 with distributed event bus MOM transport options.
+
+### Decisions Made (continued)
+| ID | Decision |
+|----|----------|
+| D017 | Multi-RDBMS: PostgreSQL default + SQL Server, Oracle, SQLite via SQLAlchemy dialects |
+| D018 | OIDC SSO authentication; MES never stores passwords; local auth dev fallback only |
+| D019 | ERP adapters as vendor-specific plugins; 5 vendors supported |
+| D020 | Equipment: OPC-UA, MQTT, Modbus, REST, ZeroMQ; MOM: Kafka, RabbitMQ, JMS brokers; Distributed event bus: Kafka/NATS/Redis |
+
 ### Where We Stopped
-- **Phase 2 (P2) is COMPLETE**
+- **Phase 2 (P2) architecture refinements complete** — all user questions incorporated into `docs/ARCHITECTURE.md`
 - Next: **Phase 3 (P3): Core Server Implementation** starting with **Layer 0: Foundation modules** (DATA-LAYER, EVENT-BUS, REST-API, AUTH, PLUGIN-FW)
 - First implementation task: scaffold the project (`pyproject.toml`, directory structure), then build DATA-LAYER
 
