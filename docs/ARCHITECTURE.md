@@ -350,6 +350,92 @@ The data layer supports multiple RDBMS backends via SQLAlchemy's dialect system.
 4. **Database-specific features via plugins**: If an end user needs PostgreSQL full-text search or Oracle partitioning, they implement it as a plugin — not in core
 5. **CI matrix testing**: The test suite runs against PostgreSQL (primary), SQLite (fast/local), and optionally SQL Server and Oracle in the CI pipeline
 
+### 5.5 ORM Relationship Cardinality
+
+SQLAlchemy supports all standard relationship types. The patterns used throughout the data model:
+
+#### One-to-Many / Many-to-One
+
+Two sides of the same relationship using `relationship()` + `ForeignKey`:
+
+```python
+class WorkCenter(Base):
+    __tablename__ = "work_center"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    line_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("production_line.id"))
+
+    # Many-to-One: each work center belongs to one production line
+    production_line: Mapped["ProductionLine"] = relationship(back_populates="work_centers")
+
+    # One-to-Many: each work center has many equipment
+    equipment: Mapped[list["Equipment"]] = relationship(back_populates="work_center")
+```
+
+**Used for:** Site→Areas, Area→Lines, Line→WorkCenters, WorkCenter→Equipment, ProductionOrder→Units, ProductionOrder→Lots, Route→Steps, Step→Parameters, and all other parent-child hierarchies.
+
+#### Many-to-Many
+
+Uses an association table with `relationship(secondary=...)`:
+
+```python
+# Association table
+step_equipment = Table(
+    "step_equipment",
+    Base.metadata,
+    Column("step_id", ForeignKey("route_step.id"), primary_key=True),
+    Column("equipment_id", ForeignKey("equipment.id"), primary_key=True),
+)
+
+class RouteStep(Base):
+    __tablename__ = "route_step"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+
+    # Many-to-Many: steps can run on multiple equipment
+    eligible_equipment: Mapped[list["Equipment"]] = relationship(
+        secondary=step_equipment, back_populates="eligible_steps"
+    )
+
+class Equipment(Base):
+    __tablename__ = "equipment"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+
+    # Many-to-Many: equipment can serve multiple steps
+    eligible_steps: Mapped[list["RouteStep"]] = relationship(
+        secondary=step_equipment, back_populates="eligible_equipment"
+    )
+```
+
+**Used for:** RouteStep↔Equipment (a step can run on multiple equipment, equipment can serve multiple steps).
+
+#### Many-to-Many with Extra Data (Association Object)
+
+When the join table needs additional columns, an explicit ORM class is used:
+
+```python
+class UserRole(Base):
+    __tablename__ = "user_role"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"))
+    role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("role.id"))
+    assigned_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)  # Extra data
+
+    user: Mapped["User"] = relationship(back_populates="user_roles")
+    role: Mapped["Role"] = relationship(back_populates="user_roles")
+```
+
+**Used for:** User↔Role (with assignment metadata).
+
+#### Summary
+
+| Relationship | SQLAlchemy Pattern | Used In |
+|---|---|---|
+| One-to-Many | `relationship()` + `ForeignKey` | Site→Areas, Line→WorkCenters, Order→Units, Route→Steps, etc. |
+| Many-to-One | Same (reverse side) | Equipment→WorkCenter, Unit→RouteStep, Unit→Equipment |
+| Many-to-Many | `relationship(secondary=...)` | RouteStep↔Equipment |
+| Many-to-Many + data | Association object class | User↔Role (via UserRole) |
+
+All relationship types are fully portable across PostgreSQL, SQL Server, Oracle, and SQLite.
+
 ## 6. REST API
 
 ### 6.1 Design Principles
