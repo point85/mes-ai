@@ -83,3 +83,45 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S002 — 2026-02-22
+
+**Phase**: P2 — Architecture & Design  
+**Objective**: Design and document the full implementation architecture  
+
+### What Happened
+1. Resumed project from S001 by reading `PROJECT_STATE.json` and `SESSION_LOG.md`
+2. Completed Phase 2 — full architecture documented in `docs/ARCHITECTURE.md`:
+   - **Technology Stack**: Python 3.12+ / FastAPI / SQLAlchemy 2.0 (async) / PostgreSQL 16+ / Pydantic v2 / uv / Docker. React + TypeScript for GUI clients.
+   - **Project Structure**: Defined complete directory layout with uniform module internal convention (`models.py`, `schemas.py`, `service.py`, `routes.py`, `events.py`, `exceptions.py`).
+   - **Data Model**: 20+ entities across 8 domains (Physical Model, Product Definition, Production Order, WIP Tracking, Material Management, Quality Management, Data Collection, Performance Analysis), all ISA-95 aligned. UUIDs for PKs, soft deletes, timestamped.
+   - **REST API**: ~80+ endpoints organized by domain, versioned under `/api/v1/`, cursor-based pagination, standard response envelope, JWT auth.
+   - **Plugin Framework**: `manifest.yaml` + `MESPlugin` base class, 7 extension point types (dispatch_strategy, operation_hook, rest_endpoint, event_handler, data_processor, report_generator, equipment_driver), full lifecycle (discover → validate → load → initialize → start → stop).
+   - **Event Bus**: In-process async pub/sub with dot-notation topics (~20 event types defined), wildcard subscriptions, WebSocket gateway for clients, future Redis/NATS for distributed.
+   - **Integration Adapters**: Abstract interfaces for ERP (inbound/outbound), Equipment (OPC-UA/MQTT/Modbus/REST), and Test Equipment. Mock implementations for all.
+   - **Dispatching Engine**: 5 built-in strategies (manual, first_available, shortest_queue, round_robin, capability_match) + plugin custom strategies.
+   - **Auth**: JWT with RBAC, 4 default roles, dot-notation permissions.
+   - **AI Maintainability Conventions**: 9 rules ensuring any AI agent can navigate the codebase predictably.
+   - **Implementation Task Breakdown**: 5-layer dependency order for Phase 3+ implementation.
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D009 | Python 3.12+ / FastAPI / SQLAlchemy 2.0 / PostgreSQL for server stack |
+| D010 | React + TypeScript for GUI clients |
+| D011 | Uniform module internal structure convention |
+| D012 | Plugin framework with manifest.yaml, MESPlugin base class, 7 extension points |
+| D013 | In-process async event bus with dot-notation topics |
+| D014 | JWT auth with RBAC; 4 default roles |
+| D015 | 5-layer implementation order (foundation → physical → production → execution → quality) |
+| D016 | UUIDs for PKs; soft deletes; cursor-based pagination |
+
+### Where We Stopped
+- **Phase 2 (P2) is COMPLETE**
+- Next: **Phase 3 (P3): Core Server Implementation** starting with **Layer 0: Foundation modules** (DATA-LAYER, EVENT-BUS, REST-API, AUTH, PLUGIN-FW)
+- First implementation task: scaffold the project (`pyproject.toml`, directory structure), then build DATA-LAYER
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

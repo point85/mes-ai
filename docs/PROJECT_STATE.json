@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-02-22",
-  "lastSessionId": "S001",
+  "lastSessionId": "S002",
 
   "phases": [
     {
@@ -18,8 +18,9 @@
     {
       "id": "P2",
       "name": "Architecture & Design",
-      "status": "not-started",
+      "status": "complete",
       "description": "Propose and document implementation architecture: client/server, REST API, RDBMS, plugin framework",
+      "deliverable": "docs/ARCHITECTURE.md",
       "tasks": []
     },
     {
@@ -52,8 +53,8 @@
     }
   ],
 
-  "currentPhase": "P2",
-  "currentTask": null,
+  "currentPhase": "P3",
+  "currentTask": "Layer 0: Foundation modules (DATA-LAYER, EVENT-BUS, REST-API, AUTH, PLUGIN-FW)",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -134,6 +135,60 @@
       "date": "2026-02-22",
       "decision": "25 modules identified and registered with IDs for project tracking",
       "rationale": "Enables referencing functionality by ID; documented in MES_SURVEY.md Section 4"
+    },
+    {
+      "id": "D009",
+      "date": "2026-02-22",
+      "decision": "Python 3.12+ / FastAPI / SQLAlchemy 2.0 / PostgreSQL for server stack",
+      "rationale": "Python is #1 AI-friendly language; FastAPI has best REST/async/OpenAPI support; SQLAlchemy is best Python ORM; PostgreSQL is industrial-grade RDBMS"
+    },
+    {
+      "id": "D010",
+      "date": "2026-02-22",
+      "decision": "React + TypeScript for GUI clients (Runtime GUI and Design-Time)",
+      "rationale": "Widest AI training corpus for frontend; large component ecosystem; shared codebase between two GUI clients"
+    },
+    {
+      "id": "D011",
+      "date": "2026-02-22",
+      "decision": "Uniform module internal structure: models.py, schemas.py, service.py, routes.py, events.py, exceptions.py",
+      "rationale": "AI predictability — agent always knows where to find/add code; eliminates searching"
+    },
+    {
+      "id": "D012",
+      "date": "2026-02-22",
+      "decision": "Plugin framework with manifest.yaml, MESPlugin base class, 7 extension point types",
+      "rationale": "Clean contracts, declarative metadata, type-safe extension points for AI-driven customization"
+    },
+    {
+      "id": "D013",
+      "date": "2026-02-22",
+      "decision": "In-process async event bus with dot-notation topics; future Redis/NATS swap for distributed",
+      "rationale": "Simple for single-server; same interface scales to distributed; plugins subscribe declaratively"
+    },
+    {
+      "id": "D014",
+      "date": "2026-02-22",
+      "decision": "JWT authentication with RBAC authorization; 4 default roles (admin, engineer, operator, viewer)",
+      "rationale": "Industry standard; stateless; fine-grained permissions via dot-notation strings"
+    },
+    {
+      "id": "D015",
+      "date": "2026-02-22",
+      "decision": "Implementation order: Layer 0 (foundation) → Layer 1 (physical/product) → Layer 2 (production) → Layer 3 (execution) → Layer 4 (quality/analysis)",
+      "rationale": "Each layer depends on the previous; ensures incremental buildability and testability"
+    },
+    {
+      "id": "D016",
+      "date": "2026-02-22",
+      "decision": "UUIDs for all primary keys; soft deletes via is_active flag; cursor-based pagination",
+      "rationale": "UUIDs avoid sequence conflicts in distributed/plugin scenarios; soft deletes preserve audit trail; cursor pagination scales better than offset"
+    },
+    {
+      "id": "D017",
+      "date": "2026-02-22",
+      "decision": "Multi-RDBMS support: PostgreSQL (default), SQL Server, Oracle, SQLite (dev). End user selects via connection string.",
+      "rationale": "Many manufacturing environments run SQL Server or Oracle due to enterprise licensing; SQLAlchemy dialect system makes this near-zero-cost; portability rules enforce ORM-only queries"
     }
   ],
 
