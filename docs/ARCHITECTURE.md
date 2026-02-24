@@ -439,6 +439,721 @@ class UserRole(Base):
 
 All relationship types are fully portable across PostgreSQL, SQL Server, Oracle, and SQLite.
 
+### 5.6 Database Migration Strategy
+
+Schema evolution is inevitable — new modules, changed requirements, and plugin additions all drive schema changes on databases that already contain production data. Alembic (SQLAlchemy's migration framework) is the sole migration mechanism. This section defines the strategy, conventions, and safety patterns.
+
+#### 5.6.1 Alembic Configuration
+
+```
+server/
+├── alembic.ini                        # Points to alembic/ dir and DB URL (from env)
+├── alembic/
+│   ├── env.py                         # Loads all ORM models, configures async engine
+│   ├── script.py.mako                 # Template for generated migration files
+│   └── versions/                      # Core migration scripts (chronological)
+│       ├── 0001_initial_schema.py
+│       ├── 0002_add_equipment_capabilities.py
+│       └── ...
+```
+
+**Key `env.py` requirements:**
+- Imports **all** ORM models from `mes.core.*` and `mes.framework.*` so Alembic can detect model changes
+- Uses the async engine from `mes.framework.db`
+- Reads `MES_DB_URL` from environment (same as the application)
+- Supports `--sql` mode for generating SQL scripts without a live database (for DBA review)
+
+**`script.py.mako` template** (enforces structure on every generated migration):
+
+```mako
+"""${message}
+
+Module: <MODULE_ID>
+Date: ${create_date}
+Revision: ${up_revision}
+Down-revision: ${down_revision | comma,n}
+
+## What this migration does:
+<DESCRIBE THE CHANGE>
+
+## Data impact:
+<NONE | DESCRIBE DATA TRANSFORMATION | WARNING: Drops column X — data not recoverable>
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+${imports if imports else ""}
+
+# revision identifiers, used by Alembic.
+revision: str = ${repr(up_revision)}
+down_revision: Union[str, None] = ${repr(down_revision)}
+branch_labels: Union[str, Sequence[str], None] = ${repr(branch_labels)}
+depends_on: Union[str, Sequence[str], None] = ${repr(depends_on)}
+
+
+def upgrade() -> None:
+    ${upgrades if upgrades else "raise NotImplementedError('Implement upgrade')"}
+
+
+def downgrade() -> None:
+    ${downgrades if downgrades else "raise NotImplementedError('Implement downgrade — never leave as pass')"}
+```
+
+**What the template enforces:**
+- Mandatory docstring with module ID, change description, and data impact statement
+- `downgrade()` defaults to `raise NotImplementedError` instead of `pass` — forces explicit implementation
+- Consistent import structure across all migrations
+
+#### 5.6.2 Migration Naming Convention
+
+Every migration file follows a strict naming pattern for AI predictability:
+
+```
+{sequence}_{module_id}_{description}.py
+```
+
+| Component | Rule | Example |
+|---|---|---|
+| `sequence` | 4-digit zero-padded, globally sequential | `0001`, `0042` |
+| `module_id` | Lowercase module ID from §4 (or `multi` for cross-module) | `phys_model`, `wip_track`, `multi` |
+| `description` | Snake_case imperative verb phrase | `add_equipment_capabilities`, `rename_lot_status_column` |
+
+**Examples:**
+```
+0001_multi_initial_schema.py
+0012_phys_model_add_equipment_capabilities_json.py
+0013_wip_track_add_unit_hold_reason.py
+0014_qual_mgmt_rename_nc_type_to_nc_category.py
+0025_multi_add_audit_columns_to_all_entities.py
+```
+
+**Revision chain:** Each migration's `revision` ID is a short hash (Alembic default). The `down_revision` links to the previous migration, forming a linear chain. When branches occur (concurrent agent work), they are resolved with `alembic merge` before merging to `main`.
+
+#### 5.6.3 Migration Generation Workflow
+
+AI agents (and human developers) follow this workflow:
+
+```
+1. Modify models.py in the relevant module
+2. Run: alembic revision --autogenerate -m "{sequence}_{module_id}_{description}"
+3. Review the generated migration — verify up/down operations
+4. Add data migration logic if needed (see §5.6.5)
+5. Run: alembic upgrade head (apply to dev database)
+6. Run: pytest (verify all tests pass with new schema)
+7. Commit migration file alongside the model changes
+```
+
+**Autogenerate detects:**
+- New tables, dropped tables
+- Added/removed columns
+- Changed column types, nullable, defaults
+- Added/removed indexes and constraints
+- Added/removed foreign keys
+
+**Autogenerate does NOT detect (must be added manually):**
+- Table or column renames (detected as drop + add — must fix to use `op.rename_table()` / `op.alter_column()`)
+- Data migrations (backfilling values)
+- Changes to check constraints or triggers
+- Custom index types (partial indexes, expression indexes)
+
+#### 5.6.4 Data-Safe Migration Patterns
+
+All migrations on production databases must be **data-safe** — they must not lose data, corrupt references, or cause extended downtime. The following patterns are mandatory:
+
+##### Adding a Column
+
+```python
+# SAFE: Add nullable column first, backfill, then optionally add NOT NULL
+def upgrade():
+    op.add_column("unit", sa.Column("hold_reason", sa.String(500), nullable=True))
+
+# If NOT NULL is required, use a two-step migration:
+# Migration A: Add column as nullable + backfill default
+# Migration B: ALTER to NOT NULL after backfill is confirmed
+```
+
+**Rule:** Never add a `NOT NULL` column without a `server_default` in a single migration. Either:
+- Add with `server_default=` so existing rows get the value automatically, or
+- Add as nullable → backfill → alter to NOT NULL in a subsequent migration
+
+##### Renaming a Column (Expand-Contract)
+
+Renaming is risky because running application code may reference the old name during deployment. Use the **expand-then-contract** pattern:
+
+```python
+# Migration A (expand): Add new column, copy data, add trigger/default
+def upgrade():
+    op.add_column("equipment", sa.Column("equipment_category", sa.String(100), nullable=True))
+    op.execute("UPDATE equipment SET equipment_category = equipment_type")
+    # Old column remains — running application still works
+
+# Migration B (contract): Drop old column after all code references are updated
+def upgrade():
+    op.drop_column("equipment", "equipment_type")
+```
+
+**Deploy sequence:** Deploy Migration A → deploy new application code → verify → deploy Migration B.
+
+##### Changing a Column Type
+
+```python
+# SAFE: Use ALTER COLUMN with USING clause (PostgreSQL) or equivalent
+def upgrade():
+    # String → Integer example
+    op.alter_column(
+        "step_parameter", "target_value",
+        type_=sa.Numeric(10, 4),
+        postgresql_using="target_value::numeric(10,4)"
+    )
+```
+
+**Rule:** Always test type conversions against real data. If the conversion can fail (e.g., string→integer with non-numeric strings), add a data cleanup step first.
+
+##### Dropping a Column or Table
+
+```python
+# SAFE: Never drop in the same release as code changes
+def upgrade():
+    # Only drop after verifying no code references the column
+    op.drop_column("production_order", "legacy_reference")
+
+def downgrade():
+    # Restore column — but data is lost. Document this.
+    op.add_column("production_order", sa.Column("legacy_reference", sa.String(200), nullable=True))
+```
+
+**Rule:** Data in dropped columns is **irrecoverable**. The migration's docstring must explicitly state: `"WARNING: Drops column X — data is not recoverable from downgrade."`
+
+##### Adding / Removing Indexes
+
+```python
+# SAFE: Indexes can be added/removed without data impact
+# For large tables, use CONCURRENTLY on PostgreSQL to avoid locking
+def upgrade():
+    op.create_index(
+        "ix_unit_history_entered_at",
+        "unit_history", ["entered_at"],
+        postgresql_concurrently=True   # Non-blocking on PostgreSQL
+    )
+```
+
+##### Adding Foreign Keys to Existing Tables
+
+```python
+# SAFE: Validate existing data first
+def upgrade():
+    # Step 1: Clean up orphaned references
+    op.execute("""
+        UPDATE material_consumption SET material_lot_id = NULL
+        WHERE material_lot_id NOT IN (SELECT id FROM material_lot)
+    """)
+    # Step 2: Add the foreign key
+    op.create_foreign_key(
+        "fk_consumption_material_lot",
+        "material_consumption", "material_lot",
+        ["material_lot_id"], ["id"]
+    )
+```
+
+#### 5.6.5 Data Migrations
+
+When a schema change requires transforming existing data (not just DDL), the logic goes **inside the Alembic migration file**:
+
+```python
+def upgrade():
+    # DDL change
+    op.add_column("production_order", sa.Column("priority_level", sa.Integer(), nullable=True))
+
+    # Data migration: map old text priority to integer
+    connection = op.get_bind()
+    connection.execute(sa.text("""
+        UPDATE production_order SET priority_level = CASE
+            WHEN priority = 'low' THEN 1
+            WHEN priority = 'normal' THEN 2
+            WHEN priority = 'high' THEN 3
+            WHEN priority = 'urgent' THEN 4
+            ELSE 2
+        END
+    """))
+
+    # Now safe to drop old column or alter new column to NOT NULL
+    op.alter_column("production_order", "priority_level", nullable=False)
+```
+
+**Rules for data migrations:**
+- Keep them **idempotent** where possible (safe to re-run)
+- Use raw SQL (`op.execute` / `sa.text`) for performance — ORM models may not match the migration-time schema
+- Test against a copy of production data before applying
+- Log progress for long-running data migrations (batched updates)
+
+**Batched data migration** for large tables:
+
+```python
+def upgrade():
+    connection = op.get_bind()
+    batch_size = 10_000
+    while True:
+        result = connection.execute(sa.text("""
+            UPDATE unit SET normalized_serial = UPPER(serial_number)
+            WHERE normalized_serial IS NULL
+            LIMIT :batch
+        """), {"batch": batch_size})
+        if result.rowcount == 0:
+            break
+```
+
+#### 5.6.6 Rollback Policy
+
+| Scenario | Action |
+|---|---|
+| Migration failed mid-apply | Alembic wraps each migration in a transaction (on supported RDBMS). Failed migration auto-rolls back. PostgreSQL supports transactional DDL. SQL Server partially supports it. Oracle does not (DDL auto-commits). |
+| Migration applied but needs reverting | Run `alembic downgrade -1` to execute the `downgrade()` function. Only works if `downgrade()` is properly implemented. |
+| Data loss in downgrade | **Prefer forward-fix** (new migration that corrects the issue) over downgrade. Downgrades that lose data are a last resort. |
+| Production rollback | Always take a **database backup before applying migrations** in production. Restore from backup if forward-fix and downgrade both fail. |
+
+**Downgrade implementation rules:**
+- Every migration **must** implement `downgrade()` — no empty stubs
+- Downgrade should restore the schema to its previous state
+- If data loss is unavoidable in downgrade, document it in the migration docstring
+- CI runs both `upgrade` and `downgrade` for every migration to verify reversibility
+
+#### 5.6.7 Zero-Downtime Migrations (Rolling Deployments)
+
+For production environments requiring zero downtime, migrations must be **backward-compatible** — the old application code must still work against the new schema during the deployment window.
+
+**Expand-Contract Pattern (mandatory for breaking changes):**
+
+```
+Phase 1 — EXPAND (backward-compatible schema change)
+  ├── Add new columns (nullable or with defaults)
+  ├── Add new tables
+  ├── Create new indexes
+  └── Deploy migration → old app code still works
+
+Phase 2 — MIGRATE CODE
+  ├── Deploy new application code that uses new schema
+  ├── Old + new schema elements coexist
+  └── Run data backfill if needed  
+
+Phase 3 — CONTRACT (remove old schema elements)
+  ├── Drop old columns, old tables, old indexes
+  └── Only after all application instances use new schema
+```
+
+**Operations that are inherently backward-compatible (single-step):**
+- Adding a nullable column
+- Adding a new table
+- Adding an index
+- Widening a column (e.g., `VARCHAR(100)` → `VARCHAR(200)`)
+
+**Operations that require expand-contract (multi-step):**
+- Renaming a column or table
+- Changing a column type (narrowing or incompatible)
+- Splitting a table
+- Adding a NOT NULL constraint
+- Removing a column that existing code reads
+
+#### 5.6.8 Plugin Schema Migrations
+
+Plugins that define their own database tables need their own migration chains, **separate from core migrations**, to avoid coupling plugin lifecycle to core releases.
+
+**Plugin migration structure:**
+```
+plugins/
+└── sap_s4_adapter/
+    ├── manifest.yaml
+    ├── plugin.py
+    ├── models.py                      # Plugin's SQLAlchemy models
+    └── migrations/
+        ├── env.py                     # Plugin-specific Alembic env
+        └── versions/
+            ├── 0001_sap_s4_initial.py
+            └── 0002_sap_s4_add_idoc_log.py
+```
+
+**How it works:**
+1. Core and plugin migrations use **separate Alembic revision chains** (different `version_locations` in `alembic.ini`)
+2. Plugin tables are prefixed with the plugin ID: `plugin_sap_s4_idoc_log`, `plugin_sap_s4_mapping_cache`
+3. The plugin framework runs plugin migrations **after** core migrations during startup
+4. Plugin `manifest.yaml` declares `has_migrations: true` to trigger migration discovery
+5. Uninstalling a plugin does **not** auto-drop its tables — an explicit `alembic downgrade base` on the plugin chain is required (safety measure)
+
+**Plugin manifest addition:**
+```yaml
+# manifest.yaml
+database:
+  has_migrations: true
+  table_prefix: "plugin_sap_s4_"     # Required — prevents table name collisions
+```
+
+**Plugin model convention:**
+```python
+# Plugin models inherit from the same Base but use prefixed table names
+class SapIdocLog(Base):
+    __tablename__ = "plugin_sap_s4_idoc_log"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    idoc_number: Mapped[str] = mapped_column(String(50))
+    direction: Mapped[str] = mapped_column(String(10))   # "inbound" | "outbound"
+    status: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[dict] = mapped_column(JSON)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+```
+
+#### 5.6.9 Migration Testing in CI
+
+| CI Check | What It Validates |
+|---|---|
+| **`alembic upgrade head`** | The full migration chain applies cleanly from an empty database |
+| **`alembic downgrade base`** | Every migration's `downgrade()` works, full chain is reversible |
+| **`alembic upgrade head` → seed → `alembic downgrade -1` → `alembic upgrade head`** | Migrations work correctly with data present, not just empty tables |
+| **Alembic single-head check** | No branched migration heads (catches multi-agent conflicts) |
+| **Multi-RDBMS matrix** | Migration chain runs against PostgreSQL, SQLite, and optionally SQL Server / Oracle |
+| **Autogenerate diff check** | After applying all migrations, `alembic check` confirms no model-vs-schema drift (models.py matches the database) |
+
+**CI command sequence:**
+```bash
+# 1. Check single head
+alembic heads | wc -l   # Must be exactly 1
+
+# 2. Full upgrade from scratch
+alembic upgrade head
+
+# 3. Seed test data
+python -m mes.framework.db.seed
+
+# 4. Downgrade and re-upgrade (verifies reversibility with data)
+alembic downgrade -1
+alembic upgrade head
+
+# 5. Check for model drift
+alembic check   # Exits non-zero if models.py has unapplied changes
+
+# 6. Full downgrade to base (verifies all downgrades)
+alembic downgrade base
+```
+
+#### 5.6.10 Production Migration Runbook
+
+For applying migrations to a production database:
+
+```
+PRE-MIGRATION
+  1. Notify stakeholders of maintenance window (if needed)
+  2. Take a full database backup
+  3. Review migration SQL: alembic upgrade head --sql > migration_review.sql
+  4. Estimate migration time (test against production-size data copy)
+  5. Verify current revision: alembic current
+
+APPLY MIGRATION
+  6. Apply: alembic upgrade head
+  7. Verify: alembic current (confirm at expected head)
+  8. Smoke test: hit critical API endpoints
+
+POST-MIGRATION
+  9. Monitor application logs for errors (15+ minutes)
+  10. If issues found: decide forward-fix vs. downgrade vs. backup restore
+  11. Document migration in the deployment log
+```
+
+**For zero-downtime deployments**, the expand-contract phases (§5.6.7) replace the single "Apply Migration" step with a phased rollout.
+
+#### 5.6.11 AI Agent Migration Conventions
+
+When an AI agent needs to modify the database schema:
+
+1. **Modify `models.py` first** — the ORM model is the source of truth
+2. **Run `alembic revision --autogenerate`** — let Alembic detect the diff
+3. **Review the generated migration** — fix renames (autogenerate misdetects as drop+add), add data migrations
+4. **Set the correct sequence number** — check existing files in `versions/` and use the next number
+5. **Include the module ID** in the filename per §5.6.2
+6. **Implement `downgrade()`** — never leave it as `pass`
+7. **Test both directions** — `upgrade head` then `downgrade -1` then `upgrade head`
+8. **One migration per logical change** — don't bundle unrelated schema changes
+9. **Never edit a migration that has been applied to any shared database** — create a new migration instead
+
+#### 5.6.12 Migration Linting & Pre-Commit Hooks
+
+Automated checks that run **before commit** (via `pre-commit` framework) and **in CI** to enforce migration rules mechanically. These are not guidelines — they are **gate checks that block merges**.
+
+##### Filename Convention Lint
+
+```python
+# tools/lint_migrations.py
+import re, sys, pathlib
+
+PATTERN = re.compile(r"^\d{4}_[a-z][a-z0-9_]+\.py$")
+VALID_MODULES = {
+    "multi", "phys_model", "prod_def", "prod_order", "wip_track",
+    "route_def", "route_engine", "dispatch", "mat_mgmt",
+    "data_collect", "qual_mgmt", "perf_analysis", "genealogy",
+    "auth", "data_layer", "event_bus", "rest_api", "plugin_fw",
+}
+
+def check_filename(path: pathlib.Path) -> list[str]:
+    errors = []
+    name = path.name
+    if not PATTERN.match(name):
+        errors.append(f"{name}: Does not match pattern {{4-digit}}_{{module}}_{{description}}.py")
+    else:
+        parts = name.split("_", 2)
+        module = parts[1] if len(parts) > 1 else ""
+        # Module ID may span multiple underscored words — check prefix
+        if not any(name[5:].startswith(m + "_") for m in VALID_MODULES):
+            if name[5:].split("_")[0] not in VALID_MODULES:
+                errors.append(f"{name}: Module ID not recognized — expected one of {VALID_MODULES}")
+    return errors
+```
+
+##### AST-Based Migration Content Checks
+
+```python
+# tools/lint_migrations.py (continued)
+import ast
+
+def check_migration_content(path: pathlib.Path) -> list[str]:
+    errors = []
+    source = path.read_text()
+    tree = ast.parse(source)
+
+    # 1. Docstring must exist
+    docstring = ast.get_docstring(tree)
+    if not docstring:
+        errors.append(f"{path.name}: Missing module-level docstring")
+    else:
+        # 2. Docstring must contain Module: tag
+        if "Module:" not in docstring:
+            errors.append(f"{path.name}: Docstring missing 'Module:' tag")
+        # 3. Docstring must contain Data impact: tag
+        if "Data impact:" not in docstring:
+            errors.append(f"{path.name}: Docstring missing 'Data impact:' tag")
+
+    # 4. downgrade() must not be empty or just 'pass'
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "downgrade":
+            body = node.body
+            # Strip docstring if present
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+                body = body[1:]
+            if not body:
+                errors.append(f"{path.name}: downgrade() is empty")
+            elif len(body) == 1 and isinstance(body[0], ast.Pass):
+                errors.append(f"{path.name}: downgrade() is just 'pass' — must implement rollback")
+            break
+    else:
+        errors.append(f"{path.name}: Missing downgrade() function")
+
+    return errors
+```
+
+##### Plugin Table Prefix Check
+
+```python
+# tools/lint_migrations.py (continued)
+def check_plugin_tables(path: pathlib.Path, expected_prefix: str) -> list[str]:
+    """For plugin migrations, verify all table operations use the declared prefix."""
+    errors = []
+    source = path.read_text()
+    # Scan for op.create_table / op.drop_table calls with non-prefixed names
+    for i, line in enumerate(source.splitlines(), 1):
+        if "create_table(" in line or "drop_table(" in line:
+            # Extract the table name argument
+            match = re.search(r'(?:create_table|drop_table)\(["\']([^"\']+)', line)
+            if match and not match.group(1).startswith(expected_prefix):
+                errors.append(
+                    f"{path.name}:{i}: Table '{match.group(1)}' missing prefix '{expected_prefix}'"
+                )
+    return errors
+```
+
+##### No Raw SQL in ORM Models Check
+
+```python
+# tools/lint_models.py
+def check_no_raw_sql(path: pathlib.Path) -> list[str]:
+    """Ensure models.py files don't contain text() or raw SQL strings."""
+    errors = []
+    source = path.read_text()
+    for i, line in enumerate(source.splitlines(), 1):
+        if "text(" in line and "sa.text" not in line and "sqlalchemy.text" not in line:
+            continue  # Only flag sa.text / sqlalchemy.text in model files
+        if re.search(r'\btext\s*\(', line):
+            errors.append(f"{path.name}:{i}: Raw SQL text() found in model — use ORM queries only")
+    return errors
+```
+
+##### Pre-Commit Configuration
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: lint-migrations
+        name: Lint Alembic migrations
+        entry: python tools/lint_migrations.py
+        language: python
+        files: 'server/alembic/versions/.*\.py$'
+        pass_filenames: true
+
+      - id: lint-plugin-migrations
+        name: Lint plugin migrations
+        entry: python tools/lint_plugin_migrations.py
+        language: python
+        files: 'server/plugins/.*/migrations/versions/.*\.py$'
+        pass_filenames: true
+
+      - id: lint-models-no-raw-sql
+        name: No raw SQL in models
+        entry: python tools/lint_models.py
+        language: python
+        files: '.*/models\.py$'
+        pass_filenames: true
+```
+
+##### CI Integration
+
+The same lint scripts run in CI as a **required check** that blocks PR merges:
+
+```yaml
+# In CI pipeline (e.g., GitHub Actions)
+- name: Lint migrations
+  run: python tools/lint_migrations.py server/alembic/versions/*.py
+
+- name: Lint plugin migrations
+  run: |
+    for dir in server/plugins/*/migrations/versions; do
+      python tools/lint_plugin_migrations.py "$dir"/*.py
+    done
+
+- name: Verify single Alembic head
+  run: |
+    heads=$(alembic heads 2>/dev/null | wc -l)
+    if [ "$heads" -ne 1 ]; then
+      echo "ERROR: $heads migration heads found — run 'alembic merge' to resolve"
+      exit 1
+    fi
+```
+
+**Summary of enforced rules:**
+
+| Rule | Enforcement Point | Blocks Merge? |
+|---|---|---|
+| Filename matches `{4-digit}_{module}_{desc}.py` | Pre-commit + CI lint | Yes |
+| Module-level docstring with `Module:` and `Data impact:` tags | Pre-commit + CI lint | Yes |
+| `downgrade()` implemented (not empty/pass) | Pre-commit + CI lint | Yes |
+| Plugin tables use declared prefix | Pre-commit + CI lint | Yes |
+| No raw SQL in `models.py` | Pre-commit + CI lint | Yes |
+| Single Alembic head (no branches) | CI | Yes |
+| Full upgrade/downgrade cycle passes | CI | Yes |
+| Model drift check (`alembic check`) | CI | Yes |
+| Multi-RDBMS compatibility | CI matrix | Yes |
+
+#### 5.6.13 Runtime Schema Validation
+
+Enforcement doesn't end at CI — the MES server validates the database schema at **startup** to prevent running application code against the wrong schema version.
+
+##### Core Schema Version Check
+
+During `FastAPI` `lifespan` startup:
+
+```python
+# mes/framework/db/startup.py
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from alembic.runtime.migration import MigrationContext
+
+async def verify_schema_version(engine) -> None:
+    """Refuse to start if database is not at expected migration head."""
+    alembic_cfg = Config("alembic.ini")
+    script = ScriptDirectory.from_config(alembic_cfg)
+    expected_head = script.get_current_head()
+
+    async with engine.connect() as conn:
+        context = await conn.run_sync(
+            lambda sync_conn: MigrationContext.configure(sync_conn)
+        )
+        current_rev = await conn.run_sync(
+            lambda sync_conn: MigrationContext.configure(sync_conn).get_current_revision()
+        )
+
+    if current_rev != expected_head:
+        raise SystemExit(
+            f"FATAL: Database schema mismatch.\n"
+            f"  Database is at:  {current_rev}\n"
+            f"  Expected head:   {expected_head}\n"
+            f"  Run 'alembic upgrade head' before starting the server."
+        )
+```
+
+**Behavior:**
+- If the database is **behind**: Server refuses to start with a clear error message and the exact command to fix it
+- If the database is **ahead** (newer than the code): Server refuses to start — indicates code rollback without schema rollback
+- If the database has **no Alembic version table**: Server refuses to start — indicates uninitialized database
+
+##### Plugin Schema Version Check
+
+The plugin framework checks each plugin's migration chain during plugin activation:
+
+```python
+# mes/framework/plugin/loader.py
+async def activate_plugin(plugin_manifest: dict, engine) -> None:
+    if not plugin_manifest.get("database", {}).get("has_migrations"):
+        return  # No migrations to check
+
+    plugin_id = plugin_manifest["id"]
+    migrations_dir = f"plugins/{plugin_id}/migrations"
+
+    alembic_cfg = Config()
+    alembic_cfg.set_main_option("script_location", migrations_dir)
+
+    script = ScriptDirectory.from_config(alembic_cfg)
+    expected_head = script.get_current_head()
+
+    # Check plugin's revision in the 'alembic_version_plugin_{id}' table
+    current_rev = await get_plugin_revision(engine, plugin_id)
+
+    if current_rev is None:
+        # First activation — run plugin migrations
+        logger.info(f"Plugin {plugin_id}: Initializing database tables...")
+        await run_plugin_migrations(engine, plugin_id, migrations_dir)
+    elif current_rev != expected_head:
+        logger.warning(
+            f"Plugin {plugin_id}: Schema mismatch "
+            f"(db={current_rev}, expected={expected_head}). "
+            f"Running pending migrations..."
+        )
+        await run_plugin_migrations(engine, plugin_id, migrations_dir)
+```
+
+**Plugin migration behavior differs from core:**
+- Core migrations **block startup** if behind — safety-first for production data
+- Plugin migrations **auto-apply** on activation — plugins may be added/updated dynamically
+- Plugin migrations use a **separate version table** (`alembic_version_plugin_{id}`) to avoid conflicts with core
+
+##### Startup Health Report
+
+The server logs a schema health summary at startup:
+
+```
+[2026-02-23 08:00:01] INFO  Schema validation:
+  Core:     ✓ at revision 0042_qual_mgmt_add_spc_limits (head)
+  Plugin sap_s4_adapter:  ✓ at revision 0003 (head)
+  Plugin custom_dispatch:  ✓ at revision 0001 (head)
+  Plugin oee_dashboard:    – no migrations
+  Database: PostgreSQL 16.2
+  Server:   MES AI v0.4.0
+```
+
+**Summary of runtime enforcement:**
+
+| Check | When | Behavior |
+|---|---|---|
+| Core schema at expected head | Server startup | **Refuse to start** if mismatch |
+| Plugin schema at expected head | Plugin activation | **Auto-apply** pending migrations |
+| Database reachable | Server startup | **Refuse to start** if cannot connect |
+| Alembic version table exists | Server startup | **Refuse to start** if missing (uninitialized DB) |
+
 ## 6. REST API
 
 ### 6.1 Design Principles

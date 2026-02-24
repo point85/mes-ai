@@ -207,6 +207,12 @@
       "date": "2026-02-22",
       "decision": "Equipment communication via OPC-UA (asyncua), MQTT (aiomqtt), Modbus TCP (pymodbus), HTTP/REST (httpx), ZeroMQ (pyzmq); MOM integration via Kafka (aiokafka), RabbitMQ (aio-pika), JMS brokers via STOMP (stomp.py) or AMQP 1.0 (proton/Qpid); distributed event bus supports Kafka, NATS, Redis Streams",
       "rationale": "OPC-UA is the primary industrial standard; MQTT covers IoT/edge; MOM integration needed for factories with existing message infrastructure (JMS, Kafka, RabbitMQ); all Python libraries are async-capable and actively maintained"
+    },
+    {
+      "id": "D021",
+      "date": "2026-02-23",
+      "decision": "Alembic-based migration strategy: sequential numbered migrations, module ID in filenames, data-safe patterns (expand-contract for breaking changes), separate plugin migration chains with table prefixes, mandatory downgrade(), CI validates full upgrade/downgrade cycle, production runbook with backup-first policy",
+      "rationale": "Production MES databases contain irreplaceable manufacturing data; migrations must be safe, reversible, testable, and predictable for AI agents; plugin schema isolation prevents coupling plugin lifecycle to core releases"
     }
   ],
 

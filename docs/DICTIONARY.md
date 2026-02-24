@@ -248,6 +248,24 @@ These short identifiers are used in architecture docs, code paths, commit messag
 | **`.env` file** | Local file containing environment variables for development. Never committed to Git. |
 | **Mock Adapter** | A development/test implementation of an adapter interface that simulates external system behavior in-memory. Every adapter (ERP, equipment, test equipment) has a mock. |
 
+### Database Migration
+
+| Term | Definition |
+|---|---|
+| **Migration** | A versioned script that changes the database schema (DDL) and optionally transforms existing data. Managed by Alembic. Each migration has an `upgrade()` and `downgrade()` function. |
+| **Alembic** | The SQLAlchemy database migration framework. Auto-generates migration scripts by diffing ORM models against the current database schema. |
+| **Revision** | A single Alembic migration identified by a short hash. Revisions form a linked chain via `down_revision` pointers. |
+| **Revision Chain** | The linear sequence of migrations from the initial schema to the current head. Must be a single chain (no unresolved branches). |
+| **Head** | The most recent migration revision — the target state for `alembic upgrade head`. |
+| **Autogenerate** | Alembic's ability to auto-detect differences between ORM `models.py` and the live database, then generate a migration script. Does not detect renames or data transformations. |
+| **Expand-Contract** | A two-phase migration pattern for breaking schema changes. **Expand**: add new schema alongside old (backward-compatible). **Contract**: remove old schema after all code is updated. Required for zero-downtime deployments. |
+| **Data Migration** | Logic within a migration that transforms existing data (e.g., backfilling a new column, converting values). Written as SQL inside the migration file. |
+| **Forward-Fix** | Creating a new corrective migration instead of rolling back (downgrading) a problematic one. Preferred over downgrade in production because it avoids data loss. |
+| **Downgrade** | Rolling a migration back by executing its `downgrade()` function. Restores the previous schema. May lose data if columns or tables were dropped. |
+| **Plugin Migration Chain** | A separate Alembic revision chain owned by a plugin, stored in `plugins/{name}/migrations/`. Isolated from core migrations. Plugin tables are prefixed with `plugin_{id}_`. |
+| **Transactional DDL** | Database support for wrapping schema changes in a transaction (rollback on failure). PostgreSQL fully supports it. SQL Server partially. Oracle does not (DDL auto-commits). |
+| **Model Drift** | When ORM `models.py` and the actual database schema are out of sync. Detected by `alembic check`. |
+
 ---
 
 ## 4. Abbreviations Quick Reference
