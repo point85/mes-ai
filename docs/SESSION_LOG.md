@@ -177,3 +177,83 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S004 — 2026-02-24
+
+**Phase**: P3 — Core Server Implementation  
+**Objective**: Complete Layer 0 Foundation modules (EVENT-BUS, REST-API, AUTH, PLUGIN-FW)
+
+### What Happened
+1. Resumed from S003 by reading `PROJECT_STATE.json` and `SESSION_LOG.md`.
+2. Implemented **EVENT-BUS** module (`framework/events/`):
+   - `schema.py`: `MESEvent` Pydantic model with event_id, event_type (dot-notation), timestamp, source, payload, correlation_id.
+   - `bus.py`: `EventBus` class — in-process async pub/sub with exact and wildcard topic matching (`wip.unit.*`, `wip.*`, `*`), handler error isolation via `asyncio.gather`, subscribe/unsubscribe/publish/clear.
+   - `decorators.py`: `@event_handler("topic")` decorator with global registry for auto-registration at startup.
+3. Implemented **REST-API** framework (`framework/api/`):
+   - `responses.py`: Standard response envelope schemas — `SuccessResponse[T]`, `ListResponse[T]`, `ErrorResponse`, `PaginationMeta`, plus helper functions `success_response()`, `list_response()`, `error_response()`.
+   - `exceptions.py`: `MESException` hierarchy — `NotFoundException` (404), `ConflictException` (409), `ValidationException` (422), `ForbiddenException` (403), `UnauthorizedException` (401). Global FastAPI exception handlers registered via `register_exception_handlers()`.
+   - `pagination.py`: Cursor-based pagination — `PaginationParams`, `get_pagination_params` FastAPI dependency, `encode_cursor`/`decode_cursor` (base64), `paginate_query()` for SQLAlchemy async queries.
+4. Implemented **AUTH** module (`framework/auth/`):
+   - `models.py`: SQLAlchemy models — `User`, `Role`, `Permission`, `UserRole` (M:N join), `IdPGroupMapping`. User supports both OIDC JIT provisioning and local auth fallback.
+   - `schemas.py`: Pydantic schemas — `UserCreate`, `UserRead`, `UserUpdate`, `RoleCreate`, `RoleRead`, `PermissionAssignment`, `TokenResponse`, `LocalLoginRequest`, `IdPGroupMappingCreate`.
+   - `service.py`: `AuthService` — PBKDF2-SHA256 password hashing, JWT token creation/validation, wildcard permission matching (`*`, `module.*`, `*.read`), user lookup with eager-loaded roles/permissions, default role seeding (admin/engineer/operator/viewer with permissions per §11.3.3).
+   - `dependencies.py`: FastAPI dependencies — `get_current_user()` (JWT extraction from Authorization header), `require_permission("module.resource.action")` factory.
+   - `routes.py`: Auth REST endpoints — `POST /auth/local/login`, `GET /auth/me`, `POST /auth/users`, `GET /auth/roles`, `POST /auth/roles`, `POST /auth/roles/{id}/permissions`, `POST /auth/users/{id}/roles/{id}`, `DELETE /auth/users/{id}/roles/{id}`.
+5. Implemented **PLUGIN-FW** module (`framework/plugin/`):
+   - `base.py`: `MESPlugin` abstract base class — `initialize(config)`, `start()`, `stop()`, optional `get_routes()`, `get_event_handlers()`. `ExtensionPointType` enum with all 8 extension point types per §7.5.
+   - `manifest.py`: `PluginManifest` Pydantic model — parses/validates `manifest.yaml` (id, name, version, permissions, required_core_permissions, extension_points, event_subscriptions, dependencies, config_schema). `from_yaml()` class method.
+   - `manager.py`: `PluginManager` — full lifecycle: `discover_and_load()` scans plugin directories, validates manifests, resolves dependencies, imports plugin.py, instantiates MESPlugin subclass, initializes with config, registers event handlers. `start_all()`, `stop_all()`, `get_plugin_routes()`. Emits `plugin.loaded`/`plugin.error` events.
+6. Updated **config.py** to `MES_` env prefix, added AUTH_MODE, OIDC settings, EVENT_BUS_TYPE, REFRESH_TOKEN_EXPIRE_DAYS per architecture §12.
+7. Updated **main.py** with `lifespan` context manager — registers event handlers, discovers/loads/starts plugins, includes plugin routes. Health endpoint now reports auth_mode, event_bus type, and plugin count.
+8. Added `README.md` and `[tool.hatch.build.targets.wheel]` config to fix package build.
+9. Wrote **58 unit tests** across 5 test files:
+   - `test_event_bus.py` (15 tests): MESEvent schema, exact/wildcard/global subscription, multi-handler, error isolation, unsubscribe, decorator registry.
+   - `test_rest_api.py` (13 tests): Response envelopes, exception hierarchy/status codes, cursor encoding, pagination meta.
+   - `test_auth.py` (14 tests): Password hashing/verification, JWT token create/decode, wildcard permission matching (exact, global *, module.*, *.read, multi-perm, empty).
+   - `test_plugin_framework.py` (9 tests): Manifest parsing (minimal/full/YAML), abstract base class, extension point types, manager with empty/nonexistent dirs, full lifecycle discover→load→start→stop.
+   - `test_data_layer.py` (2 tests): BaseModel abstractness, inheritance.
+10. All 58 tests pass (4 warnings about dev secret key length — expected).
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D027 | MES_ env prefix for all settings; config consolidated into single Settings class with pydantic-settings |
+
+### Files Created
+| File | Module |
+|------|--------|
+| `framework/events/__init__.py` | EVENT-BUS |
+| `framework/events/schema.py` | EVENT-BUS |
+| `framework/events/bus.py` | EVENT-BUS |
+| `framework/events/decorators.py` | EVENT-BUS |
+| `framework/api/__init__.py` | REST-API |
+| `framework/api/responses.py` | REST-API |
+| `framework/api/exceptions.py` | REST-API |
+| `framework/api/pagination.py` | REST-API |
+| `framework/auth/__init__.py` | AUTH |
+| `framework/auth/models.py` | AUTH |
+| `framework/auth/schemas.py` | AUTH |
+| `framework/auth/service.py` | AUTH |
+| `framework/auth/dependencies.py` | AUTH |
+| `framework/auth/routes.py` | AUTH |
+| `framework/plugin/__init__.py` | PLUGIN-FW |
+| `framework/plugin/base.py` | PLUGIN-FW |
+| `framework/plugin/manifest.py` | PLUGIN-FW |
+| `framework/plugin/manager.py` | PLUGIN-FW |
+| `tests/conftest.py` | Testing |
+| `tests/unit/test_event_bus.py` | Testing |
+| `tests/unit/test_rest_api.py` | Testing |
+| `tests/unit/test_auth.py` | Testing |
+| `tests/unit/test_plugin_framework.py` | Testing |
+| `tests/unit/test_data_layer.py` | Testing |
+| `server/README.md` | Build |
+
+### Where We Stopped
+- **Layer 0 (T3.1) is COMPLETE** — all 5 foundation modules implemented and tested.
+- **Phase 3 (P3)** continues with **Layer 1: Physical Model (PHYS-MODEL) and Product Definition (PROD-DEF)**.
+- Next session: Implement PHYS-MODEL (sites, areas, lines, work centers, equipment + equipment state) and PROD-DEF (products, BOMs, routes, operations) — models, schemas, services, routes, and tests.
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

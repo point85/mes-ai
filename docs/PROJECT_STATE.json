@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-02-24",
-  "lastSessionId": "S003",
+  "lastSessionId": "S004",
 
   "phases": [
     {
@@ -32,7 +32,12 @@
         {
           "id": "T3.1",
           "name": "Layer 0: Foundation modules",
-          "status": "in-progress"
+          "status": "complete"
+        },
+        {
+          "id": "T3.2",
+          "name": "Layer 1: Physical Model & Product Definition",
+          "status": "not-started"
         }
       ]
     },
@@ -60,7 +65,7 @@
   ],
 
   "currentPhase": "P3",
-  "currentTask": "Layer 0: Foundation modules (DATA-LAYER, EVENT-BUS, REST-API, AUTH, PLUGIN-FW)",
+  "currentTask": "Layer 0 COMPLETE. Next: Layer 1 (PHYS-MODEL, PROD-DEF)",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -84,11 +89,11 @@
       "RT-GUI":        { "name": "Runtime GUI Client",             "phase": "P5", "status": "planned" },
       "RT-HEADLESS":   { "name": "Runtime Headless Client",        "phase": "P5", "status": "planned" },
       "DT-CLIENT":     { "name": "Design-Time Client",             "phase": "P5", "status": "planned" },
-      "PLUGIN-FW":     { "name": "Plugin Framework",               "phase": "P3", "status": "planned" },
-      "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "planned" },
+      "PLUGIN-FW":     { "name": "Plugin Framework",               "phase": "P3", "status": "implemented" },
+      "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
-      "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "planned" },
-      "AUTH":          { "name": "Authentication & Authorization", "phase": "P3", "status": "planned" },
+      "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },
+      "AUTH":          { "name": "Authentication & Authorization", "phase": "P3", "status": "implemented" },
       "SESSION-META":  { "name": "AI Session Metadata",            "phase": "P3", "status": "planned" }
     }
   },

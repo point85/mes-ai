@@ -16,6 +16,13 @@ dist/
 build/
 node_modules/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
 # Environment
 .env
 .env.*

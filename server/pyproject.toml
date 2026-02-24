@@ -30,11 +30,15 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/mes"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
 
 [tool.pyright]
-include = ["src"]
+include = ["src", "tests"]
+extraPaths = ["src"]
 exclude = ["**/__pycache__", ".venv", "**/node_modules", "**/.*"]
 strict = ["src"]
