@@ -20,14 +20,19 @@ fi
 
 echo "[✓] Docker found: $(docker --version)"
 
-# 2. Check Python
+# 2. Check Python (try python3 first, fall back to python on Windows)
+PYTHON_CMD="python3"
 if ! command -v python3 &>/dev/null; then
-    echo "ERROR: Python 3 is not installed."
-    echo "  sudo apt update && sudo apt install python3 python3-venv python3-pip"
-    exit 1
+    if command -v python &>/dev/null; then
+        PYTHON_CMD="python"
+    else
+        echo "ERROR: Python 3 is not installed."
+        echo "  Install Python 3.12+ from https://www.python.org/downloads/"
+        exit 1
+    fi
 fi
 
-PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
+PYTHON_VERSION=$($PYTHON_CMD --version | cut -d' ' -f2)
 echo "[✓] Python found: ${PYTHON_VERSION}"
 
 # 3. Start PostgreSQL via Docker Compose
@@ -60,24 +65,46 @@ else
 fi
 
 # 6. Create virtual environment and install dependencies
-if [ ! -d "$SERVER_DIR/.venv" ]; then
+
+# Detect OS: WSL sets /mnt/c paths, but the venv activation script location
+# differs between Windows (Scripts/activate) and Unix (bin/activate).
+if [ -f "$SERVER_DIR/.venv/Scripts/activate" ]; then
+    ACTIVATE="$SERVER_DIR/.venv/Scripts/activate"
+elif [ -f "$SERVER_DIR/.venv/bin/activate" ]; then
+    ACTIVATE="$SERVER_DIR/.venv/bin/activate"
+else
+    ACTIVATE=""
+fi
+
+if [ ! -d "$SERVER_DIR/.venv" ] || [ -z "$ACTIVATE" ]; then
     echo ""
     echo "--- Creating virtual environment ---"
-    python3 -m venv "$SERVER_DIR/.venv"
+    $PYTHON_CMD -m venv "$SERVER_DIR/.venv"
     echo "[✓] Virtual environment created at .venv/"
+    # Re-detect after creation
+    if [ -f "$SERVER_DIR/.venv/Scripts/activate" ]; then
+        ACTIVATE="$SERVER_DIR/.venv/Scripts/activate"
+    else
+        ACTIVATE="$SERVER_DIR/.venv/bin/activate"
+    fi
 fi
 
 echo "--- Installing dependencies ---"
-source "$SERVER_DIR/.venv/bin/activate"
+source "$ACTIVATE"
 pip install -e ".[dev]" --quiet
 echo "[✓] Dependencies installed"
 
 # 7. Summary
+ACTIVATE_CMD="source .venv/bin/activate"
+if [ -f "$SERVER_DIR/.venv/Scripts/activate" ]; then
+    ACTIVATE_CMD=".venv\\Scripts\\activate  (or source .venv/Scripts/activate in Git Bash)"
+fi
+
 echo ""
 echo "=== Setup Complete ==="
 echo ""
 echo "To activate the virtual environment:"
-echo "  source .venv/bin/activate"
+echo "  $ACTIVATE_CMD"
 echo ""
 echo "To run the server:"
 echo "  uvicorn mes.main:app --reload --host 0.0.0.0 --port 8000"

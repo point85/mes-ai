@@ -61,4 +61,9 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"                       # Install MES server
 uvicorn mes.main:app --reload --port 8000     # Run server
 
+If you're in a PowerShell terminal on Windows instead of bash/zsh, you can also just run the setup directly:
+cd c:\dev\mes_ai\server
+.venv\Scripts\activate
+pip install -e ".[dev]" --quiet
+
 Docker desktop for Windows: kentra52@gmail.com/Aligner2024 use Gmail account
