@@ -48,3 +48,16 @@ Session start: You paste a single prompt like "Resume MES AI project" — the AI
 During session: As work progresses, both files are updated incrementally.
 Session end: A final update captures exactly where we stopped and what's next.
 Module IDs: Every functional module gets a short identifier (e.g., WIP-TRACK, DISPATCH-ENGINE, ERP-ADAPTER) registered in PROJECT_STATE.json. You reference these IDs instead of describing functionality.
+
+PostGreSQL Docker Quick start in WSL2:
+cd /mnt/c/dev/mes_ai/server
+chmod +x scripts/dev-setup.sh
+./scripts/dev-setup.sh
+
+Or manually step by step:
+docker compose up -d                          # Start PostgreSQL
+cp .env.example .env                          # Create env config
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"                       # Install MES server
+uvicorn mes.main:app --reload --port 8000     # Run server
+

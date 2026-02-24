@@ -22,6 +22,7 @@ __pycache__/
 *.pyo
 *.egg-info/
 .pytest_cache/
+.venv/
 
 # Environment
 .env
