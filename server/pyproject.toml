@@ -36,5 +36,5 @@ target-version = "py312"
 
 [tool.pyright]
 include = ["src"]
-exclude = ["**/__pycache__", ".venv"]
+exclude = ["**/__pycache__", ".venv", "**/node_modules", "**/.*"]
 strict = ["src"]
