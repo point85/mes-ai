@@ -150,9 +150,11 @@ mes_ai/
 │       └── integration/               # Integration tests (API-level)
 │
 ├── clients/                           # Client implementations
+│   ├── shared/                        # @mes/ui shared component library
 │   ├── runtime_gui/                   # RT-GUI (React)
 │   ├── runtime_headless/              # RT-HEADLESS (Python)
-│   └── design_time/                   # DT-CLIENT (React)
+│   ├── design_time/                   # DT-CLIENT (React)
+│   └── test_client/                   # TEST-CLIENT (Python TUI)
 │
 ├── docker/
 │   ├── Dockerfile                     # Server container
@@ -2650,7 +2652,1342 @@ dependencies:
 | Core module modifications | 1 at a time preferred | Feature branch + PR + CI |
 | Core + plugin simultaneously | Any number | Plugin work is isolated; core changes go through PR |
 
-## 15. Implementation Task Breakdown (Phase 3+)
+## 15. Design-Time Configuration Environment (DT-CLIENT)
+
+The Design-Time Client is the **reference configuration environment** for defining the plant physical model, product definitions, process routes, quality tests, material masters, and all other foundational data that must exist before production begins. It is a React + TypeScript web application that communicates exclusively via the REST API (§6).
+
+> **Key distinction:** The DT-CLIENT is the reference implementation for *configuring* the MES. End users may have their AI build a completely different configuration UI or use headless scripts. The DT-CLIENT proves the API is sufficient for full configuration and serves as a working example.
+
+### 15.1 Scope & Responsibilities
+
+The DT-CLIENT handles **definition-time** activities — everything that happens *before* a production order is released. It does **not** handle runtime operations (WIP tracking, dispatching, data collection) — those belong to the RT-GUI and RT-HEADLESS clients.
+
+**In scope:**
+
+| Domain | What the DT-CLIENT Configures |
+|---|---|
+| **Physical Model** | Sites, areas, production lines, work centers, equipment (with capabilities/properties) |
+| **Product Definition** | Products, BOMs, BOM items, process routes, route steps, step parameters |
+| **Material Masters** | Material definitions (raw, intermediate, finished), units of measure |
+| **Quality Setup** | Quality test definitions, pass/fail criteria, sampling plans |
+| **Data Collection Setup** | Data definitions (what to collect at each step), sources, limits |
+| **Auth Administration** | Users, roles, permissions, IdP group mappings |
+| **Plugin Management** | Install/uninstall/enable/disable plugins, plugin configuration |
+| **System Configuration** | Environment settings, adapter configuration, event bus settings |
+| **Import/Export** | Bulk import from CSV/JSON, export configuration snapshots |
+
+**Out of scope** (belongs to RT-GUI / RT-HEADLESS):
+
+| Activity | Why Not DT-CLIENT |
+|---|---|
+| Production order management | Runtime — orders change during production |
+| WIP tracking & dispatching | Real-time shop floor activity |
+| Data collection entry | Operator activity during production |
+| Performance dashboards | Runtime monitoring |
+| Equipment state recording | Real-time equipment integration |
+
+### 15.2 Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DT-CLIENT (React + TS)                    │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                    App Shell                          │   │
+│  │  ┌────────┐  ┌────────────┐  ┌───────────────────┐   │   │
+│  │  │ NavBar  │  │ Breadcrumb │  │  User / Logout    │   │   │
+│  │  └────────┘  └────────────┘  └───────────────────┘   │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                   Module Pages                        │   │
+│  │                                                       │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌────────────┐   │   │
+│  │  │ Physical     │  │ Product     │  │ Material   │   │   │
+│  │  │ Model Editor │  │ Definition  │  │ Masters    │   │   │
+│  │  └─────────────┘  └─────────────┘  └────────────┘   │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌────────────┐   │   │
+│  │  │ Quality     │  │ Data Collect │  │ Auth       │   │   │
+│  │  │ Setup       │  │ Setup       │  │ Admin      │   │   │
+│  │  └─────────────┘  └─────────────┘  └────────────┘   │   │
+│  │  ┌─────────────┐  ┌─────────────┐                    │   │
+│  │  │ Plugin      │  │ Import/     │                    │   │
+│  │  │ Manager     │  │ Export      │                    │   │
+│  │  └─────────────┘  └─────────────┘                    │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              Shared Services Layer                     │   │
+│  │  ┌──────────┐  ┌───────────┐  ┌──────────────────┐   │   │
+│  │  │ API      │  │ Auth      │  │ Notification     │   │   │
+│  │  │ Client   │  │ Context   │  │ Manager          │   │   │
+│  │  └──────────┘  └───────────┘  └──────────────────┘   │   │
+│  │  ┌──────────┐  ┌───────────┐  ┌──────────────────┐   │   │
+│  │  │ Form     │  │ Table     │  │ Validation       │   │   │
+│  │  │ Engine   │  │ Engine    │  │ Engine           │   │   │
+│  │  └──────────┘  └───────────┘  └──────────────────┘   │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                           │                                  │
+│                    REST API (httpx / fetch)                   │
+└───────────────────────────┼─────────────────────────────────┘
+                            │
+                    MES Server (/api/v1/...)
+```
+
+### 15.3 Technology Stack
+
+| Component | Choice | Rationale |
+|---|---|---|
+| **Framework** | React 18+ | Shared with RT-GUI; AI-friendly; large component ecosystem |
+| **Language** | TypeScript 5+ | Type safety catches configuration errors at compile time |
+| **Build Tool** | Vite | Fast HMR; simple config; standard for new React projects |
+| **Routing** | React Router v6+ | Standard; nested routes map naturally to entity hierarchies |
+| **State Management** | TanStack Query (React Query) | Server state management via REST API; caching, invalidation, optimistic updates |
+| **Forms** | React Hook Form + Zod | Schema-driven validation; Zod schemas can mirror Pydantic server schemas |
+| **UI Components** | Headless UI library (Radix or Ark) + Tailwind CSS | Unstyled primitives allow consistent theming; AI can generate Tailwind easily |
+| **Tables** | TanStack Table | Headless table engine; sorting, filtering, pagination built-in |
+| **Tree Views** | Custom (physical model) | Hierarchical navigation for Site→Area→Line→WorkCenter→Equipment |
+| **HTTP Client** | Native `fetch` + thin wrapper | TanStack Query handles caching; no need for axios |
+| **Auth** | OIDC via `oidc-client-ts` | Standard OIDC client; handles Authorization Code flow + PKCE |
+| **Testing** | Vitest + React Testing Library | Unit and component tests; Vitest is Vite-native |
+
+#### Why TypeScript / React, Not Python?
+
+The DT-CLIENT is a **web application** that runs in the user's browser — it needs HTML, CSS, and JavaScript. Python does not run in browsers. The three client types use different technologies for different reasons:
+
+| Client | Technology | Why |
+|---|---|---|
+| **DT-CLIENT** (config UI) | React + TypeScript | Browser-based GUI for manufacturing engineers to define plant model, products, routes, quality |
+| **RT-GUI** (runtime UI) | React + TypeScript | Browser-based GUI for shop floor operators to track WIP, enter data, view dashboards |
+| **RT-HEADLESS** (automation) | **Python** (`httpx`) | No UI — scripts, equipment integration, batch automation. Same language as server. |
+
+**The DT-CLIENT has zero direct database access.** Every operation goes through the server's REST API:
+
+```
+┌─────────────────┐     REST / HTTP      ┌──────────────────┐     SQLAlchemy     ┌────────┐
+│  DT-CLIENT      │ ──────────────────▶  │  MES Server      │ ─────────────────▶ │   DB   │
+│  (TypeScript)   │ ◀──────────────────  │  (Python/FastAPI) │ ◀───────────────── │        │
+│  Browser        │     JSON             │  Business Logic   │     ORM            │ PgSQL  │
+└─────────────────┘                      └──────────────────┘                     └────────┘
+```
+
+This means:
+- The **Python server** owns all business logic, validation, and data access
+- The **TypeScript client** handles only presentation and client-side form validation (Zod mirrors Pydantic)
+- An end user could **replace the DT-CLIENT entirely** with Python `httpx` scripts if they prefer command-line configuration — the REST API is the contract, not the UI
+- The RT-HEADLESS client (Python) can perform any configuration operation the DT-CLIENT can — it uses the same API endpoints
+
+### 15.4 Project Structure
+
+```
+clients/design_time/
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+├── index.html
+│
+├── src/
+│   ├── main.tsx                       # React app entry point
+│   ├── App.tsx                        # App shell, routing, auth provider
+│   │
+│   ├── api/                           # REST API client layer
+│   │   ├── client.ts                  # Base fetch wrapper (auth headers, error handling)
+│   │   ├── types.ts                   # TypeScript interfaces matching server Pydantic schemas
+│   │   ├── physical-model.ts          # PHYS-MODEL API functions
+│   │   ├── product-def.ts             # PROD-DEF API functions
+│   │   ├── material.ts                # MAT-MGMT API functions
+│   │   ├── quality.ts                 # QUAL-MGMT API functions
+│   │   ├── data-collection.ts         # DATA-COLLECT API functions
+│   │   ├── auth.ts                    # AUTH API functions
+│   │   └── plugins.ts                 # PLUGIN-FW API functions
+│   │
+│   ├── hooks/                         # TanStack Query hooks (one file per domain)
+│   │   ├── use-sites.ts
+│   │   ├── use-equipment.ts
+│   │   ├── use-products.ts
+│   │   ├── use-routes.ts
+│   │   └── ...
+│   │
+│   ├── pages/                         # Route-level page components
+│   │   ├── physical-model/
+│   │   │   ├── SiteListPage.tsx
+│   │   │   ├── SiteDetailPage.tsx
+│   │   │   ├── AreaDetailPage.tsx
+│   │   │   ├── LineDetailPage.tsx
+│   │   │   ├── WorkCenterDetailPage.tsx
+│   │   │   ├── EquipmentDetailPage.tsx
+│   │   │   └── PhysicalModelTreePage.tsx   # Full tree view
+│   │   │
+│   │   ├── product-def/
+│   │   │   ├── ProductListPage.tsx
+│   │   │   ├── ProductDetailPage.tsx
+│   │   │   ├── BOMEditorPage.tsx
+│   │   │   ├── RouteEditorPage.tsx
+│   │   │   └── RouteStepEditorPage.tsx
+│   │   │
+│   │   ├── material/
+│   │   │   ├── MaterialListPage.tsx
+│   │   │   └── MaterialDetailPage.tsx
+│   │   │
+│   │   ├── quality/
+│   │   │   ├── TestDefinitionListPage.tsx
+│   │   │   └── TestDefinitionEditorPage.tsx
+│   │   │
+│   │   ├── data-collection/
+│   │   │   ├── DataDefListPage.tsx
+│   │   │   └── DataDefEditorPage.tsx
+│   │   │
+│   │   ├── auth/
+│   │   │   ├── UserListPage.tsx
+│   │   │   ├── RoleEditorPage.tsx
+│   │   │   └── GroupMappingPage.tsx
+│   │   │
+│   │   ├── plugins/
+│   │   │   ├── PluginListPage.tsx
+│   │   │   └── PluginConfigPage.tsx
+│   │   │
+│   │   └── import-export/
+│   │       ├── ImportPage.tsx
+│   │       └── ExportPage.tsx
+│   │
+│   ├── components/                    # Reusable UI components
+│   │   ├── layout/
+│   │   │   ├── AppShell.tsx           # Main layout: sidebar + content
+│   │   │   ├── Sidebar.tsx            # Navigation sidebar
+│   │   │   └── Breadcrumbs.tsx
+│   │   │
+│   │   ├── shared/
+│   │   │   ├── DataTable.tsx          # Generic CRUD table (TanStack Table wrapper)
+│   │   │   ├── EntityForm.tsx         # Generic form component (React Hook Form wrapper)
+│   │   │   ├── TreeView.tsx           # Hierarchical tree component
+│   │   │   ├── ConfirmDialog.tsx      # Confirmation modal
+│   │   │   ├── SearchInput.tsx        # Search/filter input
+│   │   │   ├── StatusBadge.tsx        # Status indicator pill
+│   │   │   ├── JsonEditor.tsx         # JSON editor for capabilities/config
+│   │   │   └── Pagination.tsx         # Cursor-based pagination controls
+│   │   │
+│   │   └── domain/                    # Domain-specific components
+│   │       ├── EquipmentCapabilitiesEditor.tsx
+│   │       ├── RouteStepGraph.tsx     # Visual route step flow diagram
+│   │       ├── BOMTreeView.tsx        # Nested BOM visualization
+│   │       └── PermissionMatrix.tsx   # Role-permission assignment grid
+│   │
+│   ├── validation/                    # Zod schemas (mirror server Pydantic schemas)
+│   │   ├── physical-model.ts
+│   │   ├── product-def.ts
+│   │   ├── material.ts
+│   │   └── ...
+│   │
+│   ├── auth/                          # OIDC authentication
+│   │   ├── oidc-config.ts             # OIDC provider settings
+│   │   ├── AuthProvider.tsx           # React context for auth state
+│   │   └── ProtectedRoute.tsx         # Route guard (redirects to login if unauthenticated)
+│   │
+│   └── utils/
+│       ├── format.ts                  # Date, number, UOM formatting
+│       └── constants.ts               # API base URL, pagination defaults
+│
+└── tests/                             # Vitest + React Testing Library
+    ├── setup.ts
+    ├── pages/
+    └── components/
+```
+
+### 15.5 Core UI Patterns
+
+Every configuration domain follows the same **List → Detail → Edit** interaction pattern for AI predictability:
+
+#### Master-Detail Pattern
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Sites                                        [+ New]   │
+│─────────────────────────────────────────────────────────│
+│  🔍 Search...                      Status ▼  Sort ▼    │
+│─────────────────────────────────────────────────────────│
+│  Name          Code    Timezone       Areas   Actions   │
+│  Detroit Plant  DET    America/Det...    3    ✏️ 🗑️      │
+│  Austin Plant   AUS    America/Chi...    2    ✏️ 🗑️      │
+│  Monterrey      MTY    America/Mon...    4    ✏️ 🗑️      │
+│─────────────────────────────────────────────────────────│
+│  ← Prev                                   Next →  1/3  │
+└─────────────────────────────────────────────────────────┘
+                    │ click row
+                    ▼
+┌─────────────────────────────────────────────────────────┐
+│  Sites > Detroit Plant                       [Save] [↩] │
+│─────────────────────────────────────────────────────────│
+│  ┌─ General ──────────────────────────────────────────┐ │
+│  │  Name:     [Detroit Plant         ]                │ │
+│  │  Code:     [DET                   ]                │ │
+│  │  Timezone: [America/Detroit       ▼]               │ │
+│  │  Address:  [123 Industrial Blvd   ]                │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                          │
+│  ┌─ Areas (3) ──────────────────────────── [+ New] ──┐ │
+│  │  Assembly Hall A    →  2 Lines, 8 Work Centers     │ │
+│  │  Paint Shop         →  1 Line,  3 Work Centers     │ │  
+│  │  Final Test         →  1 Line,  4 Work Centers     │ │
+│  └────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Physical Model Tree View
+
+The physical hierarchy is the most complex configuration UI. A dedicated tree page shows the full structure:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Physical Model                          [Expand All]   │
+│─────────────────────────────────────────────────────────│
+│                                                          │
+│  ▼ 🏭 Detroit Plant (DET)                               │
+│    ▼ 📦 Assembly Hall A                                  │
+│      ▼ 🔧 Line 1 - Main Assembly                        │
+│        ▼ ⚙️ WC-101 Chassis Mount (automated)             │
+│            🔌 Robot Arm R-001 [running]                   │
+│            🔌 Torque Driver T-001 [idle]                  │
+│        ▶ ⚙️ WC-102 Wiring (manual)                       │
+│        ▶ ⚙️ WC-103 Final Assembly (automated)            │
+│      ▶ 🔧 Line 2 - Sub-Assembly                         │
+│    ▶ 📦 Paint Shop                                       │
+│    ▶ 📦 Final Test                                       │
+│  ▶ 🏭 Austin Plant (AUS)                                │
+│  ▶ 🏭 Monterrey (MTY)                                   │
+│                                                          │
+│  ─────────────── Detail Panel ───────────────────────── │
+│  Equipment: Robot Arm R-001                              │
+│  Code: R-001  Type: robotic_arm  Status: running         │
+│  Work Center: WC-101 Chassis Mount                       │
+│  Capabilities: { "axes": 6, "payload_kg": 10 }          │
+│  [Edit] [View History]                                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Interactions:**
+- Click a tree node → detail panel shows entity properties
+- Double-click or Edit → opens inline edit form
+- Drag-and-drop → reparent equipment between work centers (with confirmation)
+- Right-click → context menu (add child, delete, duplicate)
+
+#### Route Step Visual Editor
+
+Process routes are configured using a visual flow editor:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Product: Widget-A v2.0 > Route: Main Route             │
+│─────────────────────────────────────────────────────────│
+│                                                          │
+│  ┌─────────┐    ┌───────────┐    ┌──────────┐          │
+│  │ Step 1   │───▶│ Step 2     │───▶│ Step 3    │         │
+│  │ Chassis  │    │ Wiring     │    │ Assembly  │         │
+│  │ Mount    │    │            │    │           │         │
+│  │ WC-101   │    │ WC-102     │    │ WC-103    │         │
+│  │ 45s      │    │ 120s       │    │ 60s       │         │
+│  └─────────┘    └───────────┘    └──────────┘          │
+│       │                                │                 │
+│       │         ┌───────────┐          │                 │
+│       └────────▶│ Rework     │─────────┘                │
+│                 │ Step 2R    │                            │
+│                 │ WC-104     │                            │
+│                 └───────────┘                            │
+│                                                          │
+│  [+ Add Step]  [+ Add Rework Path]  [Validate Route]   │
+│                                                          │
+│  ─────────── Step Detail ─────────────────────────────  │
+│  Step: Chassis Mount (production)                        │
+│  Work Center: WC-101    Cycle Time: 45s                  │
+│  Eligible Equipment: Robot Arm R-001, Robot Arm R-002    │
+│  Parameters:                                             │
+│    Torque (Nm)  target=25  min=23  max=27  [required]   │
+│    Temp (°C)    target=22  min=20  max=25  [optional]   │
+│  [Edit Step] [Delete]                                    │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### BOM Editor
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Product: Widget-A v2.0 > BOM: v1.0                     │
+│─────────────────────────────────────────────────────────│
+│                                                          │
+│  ▼ Widget-A                                              │
+│    ├── Chassis Frame (raw)       qty: 1    ea            │
+│    ├── Wiring Harness (raw)      qty: 1    ea            │
+│    ├── Circuit Board (intermed.) qty: 2    ea            │
+│    │   ├── PCB Blank (raw)       qty: 1    ea            │
+│    │   ├── Resistor Pack (raw)   qty: 1    pack          │
+│    │   └── Solder Wire (raw)     qty: 0.5  m             │
+│    ├── Mounting Bolts (raw)      qty: 8    ea            │
+│    └── Label (raw)               qty: 1    ea            │
+│                                                          │
+│  Total materials: 8          [+ Add Item] [Import CSV]  │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 15.6 Shared Component Library
+
+Components shared between DT-CLIENT and RT-GUI are extracted into a common library:
+
+```
+clients/
+├── shared/                            # Shared component library
+│   ├── package.json                   # Published as @mes/ui
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── DataTable.tsx
+│   │   │   ├── EntityForm.tsx
+│   │   │   ├── TreeView.tsx
+│   │   │   ├── StatusBadge.tsx
+│   │   │   ├── SearchInput.tsx
+│   │   │   ├── Pagination.tsx
+│   │   │   ├── ConfirmDialog.tsx
+│   │   │   └── JsonEditor.tsx
+│   │   │
+│   │   ├── hooks/
+│   │   │   ├── use-api.ts             # Base API hook factory
+│   │   │   └── use-auth.ts            # OIDC auth hook
+│   │   │
+│   │   ├── api/
+│   │   │   ├── client.ts              # Base HTTP client
+│   │   │   └── types.ts               # Shared TypeScript interfaces
+│   │   │
+│   │   └── theme/
+│   │       └── tailwind-preset.ts     # Shared Tailwind theme tokens
+│   │
+│   └── tests/
+│
+├── design_time/                       # DT-CLIENT (imports @mes/ui)
+└── runtime_gui/                       # RT-GUI (imports @mes/ui)
+```
+
+### 15.7 API Interaction Layer
+
+The DT-CLIENT communicates with the server **exclusively** via the REST API. No direct database access.
+
+#### TypeScript API Client
+
+```typescript
+// api/client.ts
+const API_BASE = import.meta.env.VITE_MES_API_URL ?? "http://localhost:8000/api/v1";
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAccessToken();
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      ...options?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new ApiError(response.status, error);
+  }
+
+  const envelope = await response.json(); // { data, meta, errors }
+  return envelope.data as T;
+}
+
+// Domain-specific API functions
+// api/physical-model.ts
+export const sitesApi = {
+  list:   (cursor?: string) => request<Site[]>(`/sites?cursor=${cursor ?? ""}`),
+  get:    (id: string)      => request<Site>(`/sites/${id}`),
+  create: (data: SiteCreate)=> request<Site>("/sites", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: string, data: SiteUpdate) => request<Site>(`/sites/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  delete: (id: string)      => request<void>(`/sites/${id}`, { method: "DELETE" }),
+  areas:  (siteId: string)  => request<Area[]>(`/sites/${siteId}/areas`),
+};
+```
+
+#### TanStack Query Hooks
+
+```typescript
+// hooks/use-sites.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { sitesApi } from "../api/physical-model";
+
+export function useSites() {
+  return useQuery({ queryKey: ["sites"], queryFn: () => sitesApi.list() });
+}
+
+export function useSite(id: string) {
+  return useQuery({ queryKey: ["sites", id], queryFn: () => sitesApi.get(id) });
+}
+
+export function useCreateSite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: sitesApi.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sites"] }),
+  });
+}
+
+export function useUpdateSite(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: SiteUpdate) => sitesApi.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sites"] });
+      qc.invalidateQueries({ queryKey: ["sites", id] });
+    },
+  });
+}
+```
+
+### 15.8 Validation Strategy
+
+Validation runs at **two levels** — client-side for instant feedback, server-side as the authoritative check.
+
+| Level | Technology | Purpose |
+|---|---|---|
+| **Client** | Zod schemas + React Hook Form | Instant field validation, type checking, format enforcement, prevents invalid API calls |
+| **Server** | Pydantic schemas + service layer | Authoritative validation, business rules, uniqueness checks, referential integrity |
+
+```typescript
+// validation/physical-model.ts
+import { z } from "zod";
+
+export const SiteCreateSchema = z.object({
+  name: z.string().min(1, "Name is required").max(200),
+  code: z.string().min(1).max(50).regex(/^[A-Z0-9_-]+$/, "Code must be uppercase alphanumeric"),
+  timezone: z.string().min(1, "Timezone is required"),
+  description: z.string().max(1000).optional(),
+  address: z.string().max(500).optional(),
+});
+
+// Mirrors server schema: mes/core/physical_model/schemas.py → SiteCreate
+```
+
+**Validation rules that only exist server-side** (cannot be checked client-side):
+- Uniqueness: "site code must be unique" → requires database query
+- Referential integrity: "work center's line_id must exist" → requires database lookup
+- Business rules: "cannot delete a site with active production orders" → requires cross-module query
+
+The client handles these by displaying server-side error responses inline on the relevant form fields.
+
+### 15.9 Import / Export
+
+For initial setup and configuration migration between environments (dev → staging → production), the DT-CLIENT provides bulk import/export.
+
+#### Export
+
+```
+POST /api/v1/config/export
+Body: { "domains": ["physical_model", "product_def", "material"] }
+Response: JSON snapshot of all configuration data in the requested domains
+```
+
+The export produces a **deterministic JSON document** with all entities and their relationships. Suitable for:
+- Version control (commit configuration snapshots to Git)
+- Environment promotion (export from dev, import to staging)
+- Backup of configuration data (not production/runtime data)
+
+#### Import
+
+```
+POST /api/v1/config/import
+Body: { "data": <exported JSON>, "mode": "create" | "upsert" | "replace" }
+```
+
+| Mode | Behavior |
+|---|---|
+| `create` | Only insert new records. Fail if any already exist. |
+| `upsert` | Insert new records, update existing (matched by `code`). |
+| `replace` | Delete all existing records in the target domains, then insert. **Dangerous — requires admin role.** |
+
+**Import validation:**
+1. Parse and validate all records against Pydantic schemas
+2. Check referential integrity (e.g., BOM items reference valid materials)
+3. Report all errors **before** applying any changes (atomic — all-or-nothing)
+4. Return a detailed import report: records created, updated, skipped, errors
+
+#### CSV Import (simplified)
+
+For users who maintain configuration in spreadsheets:
+
+```
+POST /api/v1/config/import-csv
+Content-Type: multipart/form-data
+Body: { "domain": "equipment", "file": <CSV file> }
+```
+
+CSV column headers must match the Pydantic schema field names. The server maps them to the appropriate entities.
+
+### 15.10 Routing Map
+
+```typescript
+// App.tsx routes
+const routes = [
+  { path: "/",                      element: <DashboardPage /> },
+
+  // Physical Model
+  { path: "/physical-model",        element: <PhysicalModelTreePage /> },
+  { path: "/sites",                 element: <SiteListPage /> },
+  { path: "/sites/:siteId",         element: <SiteDetailPage /> },
+  { path: "/areas/:areaId",         element: <AreaDetailPage /> },
+  { path: "/lines/:lineId",         element: <LineDetailPage /> },
+  { path: "/work-centers/:wcId",    element: <WorkCenterDetailPage /> },
+  { path: "/equipment/:equipId",    element: <EquipmentDetailPage /> },
+
+  // Product Definition
+  { path: "/products",              element: <ProductListPage /> },
+  { path: "/products/:productId",   element: <ProductDetailPage /> },
+  { path: "/boms/:bomId",           element: <BOMEditorPage /> },
+  { path: "/routes/:routeId",       element: <RouteEditorPage /> },
+  { path: "/steps/:stepId",         element: <RouteStepEditorPage /> },
+
+  // Material Masters
+  { path: "/materials",             element: <MaterialListPage /> },
+  { path: "/materials/:materialId", element: <MaterialDetailPage /> },
+
+  // Quality Setup
+  { path: "/quality/tests",         element: <TestDefinitionListPage /> },
+  { path: "/quality/tests/:testId", element: <TestDefinitionEditorPage /> },
+
+  // Data Collection Setup
+  { path: "/data-definitions",      element: <DataDefListPage /> },
+  { path: "/data-definitions/:id",  element: <DataDefEditorPage /> },
+
+  // Auth Administration
+  { path: "/admin/users",           element: <UserListPage /> },
+  { path: "/admin/roles",           element: <RoleEditorPage /> },
+  { path: "/admin/group-mappings",  element: <GroupMappingPage /> },
+
+  // Plugins
+  { path: "/plugins",               element: <PluginListPage /> },
+  { path: "/plugins/:pluginId",     element: <PluginConfigPage /> },
+
+  // Import/Export
+  { path: "/import",                element: <ImportPage /> },
+  { path: "/export",                element: <ExportPage /> },
+];
+```
+
+### 15.11 Authorization in the DT-CLIENT
+
+The DT-CLIENT respects the server's RBAC model. The UI adapts based on the user's permissions:
+
+| Permission | UI Behavior |
+|---|---|
+| User has `physical_model.sites.create` | "New Site" button visible |
+| User lacks `physical_model.sites.create` | "New Site" button hidden |
+| User has `physical_model.equipment.update` | Edit form fields enabled |
+| User lacks `physical_model.equipment.update` | Fields shown as read-only |
+| User has `admin.*` | Full access to auth admin, plugin management, import/export |
+| User has `product_def.routes.read` only | Can view routes but all edit controls hidden |
+
+**How it works:**
+1. On login, DT-CLIENT calls `GET /api/v1/auth/me` to get the user's resolved permissions
+2. Permissions are stored in React auth context
+3. Components use a `usePermission("physical_model.sites.create")` hook to conditionally render controls
+4. Even if UI controls are somehow bypassed, the server enforces permissions on every API call
+
+### 15.12 Configuration Dashboard
+
+The DT-CLIENT landing page provides a configuration completeness overview:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  MES Configuration Dashboard                             │
+│─────────────────────────────────────────────────────────│
+│                                                          │
+│  Physical Model          Product Definitions             │
+│  ┌────────────────┐      ┌─────────────────┐            │
+│  │ Sites:       3  │      │ Products:    12  │            │
+│  │ Areas:       8  │      │ BOMs:        12  │            │
+│  │ Lines:      14  │      │ Routes:      15  │            │
+│  │ Work Ctrs:  42  │      │ Steps:      127  │            │
+│  │ Equipment:  86  │      │ Parameters: 340  │            │
+│  └────────────────┘      └─────────────────┘            │
+│                                                          │
+│  Materials                Quality                        │
+│  ┌────────────────┐      ┌─────────────────┐            │
+│  │ Materials:  45  │      │ Tests:       28  │            │
+│  │ ⚠ 3 no UOM     │      │ ⚠ 5 no limits   │            │
+│  └────────────────┘      └─────────────────┘            │
+│                                                          │
+│  ⚠ Configuration Warnings:                              │
+│  • 3 materials missing unit of measure                   │
+│  • 5 quality tests missing pass/fail limits              │
+│  • 2 route steps have no eligible equipment assigned     │
+│  • 1 product has no default route                        │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+The dashboard queries a dedicated server endpoint:
+
+```
+GET /api/v1/config/health
+Response: {
+  "counts": { "sites": 3, "areas": 8, ... },
+  "warnings": [
+    { "domain": "material", "severity": "warning", "message": "3 materials missing UOM", "ids": [...] },
+    ...
+  ]
+}
+```
+
+This helps manufacturing engineers verify their configuration is complete before releasing production orders.
+
+### 15.13 New Server Endpoints for DT-CLIENT
+
+The DT-CLIENT requires these additional server endpoints beyond what §6.3 already defines:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/config/health` | Configuration completeness check with warnings |
+| `POST` | `/api/v1/config/export` | Export configuration data as JSON snapshot |
+| `POST` | `/api/v1/config/import` | Import configuration from JSON (modes: create/upsert/replace) |
+| `POST` | `/api/v1/config/import-csv` | Import single domain from CSV file |
+| `GET` | `/api/v1/config/export-history` | List past export snapshots |
+| `GET` | `/api/v1/physical-model/tree` | Full hierarchical tree (Site→Area→Line→WC→Equipment) in one call |
+| `GET` | `/api/v1/products/{id}/full` | Full product with BOM, route, steps, parameters in one call |
+
+These "aggregate" endpoints reduce round-trips for tree views and detail pages that need deeply nested data.
+
+## 16. Test Client (TEST-CLIENT)
+
+Since no real factory, ERP system, or production equipment is available during development, a **Test Client GUI** is required to exercise the full MES server. It serves as an API exerciser, mock ERP receiver, mock equipment simulator, and scenario runner — all in one tool.
+
+> **This is a developer/QA tool, not an end-user application.** It is not intended for production use. It exists to prove the server works correctly end-to-end.
+
+### 16.1 Scope & Responsibilities
+
+| Responsibility | What It Does |
+|---|---|
+| **API Exerciser** | Make HTTP requests to every REST endpoint. View request/response. Build and save request collections. |
+| **Mock ERP Receiver** | Run a lightweight HTTP server that receives outbound ERP calls (completion reports, consumption reports, scrap reports) from the MES server and logs them for inspection. |
+| **Mock Equipment Simulator** | Publish simulated OPC-UA tag changes, MQTT messages, and equipment state transitions that the MES server's equipment adapter consumes. |
+| **Event Monitor** | Connect to the MES WebSocket endpoint and display real-time events as they fire. |
+| **Scenario Runner** | Execute pre-defined end-to-end test scenarios (e.g., "create order → release → move unit through 5 steps → complete → report to ERP") in sequence with assertions. |
+| **Data Seeder** | Populate the database with realistic sample data (sites, equipment, products, routes, materials) in one click for demo/testing. |
+
+### 16.2 Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     TEST-CLIENT (Python + Textual TUI)           │
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │                     Tab Bar                                  │ │
+│  │  [API Explorer] [ERP Sim] [Equip Sim] [Events] [Scenarios] │ │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  ┌──────────────────────┐  ┌──────────────────────────────────┐  │
+│  │  Endpoint Tree       │  │  Request / Response Panel        │  │
+│  │                      │  │                                   │  │
+│  │  ▼ Physical Model    │  │  POST /api/v1/sites              │  │
+│  │    POST /sites       │  │  ──────────────────────          │  │
+│  │    GET  /sites       │  │  Headers:                        │  │
+│  │    GET  /sites/{id}  │  │    Authorization: Bearer ...     │  │
+│  │    PUT  /sites/{id}  │  │  Body:                           │  │
+│  │    ...               │  │    { "name": "Test Plant",       │  │
+│  │  ▼ Product Def       │  │      "code": "TST",             │  │
+│  │    ...               │  │      "timezone": "UTC" }         │  │
+│  │  ▼ Production        │  │  ──────────────────────          │  │
+│  │    ...               │  │  Response: 201 Created           │  │
+│  │  ▼ WIP Tracking      │  │    { "data": { "id": "..." } }  │  │
+│  │    ...               │  │                                   │  │
+│  └──────────────────────┘  └──────────────────────────────────┘  │
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  Log / Audit Panel                                          │ │
+│  │  [12:01:05] → POST /api/v1/sites  201  45ms                │ │
+│  │  [12:01:06] → GET  /api/v1/sites  200  12ms  (2 items)     │ │
+│  │  [12:01:08] ← ERP callback: completion report received      │ │
+│  │  [12:01:09] ⚡ Event: production.order.released             │ │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 16.3 Technology Stack
+
+| Component | Choice | Rationale |
+|---|---|---|
+| **Language** | Python 3.12+ | Same as server; AI maintains one language; full access to server's Pydantic schemas |
+| **UI Framework** | Textual (TUI) | Rich terminal UI; no browser needed; runs in any terminal; AI-friendly |
+| **HTTP Client** | `httpx` (async) | Same as RT-HEADLESS; async; HTTP/2 support |
+| **WebSocket Client** | `websockets` | Async WebSocket for event monitoring |
+| **Mock HTTP Server** | `uvicorn` + `FastAPI` (lightweight) | Receives outbound ERP/equipment callbacks from MES server |
+| **OPC-UA Simulator** | `asyncua` (server mode) | Runs a mini OPC-UA server with configurable tags |
+| **MQTT Simulator** | `aiomqtt` (publisher) | Publishes simulated sensor data to MQTT broker |
+| **Scenario Engine** | Python `asyncio` + YAML scenario files | Declarative test scenarios with assertions |
+| **Data Seeding** | Server's Pydantic schemas + `httpx` | Creates sample data via API calls (not direct DB) |
+
+**Why Python TUI instead of React?**
+- The test client needs to **import server Pydantic schemas directly** — it knows every endpoint's request/response shape without duplication
+- It needs to **run OPC-UA and MQTT simulators** — these are Python libraries
+- It needs to **run a mock HTTP server** to receive ERP callbacks — trivial in Python
+- Terminal-based means it works over SSH, in containers, in CI — no browser needed
+- Textual provides a rich TUI with mouse support, scrolling, tabs, trees — sufficient for a developer tool
+
+### 16.4 Project Structure
+
+```
+clients/test_client/
+├── pyproject.toml                     # Dependencies: httpx, textual, asyncua, aiomqtt, fastapi
+├── README.md
+│
+├── src/
+│   └── mes_test_client/
+│       ├── __init__.py
+│       ├── main.py                    # Textual app entry point
+│       ├── config.py                  # Test client settings (MES URL, credentials)
+│       │
+│       ├── api/                       # API client layer
+│       │   ├── client.py             # Base httpx async client (auth, error handling)
+│       │   ├── endpoints.py          # Auto-generated endpoint registry from OpenAPI spec
+│       │   └── auth.py               # OIDC token management (client credentials flow)
+│       │
+│       ├── tabs/                      # TUI tab panels
+│       │   ├── api_explorer.py       # Endpoint tree + request/response editor
+│       │   ├── erp_simulator.py      # Mock ERP receiver panel
+│       │   ├── equipment_simulator.py # Equipment simulator panel
+│       │   ├── event_monitor.py      # WebSocket event feed
+│       │   └── scenario_runner.py    # Scenario executor with results
+│       │
+│       ├── simulators/                # Background simulators
+│       │   ├── erp_server.py         # FastAPI app receiving ERP callbacks
+│       │   ├── opcua_server.py       # asyncua OPC-UA server with simulated tags
+│       │   ├── mqtt_publisher.py     # MQTT simulated sensor data publisher
+│       │   └── equipment_state.py    # Equipment state change generator
+│       │
+│       ├── scenarios/                 # YAML scenario definitions
+│       │   ├── 01_setup_plant.yaml
+│       │   ├── 02_define_product.yaml
+│       │   ├── 03_production_flow.yaml
+│       │   ├── 04_quality_flow.yaml
+│       │   ├── 05_full_lifecycle.yaml
+│       │   └── schema.py            # Scenario YAML schema (Pydantic)
+│       │
+│       ├── seeders/                   # Data seeding scripts
+│       │   ├── seed_physical_model.py
+│       │   ├── seed_products.py
+│       │   ├── seed_materials.py
+│       │   └── seed_all.py
+│       │
+│       └── widgets/                   # Reusable Textual widgets
+│           ├── endpoint_tree.py      # Collapsible endpoint tree
+│           ├── json_viewer.py        # Syntax-highlighted JSON display
+│           ├── request_editor.py     # HTTP method, path, headers, body editor
+│           ├── log_panel.py          # Scrolling log with timestamps
+│           └── status_bar.py         # Connection status, auth status
+│
+├── scenarios/                         # Built-in scenario YAML files
+│   └── ...
+│
+└── tests/
+    └── ...
+```
+
+### 16.5 Tab 1: API Explorer
+
+The primary tab — makes HTTP requests to every MES server endpoint.
+
+#### Endpoint Registry (Auto-Generated)
+
+The test client reads the MES server's **OpenAPI spec** (`GET /openapi.json`) at startup to build the endpoint tree dynamically:
+
+```python
+# api/endpoints.py
+async def load_endpoint_registry(base_url: str) -> dict:
+    """Fetch OpenAPI spec and build endpoint tree grouped by tag."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{base_url}/openapi.json")
+        spec = resp.json()
+
+    tree = {}
+    for path, methods in spec["paths"].items():
+        for method, details in methods.items():
+            tag = details.get("tags", ["Other"])[0]
+            tree.setdefault(tag, []).append({
+                "method": method.upper(),
+                "path": path,
+                "summary": details.get("summary", ""),
+                "parameters": details.get("parameters", []),
+                "request_body": details.get("requestBody", {}),
+                "responses": details.get("responses", {}),
+            })
+    return tree
+```
+
+This means the test client **automatically discovers all endpoints** — including endpoints added by plugins. No manual endpoint list maintenance needed.
+
+#### Request Builder
+
+When the user selects an endpoint from the tree:
+
+1. **Path parameters** are shown as editable fields (e.g., `{site_id}` → text input pre-filled with last-used value)
+2. **Query parameters** are shown as optional fields with defaults from the OpenAPI spec
+3. **Request body** is pre-populated with the JSON schema from the OpenAPI spec (all fields shown with example/default values)
+4. **Send** executes the request and displays the response with status code, headers, body, and timing
+5. **History** — all requests are logged and can be replayed
+
+#### Request Collections
+
+Saved sets of requests for repeated testing:
+
+```yaml
+# collections/setup_plant.yaml
+name: "Setup Detroit Plant"
+requests:
+  - name: "Create site"
+    method: POST
+    path: /api/v1/sites
+    body:
+      name: "Detroit Plant"
+      code: "DET"
+      timezone: "America/Detroit"
+    expect_status: 201
+    save_response:
+      site_id: "$.data.id"           # Extract and save for next request
+
+  - name: "Create Assembly area"
+    method: POST
+    path: /api/v1/sites/${site_id}/areas    # Uses saved variable
+    body:
+      name: "Assembly Hall A"
+      code: "ASSY-A"
+    expect_status: 201
+    save_response:
+      area_id: "$.data.id"
+
+  - name: "Verify site has area"
+    method: GET
+    path: /api/v1/sites/${site_id}/areas
+    expect_status: 200
+    assert:
+      - "$.data | length >= 1"
+```
+
+### 16.6 Tab 2: Mock ERP Simulator
+
+The MES server's `ERPOutboundAdapter` sends completion reports, consumption reports, and scrap reports to the ERP. In production, this goes to SAP/Oracle/D365. In development, the test client **runs a mock ERP HTTP server** that receives these calls.
+
+#### Mock ERP Server
+
+```python
+# simulators/erp_server.py
+from fastapi import FastAPI
+
+erp_app = FastAPI(title="Mock ERP Receiver")
+received_messages: list[dict] = []
+
+@erp_app.post("/erp/completions")
+async def receive_completion(payload: dict):
+    received_messages.append({"type": "completion", "payload": payload, "received_at": datetime.utcnow()})
+    return {"status": "accepted", "erp_doc_number": f"MOCK-{len(received_messages):04d}"}
+
+@erp_app.post("/erp/consumption")
+async def receive_consumption(payload: dict):
+    received_messages.append({"type": "consumption", "payload": payload, "received_at": datetime.utcnow()})
+    return {"status": "accepted", "erp_doc_number": f"MOCK-{len(received_messages):04d}"}
+
+@erp_app.post("/erp/scrap")
+async def receive_scrap(payload: dict):
+    received_messages.append({"type": "scrap", "payload": payload, "received_at": datetime.utcnow()})
+    return {"status": "accepted", "erp_doc_number": f"MOCK-{len(received_messages):04d}"}
+
+@erp_app.post("/erp/labor")
+async def receive_labor(payload: dict):
+    received_messages.append({"type": "labor", "payload": payload, "received_at": datetime.utcnow()})
+    return {"status": "accepted", "erp_doc_number": f"MOCK-{len(received_messages):04d}"}
+```
+
+#### ERP Simulator Panel
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Mock ERP Simulator                          [▶ Running]    │
+│─────────────────────────────────────────────────────────────│
+│  Listening on: http://localhost:9090/erp                     │
+│  Messages received: 12                                       │
+│                                                              │
+│  ┌─ Inbound Feed ─────────────────────────────────────────┐ │
+│  │  [12:05:01] completion  Order: ORD-001  Good: 50  Rej: 2│ │
+│  │  [12:05:01] consumption Order: ORD-001  Material: MAT-A │ │
+│  │  [12:07:15] completion  Order: ORD-002  Good: 100 Rej: 0│ │
+│  │  [12:07:15] consumption Order: ORD-002  Material: MAT-B │ │
+│  │  [12:07:16] scrap       Order: ORD-002  Qty: 3          │ │
+│  └──────────────────────────────────────────────────────────┘│
+│                                                              │
+│  ┌─ Controls ─────────────────────────────────────────────┐ │
+│  │  Response delay: [0    ] ms     Failure rate: [0  ] %   │ │
+│  │  Response mode:  ○ Accept all  ○ Reject all  ● Custom   │ │
+│  │  [Clear Log]  [Export JSON]  [Pause]  [Stop Server]     │ │
+│  └──────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Configurable behaviors:**
+- **Response delay**: Simulate slow ERP (0–10,000ms)
+- **Failure rate**: Simulate ERP errors (0–100%) to test MES retry logic
+- **Response mode**: Accept all, reject all, or custom rules (e.g., reject every 3rd request)
+- **Export**: Save all received messages as JSON for test assertion
+
+#### MES Server Configuration
+
+Point the MES server's mock ERP adapter at the test client:
+
+```bash
+# .env
+MES_ERP_ADAPTER=mock
+MES_ERP_MOCK_OUTBOUND_URL=http://localhost:9090/erp
+```
+
+### 16.7 Tab 3: Equipment Simulator
+
+Simulates production equipment that the MES server's equipment adapter connects to.
+
+#### OPC-UA Server Simulator
+
+Runs a mini OPC-UA server with configurable tags representing a virtual factory:
+
+```python
+# simulators/opcua_server.py
+from asyncua import Server
+
+async def start_opcua_simulator(port: int = 4840):
+    server = Server()
+    await server.init()
+    server.set_endpoint(f"opc.tcp://0.0.0.0:{port}/mes-test/")
+
+    # Create simulated equipment namespace
+    ns = await server.register_namespace("urn:mes-test:equipment")
+
+    # Oven
+    oven = await server.nodes.objects.add_object(ns, "Oven-001")
+    oven_temp = await oven.add_variable(ns, "Temperature", 180.0)
+    oven_state = await oven.add_variable(ns, "State", "running")
+    await oven_temp.set_writable()
+
+    # Conveyor
+    conveyor = await server.nodes.objects.add_object(ns, "Conveyor-001")
+    conveyor_speed = await conveyor.add_variable(ns, "Speed", 1.5)
+    conveyor_count = await conveyor.add_variable(ns, "PartCount", 0)
+
+    await server.start()
+
+    # Simulate changing values
+    while True:
+        current = await oven_temp.read_value()
+        await oven_temp.write_value(current + random.gauss(0, 0.5))
+        count = await conveyor_count.read_value()
+        await conveyor_count.write_value(count + 1)
+        await asyncio.sleep(1.0)
+```
+
+#### MQTT Publisher Simulator
+
+Publishes simulated sensor messages to an MQTT broker:
+
+```python
+# simulators/mqtt_publisher.py
+async def start_mqtt_simulator(broker: str = "localhost", port: int = 1883):
+    async with aiomqtt.Client(broker, port) as client:
+        while True:
+            await client.publish(
+                "factory/line-1/oven-001/temperature",
+                json.dumps({"value": 180 + random.gauss(0, 1), "unit": "C", "ts": datetime.utcnow().isoformat()})
+            )
+            await client.publish(
+                "factory/line-1/conveyor-001/speed",
+                json.dumps({"value": 1.5 + random.gauss(0, 0.1), "unit": "m/s", "ts": datetime.utcnow().isoformat()})
+            )
+            await asyncio.sleep(1.0)
+```
+
+#### Equipment Simulator Panel
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Equipment Simulator                                         │
+│─────────────────────────────────────────────────────────────│
+│  OPC-UA Server: opc.tcp://localhost:4840  [▶ Running]        │
+│  MQTT Publisher: localhost:1883           [▶ Running]        │
+│                                                              │
+│  ┌─ Virtual Equipment ───────────────────────────────────┐  │
+│  │  Equipment        Tag              Value    Acts       │  │
+│  │  Oven-001         Temperature      180.3°C  [Edit]     │  │
+│  │  Oven-001         State            running  [▼ Change] │  │
+│  │  Oven-001         Setpoint         180.0°C  [Edit]     │  │
+│  │  Conveyor-001     Speed            1.52 m/s [Edit]     │  │
+│  │  Conveyor-001     PartCount        1,247    [Reset]    │  │
+│  │  Robot-001        CycleTime        4.2s     [Edit]     │  │
+│  │  Robot-001        State            idle     [▼ Change] │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌─ Controls ─────────────────────────────────────────────┐ │
+│  │  Update interval: [1.0] sec   Noise σ: [0.5]           │ │
+│  │  [Trigger Breakdown: Oven-001]  [Trigger Maintenance]   │ │
+│  │  [Reset All to Defaults]                                │ │
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Interactions:**
+- **Edit tag value**: Manually override a simulated value
+- **Change state**: Set equipment to running/idle/down_planned/down_unplanned/maintenance
+- **Trigger breakdown**: Instantly simulate an unplanned stop (sets state to `down_unplanned`, publishes event)
+- **Noise**: Controls random fluctuation amplitude for continuous values
+
+### 16.8 Tab 4: Event Monitor
+
+Connects to the MES server's WebSocket endpoint and displays real-time events:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Event Monitor              Connected: ws://localhost:8000   │
+│─────────────────────────────────────────────────────────────│
+│  Filter: [production.*           ]  [Apply]  [Clear]        │
+│                                                              │
+│  Time      Topic                          Source    Payload  │
+│  12:01:05  production.order.released      PROD-ORD  {...}   │
+│  12:01:06  wip.unit.created               WIP-TRACK {...}   │
+│  12:01:08  dispatch.decision.made         DISPATCH  {...}   │
+│  12:01:09  wip.unit.moved                 WIP-TRACK {...}   │
+│  12:01:10  data_collect.point.recorded    DATA-COLL {...}   │
+│  12:01:12  wip.unit.completed             WIP-TRACK {...}   │
+│  12:01:12  erp.outbound.completion_sent   ERP-OBOUND{...}   │
+│                                                              │
+│  Events: 7       Rate: 2.3/sec       [Pause]  [Export]      │
+│─────────────────────────────────────────────────────────────│
+│  ▼ Selected Event Detail:                                    │
+│  {                                                           │
+│    "event_id": "a1b2c3...",                                  │
+│    "topic": "wip.unit.moved",                                │
+│    "source_module": "WIP-TRACK",                             │
+│    "timestamp": "2026-02-23T12:01:09Z",                      │
+│    "payload": {                                              │
+│      "unit_id": "...", "from_step": "Step 1",                │
+│      "to_step": "Step 2", "equipment_id": "..."             │
+│    }                                                         │
+│  }                                                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Features:**
+- **Wildcard filter**: `production.*`, `wip.unit.*`, `*` (all)
+- **Click event → detail**: Expand full JSON payload
+- **Rate counter**: Events per second
+- **Export**: Save event log as JSON for test verification
+
+### 16.9 Tab 5: Scenario Runner
+
+Executes pre-defined end-to-end test scenarios that exercise the full MES workflow.
+
+#### Scenario YAML Format
+
+```yaml
+# scenarios/03_production_flow.yaml
+name: "Full Production Flow"
+description: "Create order, release, process 3 units through 3 steps, complete order, verify ERP reports"
+prerequisites:
+  - scenario: "01_setup_plant"
+  - scenario: "02_define_product"
+
+variables:
+  order_qty: 3
+
+steps:
+  - name: "Create production order"
+    action: api_call
+    method: POST
+    path: /api/v1/orders
+    body:
+      product_id: "${product_id}"
+      quantity_ordered: "${order_qty}"
+      priority: "normal"
+    expect_status: 201
+    save:
+      order_id: "$.data.id"
+
+  - name: "Release order"
+    action: api_call
+    method: POST
+    path: /api/v1/orders/${order_id}/release
+    expect_status: 200
+
+  - name: "Verify units created"
+    action: api_call
+    method: GET
+    path: /api/v1/units?order_id=${order_id}
+    expect_status: 200
+    assert:
+      - "$.data | length == ${order_qty}"
+    save:
+      unit_ids: "$.data[*].id"
+
+  - name: "Process each unit through all steps"
+    action: loop
+    over: "${unit_ids}"
+    as: unit_id
+    steps:
+      - name: "Start unit at step"
+        action: api_call
+        method: POST
+        path: /api/v1/units/${unit_id}/start
+        expect_status: 200
+
+      - name: "Wait for simulated cycle time"
+        action: wait
+        duration_sec: 2
+
+      - name: "Complete unit at step"
+        action: api_call
+        method: POST
+        path: /api/v1/units/${unit_id}/complete
+        expect_status: 200
+
+      - name: "Move unit to next step"
+        action: api_call
+        method: POST
+        path: /api/v1/units/${unit_id}/move
+        expect_status: 200
+
+  - name: "Complete order"
+    action: api_call
+    method: POST
+    path: /api/v1/orders/${order_id}/complete
+    expect_status: 200
+
+  - name: "Verify ERP received completion report"
+    action: check_erp_messages
+    filter:
+      type: "completion"
+      order_id: "${order_id}"
+    assert:
+      - "count >= 1"
+      - "$.payload.qty_good == ${order_qty}"
+
+  - name: "Verify genealogy"
+    action: api_call
+    method: GET
+    path: /api/v1/units/${unit_ids[0]}/genealogy
+    expect_status: 200
+    assert:
+      - "$.data.steps | length == 3"
+```
+
+#### Scenario Runner Panel
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Scenario Runner                                             │
+│─────────────────────────────────────────────────────────────│
+│  Available Scenarios:                                        │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  ☑ 01 Setup Plant              ✅ Passed   (2.1s)    │   │
+│  │  ☑ 02 Define Product           ✅ Passed   (1.8s)    │   │
+│  │  ☑ 03 Full Production Flow     🔄 Running  (step 8)  │   │
+│  │  ☐ 04 Quality Flow             ⬜ Pending             │   │
+│  │  ☐ 05 Full Lifecycle           ⬜ Pending             │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+│  [▶ Run Selected]  [▶▶ Run All]  [⏹ Stop]  [Reset Data]    │
+│                                                              │
+│  ┌─ Step Log ──────────────────────────────────────────────┐│
+│  │  ✅ Create production order         201  0.04s          ││
+│  │  ✅ Release order                   200  0.03s          ││
+│  │  ✅ Verify units created            200  0.02s  (3)     ││
+│  │  ✅ Start unit 1 at step 1          200  0.02s          ││
+│  │  ✅ Complete unit 1 at step 1       200  0.03s          ││
+│  │  ✅ Move unit 1 to step 2           200  0.02s          ││
+│  │  🔄 Start unit 1 at step 2          ...                 ││
+│  └──────────────────────────────────────────────────────────┘│
+│                                                              │
+│  Total: 24 steps  |  Passed: 18  |  Failed: 0  | Time: 4.2s│
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 16.10 Data Seeder
+
+Populates a clean database with realistic sample data via API calls:
+
+```python
+# seeders/seed_all.py
+async def seed_all(client: httpx.AsyncClient):
+    """Create a complete sample factory setup via REST API."""
+
+    # Physical model
+    site = await create(client, "/sites", {"name": "Demo Plant", "code": "DEMO", "timezone": "UTC"})
+    area = await create(client, f"/sites/{site['id']}/areas", {"name": "Assembly", "code": "ASSY"})
+    line = await create(client, f"/areas/{area['id']}/lines", {"name": "Line 1", "code": "L1"})
+
+    wc1 = await create(client, f"/lines/{line['id']}/work-centers",
+                        {"name": "Chassis Mount", "code": "WC-101", "wc_type": "automated"})
+    wc2 = await create(client, f"/lines/{line['id']}/work-centers",
+                        {"name": "Wiring", "code": "WC-102", "wc_type": "manual"})
+    wc3 = await create(client, f"/lines/{line['id']}/work-centers",
+                        {"name": "Final Test", "code": "WC-103", "wc_type": "automated"})
+
+    eq1 = await create(client, f"/work-centers/{wc1['id']}/equipment",
+                        {"name": "Robot Arm", "code": "R-001", "equipment_type": "robotic_arm",
+                         "capabilities": {"axes": 6, "payload_kg": 10}})
+
+    # Products, BOMs, Routes...
+    product = await create(client, "/products",
+                           {"name": "Widget-A", "code": "WGT-A", "version": "1.0", "uom": "ea"})
+    route = await create(client, f"/products/{product['id']}/routes",
+                         {"name": "Main Route", "version": "1.0", "is_default": True})
+    # ... steps, parameters, materials, quality tests
+
+    print(f"Seeded: 1 site, 1 area, 1 line, 3 work centers, 1 equipment, 1 product, 1 route")
+```
+
+**Seeder is invoked via:**
+- Test client TUI: "Seed Data" button on dashboard
+- Command line: `python -m mes_test_client.seeders.seed_all --url http://localhost:8000`
+- Scenario prerequisites: scenarios can declare `seed_all` as a prerequisite
+
+### 16.11 Running the Test Client
+
+```bash
+# Start MES server (in one terminal)
+cd server && uvicorn mes.main:app --reload
+
+# Start test client (in another terminal)
+cd clients/test_client
+python -m mes_test_client
+
+# Or run specific operations from CLI
+python -m mes_test_client seed                          # Seed sample data
+python -m mes_test_client scenario run 03_production    # Run a scenario headless
+python -m mes_test_client erp-sim --port 9090           # Start mock ERP server only
+python -m mes_test_client equip-sim --opcua-port 4840   # Start equipment simulator only
+```
+
+### 16.12 Docker Integration
+
+```yaml
+# docker/docker-compose.yml (additions)
+services:
+  test-client:
+    build: ../clients/test_client
+    depends_on: [server, mqtt-broker]
+    environment:
+      MES_TEST_SERVER_URL: http://server:8000
+      MES_TEST_ERP_SIM_PORT: 9090
+      MES_TEST_OPCUA_PORT: 4840
+      MES_TEST_MQTT_BROKER: mqtt-broker:1883
+    ports:
+      - "9090:9090"    # Mock ERP receiver
+      - "4840:4840"    # OPC-UA simulator
+
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+```
+
+## 17. Implementation Task Breakdown (Phase 3+)
 
 Phase 3 implementation will follow this dependency order:
 

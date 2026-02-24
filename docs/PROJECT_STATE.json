@@ -213,6 +213,18 @@
       "date": "2026-02-23",
       "decision": "Alembic-based migration strategy: sequential numbered migrations, module ID in filenames, data-safe patterns (expand-contract for breaking changes), separate plugin migration chains with table prefixes, mandatory downgrade(), CI validates full upgrade/downgrade cycle, production runbook with backup-first policy",
       "rationale": "Production MES databases contain irreplaceable manufacturing data; migrations must be safe, reversible, testable, and predictable for AI agents; plugin schema isolation prevents coupling plugin lifecycle to core releases"
+    },
+    {
+      "id": "D022",
+      "date": "2026-02-23",
+      "decision": "DT-CLIENT: React+TS design-time configuration environment for plant model, product defs, routes, materials, quality setup, auth admin, plugin management, import/export. Uses TanStack Query, React Hook Form + Zod, Headless UI + Tailwind, OIDC auth. Shared @mes/ui component library between DT-CLIENT and RT-GUI. Config health dashboard with completeness warnings. Aggregate API endpoints for tree views.",
+      "rationale": "Reference implementation proves API sufficiency for full configuration; shared component library avoids duplication between DT and RT clients; tree/aggregate endpoints reduce round-trips; Zod mirrors Pydantic for consistent validation; end users can replace DT-CLIENT entirely via AI-generated alternatives"
+    },
+    {
+      "id": "D023",
+      "date": "2026-02-23",
+      "decision": "TEST-CLIENT: Python Textual TUI with 5 tabs (API Explorer, Mock ERP Simulator, Equipment Simulator, Event Monitor, Scenario Runner). Auto-discovers endpoints from OpenAPI spec. Mock ERP receiver (FastAPI) catches outbound reports. OPC-UA server simulator (asyncua) and MQTT publisher simulate equipment. YAML-based scenario engine for end-to-end test flows. Data seeder creates sample factory via API.",
+      "rationale": "No real factory or ERP during development; test client proves full system works end-to-end; Python TUI can import server Pydantic schemas directly, run OPC-UA/MQTT simulators, and run mock HTTP server — all impossible in a browser client; terminal-based works over SSH, in containers, and CI"
     }
   ],
 
