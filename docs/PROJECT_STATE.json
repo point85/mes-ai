@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-02-22",
-  "lastSessionId": "S002",
+  "lastUpdated": "2026-02-24",
+  "lastSessionId": "S003",
 
   "phases": [
     {
@@ -26,9 +26,15 @@
     {
       "id": "P3",
       "name": "Core Server Implementation",
-      "status": "not-started",
+      "status": "in-progress",
       "description": "Build core server: data model, REST API, plugin framework, dispatching engine",
-      "tasks": []
+      "tasks": [
+        {
+          "id": "T3.1",
+          "name": "Layer 0: Foundation modules",
+          "status": "in-progress"
+        }
+      ]
     },
     {
       "id": "P4",
@@ -80,7 +86,7 @@
       "DT-CLIENT":     { "name": "Design-Time Client",             "phase": "P5", "status": "planned" },
       "PLUGIN-FW":     { "name": "Plugin Framework",               "phase": "P3", "status": "planned" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "planned" },
-      "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "planned" },
+      "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "planned" },
       "AUTH":          { "name": "Authentication & Authorization", "phase": "P3", "status": "planned" },
       "SESSION-META":  { "name": "AI Session Metadata",            "phase": "P3", "status": "planned" }
@@ -237,6 +243,12 @@
       "date": "2026-02-23",
       "decision": "Equipment state machine: pluggable architecture via equipment_state_model extension point. Three plugins: PackML (ISA-TR88, 17 states), SEMI E10/E58 (6 states + sub-states), OEE/TPM (6 states). Only one active at a time. All plugins map states to 4 canonical DispatchCategory values (available, busy, unavailable_planned, unavailable_unplanned) and 5 OEEBucket values. DISPATCH engine queries only canonical categories — never raw plugin states. EquipmentStateLog denormalizes dispatch_category and oee_bucket at write time for fast queries.",
       "rationale": "Different industries prefer different state models (packaging→PackML, semiconductor→SEMI E10, general→OEE/TPM). Plugin approach avoids forcing a single standard while guaranteeing dispatch correctness via canonical category invariant: WIP only dispatched to equipment where dispatch_category=AVAILABLE"
+    },
+    {
+      "id": "D026",
+      "date": "2026-02-24",
+      "decision": "Use pydantic-settings for configuration management",
+      "rationale": "Standardizes environment variable loading and validation for the FastAPI application"
     }
   ],
 

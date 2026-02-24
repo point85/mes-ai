@@ -3445,9 +3445,25 @@ The DT-CLIENT is a **web application** that runs in the user's browser — it ne
 
 | Client | Technology | Why |
 |---|---|---|
-| **DT-CLIENT** (config UI) | React + TypeScript | Browser-based GUI for manufacturing engineers to define plant model, products, routes, quality |
-| **RT-GUI** (runtime UI) | React + TypeScript | Browser-based GUI for shop floor operators to track WIP, enter data, view dashboards |
+| **DT-CLIENT** (config UI) | React + TypeScript (PWA) | Browser-based GUI for manufacturing engineers to define plant model, products, routes, quality |
+| **RT-GUI** (runtime UI) | React + TypeScript (PWA) | Browser-based GUI for shop floor operators to track WIP, enter data, view dashboards |
 | **RT-HEADLESS** (automation) | **Python** (`httpx`) | No UI — scripts, equipment integration, batch automation. Same language as server. |
+
+> **Progressive Web Applications (PWA):** Both browser-based clients (DT-CLIENT and RT-GUI)
+> are built as PWAs. This provides:
+>
+> - **Offline resilience** — service worker caches the app shell and static assets so the UI
+>   loads even when the network is intermittent (common on factory floors with spotty Wi-Fi).
+>   API calls queue and retry when connectivity returns.
+> - **Installable** — operators can "install" the app to tablet or PC home screens without an
+>   app store. Launches in its own window, feels native.
+> - **Auto-update** — service worker update cycle ensures all clients get the latest version
+>   on next launch without IT manually deploying to each device.
+> - **Push notifications** — web push API enables real-time alerts (quality hold, equipment
+>   down, order completed) even when the browser tab is in the background.
+>
+> PWA capabilities are provided by Vite's `vite-plugin-pwa` (Workbox-based service worker
+> generation). The manifest and service worker are configured per client.
 
 **The DT-CLIENT has zero direct database access.** Every operation goes through the server's REST API:
 
