@@ -257,3 +257,68 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+## Session S005 — 2026-02-24
+
+**Phase**: P3 — Core Server Implementation  
+**Objective**: Implement Layer 1 modules (PHYS-MODEL, PROD-DEF, ROUTE-DEF)
+
+### What Happened
+1. Resumed from S004 by reading `PROJECT_STATE.json` and `SESSION_LOG.md`.
+2. Read `ARCHITECTURE.md` §5.2 (data model), §6.3 (endpoint map), and §17 (implementation breakdown) to understand Layer 1 scope.
+3. Implemented **PHYS-MODEL** module (`core/physical_model/`):
+   - `models.py`: 5 SQLAlchemy models — `Site`, `Area`, `ProductionLine`, `WorkCenter`, `Equipment`. Full ISA-95 physical hierarchy with parent FK relationships, `order_by` on child collections, unique `code` fields, JSON `capabilities` on Equipment.
+   - `schemas.py`: Pydantic create/read/update schemas for all 5 entities, plus `EquipmentStatusUpdate` for PATCH endpoint. Validation includes regex patterns for `wc_type` (manual|automated), `status` (up|down|idle).
+   - `service.py`: `PhysicalModelService` — full CRUD for all 5 entities. Code uniqueness validation, parent existence checks before child creation, soft-delete, equipment status change with event emission. Uses cursor-based pagination.
+   - `routes.py`: 20 REST endpoints per §6.3 — full CRUD for sites, nested areas/lines/work-centers/equipment, PATCH for equipment status. All endpoints protected by permission dependencies (`physical_model.read`, `.create`, `.update`, `.delete`).
+   - `events.py`: 3 event factories — `equipment_status_changed`, `site_created`, `equipment_created`.
+   - `exceptions.py`: `DuplicateCodeException` (409) for unique code violation.
+4. Implemented **PROD-DEF** module (`core/product_def/`):
+   - `models.py`: 6 SQLAlchemy models — `ProductDefinition`, `BillOfMaterial`, `BOMItem`, `ProcessRoute`, `RouteStep`, `StepParameter`. Versioned products and BOMs, effectivity dating, step parameters with target/limits. Route steps reference work centers (FK to `work_centers`). `material_code` on BOMItem as string (FK to `material_definitions` deferred to MAT-MGMT).
+   - `schemas.py`: Pydantic create/read/update schemas for all 6 entities. Validation: `product_type` (discrete|process), `step_type` (production|inspection|rework), `data_type` (numeric|string|boolean|enum), `quantity > 0`, `sequence >= 1`.
+   - `service.py`: `ProductDefService` — full CRUD for all 6 entities. Product code+version uniqueness, default route management (auto-unset previous default), parent existence validation, event emission.
+   - `routes.py`: ~20 REST endpoints per §6.3 — products, BOMs, BOM items, routes, route steps, step parameters. All permission-protected (`product_def.read`, `.create`, `.update`).
+   - `events.py`: 3 event factories — `product_created`, `route_created`, `bom_created`.
+   - `exceptions.py`: `DuplicateProductException` (409) for code+version uniqueness violation.
+5. Created **ROUTE-DEF** placeholder (`core/routing/__init__.py`): Route *definition* models live in PROD-DEF (per §5.2/§6.3 grouping). The `routing/` module will house ROUTE-ENGINE (Layer 2) for runtime execution logic.
+6. Updated `main.py` to register both new module routers (`physical_model_router`, `product_def_router`).
+7. Wrote **78 unit tests** across 2 test files:
+   - `test_physical_model.py` (28 tests): Model tablenames, base column inheritance, site/area/line/work-center/equipment schema create/read/update validation, event factories, exception construction.
+   - `test_product_def.py` (50 tests): Model tablenames, base column inheritance, relationship declarations (boms, routes, items, steps, parameters), product/BOM/BOMItem/route/step/parameter schema validation, event factories, exception construction.
+8. All **136 tests pass** (58 Layer 0 + 78 Layer 1).
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D028 | Route definition models (ProcessRoute, RouteStep, StepParameter) in PROD-DEF module per §5.2/§6.3 grouping; `core/routing/` reserved for ROUTE-ENGINE (Layer 2) |
+| D029 | BOMItem uses `material_code` (string) instead of FK to MaterialDefinition — FK will be added when MAT-MGMT module is implemented (Layer 3) |
+
+### Files Created
+| File | Module |
+|------|--------|
+| `core/physical_model/__init__.py` | PHYS-MODEL |
+| `core/physical_model/models.py` | PHYS-MODEL |
+| `core/physical_model/schemas.py` | PHYS-MODEL |
+| `core/physical_model/service.py` | PHYS-MODEL |
+| `core/physical_model/routes.py` | PHYS-MODEL |
+| `core/physical_model/events.py` | PHYS-MODEL |
+| `core/physical_model/exceptions.py` | PHYS-MODEL |
+| `core/product_def/__init__.py` | PROD-DEF |
+| `core/product_def/models.py` | PROD-DEF |
+| `core/product_def/schemas.py` | PROD-DEF |
+| `core/product_def/service.py` | PROD-DEF |
+| `core/product_def/routes.py` | PROD-DEF |
+| `core/product_def/events.py` | PROD-DEF |
+| `core/product_def/exceptions.py` | PROD-DEF |
+| `core/routing/__init__.py` | ROUTE-DEF (placeholder) |
+| `tests/unit/test_physical_model.py` | Testing |
+| `tests/unit/test_product_def.py` | Testing |
+
+### Where We Stopped
+- **Layer 1 (T3.2) is COMPLETE** — PHYS-MODEL, PROD-DEF, and ROUTE-DEF implemented and tested.
+- **Phase 3 (P3)** continues with **Layer 2: Production Order (PROD-ORDER), WIP Tracking (WIP-TRACK), Routing Engine (ROUTE-ENGINE)**.
+- Next session: Implement PROD-ORDER (production orders with status lifecycle), WIP-TRACK (units, lots, history), and ROUTE-ENGINE (next-step determination, step validation) — models, schemas, services, routes, and tests.
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

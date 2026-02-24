@@ -61,3 +61,4 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"                       # Install MES server
 uvicorn mes.main:app --reload --port 8000     # Run server
 
+Docker desktop for Windows: kentra52@gmail.com/Aligner2024 use Gmail account

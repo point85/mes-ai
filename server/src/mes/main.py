@@ -11,6 +11,10 @@ from mes.framework.events import event_bus
 from mes.framework.events.decorators import get_registered_handlers
 from mes.framework.plugin import PluginManager
 
+# Core module routers (Layer 1+)
+from mes.core.physical_model.routes import router as physical_model_router
+from mes.core.product_def.routes import router as product_def_router
+
 logger = logging.getLogger("mes")
 
 # Module-level plugin manager singleton
@@ -76,6 +80,10 @@ def create_app() -> FastAPI:
 
     # Include auth routes
     app.include_router(auth_router)
+
+    # Include core module routes (Layer 1+)
+    app.include_router(physical_model_router)
+    app.include_router(product_def_router)
 
     @app.get("/health", tags=["System"])
     async def health_check():

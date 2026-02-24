@@ -1,0 +1,249 @@
+"""
+PROD-DEF: Pydantic schemas for the product definition REST API.
+
+Create/Read/Update schemas for ProductDefinition, BillOfMaterial, BOMItem,
+ProcessRoute, RouteStep, StepParameter.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+# ─── ProductDefinition ────────────────────────────────────────────────
+
+
+class ProductCreate(BaseModel):
+    """Schema for creating a new product definition."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    code: str = Field(..., min_length=1, max_length=50)
+    version: str = Field("1.0", max_length=50)
+    description: str | None = None
+    uom: str = Field("EA", max_length=20)
+    product_type: str = Field("discrete", pattern=r"^(discrete|process)$")
+
+
+class ProductRead(BaseModel):
+    """Schema for returning product definition data."""
+
+    id: UUID
+    name: str
+    code: str
+    version: str
+    description: str | None = None
+    uom: str
+    product_type: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProductUpdate(BaseModel):
+    """Schema for updating a product definition."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    code: str | None = Field(None, min_length=1, max_length=50)
+    version: str | None = Field(None, max_length=50)
+    description: str | None = None
+    uom: str | None = Field(None, max_length=20)
+    product_type: str | None = Field(None, pattern=r"^(discrete|process)$")
+
+
+# ─── BillOfMaterial ───────────────────────────────────────────────────
+
+
+class BOMCreate(BaseModel):
+    """Schema for creating a BOM for a product."""
+
+    version: str = Field("1.0", max_length=50)
+    effective_date: date | None = None
+    expiry_date: date | None = None
+
+
+class BOMRead(BaseModel):
+    """Schema for returning BOM data."""
+
+    id: UUID
+    product_id: UUID
+    version: str
+    effective_date: date | None = None
+    expiry_date: date | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class BOMUpdate(BaseModel):
+    """Schema for updating a BOM."""
+
+    version: str | None = Field(None, max_length=50)
+    effective_date: date | None = None
+    expiry_date: date | None = None
+
+
+# ─── BOMItem ──────────────────────────────────────────────────────────
+
+
+class BOMItemCreate(BaseModel):
+    """Schema for creating a BOM item."""
+
+    material_code: str = Field(..., min_length=1, max_length=50)
+    quantity: float = Field(..., gt=0)
+    uom: str = Field("EA", max_length=20)
+    position: int = Field(0, ge=0)
+
+
+class BOMItemRead(BaseModel):
+    """Schema for returning BOM item data."""
+
+    id: UUID
+    bom_id: UUID
+    material_code: str
+    quantity: float
+    uom: str
+    position: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class BOMItemUpdate(BaseModel):
+    """Schema for updating a BOM item."""
+
+    material_code: str | None = Field(None, min_length=1, max_length=50)
+    quantity: float | None = Field(None, gt=0)
+    uom: str | None = Field(None, max_length=20)
+    position: int | None = Field(None, ge=0)
+
+
+# ─── ProcessRoute ────────────────────────────────────────────────────
+
+
+class RouteCreate(BaseModel):
+    """Schema for creating a process route for a product."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    version: str = Field("1.0", max_length=50)
+    description: str | None = None
+    is_default: bool = False
+
+
+class RouteRead(BaseModel):
+    """Schema for returning process route data."""
+
+    id: UUID
+    product_id: UUID
+    version: str
+    name: str
+    description: str | None = None
+    is_default: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RouteUpdate(BaseModel):
+    """Schema for updating a process route."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    version: str | None = Field(None, max_length=50)
+    description: str | None = None
+    is_default: bool | None = None
+
+
+# ─── RouteStep ────────────────────────────────────────────────────────
+
+
+class RouteStepCreate(BaseModel):
+    """Schema for creating a route step."""
+
+    sequence: int = Field(..., ge=1)
+    name: str = Field(..., min_length=1, max_length=255)
+    step_type: str = Field("production", pattern=r"^(production|inspection|rework)$")
+    work_center_id: UUID | None = None
+    expected_cycle_time_sec: float | None = Field(None, ge=0)
+
+
+class RouteStepRead(BaseModel):
+    """Schema for returning route step data."""
+
+    id: UUID
+    route_id: UUID
+    sequence: int
+    name: str
+    step_type: str
+    work_center_id: UUID | None = None
+    expected_cycle_time_sec: float | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RouteStepUpdate(BaseModel):
+    """Schema for updating a route step."""
+
+    sequence: int | None = Field(None, ge=1)
+    name: str | None = Field(None, min_length=1, max_length=255)
+    step_type: str | None = Field(None, pattern=r"^(production|inspection|rework)$")
+    work_center_id: UUID | None = None
+    expected_cycle_time_sec: float | None = Field(None, ge=0)
+
+
+# ─── StepParameter ───────────────────────────────────────────────────
+
+
+class StepParameterCreate(BaseModel):
+    """Schema for creating a step parameter."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    data_type: str = Field("numeric", pattern=r"^(numeric|string|boolean|enum)$")
+    uom: str | None = Field(None, max_length=20)
+    target_value: str | None = None
+    lower_limit: str | None = None
+    upper_limit: str | None = None
+    is_required: bool = False
+
+
+class StepParameterRead(BaseModel):
+    """Schema for returning step parameter data."""
+
+    id: UUID
+    step_id: UUID
+    name: str
+    data_type: str
+    uom: str | None = None
+    target_value: str | None = None
+    lower_limit: str | None = None
+    upper_limit: str | None = None
+    is_required: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class StepParameterUpdate(BaseModel):
+    """Schema for updating a step parameter."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    data_type: str | None = Field(None, pattern=r"^(numeric|string|boolean|enum)$")
+    uom: str | None = None
+    target_value: str | None = None
+    lower_limit: str | None = None
+    upper_limit: str | None = None
+    is_required: bool | None = None
