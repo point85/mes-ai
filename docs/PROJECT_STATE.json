@@ -225,6 +225,18 @@
       "date": "2026-02-23",
       "decision": "TEST-CLIENT: Python Textual TUI with 5 tabs (API Explorer, Mock ERP Simulator, Equipment Simulator, Event Monitor, Scenario Runner). Auto-discovers endpoints from OpenAPI spec. Mock ERP receiver (FastAPI) catches outbound reports. OPC-UA server simulator (asyncua) and MQTT publisher simulate equipment. YAML-based scenario engine for end-to-end test flows. Data seeder creates sample factory via API.",
       "rationale": "No real factory or ERP during development; test client proves full system works end-to-end; Python TUI can import server Pydantic schemas directly, run OPC-UA/MQTT simulators, and run mock HTTP server — all impossible in a browser client; terminal-based works over SSH, in containers, and CI"
+    },
+    {
+      "id": "D024",
+      "date": "2026-02-23",
+      "decision": "ISA-95 route ownership boundary: ERP owns route creation, versioning, and cost-rate assignments (Level 4). MES holds a local execution copy of routes synced via ERPInboundAdapter.sync_routings(). MES uses routes for execution sequencing, data collection anchoring, outbound cost-posting mapping, and runtime deviation (rework/skip/alternate). MES never creates routes for new products — DT-CLIENT route editor exists only for standalone/demo mode.",
+      "rationale": "Clear ISA-95 Level 3/4 boundary prevents scope creep into ERP territory (cost rollup, capacity planning, standard costing) while documenting why the MES must still store route/operation data locally for real-time execution"
+    },
+    {
+      "id": "D025",
+      "date": "2026-02-23",
+      "decision": "Equipment state machine: pluggable architecture via equipment_state_model extension point. Three plugins: PackML (ISA-TR88, 17 states), SEMI E10/E58 (6 states + sub-states), OEE/TPM (6 states). Only one active at a time. All plugins map states to 4 canonical DispatchCategory values (available, busy, unavailable_planned, unavailable_unplanned) and 5 OEEBucket values. DISPATCH engine queries only canonical categories — never raw plugin states. EquipmentStateLog denormalizes dispatch_category and oee_bucket at write time for fast queries.",
+      "rationale": "Different industries prefer different state models (packaging→PackML, semiconductor→SEMI E10, general→OEE/TPM). Plugin approach avoids forcing a single standard while guaranteeing dispatch correctness via canonical category invariant: WIP only dispatched to equipment where dispatch_category=AVAILABLE"
     }
   ],
 

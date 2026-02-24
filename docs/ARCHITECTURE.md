@@ -263,6 +263,31 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework), `work_center_id`, `expected_cycle_time_sec` | → ProcessRoute, → WorkCenter, → StepParameters |
 | **StepParameter** | `id`, `step_id`, `name`, `data_type`, `uom`, `target_value`, `lower_limit`, `upper_limit`, `is_required` | → RouteStep |
 
+> **ISA-95 Route Ownership Boundary**
+>
+> Routes and operations are **ERP master data** (Level 4). The ERP owns route creation,
+> versioning, and cost-rate assignments. The MES **does not** perform cost rollups, capacity
+> planning, or standard cost maintenance.
+>
+> However, the MES must hold a **local execution copy** of routes for four reasons:
+>
+> 1. **Execution sequencing** — When a unit completes step 20 the MES must know step 30 is next
+>    and which work centers can run it. Calling the ERP on every unit move would introduce
+>    unacceptable latency, tight coupling, and loss of offline resilience.
+> 2. **Data collection anchoring** — Every quality test, data point, material consumption,
+>    non-conformance, and history record is captured per `RouteStep`. The step is the foreign-key
+>    anchor for `QualityTest`, `DataPoint`, `MaterialConsumption`, `NonConformance`,
+>    `UnitHistory`, and `LotHistory`.
+> 3. **Outbound reporting** — `ERPOutboundAdapter.report_completion()` reports per-operation
+>    actuals (labor, material, yield). The MES must know which operation just finished to map it
+>    back to the ERP's cost-posting structure.
+> 4. **Shop floor deviation** — The MES may need to deviate from the ERP route at execution time
+>    (rework loops, skip steps, alternate routes based on equipment availability). The ERP route
+>    is the *plan*; the MES route is the *execution reality*.
+>
+> Routes are synced via `ERPInboundAdapter.sync_routings()` (§9.2.4). The `ROUTE-DEF` module
+> stores them; the `ROUTE-ENGINE` module interprets them at execution time.
+
 #### Production Order (PROD-ORDER)
 
 | Entity | Fields | Relations |
@@ -305,7 +330,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 
 | Entity | Fields | Relations |
 |---|---|---|
-| **EquipmentStateLog** | `id`, `equipment_id`, `state` (running/idle/down_planned/down_unplanned/maintenance), `started_at`, `ended_at`, `reason_code`, `notes` | → Equipment |
+| **EquipmentStateLog** | `id`, `equipment_id`, `state_model`, `state`, `sub_state` (nullable), `dispatch_category` (available/busy/unavailable_planned/unavailable_unplanned), `oee_bucket`, `started_at`, `ended_at`, `reason_code`, `notes` | → Equipment |
 | **ProductionCounter** | `id`, `equipment_id`, `order_id`, `shift_date`, `good_count`, `reject_count`, `rework_count`, `ideal_cycle_time_sec`, `actual_run_time_sec` | → Equipment, → ProductionOrder |
 
 #### Genealogy (GENEALOGY)
@@ -1156,6 +1181,620 @@ The server logs a schema health summary at startup:
 | Database reachable | Server startup | **Refuse to start** if cannot connect |
 | Alembic version table exists | Server startup | **Refuse to start** if missing (uninitialized DB) |
 
+### 5.7 Equipment State Machine
+
+Equipment state management is central to OEE calculation, dispatch decisions, and ERP downtime
+reporting. Rather than inventing an ad-hoc state model, this MES must adopt a recognized industry
+standard. This section surveys the candidates and documents the selection criteria.
+
+#### 5.7.1 Why a Standard Model Matters
+
+The `EquipmentStateLog` entity (§5.2) records every state transition for every piece of equipment.
+The set of valid states and legal transitions between them determines:
+
+| Concern | How Equipment States Are Used |
+|---|---|
+| **OEE Calculation** | Availability = Planned Production Time − Downtime. Which states count as "downtime" must be unambiguous. |
+| **Dispatching** | DISPATCH module only assigns work to equipment in an available/idle state. The state model defines what "available" means. |
+| **ERP Reporting** | `ERPOutboundAdapter` reports downtime events. ERP expects states mapped to its own categories (planned vs. unplanned). |
+| **Equipment Adapter** | Equipment adapters (§9.3) translate raw PLC/OPC-UA signals into state transitions. The state model defines the target vocabulary. |
+| **Dashboards** | RT-GUI Andon boards and performance dashboards color-code equipment by state. |
+
+#### 5.7.2 Industry Standard Candidates
+
+##### PackML / ISA-TR88 (OMAC)
+
+- **Origin:** ISA-88 Technical Report, adopted by OMAC (Organization for Machine Automation and Control).
+- **Scope:** Machine-level execution states for packaging and discrete manufacturing.
+- **States:** 17 states organized across 3 operating modes (Production, Maintenance, Manual).
+
+```
+                    ┌─── Production Mode ───────────────────────────────┐
+                    │                                                    │
+   ┌────────┐  Start   ┌──────────┐  SC   ┌───────────┐  SC   ┌──────────┐
+   │  Idle  │────────▶│ Starting  │─────▶│ Execute    │─────▶│Completing│
+   └────────┘         └──────────┘       └───────────┘       └──────────┘
+       ▲                                    │    │                  │
+       │                                 Hold  Suspend             │
+       │                                    ▼    ▼                 ▼
+       │                              ┌────────┐ ┌───────────┐ ┌──────────┐
+       │                              │ Held   │ │ Suspended │ │ Complete │
+       │                              └────────┘ └───────────┘ └──────────┘
+       │                                 │           │              │
+       │                              Unhold     Unsuspend       Reset
+       │                                 │           │              │
+       │                                 ▼           ▼              │
+       │                              (back to    (back to          │
+       │                               Execute)   Execute)          │
+       │                                                            │
+       └────────────────────────────────────────────────────────────┘
+                                                              
+   Any State ──Stop──▶ Stopping ──▶ Stopped ──Reset──▶ Idle
+   Any State ──Abort─▶ Aborting ──▶ Aborted ──Clear──▶ Stopped
+```
+
+**Full PackML state list (17):**
+
+| # | State | Description |
+|---|---|---|
+| 1 | Idle | Machine is powered, ready to start |
+| 2 | Starting | Transitioning from idle to execute |
+| 3 | Execute | Machine is producing |
+| 4 | Completing | Production ending normally |
+| 5 | Complete | Production batch/run finished |
+| 6 | Resetting | Returning to idle from complete/stopped |
+| 7 | Holding | Pausing due to internal condition |
+| 8 | Held | Paused, waiting for operator intervention |
+| 9 | Unholding | Resuming from held |
+| 10 | Suspending | Pausing due to external condition (upstream/downstream) |
+| 11 | Suspended | Waiting for external condition to clear |
+| 12 | Unsuspending | Resuming from suspended |
+| 13 | Stopping | Controlled stop initiated |
+| 14 | Stopped | Machine stopped, safe state |
+| 15 | Aborting | Emergency stop in progress |
+| 16 | Aborted | Machine aborted, requires clear + reset |
+| 17 | Clearing | Clearing fault after abort |
+
+**Strengths:**
+- Formal standard (ISA-TR88.00.02)
+- OPC-UA companion specification exists (OPC 40083 / PackML)
+- Widely adopted in CPG, food & beverage, packaging, discrete assembly
+- Rich execution granularity (hold/suspend distinction)
+
+**Weaknesses:**
+- High complexity (17 states) — may be overkill for simpler equipment
+- Originally designed for packaging machines — naming can feel foreign to other industries
+- Requires all equipment to implement the full state model, even if many states are unused
+
+---
+
+##### SEMI E10 / E58 (Semiconductor)
+
+- **Origin:** SEMI (Semiconductor Equipment and Materials International).
+- **Scope:** Equipment utilization and availability classification.
+- **States:** 6 top-level states with E58 sub-state expansion.
+
+```
+┌───────────────────── Equipment ──────────────────────────────┐
+│                                                               │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │              Scheduled Time                           │    │
+│  │  ┌────────────────────────────────────────────────┐  │    │
+│  │  │  ┌──────────────┐  ┌───────────────────────┐   │  │    │
+│  │  │  │ PRODUCTIVE   │  │ STANDBY               │   │  │    │
+│  │  │  │ (producing)  │  │ (ready, no work/mat)  │   │  │    │
+│  │  │  └──────────────┘  └───────────────────────┘   │  │    │
+│  │  │                  Operations Time                │  │    │
+│  │  ├────────────────────────────────────────────────┤  │    │
+│  │  │  ┌──────────────┐  ┌───────────────────────┐   │  │    │
+│  │  │  │ ENGINEERING  │  │ SCHED. DOWNTIME       │   │  │    │
+│  │  │  │ (qual/test)  │  │ (planned maint/setup) │   │  │    │
+│  │  │  └──────────────┘  └───────────────────────┘   │  │    │
+│  │  └────────────────────────────────────────────────┘  │    │
+│  │                                                       │    │
+│  ├───────────────────────────────────────────────────────┤   │
+│  │  ┌──────────────────────────────────────────────┐     │   │
+│  │  │ UNSCHEDULED DOWNTIME                          │    │   │
+│  │  │ (breakdown, unplanned repair)                 │    │   │
+│  │  └──────────────────────────────────────────────┘     │   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                               │
+│  ┌───────────────────────────────────────────────────────┐   │
+│  │ NON-SCHEDULED                                         │   │
+│  │ (no production planned — weekends, holidays, etc.)    │   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+```
+
+**SEMI E10 state definitions (6):**
+
+| # | State | OEE Category | Description |
+|---|---|---|---|
+| 1 | **Productive** | Uptime (value-add) | Equipment is actively processing product |
+| 2 | **Standby** | Uptime (non-value) | Equipment is operational but waiting (no WIP, no material, no operator) |
+| 3 | **Engineering** | Downtime (planned) | Equipment used for qualification, process development, testing |
+| 4 | **Scheduled Downtime** | Downtime (planned) | Planned maintenance, setup, changeover, cleaning |
+| 5 | **Unscheduled Downtime** | Downtime (unplanned) | Breakdown, repair, unexpected failure |
+| 6 | **Non-Scheduled** | Excluded | No production planned (weekends, holidays, off-shift) |
+
+**SEMI E58 sub-states** allow each top-level state to be broken down further. For example,
+Scheduled Downtime → {Setup, PM, Changeover, Cleaning, Calibration}.
+
+**Strengths:**
+- Clean, direct OEE mapping — each state maps unambiguously to availability/downtime category
+- Simple top-level model (6 states) with optional E58 sub-state granularity
+- Widely used beyond semiconductor — adopted in electronics, medical devices, automotive
+- Natural fit for ERP downtime reporting
+
+**Weaknesses:**
+- No execution-level detail (doesn't model Starting → Execute → Completing transitions)
+- Semiconductor-centric naming ("Engineering" state may confuse non-semi users)
+- Less granular than PackML for machine control scenarios
+
+---
+
+##### ISA-95 / IEC 62264 Capability States
+
+- **Origin:** ISA-95 Part 3 — Activity Models of Manufacturing Operations Management.
+- **Scope:** Equipment capability declaration (not execution states).
+- **States:** 3 capability levels.
+
+| State | Meaning |
+|---|---|
+| **Committed** | Equipment is allocated to a specific production order/segment |
+| **Available** | Equipment is operational and can accept work |
+| **Unattainable** | Equipment cannot be used (down, under maintenance, not installed) |
+
+**Strengths:**
+- Already aligned with the ISA-95 data model used throughout this architecture
+- Vendor-neutral, industry-agnostic
+- Useful for capacity/availability queries
+
+**Weaknesses:**
+- Very abstract — only 3 states, no operational detail
+- Not meant as an equipment state machine — it's a capability declaration
+- Insufficient alone for OEE, dispatching, or ERP downtime reporting
+- Would need to be combined with another model for actual state tracking
+
+---
+
+##### OEE-Based / TPM State Model (Nakajima)
+
+- **Origin:** Total Productive Maintenance (Seiichi Nakajima, 1988).
+- **Scope:** Equipment loss categorization for OEE calculation.
+- **States:** Typically 6, mapping directly to the Six Big Losses.
+
+| # | State | OEE Component | Maps to Loss |
+|---|---|---|---|
+| 1 | Running | Performance | (ideal vs actual cycle time) |
+| 2 | Planned Stop | Availability loss | Changeover, setup, planned maintenance |
+| 3 | Unplanned Stop | Availability loss | Breakdowns, failures |
+| 4 | Setup / Changeover | Availability loss | Product changeover |
+| 5 | Reduced Speed | Performance loss | Minor stops, slow cycles |
+| 6 | Idle | Performance loss | No work, starved, blocked |
+
+**Strengths:**
+- Universally understood across all manufacturing sectors
+- Maps directly to OEE formula — no translation needed
+- Simple (6 states)
+
+**Weaknesses:**
+- Not a formal standard — a widely used convention without a governing body
+- No formal state transition rules
+- No OPC-UA or protocol-level specification
+- Conflates equipment state with production loss category
+
+---
+
+##### Weihenstephan Standards (WS)
+
+- **Origin:** Technical University of Munich (TUM) / Weihenstephan.
+- **Scope:** Food & beverage production equipment.
+- **States:** Similar to PackML with additional hygiene-specific states (CIP — Clean-in-Place, SIP — Sterilize-in-Place).
+- **Assessment:** Too niche for a general-purpose MES. Mentioned for completeness only.
+
+#### 5.7.3 Comparison Matrix
+
+| Criterion | PackML (ISA-TR88) | SEMI E10/E58 | ISA-95 Capability | OEE / TPM | Weihenstephan |
+|---|---|---|---|---|---|
+| **Formal standard** | ✅ ISA-TR88 | ✅ SEMI E10/E58 | ✅ IEC 62264 | ❌ Convention | ✅ WS (regional) |
+| **Industry breadth** | Packaging, discrete, CPG | Semi, electronics, auto | Universal | Universal | Food & beverage |
+| **OEE mapping** | Indirect (needs mapping table) | ✅ Native | ❌ Too abstract | ✅ Native | Indirect |
+| **Execution granularity** | ✅ High (17 states) | ❌ Low (6 states) | ❌ Very low (3) | ❌ Low (6) | ✅ High |
+| **OPC-UA companion spec** | ✅ OPC 40083 | ✅ SEMI standards | ✅ IEC 62264 | ❌ None | ❌ Limited |
+| **Implementation complexity** | High | Low–Medium | Low | Low | High |
+| **Sub-state extensibility** | Via modes (Prod/Maint/Manual) | ✅ E58 sub-states | Via sub-reasons | Not defined | Via CIP/SIP states |
+| **Dispatch integration** | Map Execute+Idle→available | Map Productive+Standby→available | ✅ Native (Available) | Map Running+Idle→available | Same as PackML |
+| **ERP downtime reporting** | Map to planned/unplanned | ✅ Native categories | ❌ Insufficient | Partial | Same as PackML |
+
+#### 5.7.4 Current Architecture State (Ad-Hoc Model)
+
+The current `EquipmentStateLog.state` field uses 5 ad-hoc values:
+
+| Current State | Approximate SEMI E10 Equivalent | Approximate PackML Equivalent |
+|---|---|---|
+| `running` | Productive | Execute |
+| `idle` | Standby | Idle |
+| `down_planned` | Scheduled Downtime | Stopped (maintenance mode) |
+| `down_unplanned` | Unscheduled Downtime | Aborted |
+| `maintenance` | Scheduled Downtime | Stopped (maintenance mode) |
+
+This ad-hoc model is essentially a simplified SEMI E10 without the standard's naming or the
+Engineering / Non-Scheduled distinctions. It lacks formal transition rules, sub-state
+support, and a defined OEE mapping.
+
+#### 5.7.5 Pluggable State Machine Architecture (Decision D025)
+
+Rather than choosing a single standard, the MES supports **all three viable models as
+plugins**. The end user selects which equipment state model to use at deployment time. Only one
+state model plugin is active at a time (system-wide).
+
+##### Design Principle: Canonical Dispatch Categories
+
+Every state model — regardless of how many states it defines — must map each of its states to
+exactly one of **four canonical dispatch categories**. These categories are the contract between
+the state model plugin and all consumers (DISPATCH, OEE, ERP reporting, dashboards):
+
+```python
+from enum import Enum
+
+class DispatchCategory(str, Enum):
+    """Canonical equipment availability categories.
+    
+    Every equipment state model plugin MUST map each of its states
+    to exactly one of these categories. The DISPATCH engine, OEE
+    calculator, and ERP reporter consume ONLY these categories —
+    never raw plugin states.
+    """
+    AVAILABLE = "available"        # Can accept WIP (idle, ready, standby)
+    BUSY = "busy"                  # Currently processing WIP — do not double-assign
+    UNAVAILABLE_PLANNED = "unavailable_planned"    # Planned downtime (maintenance, setup, changeover)
+    UNAVAILABLE_UNPLANNED = "unavailable_unplanned"  # Unplanned downtime (breakdown, abort, fault)
+```
+
+**Dispatch rule (invariant):** The DISPATCH engine **only** routes WIP to equipment whose
+current state maps to `AVAILABLE`. Equipment in `BUSY`, `UNAVAILABLE_PLANNED`, or
+`UNAVAILABLE_UNPLANNED` is **never** a dispatch candidate. This rule is enforced in core, not
+in the plugin.
+
+```
+  Get eligible equipment at next step(s)     ← from ROUTE-ENGINE
+       │
+       ▼
+  Filter: equipment.dispatch_category == AVAILABLE     ← CORE enforced
+       │
+       ▼
+  Apply dispatch strategy (first_available, shortest_queue, etc.)
+       │
+       ▼
+  Assign unit/lot → equipment state transitions to BUSY
+```
+
+##### Abstract Interface: EquipmentStateModelPlugin
+
+```python
+from abc import ABC, abstractmethod
+from typing import Sequence
+
+class EquipmentStateModelPlugin(ABC):
+    """Base class for equipment state model plugins.
+    
+    Exactly one state model plugin is active system-wide.
+    Registered via extension_points: [{type: equipment_state_model}].
+    """
+
+    @abstractmethod
+    def get_states(self) -> list[EquipmentStateDefinition]:
+        """Return all valid states in this model.
+        
+        Each state definition includes:
+          - id: str           (e.g., "execute", "productive", "running")
+          - name: str         (human-readable display name)
+          - description: str
+          - dispatch_category: DispatchCategory
+          - oee_bucket: OEEBucket  (uptime_value_add, uptime_non_value, 
+                                     downtime_planned, downtime_unplanned, excluded)
+          - color: str        (hex color for dashboard rendering)
+        """
+        ...
+
+    @abstractmethod
+    def get_transitions(self) -> list[EquipmentStateTransition]:
+        """Return all legal state transitions.
+        
+        Each transition includes:
+          - from_state: str
+          - to_state: str
+          - trigger: str      (e.g., "start", "hold", "abort", "clear")
+          - auto: bool        (True = system-triggered, False = requires operator/command)
+        """
+        ...
+
+    @abstractmethod
+    def validate_transition(
+        self, current_state: str, requested_state: str
+    ) -> bool:
+        """Return True if the transition from current_state to requested_state is legal."""
+        ...
+
+    @abstractmethod
+    def get_initial_state(self) -> str:
+        """Return the state ID for newly registered equipment."""
+        ...
+
+    @abstractmethod
+    def map_to_dispatch_category(self, state: str) -> DispatchCategory:
+        """Map a plugin-specific state to a canonical dispatch category.
+        
+        This is the CRITICAL contract method. The DISPATCH engine calls
+        this to determine whether equipment can accept WIP.
+        """
+        ...
+
+    @abstractmethod
+    def map_to_oee_bucket(self, state: str) -> OEEBucket:
+        """Map a plugin-specific state to an OEE time bucket.
+        
+        Used by PERF-ANALYSIS for OEE availability calculation.
+        """
+        ...
+
+    def map_to_erp_downtime_category(self, state: str) -> str | None:
+        """Map a state to an ERP downtime category for outbound reporting.
+        
+        Returns None if the state is not a downtime state.
+        Default implementation derives from dispatch_category.
+        """
+        cat = self.map_to_dispatch_category(state)
+        if cat == DispatchCategory.UNAVAILABLE_PLANNED:
+            return "planned_downtime"
+        elif cat == DispatchCategory.UNAVAILABLE_UNPLANNED:
+            return "unplanned_downtime"
+        return None
+```
+
+##### OEE Bucket Enum
+
+```python
+class OEEBucket(str, Enum):
+    """OEE time classification for equipment states."""
+    UPTIME_VALUE_ADD = "uptime_value_add"          # Actively producing
+    UPTIME_NON_VALUE = "uptime_non_value"          # Available but not producing
+    DOWNTIME_PLANNED = "downtime_planned"           # Planned maintenance, setup
+    DOWNTIME_UNPLANNED = "downtime_unplanned"       # Breakdown, unplanned downtime
+    EXCLUDED = "excluded"                            # Not counted (non-scheduled time)
+```
+
+**OEE availability formula** (computed from OEE buckets):
+
+$$\text{Availability} = \frac{\text{UPTIME\_VALUE\_ADD} + \text{UPTIME\_NON\_VALUE}}{\text{UPTIME\_VALUE\_ADD} + \text{UPTIME\_NON\_VALUE} + \text{DOWNTIME\_PLANNED} + \text{DOWNTIME\_UNPLANNED}}$$
+
+`EXCLUDED` time is removed from the denominator entirely (non-scheduled = not counted).
+
+##### Plugin 1: PackML State Model
+
+```yaml
+id: state-model-packml
+name: PackML Equipment State Model (ISA-TR88)
+version: 1.0.0
+description: "17-state PackML model with Production/Maintenance/Manual modes"
+extension_points:
+  - type: equipment_state_model
+    name: packml
+```
+
+**State → Dispatch Category → OEE Bucket mapping:**
+
+| PackML State | Dispatch Category | OEE Bucket | Rationale |
+|---|---|---|---|
+| Idle | `AVAILABLE` | Uptime (non-value) | Ready to accept work |
+| Starting | `BUSY` | Uptime (value-add) | Transitioning into production |
+| Execute | `BUSY` | Uptime (value-add) | Actively producing |
+| Completing | `BUSY` | Uptime (value-add) | Finishing current item |
+| Complete | `AVAILABLE` | Uptime (non-value) | Batch done, ready for next |
+| Resetting | `BUSY` | Uptime (non-value) | Returning to idle |
+| Holding | `BUSY` | Downtime (unplanned) | Internal pause in progress |
+| Held | `UNAVAILABLE_UNPLANNED` | Downtime (unplanned) | Waiting for intervention |
+| Unholding | `BUSY` | Uptime (value-add) | Resuming production |
+| Suspending | `BUSY` | Downtime (planned) | External pause in progress |
+| Suspended | `UNAVAILABLE_PLANNED` | Downtime (planned) | Waiting for upstream/downstream |
+| Unsuspending | `BUSY` | Uptime (value-add) | Resuming production |
+| Stopping | `BUSY` | Downtime (planned) | Controlled stop in progress |
+| Stopped | `UNAVAILABLE_PLANNED` | Downtime (planned) | Stopped, safe state |
+| Aborting | `BUSY` | Downtime (unplanned) | Emergency stop in progress |
+| Aborted | `UNAVAILABLE_UNPLANNED` | Downtime (unplanned) | Fault/emergency, requires clear |
+| Clearing | `BUSY` | Downtime (unplanned) | Clearing fault condition |
+
+**Transition states** (`Starting`, `Completing`, `Resetting`, `Holding`, `Unholding`,
+`Suspending`, `Unsuspending`, `Stopping`, `Aborting`, `Clearing`) map to `BUSY` because the
+equipment is occupied during the transition — it cannot accept new WIP.
+
+##### Plugin 2: SEMI E10 State Model
+
+```yaml
+id: state-model-semi-e10
+name: SEMI E10 Equipment State Model
+version: 1.0.0
+description: "6-state SEMI E10 model with optional E58 sub-states"
+extension_points:
+  - type: equipment_state_model
+    name: semi_e10
+```
+
+**State → Dispatch Category → OEE Bucket mapping:**
+
+| SEMI E10 State | Dispatch Category | OEE Bucket | Rationale |
+|---|---|---|---|
+| Productive | `BUSY` | Uptime (value-add) | Actively processing |
+| Standby | `AVAILABLE` | Uptime (non-value) | Ready, waiting for work |
+| Engineering | `UNAVAILABLE_PLANNED` | Downtime (planned) | Qualification / process dev |
+| Scheduled Downtime | `UNAVAILABLE_PLANNED` | Downtime (planned) | PM, setup, changeover |
+| Unscheduled Downtime | `UNAVAILABLE_UNPLANNED` | Downtime (unplanned) | Breakdown, failure |
+| Non-Scheduled | `UNAVAILABLE_PLANNED` | Excluded | Off-shift, weekends |
+
+**E58 sub-states** (optional — stored as `sub_state` in `EquipmentStateLog`):
+
+| Parent State | Sub-States |
+|---|---|
+| Productive | Regular Production, Rework, Engineering Run |
+| Standby | No Material, No Operator, No Carrier, Blocked |
+| Scheduled Downtime | PM, Setup, Changeover, Cleaning, Calibration |
+| Unscheduled Downtime | Breakdown, Repair, Out of Spec, Facility |
+
+##### Plugin 3: OEE / TPM State Model
+
+```yaml
+id: state-model-oee-tpm
+name: OEE/TPM Equipment State Model
+version: 1.0.0
+description: "6-state model based on TPM loss categories for direct OEE calculation"
+extension_points:
+  - type: equipment_state_model
+    name: oee_tpm
+```
+
+**State → Dispatch Category → OEE Bucket mapping:**
+
+| OEE/TPM State | Dispatch Category | OEE Bucket | Rationale |
+|---|---|---|---|
+| Running | `BUSY` | Uptime (value-add) | Actively producing |
+| Idle | `AVAILABLE` | Uptime (non-value) | Ready, no work assigned |
+| Planned Stop | `UNAVAILABLE_PLANNED` | Downtime (planned) | Maintenance, changeover |
+| Unplanned Stop | `UNAVAILABLE_UNPLANNED` | Downtime (unplanned) | Breakdown, failure |
+| Setup / Changeover | `UNAVAILABLE_PLANNED` | Downtime (planned) | Product changeover |
+| Reduced Speed | `BUSY` | Uptime (value-add) | Producing below ideal rate |
+
+##### Data Model Changes
+
+The `EquipmentStateLog` entity is updated to be model-agnostic:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | Primary key |
+| `equipment_id` | FK → Equipment | Which equipment |
+| `state_model` | string | Active plugin ID (`packml`, `semi_e10`, `oee_tpm`) |
+| `state` | string | Plugin-specific state ID (e.g., `execute`, `productive`, `running`) |
+| `sub_state` | string (nullable) | Optional sub-state (E58 sub-states, PackML modes) |
+| `dispatch_category` | enum | Canonical category — **denormalized** for fast dispatch queries |
+| `oee_bucket` | enum | OEE time bucket — **denormalized** for fast OEE queries |
+| `started_at` | datetime | Transition timestamp |
+| `ended_at` | datetime (nullable) | End timestamp (null = current state) |
+| `reason_code` | string (nullable) | Why the transition occurred |
+| `notes` | string (nullable) | Free-text annotation |
+
+The `dispatch_category` and `oee_bucket` columns are **denormalized** from the plugin's mapping
+methods at write time. This ensures:
+- DISPATCH queries can filter by `dispatch_category = 'available'` without calling the plugin
+- OEE calculations can aggregate by `oee_bucket` without calling the plugin
+- Historical data remains correct even if the plugin is removed or swapped
+
+The `Equipment` entity also gains a denormalized `dispatch_category` field for its current state:
+
+```python
+class Equipment(Base):
+    # ... existing fields ...
+    current_state: Mapped[str]                    # Plugin-specific state
+    current_dispatch_category: Mapped[DispatchCategory]  # Canonical — used by DISPATCH
+```
+
+##### Integration with DISPATCH
+
+The DISPATCH engine never inspects plugin-specific states. It queries **only** the canonical
+`dispatch_category`:
+
+```python
+async def get_eligible_equipment(
+    step: RouteStep, db: AsyncSession
+) -> list[Equipment]:
+    """Return equipment eligible for dispatch at the given step.
+    
+    Eligibility requires:
+      1. Equipment is linked to the step (M:N relationship)
+      2. Equipment.current_dispatch_category == AVAILABLE
+      3. Equipment has required capabilities (if step specifies them)
+    """
+    return await db.scalars(
+        select(Equipment)
+        .join(equipment_step_association)
+        .where(
+            equipment_step_association.c.step_id == step.id,
+            Equipment.current_dispatch_category == DispatchCategory.AVAILABLE,
+        )
+    )
+```
+
+**Invariant enforced in core (not in plugin):**
+
+> WIP is **never** dispatched to equipment where `dispatch_category != AVAILABLE`.  
+> This holds regardless of which state model plugin is active.
+
+When a unit/lot is dispatched to equipment, the core triggers a state transition:
+- Equipment moves from `AVAILABLE` state → `BUSY` state (plugin-specific: `Idle→Execute` in
+  PackML, `Standby→Productive` in SEMI E10, `Idle→Running` in OEE/TPM)
+- When processing completes, equipment returns to its `AVAILABLE` state
+
+##### Integration with OEE (PERF-ANALYSIS)
+
+```python
+async def calculate_availability(
+    equipment_id: UUID,
+    period_start: datetime,
+    period_end: datetime,
+    db: AsyncSession,
+) -> float:
+    """Calculate OEE Availability using denormalized oee_bucket.
+    
+    Works identically regardless of active state model plugin.
+    """
+    logs = await db.scalars(
+        select(EquipmentStateLog).where(
+            EquipmentStateLog.equipment_id == equipment_id,
+            EquipmentStateLog.started_at >= period_start,
+            EquipmentStateLog.started_at <= period_end,
+        )
+    )
+    
+    buckets = defaultdict(float)
+    for log in logs:
+        duration = (log.ended_at or period_end) - log.started_at
+        buckets[log.oee_bucket] += duration.total_seconds()
+    
+    uptime = buckets[OEEBucket.UPTIME_VALUE_ADD] + buckets[OEEBucket.UPTIME_NON_VALUE]
+    downtime = buckets[OEEBucket.DOWNTIME_PLANNED] + buckets[OEEBucket.DOWNTIME_UNPLANNED]
+    # EXCLUDED time is not in numerator or denominator
+    
+    total = uptime + downtime
+    return uptime / total if total > 0 else 0.0
+```
+
+##### Plugin Extension Point Registration
+
+A new extension point type is added to the plugin framework (§7.5):
+
+| Type | Description | Example |
+|---|---|---|
+| **equipment_state_model** | Equipment state machine definition (states, transitions, mappings) | PackML, SEMI E10, OEE/TPM |
+
+**Constraint:** Only **one** `equipment_state_model` plugin may be active at a time. If a user
+activates a new state model, the system:
+1. Validates that no equipment is currently in a `BUSY` state (refuse if WIP is in-flight)
+2. Maps existing equipment current states to the new model's initial state
+3. Closes all open `EquipmentStateLog` records
+4. Opens new log records using the new model's initial state
+5. Historical log records retain their original `state_model` value — queries filter by model
+
+##### Summary: How Each Consumer Uses the State Model
+
+| Consumer | What It Reads | Plugin-Aware? |
+|---|---|---|
+| **DISPATCH** | `Equipment.current_dispatch_category` | ❌ No — uses canonical category only |
+| **OEE (PERF-ANALYSIS)** | `EquipmentStateLog.oee_bucket` | ❌ No — uses canonical bucket only |
+| **ERP Reporting** | `EquipmentStateModelPlugin.map_to_erp_downtime_category()` | ⚠️ Thin — calls one method |
+| **Equipment Adapter** | `EquipmentStateModelPlugin.validate_transition()` | ✅ Yes — validates PLC signals |
+| **RT-GUI / Dashboards** | `EquipmentStateLog.state` + plugin `get_states()` for display names/colors | ✅ Yes — renders plugin states |
+| **DT-CLIENT** | Plugin `get_states()` + `get_transitions()` for state model visualization | ✅ Yes — shows state diagram |
+
 ## 6. REST API
 
 ### 6.1 Design Principles
@@ -1492,6 +2131,7 @@ discover → validate manifest → load module → initialize(config)
 | **data_processor** | Transform/validate collected data points | Unit conversion, outlier detection, SPC calculation |
 | **report_generator** | Custom report definitions | Shift summary, quality trends, yield analysis |
 | **equipment_driver** | Custom equipment communication protocol | Proprietary PLC protocol, custom sensor interface |
+| **equipment_state_model** | Equipment state machine definition (states, transitions, dispatch/OEE mappings). **Only one active at a time.** | PackML (ISA-TR88), SEMI E10/E58, OEE/TPM |
 
 ### 7.6 Plugin Isolation
 
@@ -1669,6 +2309,48 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 | **Equipment Downtime** | PERF-ANALYSIS (equipment state log) | ERP maintenance notification | Event: `equipment.state.changed` (to down) |
 | **Quality Results** | QUAL-MGMT (test pass/fail) | ERP quality notification | Event: `quality.test.failed` |
 | **WIP Status** | WIP-TRACK (current quantities, status) | ERP WIP reporting | Scheduled or on-demand |
+
+#### 9.2.3a Route & Operation Ownership (ISA-95 Boundary)
+
+A common source of confusion: an MES is primarily concerned with the **physical model** defined
+by ISA-95 (sites, areas, lines, work centers, equipment). An ERP, by contrast, deals with
+**logical routing and operations** for cost rollups, capacity planning, and standard costing.
+So why does this MES store `ProcessRoute` and `RouteStep` entities at all?
+
+**What the ERP owns (Level 4 — out of scope for this MES):**
+
+| Concern | Owner | Notes |
+|---|---|---|
+| Route creation & version control | ERP | New routes for new products |
+| Operation cost rates | ERP | Standard cost per operation |
+| Capacity planning (CRP / RCCP) | ERP | Long-horizon resource planning |
+| Lead time rollups | ERP | Aggregate manufacturing time |
+| Standard cost maintenance | ERP | Cost accounting |
+
+**What the MES needs from routes (Level 3 — in scope):**
+
+| Need | Why | Example |
+|---|---|---|
+| Execution sequencing | Know *what comes next* for every unit/lot in real time | Unit completes step 20 → engine selects step 30 → dispatches to eligible work center |
+| Data anchoring | Foreign-key target for quality, data, material, NC, history records | `QualityTest.step_id`, `DataPoint.step_id`, `MaterialConsumption.step_id` |
+| Outbound mapping | Map completed step back to ERP operation for cost posting | `report_completion(order, operation, qty, labor_hours)` |
+| Runtime deviation | Handle rework loops, step skips, alternate routes by equipment | ERP route = plan; MES execution = reality |
+
+**Data flow:**
+
+```
+ERP (Level 4)                    MES (Level 3)
+─────────────                    ─────────────
+Route Master  ──sync_routings()──▶  ROUTE-DEF (local copy)
+                                        │
+                                   ROUTE-ENGINE (interprets at execution time)
+                                        │
+Cost Posting  ◀──report_completion()──  WIP-TRACK (actuals per step)
+```
+
+The MES **never** creates routes for new products — it receives them from the ERP via
+`ERPInboundAdapter.sync_routings()`. In standalone / demo mode (no ERP connected), the
+DT-CLIENT route editor (§15.5) provides manual route entry as a substitute.
 
 #### 9.2.4 Abstract ERP Interface
 
@@ -2685,6 +3367,12 @@ The DT-CLIENT handles **definition-time** activities — everything that happens
 | Data collection entry | Operator activity during production |
 | Performance dashboards | Runtime monitoring |
 | Equipment state recording | Real-time equipment integration |
+
+> **Standalone mode note:** When an ERP is connected, product definitions, BOMs,
+> and routes are **synced from the ERP** via `ERPInboundAdapter` (§9.2). The DT-CLIENT
+> route and BOM editors serve primarily as a **view/override layer** and as the sole
+> data-entry path in standalone / demo mode where no ERP is present. The DT-CLIENT
+> does **not** replace ERP master data management.
 
 ### 15.2 Architecture
 
