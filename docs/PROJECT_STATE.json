@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-02-24",
-  "lastSessionId": "S007",
+  "lastUpdated": "2026-02-25",
+  "lastSessionId": "S008",
 
   "phases": [
     {
@@ -47,7 +47,7 @@
         {
           "id": "T3.4",
           "name": "Layer 3: Material Management & Data Collection",
-          "status": "not-started"
+          "status": "in-progress"
         }
       ]
     },
@@ -75,7 +75,7 @@
   ],
 
   "currentPhase": "P3",
-  "currentTask": "Layer 2 COMPLETE (S007): PROD-ORDER, WIP-TRACK, ROUTE-ENGINE implemented. 308 tests pass. Next: Layer 3 (MAT-MGMT, DATA-COLLECT) and DT-CLIENT editors.",
+  "currentTask": "Layer 3 IN-PROGRESS (S008): MAT-MGMT implemented. 392 tests pass. Next: DATA-COLLECT module, then DT-CLIENT editors.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -86,7 +86,7 @@
       "ROUTE-ENGINE":  { "name": "Routing Engine",                 "phase": "P3", "status": "implemented" },
       "DISPATCH":      { "name": "Dispatching Engine",             "phase": "P3", "status": "planned" },
       "PROD-ORDER":    { "name": "Production Order Management",    "phase": "P3", "status": "implemented" },
-      "MAT-MGMT":      { "name": "Material Management",            "phase": "P3", "status": "planned" },
+      "MAT-MGMT":      { "name": "Material Management",            "phase": "P3", "status": "implemented" },
       "DATA-COLLECT":  { "name": "Data Collection",                "phase": "P3", "status": "planned" },
       "PROD-DEF":      { "name": "Product Definition",             "phase": "P3", "status": "implemented" },
       "QUAL-MGMT":     { "name": "Quality Management",             "phase": "P3", "status": "planned" },

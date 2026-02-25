@@ -525,3 +525,58 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S008 — 2026-02-25
+
+**Phase**: P3 — Core Server Implementation  
+**Objective**: Implement Layer 3 module: MAT-MGMT (Material Management)
+
+### What Happened
+1. Resumed from S007 by reading `PROJECT_STATE.json` and `SESSION_LOG.md`.
+2. Read `ARCHITECTURE.md` §5.2 (data model) and §6.3 (endpoints) for MAT-MGMT scope.
+3. Reviewed existing code patterns (production, wip, uom modules) for consistency.
+4. Implemented **MAT-MGMT** module (`core/material/`):
+   - `models.py`: 3 SQLAlchemy models — `MaterialDefinition` (code, name, material_type: raw/intermediate/finished, uom, shelf_life_days, lots relationship), `MaterialLot` (material_id FK, lot_number, quantity_on_hand, quantity_reserved, status: available/reserved/consumed/expired, received_date, expiry_date, supplier), `MaterialConsumption` (material_lot_id FK, unit_id FK → units, lot_id FK → lots, step_id FK → route_steps, quantity_consumed, consumed_at).
+   - `schemas.py`: `MaterialCreate/Read/Update`, `MaterialLotCreate/Read/Update`, `ConsumeRequest`, `ConsumptionRead`. Validators: code no-whitespace, material_type enum, lot status enum, positive quantity. Constants: `MATERIAL_TYPES`, `MATERIAL_LOT_STATUSES`.
+   - `service.py`: `MaterialService` — CRUD for material definitions with code uniqueness enforcement. `MaterialLotService` — CRUD for lots with lot_number uniqueness, `consume()` method (validates lot available/reserved status, checks sufficient quantity, decrements on-hand, auto-transitions to consumed at zero, creates consumption record, publishes event), `get_consumptions_for_unit/lot()` for genealogy queries.
+   - `routes.py`: 11 REST endpoints — materials CRUD (5) + material-lots CRUD (4) + consume (1) + consumed-materials for unit (1).
+   - `events.py`: 3 event factories — `material.consumed` (lot_id, unit_id, quantity), `material.lot.created`, `material.lot.expired`.
+   - `exceptions.py`: `DuplicateMaterialCodeException` (409), `DuplicateLotNumberException` (409), `InsufficientQuantityException` (422), `MaterialLotNotAvailableException` (422).
+5. Updated `main.py` to register material_router (Layer 3 section).
+6. Wrote **84 unit tests** in `test_material.py`:
+   - Model tests: table names, mapper, base/domain columns, unique constraints, relationships, repr (18 tests)
+   - Schema tests: MaterialCreate/Read/Update, MaterialLotCreate/Read/Update, ConsumeRequest, ConsumptionRead — validation, defaults, edge cases (36 tests)
+   - Event tests: all 3 event factories with payload verification (5 tests)
+   - Exception tests: all 4 exceptions with status codes, error codes, messages, details (5 tests)
+   - Service/router import tests: method existence, route path verification (10 tests)
+   - Constants tests: MATERIAL_TYPES and MATERIAL_LOT_STATUSES (2 tests)
+   - Consume invariant tests: quantity validation, status enforcement (5 tests)
+   - Module init tests: importability of all sub-modules (3 tests)
+7. **All 392 tests pass** (308 existing + 84 new).
+
+### Files Created
+| File | Module |
+|------|--------|
+| `core/material/__init__.py` | MAT-MGMT |
+| `core/material/models.py` | MAT-MGMT |
+| `core/material/schemas.py` | MAT-MGMT |
+| `core/material/service.py` | MAT-MGMT |
+| `core/material/routes.py` | MAT-MGMT |
+| `core/material/events.py` | MAT-MGMT |
+| `core/material/exceptions.py` | MAT-MGMT |
+| `tests/unit/test_material.py` | Testing |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `main.py` | Added material_router import/registration (Layer 3 section) |
+
+### Where We Stopped
+- **MAT-MGMT is COMPLETE** — Material Management implemented and tested.
+- **Layer 3 (T3.4)** continues with **DATA-COLLECT** (data definitions, data points at steps).
+- Next session: Implement DATA-COLLECT module, then add DT-CLIENT editors for new modules.
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
