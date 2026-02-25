@@ -595,3 +595,86 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S009 — 2026-02-25
+
+**Phase**: P5 — Client Implementations  
+**Objective**: DT-CLIENT — Design-time editors for all Layer 0-3 server modules  
+
+### What Happened
+1. Audited existing DT-CLIENT codebase (UoM editor was the only existing editor).
+2. Read server-side `schemas.py` and `routes.py` for PHYS-MODEL, PROD-DEF, MAT-MGMT, DATA-COLLECT, PROD-ORDER.
+3. Built 5 new editors following the established pattern: **types → api → hooks → pages (ListPage + FormDialog + index.ts)**.
+4. Fixed Zod v4 + `@hookform/resolvers` type incompatibility (`z.coerce.number()` produces `unknown` input type) — added `as any` assertion to all `zodResolver()` calls.
+5. Updated app shell: Sidebar nav items, App.tsx routes, DashboardPage live cards.
+6. Full Vite/TypeScript build passes (zero errors).
+
+### Editors Built
+| Editor | Route | Components |
+|--------|-------|------------|
+| Sites (Physical Model) | `/sites` | SiteListPage, SiteFormDialog |
+| Products & Routes | `/products` | ProductListPage, ProductFormDialog |
+| Materials | `/materials` | MaterialListPage, MaterialFormDialog |
+| Data Definitions | `/data-definitions` | DataDefListPage, DataDefFormDialog |
+| Production Orders | `/orders` | OrderListPage, OrderFormDialog |
+
+### Architecture Notes
+- Each editor follows the UoM pattern: types file → API client → TanStack Query hooks → ListPage (table + filters + CRUD) + FormDialog (Headless UI modal + react-hook-form + Zod)
+- API client respects server HTTP methods: PHYS-MODEL/PROD-DEF use PUT for updates; MAT-MGMT/DATA-COLLECT/PROD-ORDER use PATCH
+- OrderListPage includes workflow action buttons (Release/Complete/Close) mapped to server status transition endpoints
+- DataDefFormDialog has conditional fields: limit inputs shown only for numeric type, enum_values shown only for enum type
+- Sidebar reorganized: Definitions (UoM, Data Definitions) → Plant Model (Sites) → Products (Products, Materials) → Production (Orders) → Admin
+
+### Files Created
+| File | Module |
+|------|--------|
+| `src/types/physicalModel.ts` | DT-CLIENT |
+| `src/types/productDef.ts` | DT-CLIENT |
+| `src/types/material.ts` | DT-CLIENT |
+| `src/types/dataCollection.ts` | DT-CLIENT |
+| `src/types/production.ts` | DT-CLIENT |
+| `src/api/physicalModel.ts` | DT-CLIENT |
+| `src/api/productDef.ts` | DT-CLIENT |
+| `src/api/material.ts` | DT-CLIENT |
+| `src/api/dataCollection.ts` | DT-CLIENT |
+| `src/api/production.ts` | DT-CLIENT |
+| `src/hooks/usePhysicalModel.ts` | DT-CLIENT |
+| `src/hooks/useProductDef.ts` | DT-CLIENT |
+| `src/hooks/useMaterial.ts` | DT-CLIENT |
+| `src/hooks/useDataCollection.ts` | DT-CLIENT |
+| `src/hooks/useProduction.ts` | DT-CLIENT |
+| `src/pages/sites/SiteListPage.tsx` | DT-CLIENT |
+| `src/pages/sites/SiteFormDialog.tsx` | DT-CLIENT |
+| `src/pages/sites/index.ts` | DT-CLIENT |
+| `src/pages/products/ProductListPage.tsx` | DT-CLIENT |
+| `src/pages/products/ProductFormDialog.tsx` | DT-CLIENT |
+| `src/pages/products/index.ts` | DT-CLIENT |
+| `src/pages/materials/MaterialListPage.tsx` | DT-CLIENT |
+| `src/pages/materials/MaterialFormDialog.tsx` | DT-CLIENT |
+| `src/pages/materials/index.ts` | DT-CLIENT |
+| `src/pages/data-collection/DataDefListPage.tsx` | DT-CLIENT |
+| `src/pages/data-collection/DataDefFormDialog.tsx` | DT-CLIENT |
+| `src/pages/data-collection/index.ts` | DT-CLIENT |
+| `src/pages/orders/OrderListPage.tsx` | DT-CLIENT |
+| `src/pages/orders/OrderFormDialog.tsx` | DT-CLIENT |
+| `src/pages/orders/index.ts` | DT-CLIENT |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `src/types/index.ts` | Re-exports all 6 type modules |
+| `src/api/index.ts` | Re-exports all 6 API modules |
+| `src/hooks/index.ts` | Re-exports all 6 hook modules |
+| `src/components/layout/Sidebar.tsx` | Added icons + nav items for all 5 new editors; reorganized sections |
+| `src/App.tsx` | Added route imports and `<Route>` elements for `/sites`, `/products`, `/materials`, `/data-definitions`, `/orders` |
+| `src/pages/DashboardPage.tsx` | Replaced "Coming soon" placeholders with live `<Link>` cards for all 6 editors |
+| `src/pages/uom/UoMFormDialog.tsx` | Fixed zodResolver type assertion (Zod v4 compat) |
+
+### Where We Stopped
+- **DT-CLIENT editors for all Layer 0-3 modules are COMPLETE** — 30 new files, 7 modified files, build passes.
+- Next session: Layer 4 server modules (QUAL-MGMT, PERF-ANALYSIS, GENEALOGY, DISPATCH) or RT-GUI.
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

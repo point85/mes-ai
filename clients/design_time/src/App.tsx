@@ -7,6 +7,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppLayout } from "./components/layout";
 import DashboardPage from "./pages/DashboardPage";
 import { UoMListPage } from "./pages/uom";
+import { SiteListPage } from "./pages/sites";
+import { ProductListPage } from "./pages/products";
+import { MaterialListPage } from "./pages/materials";
+import { DataDefListPage } from "./pages/data-collection";
+import { OrderListPage } from "./pages/orders";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,7 +30,11 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/uom" element={<UoMListPage />} />
-            {/* Future editors go here */}
+            <Route path="/sites" element={<SiteListPage />} />
+            <Route path="/products" element={<ProductListPage />} />
+            <Route path="/materials" element={<MaterialListPage />} />
+            <Route path="/data-definitions" element={<DataDefListPage />} />
+            <Route path="/orders" element={<OrderListPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

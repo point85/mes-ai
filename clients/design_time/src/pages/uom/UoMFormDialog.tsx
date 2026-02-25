@@ -42,7 +42,8 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<UoMFormData>({
-    resolver: zodResolver(uomSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(uomSchema) as any,
     defaultValues: {
       symbol: "",
       name: "",

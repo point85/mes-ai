@@ -10,6 +10,9 @@ import {
   CubeIcon,
   Cog6ToothIcon,
   BuildingOffice2Icon,
+  BeakerIcon,
+  ClipboardDocumentListIcon,
+  ClipboardDocumentCheckIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -28,6 +31,7 @@ const sections: NavSection[] = [
     title: "Definitions",
     items: [
       { label: "Units of Measure", to: "/uom", icon: ScaleIcon },
+      { label: "Data Definitions", to: "/data-definitions", icon: ClipboardDocumentListIcon },
     ],
   },
   {
@@ -40,6 +44,13 @@ const sections: NavSection[] = [
     title: "Products",
     items: [
       { label: "Products", to: "/products", icon: CubeIcon },
+      { label: "Materials", to: "/materials", icon: BeakerIcon },
+    ],
+  },
+  {
+    title: "Production",
+    items: [
+      { label: "Orders", to: "/orders", icon: ClipboardDocumentCheckIcon },
     ],
   },
   {

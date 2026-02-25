@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-02-25",
-  "lastSessionId": "S008",
+  "lastSessionId": "S009",
 
   "phases": [
     {
@@ -61,9 +61,15 @@
     {
       "id": "P5",
       "name": "Client Implementations",
-      "status": "not-started",
+      "status": "in-progress",
       "description": "Runtime client (GUI + headless) and design-time client",
-      "tasks": []
+      "tasks": [
+        {
+          "id": "T5.1",
+          "name": "DT-CLIENT: Design-time editors for Layer 0-3 modules",
+          "status": "complete"
+        }
+      ]
     },
     {
       "id": "P6",
@@ -75,7 +81,7 @@
   ],
 
   "currentPhase": "P3",
-  "currentTask": "Layer 3 COMPLETE (S008): MAT-MGMT + DATA-COLLECT implemented. 477 tests pass. Next: Layer 4 (QUAL-MGMT, PERF-ANALYSIS, GENEALOGY, DISPATCH) or DT-CLIENT editors.",
+  "currentTask": "DT-CLIENT editors complete for all Layer 0-3 modules (UoM, Sites, Products, Materials, Data Definitions, Orders). Build passes. Next: Layer 4 server modules (QUAL-MGMT, PERF-ANALYSIS, GENEALOGY, DISPATCH) or RT-GUI.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
