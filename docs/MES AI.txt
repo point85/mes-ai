@@ -67,3 +67,16 @@ cd c:\dev\mes_ai\server
 pip install -e ".[dev]" --quiet
 
 Docker desktop for Windows: kentra52@gmail.com/Aligner2024 use Gmail account
+
+PostGreSQL: database: mes_ai, postgres/postgres
+postgresql+asyncpg://postgres:postgres@localhost:5432/mes_ai
+
+To activate the Python virtual environment:
+  source .venv/bin/activate
+
+To run the MES server in Windows:
+  uvicorn mes.main:app --reload --host 0.0.0.0 --port 8000
+to step FastAPI dev server: Press Ctrl+C in the terminal where it's running.
+
+To run tests:
+  python -m pytest tests/unit/ -v

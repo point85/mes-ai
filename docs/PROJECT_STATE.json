@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-02-24",
-  "lastSessionId": "S005",
+  "lastSessionId": "S006",
 
   "phases": [
     {
@@ -70,7 +70,7 @@
   ],
 
   "currentPhase": "P3",
-  "currentTask": "Layer 1 COMPLETE. Next: Layer 2 (PROD-ORDER, WIP-TRACK, ROUTE-ENGINE)",
+  "currentTask": "UOM module COMPLETE (S006). Next: Layer 2 (PROD-ORDER, WIP-TRACK, ROUTE-ENGINE)",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -99,6 +99,7 @@
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },
       "AUTH":          { "name": "Authentication & Authorization", "phase": "P3", "status": "implemented" },
+      "UOM":           { "name": "Units of Measure",               "phase": "P3", "status": "implemented" },
       "SESSION-META":  { "name": "AI Session Metadata",            "phase": "P3", "status": "planned" }
     }
   },
@@ -271,6 +272,12 @@
       "date": "2026-02-24",
       "decision": "BOMItem references materials via material_code (string) not FK; FK to material_definitions deferred to MAT-MGMT implementation (Layer 3)",
       "rationale": "MAT-MGMT module does not exist yet; adding a FK now would create a circular dependency. String reference allows BOM items to be created and tested independently"
+    },
+    {
+      "id": "D030",
+      "date": "2026-02-24",
+      "decision": "UOM uses affine conversion model (base_value = value * multiplier + offset) — handles temperature and all linear unit conversions. Custom/packaging units (can, case, pallet) use the same model with user-defined types.",
+      "rationale": "Single formula covers SI, imperial, and packaging units without a separate conversion-pair table. Each uom_type has a base unit (multiplier=1, offset=0); all other units in the type store their factor relative to the base."
     }
   ],
 

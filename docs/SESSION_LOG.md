@@ -322,3 +322,75 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S006 — 2026-02-24
+
+**Phase**: P3 — Core Server Implementation  
+**Objective**: Implement UOM (Units of Measure) module
+
+### What Happened
+1. User requested a UoM module with the following requirements:
+   - UoM has symbol, name, description, uom_type (mass, time, length, temperature, volume, count, …)
+   - Conversion only between same-type units
+   - Affine conversion model: `base_value = value × multiplier + offset`
+   - SI fundamental base units: kg (mass), s (time), m (length), K (temperature)
+   - Additional SI: g, min, h, d, km, °C, L, m³
+   - US imperial: lb, oz, ft, °F, fl_oz
+   - User-defined custom units (can, bottle, box, case, pallet) with conversions (e.g. 1 case = 12 cans)
+   - Built-in units protected from deletion
+
+2. Implemented full UOM module following D011 convention (8 files):
+   - `models.py`: UnitOfMeasure with symbol, name, uom_type, multiplier, offset, is_builtin
+   - `schemas.py`: UoMCreate/Read/Update + ConversionRequest/Result
+   - `service.py`: UoMService — CRUD + convert() + convert_by_symbol()
+   - `routes.py`: 7 REST endpoints (list, get-by-id, get-by-symbol, create, update, delete, convert)
+   - `events.py`: uom.created, uom.updated, uom.deleted
+   - `exceptions.py`: DuplicateSymbolException (409), IncompatibleUoMTypeException (422), BuiltinUoMException (403)
+   - `seed.py`: 18 built-in units with correct conversion factors
+   - `__init__.py`: Module docstring
+
+3. Registered UoM router in `main.py`
+
+4. Wrote 77 unit tests covering:
+   - Model table mapping & defaults
+   - Schema validation (create, read, update, conversion)
+   - Seed data completeness (all SI/imperial present, symbols unique, multipliers positive)
+   - Conversion formula: mass (kg↔g↔lb↔oz), length (m↔km↔ft), temperature (K↔°C↔°F), time (s↔min↔h↔d), volume (m³↔L↔fl_oz)
+   - Custom packaging: case↔can, pallet↔case↔can, box↔bottle
+   - Round-trip conversions (A→B→A = original)
+   - Error cases: incompatible types, duplicate symbol, builtin protection
+   - Event factories
+
+5. Fixed Fahrenheit offset calculation (was incorrect: `255 + 2325/9`, corrected to `273.15 - 32×5/9`)
+
+6. **All 213 tests pass** (136 existing + 77 new UoM)
+
+### Decision Log
+- **D030**: UOM affine conversion model — `base_value = value × multiplier + offset`
+
+### Files Created
+| File | Module |
+|------|--------|
+| `core/uom/__init__.py` | UOM |
+| `core/uom/models.py` | UOM |
+| `core/uom/schemas.py` | UOM |
+| `core/uom/service.py` | UOM |
+| `core/uom/routes.py` | UOM |
+| `core/uom/events.py` | UOM |
+| `core/uom/exceptions.py` | UOM |
+| `core/uom/seed.py` | UOM |
+| `tests/unit/test_uom.py` | Testing |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `main.py` | Added uom_router import and registration |
+
+### Where We Stopped
+- **UOM module COMPLETE** — implemented and tested with 77 tests.
+- **Phase 3 (P3)** continues with **Layer 2: PROD-ORDER, WIP-TRACK, ROUTE-ENGINE**.
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
