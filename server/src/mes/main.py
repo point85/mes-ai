@@ -16,6 +16,10 @@ from mes.core.physical_model.routes import router as physical_model_router
 from mes.core.product_def.routes import router as product_def_router
 from mes.core.uom.routes import router as uom_router
 
+# Layer 2 routers
+from mes.core.production.routes import router as production_router
+from mes.core.wip.routes import router as wip_router
+
 logger = logging.getLogger("mes")
 
 # Module-level plugin manager singleton
@@ -86,6 +90,10 @@ def create_app() -> FastAPI:
     app.include_router(physical_model_router)
     app.include_router(product_def_router)
     app.include_router(uom_router)
+
+    # Layer 2 routers
+    app.include_router(production_router)
+    app.include_router(wip_router)
 
     @app.get("/health", tags=["System"])
     async def health_check():

@@ -453,3 +453,75 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S007 — 2026-02-24
+
+**Phase**: P3 — Core Server Implementation  
+**Objective**: Implement Layer 2 modules (PROD-ORDER, WIP-TRACK, ROUTE-ENGINE)
+
+### What Happened
+1. Resumed from S006 by reading `PROJECT_STATE.json` and `SESSION_LOG.md`.
+2. Read `ARCHITECTURE.md` §5.2 (data model) and §6.3 (endpoint map) for Layer 2 scope.
+3. Implemented **PROD-ORDER** module (`core/production/`):
+   - `models.py`: `ProductionOrder` — order_number, product_id (FK → product_definitions), route_id (FK → process_routes), quantity_ordered/completed/scrapped, status lifecycle (created → released → in_progress → completed → closed), priority, planned/actual dates, erp_reference, relationships to units and lots.
+   - `schemas.py`: `OrderCreate/Read/Update`, `OrderReleaseRequest`, `OrderCompleteRequest`. Status constants `ORDER_STATUSES` and transition map `ORDER_TRANSITIONS` defining the allowed state machine.
+   - `service.py`: `ProductionOrderService` — CRUD, order_number uniqueness, lifecycle transitions (`release_order`, `start_order`, `complete_order`, `close_order`) with transition validation, `increment_completed/scrapped` for WIP callbacks.
+   - `routes.py`: 8 REST endpoints — CRUD + release + complete + close.
+   - `events.py`: 4 event factories — `production.order.created/released/started/completed`.
+   - `exceptions.py`: `DuplicateOrderNumberException` (409), `InvalidOrderTransitionException` (422), `OrderNotReleasedException` (422).
+4. Implemented **WIP-TRACK** module (`core/wip/`):
+   - `models.py`: 4 SQLAlchemy models — `Unit` (serial_number, order/product/step/equipment FKs, status lifecycle: queued/in_process/completed/scrapped/on_hold), `Lot` (lot_number, quantity, same FKs/lifecycle), `UnitHistory` (step processing record with entered/exited timestamps, result, data_snapshot), `LotHistory` (step processing with quantity_in/out/scrapped).
+   - `schemas.py`: `UnitCreate/Read`, `LotCreate/Read`, `UnitHistoryRead`, `LotHistoryRead`, plus 5 action schemas: `StartRequest`, `CompleteRequest` (with result and data), `MoveRequest` (optional target step), `HoldRequest`, `ScrapRequest`.
+   - `service.py`: `UnitService` — create (auto-starts order), start (resolves first step from route), complete (closes history record), move (next step via routing engine, auto-completes at end), hold, release-hold, scrap (increments order scrapped). `LotService` — parallel implementation for batch processing with quantity tracking.
+   - `routes.py`: 17 REST endpoints — units CRUD + start/complete/move/hold/release-hold/scrap/history; lots CRUD + start/complete/move/history.
+   - `events.py`: 12 event factories — 7 unit events (`wip.unit.created/started/completed/moved/scrapped/held/released`) + 4 lot events (`wip.lot.created/started/completed/moved`).
+   - `exceptions.py`: `DuplicateSerialNumberException`, `DuplicateLotNumberException` (409), `InvalidWIPTransitionException`, `NoRouteAssignedException`, `NoNextStepException` (422).
+5. Implemented **ROUTE-ENGINE** module (`core/routing/service.py`):
+   - `RoutingEngineService` — resolves routes for orders (priority: explicit route_id → product default → fallback first route), determines first/next steps in sequence order, skips inactive steps, returns None at end-of-route (signals completion).
+6. Updated `main.py` to register production and WIP routers.
+7. Wrote **95 unit tests** across 3 test files:
+   - `test_production_order.py` (32 tests): Model table/defaults, schema create/read/update/action validation, ORDER_TRANSITIONS completeness and correctness, transition validation logic, event factories, exception construction.
+   - `test_wip.py` (51 tests): Model tables/defaults for all 4 entities, unit/lot create/read validation, history read schemas, all 5 action request schemas with edge cases, status constants, 11 event factory tests, 5 exception construction tests.
+   - `test_routing_engine.py` (12 tests): Step ordering/sorting, first active step, next step from middle/end, inactive step skipping, empty steps, route resolution flags, sequence convention for insertion.
+8. **All 308 tests pass** (213 existing + 95 new).
+
+### Decision Log
+- **D032**: WIP unit/lot creation auto-transitions order from `released` to `in_progress` (idempotent).
+- **D033**: Route resolution priority: order.route_id → product default route → first route by created_at.
+
+### Files Created
+| File | Module |
+|------|--------|
+| `core/production/__init__.py` | PROD-ORDER |
+| `core/production/models.py` | PROD-ORDER |
+| `core/production/schemas.py` | PROD-ORDER |
+| `core/production/service.py` | PROD-ORDER |
+| `core/production/routes.py` | PROD-ORDER |
+| `core/production/events.py` | PROD-ORDER |
+| `core/production/exceptions.py` | PROD-ORDER |
+| `core/wip/__init__.py` | WIP-TRACK |
+| `core/wip/models.py` | WIP-TRACK |
+| `core/wip/schemas.py` | WIP-TRACK |
+| `core/wip/service.py` | WIP-TRACK |
+| `core/wip/routes.py` | WIP-TRACK |
+| `core/wip/events.py` | WIP-TRACK |
+| `core/wip/exceptions.py` | WIP-TRACK |
+| `core/routing/service.py` | ROUTE-ENGINE |
+| `tests/unit/test_production_order.py` | Testing |
+| `tests/unit/test_wip.py` | Testing |
+| `tests/unit/test_routing_engine.py` | Testing |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `main.py` | Added production_router and wip_router imports/registration |
+
+### Where We Stopped
+- **Layer 2 (T3.3) is COMPLETE** — PROD-ORDER, WIP-TRACK, and ROUTE-ENGINE implemented and tested.
+- **Phase 3 (P3)** continues with **Layer 3: Material Management (MAT-MGMT), Data Collection (DATA-COLLECT)**.
+- Next session: Implement MAT-MGMT (material definitions, material lots, consumption tracking) and DATA-COLLECT (data definitions, data points) — models, schemas, services, routes, and tests. Also add DT-CLIENT editors for production orders and physical model.
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

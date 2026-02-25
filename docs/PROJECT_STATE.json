@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-02-24",
-  "lastSessionId": "S006",
+  "lastSessionId": "S007",
 
   "phases": [
     {
@@ -42,6 +42,11 @@
         {
           "id": "T3.3",
           "name": "Layer 2: Production Order & WIP Tracking",
+          "status": "complete"
+        },
+        {
+          "id": "T3.4",
+          "name": "Layer 3: Material Management & Data Collection",
           "status": "not-started"
         }
       ]
@@ -70,17 +75,17 @@
   ],
 
   "currentPhase": "P3",
-  "currentTask": "DT-CLIENT UoM editor COMPLETE (S006). Server + client in parallel. Next server: Layer 2. Next client: more editors.",
+  "currentTask": "Layer 2 COMPLETE (S007): PROD-ORDER, WIP-TRACK, ROUTE-ENGINE implemented. 308 tests pass. Next: Layer 3 (MAT-MGMT, DATA-COLLECT) and DT-CLIENT editors.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
     "registry": {
       "PHYS-MODEL":    { "name": "Physical Model",                  "phase": "P3", "status": "implemented" },
-      "WIP-TRACK":     { "name": "WIP Tracking",                   "phase": "P3", "status": "planned" },
+      "WIP-TRACK":     { "name": "WIP Tracking",                   "phase": "P3", "status": "implemented" },
       "ROUTE-DEF":     { "name": "Route Definition",               "phase": "P3", "status": "implemented" },
-      "ROUTE-ENGINE":  { "name": "Routing Engine",                 "phase": "P3", "status": "planned" },
+      "ROUTE-ENGINE":  { "name": "Routing Engine",                 "phase": "P3", "status": "implemented" },
       "DISPATCH":      { "name": "Dispatching Engine",             "phase": "P3", "status": "planned" },
-      "PROD-ORDER":    { "name": "Production Order Management",    "phase": "P3", "status": "planned" },
+      "PROD-ORDER":    { "name": "Production Order Management",    "phase": "P3", "status": "implemented" },
       "MAT-MGMT":      { "name": "Material Management",            "phase": "P3", "status": "planned" },
       "DATA-COLLECT":  { "name": "Data Collection",                "phase": "P3", "status": "planned" },
       "PROD-DEF":      { "name": "Product Definition",             "phase": "P3", "status": "implemented" },
