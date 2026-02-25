@@ -80,3 +80,9 @@ to step FastAPI dev server: Press Ctrl+C in the terminal where it's running.
 
 To run tests:
   python -m pytest tests/unit/ -v
+
+DT-CLIENT:
+
+Start the server: cd server && uvicorn mes.main:app --reload
+Start the client: cd clients/design_time && npm run dev
+Open http://localhost:5173/uom

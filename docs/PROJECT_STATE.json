@@ -70,7 +70,7 @@
   ],
 
   "currentPhase": "P3",
-  "currentTask": "UOM module COMPLETE (S006). Next: Layer 2 (PROD-ORDER, WIP-TRACK, ROUTE-ENGINE)",
+  "currentTask": "DT-CLIENT UoM editor COMPLETE (S006). Server + client in parallel. Next server: Layer 2. Next client: more editors.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -93,7 +93,7 @@
       "TEST-INTFC":    { "name": "Test Equipment Adapter",         "phase": "P4", "status": "planned" },
       "RT-GUI":        { "name": "Runtime GUI Client",             "phase": "P5", "status": "planned" },
       "RT-HEADLESS":   { "name": "Runtime Headless Client",        "phase": "P5", "status": "planned" },
-      "DT-CLIENT":     { "name": "Design-Time Client",             "phase": "P5", "status": "planned" },
+      "DT-CLIENT":     { "name": "Design-Time Client",             "phase": "P5", "status": "in-progress" },
       "PLUGIN-FW":     { "name": "Plugin Framework",               "phase": "P3", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
@@ -278,6 +278,12 @@
       "date": "2026-02-24",
       "decision": "UOM uses affine conversion model (base_value = value * multiplier + offset) — handles temperature and all linear unit conversions. Custom/packaging units (can, case, pallet) use the same model with user-defined types.",
       "rationale": "Single formula covers SI, imperial, and packaging units without a separate conversion-pair table. Each uom_type has a base unit (multiplier=1, offset=0); all other units in the type store their factor relative to the base."
+    },
+    {
+      "id": "D031",
+      "date": "2026-02-24",
+      "decision": "DT-CLIENT bootstrapped early (during P3) to build editors alongside server modules. React+TS+Vite+Tailwind+TanStack Query+React Hook Form+Zod+Headless UI. Vite dev server proxies /api to FastAPI at :8000.",
+      "rationale": "Building the editor immediately after the server module validates the API design and gives a visual tool for testing. One editor per server module, added incrementally."
     }
   ],
 

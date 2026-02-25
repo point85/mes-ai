@@ -388,7 +388,66 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 
 ### Where We Stopped
 - **UOM module COMPLETE** — implemented and tested with 77 tests.
-- **Phase 3 (P3)** continues with **Layer 2: PROD-ORDER, WIP-TRACK, ROUTE-ENGINE**.
+- **DT-CLIENT UoM editor COMPLETE** — see continuation below.
+
+---
+
+### S006 Part 2 — DT-CLIENT: UoM Editor
+
+**Objective**: Bootstrap the DT-CLIENT React app and build the first CRUD editor (Units of Measure).
+
+### What Happened
+1. Scaffolded `clients/design_time/` with Vite + React + TypeScript
+2. Installed dependencies per D022: TanStack Query, React Hook Form + Zod, Headless UI, Heroicons, Tailwind CSS, Axios, React Router
+3. Configured Tailwind CSS v4 via `@tailwindcss/vite` plugin
+4. Configured Vite dev server with `/api` → `http://localhost:8000` proxy
+5. Built the application shell:
+   - `AppLayout` — sidebar + content area
+   - `Sidebar` — nav sections (Definitions, Plant Model, Products, Admin) with active-link highlighting
+6. Built the UoM editor with 3 components:
+   - **UoMListPage** — data table with type filter dropdown, create/edit/delete actions, count badge
+   - **UoMFormDialog** — modal with Zod-validated form (symbol, name, type, multiplier, offset, description)
+   - **UoMConvertPanel** — pick two units + enter value → calls `/api/v1/uom/convert` → shows result
+7. Created shared API layer: axios client, typed API functions, TanStack Query hooks
+8. TypeScript types mirror server Pydantic schemas (UoM, UoMCreate, UoMUpdate, ConversionRequest/Result, API envelopes)
+9. **TypeScript compiles with zero errors**, **Vite build succeeds** (457 KB JS + 17 KB CSS), **dev server runs at :5173**
+
+### Decision Log
+- **D031**: DT-CLIENT bootstrapped early during P3 to validate API design. One editor per server module, added incrementally.
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `clients/design_time/` (scaffold) | Vite + React + TS project |
+| `src/types/uom.ts` | TypeScript types mirroring Pydantic schemas |
+| `src/types/index.ts` | Type barrel export |
+| `src/api/client.ts` | Axios instance with /api/v1 base + proxy |
+| `src/api/uom.ts` | UoM API functions (CRUD + convert) |
+| `src/api/index.ts` | API barrel export |
+| `src/hooks/useUoM.ts` | TanStack Query hooks for UoM |
+| `src/hooks/index.ts` | Hooks barrel export |
+| `src/components/layout/Sidebar.tsx` | Sidebar navigation |
+| `src/components/layout/AppLayout.tsx` | Main layout (sidebar + outlet) |
+| `src/components/layout/index.ts` | Layout barrel export |
+| `src/pages/DashboardPage.tsx` | Dashboard landing page |
+| `src/pages/uom/UoMListPage.tsx` | UoM table with filter + CRUD |
+| `src/pages/uom/UoMFormDialog.tsx` | Create/Edit modal (Zod validated) |
+| `src/pages/uom/UoMConvertPanel.tsx` | Conversion test panel |
+| `src/pages/uom/index.ts` | Page barrel export |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `vite.config.ts` | Added Tailwind plugin + API proxy |
+| `index.html` | Updated title to "MES AI — Configuration" |
+| `src/index.css` | Replaced with `@import "tailwindcss"` |
+| `src/App.tsx` | Replaced with router + query client setup |
+
+### Where We Stopped
+- **DT-CLIENT UoM editor is functional** — list, create, edit, delete, convert.
+- Runs at http://localhost:5173 with Vite proxy to server at :8000.
+- Server must be running with seeded UoM data for the editor to show data.
+- **Next**: More server modules (Layer 2) and corresponding DT-CLIENT editors.
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
