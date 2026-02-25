@@ -47,7 +47,7 @@
         {
           "id": "T3.4",
           "name": "Layer 3: Material Management & Data Collection",
-          "status": "in-progress"
+          "status": "complete"
         }
       ]
     },
@@ -75,7 +75,7 @@
   ],
 
   "currentPhase": "P3",
-  "currentTask": "Layer 3 IN-PROGRESS (S008): MAT-MGMT implemented. 392 tests pass. Next: DATA-COLLECT module, then DT-CLIENT editors.",
+  "currentTask": "Layer 3 COMPLETE (S008): MAT-MGMT + DATA-COLLECT implemented. 477 tests pass. Next: Layer 4 (QUAL-MGMT, PERF-ANALYSIS, GENEALOGY, DISPATCH) or DT-CLIENT editors.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -87,7 +87,7 @@
       "DISPATCH":      { "name": "Dispatching Engine",             "phase": "P3", "status": "planned" },
       "PROD-ORDER":    { "name": "Production Order Management",    "phase": "P3", "status": "implemented" },
       "MAT-MGMT":      { "name": "Material Management",            "phase": "P3", "status": "implemented" },
-      "DATA-COLLECT":  { "name": "Data Collection",                "phase": "P3", "status": "planned" },
+      "DATA-COLLECT":  { "name": "Data Collection",                "phase": "P3", "status": "implemented" },
       "PROD-DEF":      { "name": "Product Definition",             "phase": "P3", "status": "implemented" },
       "QUAL-MGMT":     { "name": "Quality Management",             "phase": "P3", "status": "planned" },
       "PERF-ANALYSIS": { "name": "Performance Analysis",           "phase": "P3", "status": "planned" },

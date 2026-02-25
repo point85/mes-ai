@@ -529,7 +529,7 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 ## Session S008 — 2026-02-25
 
 **Phase**: P3 — Core Server Implementation  
-**Objective**: Implement Layer 3 module: MAT-MGMT (Material Management)
+**Objective**: Implement Layer 3 modules: MAT-MGMT (Material Management) + DATA-COLLECT (Data Collection)
 
 ### What Happened
 1. Resumed from S007 by reading `PROJECT_STATE.json` and `SESSION_LOG.md`.
@@ -542,17 +542,24 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
    - `routes.py`: 11 REST endpoints — materials CRUD (5) + material-lots CRUD (4) + consume (1) + consumed-materials for unit (1).
    - `events.py`: 3 event factories — `material.consumed` (lot_id, unit_id, quantity), `material.lot.created`, `material.lot.expired`.
    - `exceptions.py`: `DuplicateMaterialCodeException` (409), `DuplicateLotNumberException` (409), `InsufficientQuantityException` (422), `MaterialLotNotAvailableException` (422).
-5. Updated `main.py` to register material_router (Layer 3 section).
-6. Wrote **84 unit tests** in `test_material.py`:
-   - Model tests: table names, mapper, base/domain columns, unique constraints, relationships, repr (18 tests)
-   - Schema tests: MaterialCreate/Read/Update, MaterialLotCreate/Read/Update, ConsumeRequest, ConsumptionRead — validation, defaults, edge cases (36 tests)
-   - Event tests: all 3 event factories with payload verification (5 tests)
-   - Exception tests: all 4 exceptions with status codes, error codes, messages, details (5 tests)
+5. Wrote **84 unit tests** in `test_material.py` — all pass (392 total).
+6. Implemented **DATA-COLLECT** module (`core/data_collection/`):
+   - `models.py`: 2 SQLAlchemy models — `DataDefinition` (code, name, data_type: numeric/string/boolean/enum, uom, step_id FK → route_steps, source: manual/equipment/sensor, is_required, enum_values, lower_limit, upper_limit), `DataPoint` (definition_id FK, unit_id/lot_id FK → units/lots, value_numeric/value_string/value_boolean, collected_at, source_equipment_id FK → equipment, operator_id FK → users).
+   - `schemas.py`: `DataDefinitionCreate/Read/Update`, `CollectRequest`, `CollectBatchRequest` (1–100 items), `DataPointRead`. Validators: code no-whitespace, data_type enum, source enum. Constants: `DATA_TYPES`, `DATA_SOURCES`.
+   - `service.py`: `DataDefinitionService` — CRUD with code uniqueness. `DataPointService` — `_validate_value()` (type checking, limit validation, enum enforcement), `collect()` (single point with validation + event), `collect_batch()` (multi-point with pre-fetched definitions), `list_points()`, `get_points_for_unit()`, `get_definitions_for_step()`.
+   - `routes.py`: 9 REST endpoints — definitions CRUD (5) + collect (1) + collect-batch (1) + query points (1) + get point (1).
+   - `events.py`: 2 event factories — `data.collected` (definition_id, unit_id, value), `data.definition.created`.
+   - `exceptions.py`: `DuplicateDefinitionCodeException` (409), `InvalidDataValueException` (422), `ValueOutOfLimitsException` (422), `MissingRequiredDataException` (422), `InvalidEnumValueException` (422).
+7. Updated `main.py` to register both material_router and data_collection_router (Layer 3 section).
+8. Wrote **85 unit tests** in `test_data_collection.py`:
+   - Model tests: table names, mapper, base/domain columns, unique constraints, relationships, repr (14 tests)
+   - Schema tests: DataDefinitionCreate/Read/Update, CollectRequest, CollectBatchRequest, DataPointRead — validation, defaults, edge cases (28 tests)
+   - Event tests: all event factories with various value types (5 tests)
+   - Exception tests: all 5 exceptions with status codes, error codes, messages, details (8 tests)
+   - Validation logic tests: _validate_value for all 4 data types, limits, enum enforcement (16 tests)
    - Service/router import tests: method existence, route path verification (10 tests)
-   - Constants tests: MATERIAL_TYPES and MATERIAL_LOT_STATUSES (2 tests)
-   - Consume invariant tests: quantity validation, status enforcement (5 tests)
-   - Module init tests: importability of all sub-modules (3 tests)
-7. **All 392 tests pass** (308 existing + 84 new).
+   - Constants and module init tests (6 tests)
+9. **All 477 tests pass** (392 existing + 85 new).
 
 ### Files Created
 | File | Module |
@@ -564,17 +571,25 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 | `core/material/routes.py` | MAT-MGMT |
 | `core/material/events.py` | MAT-MGMT |
 | `core/material/exceptions.py` | MAT-MGMT |
+| `core/data_collection/__init__.py` | DATA-COLLECT |
+| `core/data_collection/models.py` | DATA-COLLECT |
+| `core/data_collection/schemas.py` | DATA-COLLECT |
+| `core/data_collection/service.py` | DATA-COLLECT |
+| `core/data_collection/routes.py` | DATA-COLLECT |
+| `core/data_collection/events.py` | DATA-COLLECT |
+| `core/data_collection/exceptions.py` | DATA-COLLECT |
 | `tests/unit/test_material.py` | Testing |
+| `tests/unit/test_data_collection.py` | Testing |
 
 ### Files Modified
 | File | Change |
 |------|--------|
-| `main.py` | Added material_router import/registration (Layer 3 section) |
+| `main.py` | Added material_router and data_collection_router imports/registration (Layer 3 section) |
 
 ### Where We Stopped
-- **MAT-MGMT is COMPLETE** — Material Management implemented and tested.
-- **Layer 3 (T3.4)** continues with **DATA-COLLECT** (data definitions, data points at steps).
-- Next session: Implement DATA-COLLECT module, then add DT-CLIENT editors for new modules.
+- **Layer 3 (T3.4) is COMPLETE** — MAT-MGMT + DATA-COLLECT implemented and tested.
+- **Phase 3 (P3)** continues with **Layer 4: QUAL-MGMT, PERF-ANALYSIS, GENEALOGY, DISPATCH**.
+- Next session: Implement Layer 4 modules or add DT-CLIENT editors for existing modules.
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.

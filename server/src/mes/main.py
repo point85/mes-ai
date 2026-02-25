@@ -22,6 +22,7 @@ from mes.core.wip.routes import router as wip_router
 
 # Layer 3 routers
 from mes.core.material.routes import router as material_router
+from mes.core.data_collection.routes import router as data_collection_router
 
 logger = logging.getLogger("mes")
 
@@ -100,6 +101,7 @@ def create_app() -> FastAPI:
 
     # Layer 3 routers
     app.include_router(material_router)
+    app.include_router(data_collection_router)
 
     @app.get("/health", tags=["System"])
     async def health_check():
