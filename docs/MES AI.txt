@@ -129,3 +129,15 @@ DT-CLIENT npm install during setup
 Launches both services: MES server on :8000 + DT-CLIENT on :5173 as background processes
 Ctrl+C trap cleanly kills both processes
 Node.js detection alongside Python
+
+PostgreSQL server:
+Created pg-service.ps1. Usage (from an elevated PowerShell):
+
+Command	Effect
+.\pg-service.ps1 install	Init data dir, register Windows service, start, create mes_ai database
+.\pg-service.ps1 start	Start the service
+.\pg-service.ps1 stop	Stop the service
+.\pg-service.ps1 restart	Stop + start
+.\pg-service.ps1 status	Show service state, port, and PG version
+.\pg-service.ps1 uninstall	Stop, remove service, optionally delete data
+The service is named postgresql-mes (auto-start), data lives in server\pgdata, and it auto-discovers PG binaries from PATH or common install locations.
