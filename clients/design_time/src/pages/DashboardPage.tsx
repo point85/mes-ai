@@ -41,6 +41,30 @@ const cards = [
     description:
       "Create and manage production orders through release, execution, and close.",
   },
+  {
+    title: "Quality Management",
+    to: "/quality-tests",
+    description:
+      "Configure quality tests and manage non-conformances with disposition tracking.",
+  },
+  {
+    title: "Performance Analysis",
+    to: "/performance",
+    description:
+      "Track equipment state changes, production counters, and OEE metrics.",
+  },
+  {
+    title: "Genealogy / Traceability",
+    to: "/genealogy",
+    description:
+      "Look up full traceability records — steps, materials, tests, and data points.",
+  },
+  {
+    title: "Dispatch",
+    to: "/dispatch",
+    description:
+      "Evaluate dispatch strategies, assign work, and monitor the dispatch queue.",
+  },
 ];
 
 export default function DashboardPage() {

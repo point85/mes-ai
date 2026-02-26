@@ -13,6 +13,11 @@ import {
   BeakerIcon,
   ClipboardDocumentListIcon,
   ClipboardDocumentCheckIcon,
+  ShieldCheckIcon,
+  ExclamationTriangleIcon,
+  ChartBarIcon,
+  LinkIcon,
+  ArrowsRightLeftIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -51,6 +56,21 @@ const sections: NavSection[] = [
     title: "Production",
     items: [
       { label: "Orders", to: "/orders", icon: ClipboardDocumentCheckIcon },
+    ],
+  },
+  {
+    title: "Quality",
+    items: [
+      { label: "Quality Tests", to: "/quality-tests", icon: ShieldCheckIcon },
+      { label: "Non-Conformances", to: "/non-conformances", icon: ExclamationTriangleIcon },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { label: "Performance", to: "/performance", icon: ChartBarIcon },
+      { label: "Genealogy", to: "/genealogy", icon: LinkIcon },
+      { label: "Dispatch", to: "/dispatch", icon: ArrowsRightLeftIcon },
     ],
   },
   {

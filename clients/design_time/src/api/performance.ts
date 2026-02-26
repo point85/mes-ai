@@ -1,0 +1,81 @@
+/**
+ * Performance Analysis API — thin wrappers around axios calls.
+ */
+
+import api from "./client";
+import type {
+  EquipmentStateLog,
+  StateChangeRequest,
+  ProductionCounter,
+  CounterCreateUpdate,
+  OEEResult,
+  ApiResponse,
+  ApiListResponse,
+} from "../types";
+
+// ─── OEE ──────────────────────────────────────────────────────────────
+
+export async function calculateOEE(
+  equipmentId: string,
+  periodStart: string,
+  periodEnd: string,
+): Promise<OEEResult> {
+  const { data } = await api.get<ApiResponse<OEEResult>>("/performance/oee", {
+    params: {
+      equipment_id: equipmentId,
+      period_start: periodStart,
+      period_end: periodEnd,
+    },
+  });
+  return data.data;
+}
+
+// ─── Equipment State Logs ─────────────────────────────────────────────
+
+export async function fetchEquipmentStates(
+  equipmentId?: string,
+): Promise<ApiListResponse<EquipmentStateLog>> {
+  const params: Record<string, string> = { limit: "200" };
+  if (equipmentId) params.equipment_id = equipmentId;
+  const { data } = await api.get<ApiListResponse<EquipmentStateLog>>(
+    "/performance/equipment-states",
+    { params },
+  );
+  return data;
+}
+
+export async function recordStateChange(
+  body: StateChangeRequest,
+): Promise<EquipmentStateLog> {
+  const { data } = await api.post<ApiResponse<EquipmentStateLog>>(
+    "/performance/equipment-states",
+    body,
+  );
+  return data.data;
+}
+
+// ─── Production Counters ──────────────────────────────────────────────
+
+export async function fetchCounters(
+  equipmentId?: string,
+  shiftDate?: string,
+): Promise<ApiListResponse<ProductionCounter>> {
+  const params: Record<string, string> = { limit: "200" };
+  if (equipmentId) params.equipment_id = equipmentId;
+  if (shiftDate) params.shift_date = shiftDate;
+  const { data } = await api.get<ApiListResponse<ProductionCounter>>(
+    "/performance/counters",
+    { params },
+  );
+  return data;
+}
+
+export async function createOrUpdateCounter(
+  body: CounterCreateUpdate,
+): Promise<ProductionCounter> {
+  const { data } = await api.post<ApiResponse<ProductionCounter>>(
+    "/performance/counters",
+    body,
+  );
+  return data.data;
+}

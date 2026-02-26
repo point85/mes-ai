@@ -12,6 +12,10 @@ import { ProductListPage } from "./pages/products";
 import { MaterialListPage } from "./pages/materials";
 import { DataDefListPage } from "./pages/data-collection";
 import { OrderListPage } from "./pages/orders";
+import { QualityTestListPage, NCListPage } from "./pages/quality";
+import { PerformancePage } from "./pages/performance";
+import { GenealogyViewerPage } from "./pages/genealogy";
+import { DispatchPage } from "./pages/dispatch";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +39,11 @@ export default function App() {
             <Route path="/materials" element={<MaterialListPage />} />
             <Route path="/data-definitions" element={<DataDefListPage />} />
             <Route path="/orders" element={<OrderListPage />} />
+            <Route path="/quality-tests" element={<QualityTestListPage />} />
+            <Route path="/non-conformances" element={<NCListPage />} />
+            <Route path="/performance" element={<PerformancePage />} />
+            <Route path="/genealogy" element={<GenealogyViewerPage />} />
+            <Route path="/dispatch" element={<DispatchPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
