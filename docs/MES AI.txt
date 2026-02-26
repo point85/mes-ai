@@ -119,3 +119,13 @@ Open http://localhost:5173 — Vite proxies /api requests to the FastAPI server 
 to get the rest api token in local mode:
 $token = (Invoke-RestMethod -Method POST -Uri http://localhost:8000/api/v1/auth/local/login -ContentType "application/json" -Body '{"username":"admin","password":"admin"}').access_token
 $token
+
+################## Feb. 26 ############################
+dev-setup.sh script:
+PostgreSQL connectivity check — probes localhost:5432 via psql or a Python socket fallback
+Three run modes: dev-setup.sh (setup + start), --setup (install only), --start (launch only)
+Alembic migrations run automatically during setup
+DT-CLIENT npm install during setup
+Launches both services: MES server on :8000 + DT-CLIENT on :5173 as background processes
+Ctrl+C trap cleanly kills both processes
+Node.js detection alongside Python
