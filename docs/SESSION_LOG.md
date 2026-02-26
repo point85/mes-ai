@@ -678,3 +678,101 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S010 — 2026-02-25
+
+**Phase**: P3 — Core Server Implementation  
+**Objective**: Implement Layer 4 server modules (QUAL-MGMT, PERF-ANALYSIS, GENEALOGY, DISPATCH)
+
+### What Happened
+1. Read PROJECT_STATE.json and SESSION_LOG.md to resume
+2. User selected "Layer 4 server modules" as next work item
+3. Reviewed ARCHITECTURE.md specs for all Layer 4 modules
+4. Studied existing module patterns (material, physical_model, wip) for convention consistency
+5. Implemented all 4 Layer 4 modules:
+
+   **QUAL-MGMT (Quality Management)** — 7 files:
+   - `models.py`: QualityTest (inline/offline/destructive types, parameters JSON), TestResult (pass/fail with measured values), NonConformance (defect/out_of_spec/other types, disposition workflow)
+   - `schemas.py`: NC_TRANSITIONS state machine (open→investigating→resolved→closed), all CRUD schemas
+   - `service.py`: QualityTestService (CRUD + code uniqueness), TestResultService (record + event emission), NonConformanceService (lifecycle with transition validation)
+   - `routes.py`: 10 endpoints under `/api/v1/quality/`
+   - `events.py`: quality.test.passed, quality.test.failed, quality.nc.created, quality.nc.resolved
+   - `exceptions.py`: DuplicateTestCodeException(409), InvalidNCTransitionException(422), DispositionRequiredException(422)
+
+   **PERF-ANALYSIS (Performance Analysis)** — 7 files:
+   - `models.py`: EquipmentStateLog (state tracking with dispatch_category/oee_bucket), ProductionCounter (shift-level good/reject/rework counts)
+   - `schemas.py`: DISPATCH_CATEGORIES and OEE_BUCKETS constants, OEE calculation result schema
+   - `service.py`: EquipmentStateService (state change closes previous open log), ProductionCounterService (upsert by equipment+date+order), OEEService (Availability × Performance × Quality)
+   - `routes.py`: 5 endpoints under `/api/v1/performance/`
+   - `events.py`: equipment.state.changed, performance.oee.calculated
+   - `exceptions.py`: NoStateLogDataException(404), NoCounterDataException(404)
+
+   **GENEALOGY (Product Genealogy/Traceability)** — 4 files (query-only, no models/events/exceptions):
+   - `schemas.py`: GenealogyRecord aggregating step history, material consumption, test results, data points
+   - `service.py`: Traverses UnitHistory/LotHistory + cross-module JOINs (material, quality, data_collection)
+   - `routes.py`: GET `/api/v1/units/{unit_id}/genealogy`, GET `/api/v1/lots/{lot_id}/genealogy`
+
+   **DISPATCH (Dispatching Engine)** — 6 files (no models, operates on existing tables):
+   - `schemas.py`: DISPATCH_STRATEGIES (manual/first_available/shortest_queue/round_robin/capability_match), evaluate/execute request/response, queue items
+   - `service.py`: evaluate() resolves next route step → finds eligible equipment (dispatch_category=="available" only) → applies strategy ranking; execute() moves WIP; get_queue() lists WIP at work center
+   - `routes.py`: 4 endpoints under `/api/v1/dispatch/`
+   - `events.py`: dispatch.evaluated, dispatch.executed
+   - `exceptions.py`: NoEligibleEquipmentException, InvalidDispatchTargetException, NoRouteForDispatchException
+
+6. Updated `main.py` with all 4 Layer 4 router registrations
+7. Wrote unit tests for all 4 modules (test_quality.py, test_performance.py, test_genealogy.py, test_dispatch.py)
+8. Fixed dispatch routes.py bug: `ClassName.model_dump(instance)` → `instance.model_dump()`
+9. Fixed router path assertions in all 4 test files (routes include full prefix)
+10. **608 tests passing** (131 new + 477 existing), 0 failures
+
+### Test Count
+| Before | New | After |
+|--------|-----|-------|
+| 477 | 131 | 608 |
+
+### Files Created
+| File | Module |
+|------|--------|
+| `src/mes/core/quality/__init__.py` | QUAL-MGMT |
+| `src/mes/core/quality/models.py` | QUAL-MGMT |
+| `src/mes/core/quality/schemas.py` | QUAL-MGMT |
+| `src/mes/core/quality/events.py` | QUAL-MGMT |
+| `src/mes/core/quality/exceptions.py` | QUAL-MGMT |
+| `src/mes/core/quality/service.py` | QUAL-MGMT |
+| `src/mes/core/quality/routes.py` | QUAL-MGMT |
+| `src/mes/core/performance/__init__.py` | PERF-ANALYSIS |
+| `src/mes/core/performance/models.py` | PERF-ANALYSIS |
+| `src/mes/core/performance/schemas.py` | PERF-ANALYSIS |
+| `src/mes/core/performance/events.py` | PERF-ANALYSIS |
+| `src/mes/core/performance/exceptions.py` | PERF-ANALYSIS |
+| `src/mes/core/performance/service.py` | PERF-ANALYSIS |
+| `src/mes/core/performance/routes.py` | PERF-ANALYSIS |
+| `src/mes/core/genealogy/__init__.py` | GENEALOGY |
+| `src/mes/core/genealogy/schemas.py` | GENEALOGY |
+| `src/mes/core/genealogy/service.py` | GENEALOGY |
+| `src/mes/core/genealogy/routes.py` | GENEALOGY |
+| `src/mes/core/dispatch/__init__.py` | DISPATCH |
+| `src/mes/core/dispatch/schemas.py` | DISPATCH |
+| `src/mes/core/dispatch/events.py` | DISPATCH |
+| `src/mes/core/dispatch/exceptions.py` | DISPATCH |
+| `src/mes/core/dispatch/service.py` | DISPATCH |
+| `src/mes/core/dispatch/routes.py` | DISPATCH |
+| `tests/unit/test_quality.py` | QUAL-MGMT |
+| `tests/unit/test_performance.py` | PERF-ANALYSIS |
+| `tests/unit/test_genealogy.py` | GENEALOGY |
+| `tests/unit/test_dispatch.py` | DISPATCH |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `src/mes/main.py` | Added Layer 4 router imports and registrations |
+
+### Where We Stopped
+- **All Layer 4 server modules COMPLETE** — 28 new files, 1 modified file, 608 tests passing.
+- P3 (Core Server Implementation) is feature-complete: all modules from Layers 0-4 implemented.
+- Next session: DT-CLIENT editors for Layer 4 modules, RT-GUI, P4 integration adapters, or Alembic migration for Layer 4 tables.
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
