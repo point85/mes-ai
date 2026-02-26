@@ -86,3 +86,36 @@ DT-CLIENT:
 Start the server: cd server && uvicorn mes.main:app --reload
 Start the client: cd clients/design_time && npm run dev
 Open http://localhost:5173/uom
+
+################### Feb. 25th ##############################
+1.  Install Python dependencies
+cd c:\dev\mes_ai\server
+pip install -e ".[dev]"
+2. Generate & run the initial Alembic migration
+The alembic/versions/ folder is currently empty — no migration has been generated yet (tests used in-memory SQLite). I just fixed env.py to include all Layer 0-3 model imports. Now:
+cd c:\dev\mes_ai\server
+alembic revision --autogenerate -m "initial schema layers 0-3"
+alembic upgrade head
+3.  (Optional) Seed UoM data
+cd c:\dev\mes_ai\server
+python scripts/seed_uom.py
+4.   Start the FastAPI server
+cd c:\dev\mes_ai\server
+$env:MES_AUTH_MODE = "none"
+uvicorn mes.main:app --reload --port 8000
+
+health:
+Invoke-RestMethod -Uri http://localhost:8000/health
+
+To re-enable auth later, just remove the env var or set $env:MES_AUTH_MODE = "local".
+
+API docs will be at http://localhost:8000/api/v1/docs.
+
+5.  Start the DT-CLIENT dev server
+cd c:\dev\mes_ai\clients\design_time
+npm run dev
+Open http://localhost:5173 — Vite proxies /api requests to the FastAPI server on port 8000.
+
+to get the rest api token in local mode:
+$token = (Invoke-RestMethod -Method POST -Uri http://localhost:8000/api/v1/auth/local/login -ContentType "application/json" -Body '{"username":"admin","password":"admin"}').access_token
+$token

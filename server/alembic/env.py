@@ -22,6 +22,10 @@ import mes.framework.auth.models  # noqa: F401
 import mes.core.physical_model.models  # noqa: F401
 import mes.core.product_def.models  # noqa: F401
 import mes.core.uom.models  # noqa: F401
+import mes.core.production.models  # noqa: F401
+import mes.core.wip.models  # noqa: F401
+import mes.core.material.models  # noqa: F401
+import mes.core.data_collection.models  # noqa: F401
 
 from mes.framework.db.base import Base
 

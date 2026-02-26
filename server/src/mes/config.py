@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 10
 
     # --- Authentication (AUTH) ---
-    AUTH_MODE: str = "local"  # "oidc" | "local" — local is dev/fallback; oidc for production
+    AUTH_MODE: str = "none"  # "none" | "local" | "oidc" — none disables auth (dev only); local is dev/fallback; oidc for production
     SECRET_KEY: str = "CHANGE_ME_IN_PRODUCTION"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
