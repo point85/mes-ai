@@ -15,7 +15,7 @@ const cards = [
     title: "Sites & Plant Model",
     to: "/sites",
     description:
-      "Configure sites, areas, production lines, work centers, and equipment.",
+      "Configure sites, areas, production lines, work cells, and equipment.",
   },
   {
     title: "Products & Routes",

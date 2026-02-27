@@ -1,6 +1,6 @@
 /**
  * Physical Model: TypeScript types mirroring server Pydantic schemas.
- * Hierarchy: Site → Area → ProductionLine → WorkCenter → Equipment
+ * Hierarchy: Site → Area → ProductionLine → WorkCell → Equipment
  */
 
 // ─── Site ──────────────────────────────────────────────────────────────
@@ -83,9 +83,9 @@ export interface ProductionLineUpdate {
   description?: string | null;
 }
 
-// ─── Work Center ──────────────────────────────────────────────────────
+// ─── Work Cell ───────────────────────────────────────────────────────
 
-export interface WorkCenter {
+export interface WorkCell {
   id: string;
   name: string;
   code: string;
@@ -97,14 +97,14 @@ export interface WorkCenter {
   updated_at: string;
 }
 
-export interface WorkCenterCreate {
+export interface WorkCellCreate {
   name: string;
   code: string;
   description?: string | null;
   wc_type?: string;
 }
 
-export interface WorkCenterUpdate {
+export interface WorkCellUpdate {
   name?: string;
   code?: string;
   description?: string | null;
@@ -118,7 +118,7 @@ export interface Equipment {
   name: string;
   code: string;
   description: string | null;
-  work_center_id: string;
+  work_cell_id: string;
   equipment_type: string | null;
   status: string;
   capabilities: Record<string, unknown> | null;

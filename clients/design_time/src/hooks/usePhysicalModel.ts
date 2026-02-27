@@ -17,16 +17,16 @@ import {
   fetchLine,
   createLine,
   updateLine,
-  fetchWorkCenters,
-  fetchWorkCenter,
-  createWorkCenter,
-  updateWorkCenter,
+  fetchWorkCells,
+  fetchWorkCell,
+  createWorkCell,
+  updateWorkCell,
   fetchEquipment,
   createEquipment,
   updateEquipment,
   updateEquipmentStatus,
 } from "../api/physicalModel";
-import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCenterCreate, WorkCenterUpdate, EquipmentCreate, EquipmentUpdate } from "../types";
+import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCellCreate, WorkCellUpdate, EquipmentCreate, EquipmentUpdate } from "../types";
 
 const KEYS = {
   sites: ["sites"] as const,
@@ -35,8 +35,8 @@ const KEYS = {
   areaDetail: (id: string) => ["area", id] as const,
   lines: (areaId: string) => ["lines", areaId] as const,
   lineDetail: (id: string) => ["line", id] as const,
-  workCenters: (lineId: string) => ["workCenters", lineId] as const,
-  workCenterDetail: (id: string) => ["workCenter", id] as const,
+  workCells: (lineId: string) => ["workCells", lineId] as const,
+  workCellDetail: (id: string) => ["workCell", id] as const,
   equipment: (wcId: string) => ["equipment", wcId] as const,
 };
 
@@ -149,39 +149,39 @@ export function useUpdateLine() {
   });
 }
 
-// ─── Work Centers ─────────────────────────────────────────────────────
+// ─── Work Cells ─────────────────────────────────────────────────────
 
-export function useWorkCenters(lineId: string) {
+export function useWorkCells(lineId: string) {
   return useQuery({
-    queryKey: KEYS.workCenters(lineId),
-    queryFn: () => fetchWorkCenters(lineId),
+    queryKey: KEYS.workCells(lineId),
+    queryFn: () => fetchWorkCells(lineId),
     enabled: !!lineId,
   });
 }
 
-export function useWorkCenter(id: string) {
+export function useWorkCell(id: string) {
   return useQuery({
-    queryKey: KEYS.workCenterDetail(id),
-    queryFn: () => fetchWorkCenter(id),
+    queryKey: KEYS.workCellDetail(id),
+    queryFn: () => fetchWorkCell(id),
     enabled: !!id,
   });
 }
 
-export function useCreateWorkCenter() {
+export function useCreateWorkCell() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ lineId, ...body }: WorkCenterCreate & { lineId: string }) =>
-      createWorkCenter(lineId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["workCenters"] }),
+    mutationFn: ({ lineId, ...body }: WorkCellCreate & { lineId: string }) =>
+      createWorkCell(lineId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workCells"] }),
   });
 }
 
-export function useUpdateWorkCenter() {
+export function useUpdateWorkCell() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: WorkCenterUpdate & { id: string }) =>
-      updateWorkCenter(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["workCenters"] }),
+    mutationFn: ({ id, ...body }: WorkCellUpdate & { id: string }) =>
+      updateWorkCell(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workCells"] }),
   });
 }
 

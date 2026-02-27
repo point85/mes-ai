@@ -31,9 +31,9 @@
 |---|---|
 | **Site** | A physical manufacturing facility (factory, plant). Top-level in the ISA-95 physical hierarchy. Has a timezone and address. |
 | **Area** | A section within a site (e.g., "Assembly Hall A", "Paint Shop"). Contains production lines. |
-| **Production Line** | An ordered sequence of work centers that produce a product family. Also known as: *manufacturing line*, *line*. |
-| **Work Center** | A grouping of one or more pieces of equipment that perform a specific manufacturing operation. Has a type: `manual` or `automated`. Also known as: *work station*, *cell*. |
-| **Equipment** | A single physical machine, device, or tool at a work center (e.g., a CNC machine, oven, robot, test station). Has `capabilities` (JSON) describing what it can do. |
+| **Production Line** | An ordered sequence of work cells that produce a product family. Also known as: *manufacturing line*, *line*. |
+| **Work Cell** | A grouping of one or more pieces of equipment that perform a specific manufacturing operation. Has a type: `manual` or `automated`. Also known as: *work station*, *work center*. |
+| **Equipment** | A single physical machine, device, or tool at a work cell (e.g., a CNC machine, oven, robot, test station). Has `capabilities` (JSON) describing what it can do. |
 | **Equipment State** | The operational status of equipment: `running`, `idle`, `down_planned`, `down_unplanned`, `maintenance`. Tracked in `EquipmentStateLog`. |
 
 ### Product Definition
@@ -44,7 +44,7 @@
 | **BOM** | **Bill of Materials** — the list of raw materials and sub-components needed to manufacture one unit of a product. Versioned. |
 | **BOM Item** | A single line in a BOM specifying a material, its required quantity, and unit of measure. |
 | **Process Route** | The ordered sequence of manufacturing steps (route steps) required to produce a product. A product can have multiple route versions; one is marked `is_default`. Also known as: *routing*, *recipe* (in process manufacturing). |
-| **Route Step** | A single operation within a process route. Defines what happens at a work center, the expected cycle time, and the step type: `production`, `inspection`, or `rework`. |
+| **Route Step** | A single operation within a process route. Defines what happens at a work cell, the expected cycle time, and the step type: `production`, `inspection`, or `rework`. |
 | **Step Parameter** | A measurable or settable parameter for a route step (e.g., temperature, pressure, torque). Has target value and upper/lower limits. |
 | **Cycle Time** | The expected duration (in seconds) for one unit/lot to complete a route step. Used for scheduling and OEE calculations. |
 

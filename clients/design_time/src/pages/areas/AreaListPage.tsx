@@ -3,7 +3,7 @@
  */
 
 import { useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   PlusIcon,
   PencilSquareIcon,
@@ -14,9 +14,15 @@ import { Breadcrumb } from "../../components/layout";
 import type { Area } from "../../types";
 import AreaFormDialog from "./AreaFormDialog";
 
+interface LocationState {
+  siteName?: string;
+}
+
 export default function AreaListPage() {
   const { siteId } = useParams<{ siteId: string }>();
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const locState = (state ?? {}) as LocationState;
 
   const [editingArea, setEditingArea] = useState<Area | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -25,6 +31,7 @@ export default function AreaListPage() {
   const { data: site } = useSite(siteId!);
   const { data, isLoading, error } = useAreas(siteId!);
 
+  const siteName = site?.name ?? locState.siteName ?? "…";
   const areas: Area[] = data?.data ?? [];
 
   const filtered = useMemo(() => {
@@ -40,7 +47,7 @@ export default function AreaListPage() {
       <Breadcrumb
         crumbs={[
           { label: "Sites", to: "/sites" },
-          { label: site?.name ?? "…" },
+          { label: siteName },
         ]}
       />
 
@@ -49,7 +56,7 @@ export default function AreaListPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Areas</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Areas within <span className="font-medium">{site?.name ?? "…"}</span>.
+            Areas within <span className="font-medium">{siteName}</span>.
           </p>
         </div>
         <button
@@ -112,7 +119,7 @@ export default function AreaListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => navigate(`/areas/${area.id}/lines`)}
+                        onClick={() => navigate(`/areas/${area.id}/lines`, { state: { siteName, siteId, areaName: area.name } })}
                         className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
                         title="View Lines"
                       >

@@ -1,7 +1,7 @@
 """
 PHYS-MODEL: Pydantic schemas for the physical asset hierarchy REST API.
 
-Create/Read/Update schemas for Site, Area, ProductionLine, WorkCenter, Equipment.
+Create/Read/Update schemas for Site, Area, ProductionLine, WorkCell, Equipment.
 """
 
 from __future__ import annotations
@@ -120,11 +120,11 @@ class ProductionLineUpdate(BaseModel):
     description: str | None = None
 
 
-# ─── WorkCenter ───────────────────────────────────────────────────────
+# ─── WorkCell ─────────────────────────────────────────────────────────
 
 
-class WorkCenterCreate(BaseModel):
-    """Schema for creating a work center within a production line."""
+class WorkCellCreate(BaseModel):
+    """Schema for creating a work cell within a production line."""
 
     name: str = Field(..., min_length=1, max_length=255)
     code: str = Field(..., min_length=1, max_length=50)
@@ -132,8 +132,8 @@ class WorkCenterCreate(BaseModel):
     wc_type: str = Field("manual", pattern=r"^(manual|automated)$")
 
 
-class WorkCenterRead(BaseModel):
-    """Schema for returning work center data."""
+class WorkCellRead(BaseModel):
+    """Schema for returning work cell data."""
 
     id: UUID
     name: str
@@ -148,8 +148,8 @@ class WorkCenterRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class WorkCenterUpdate(BaseModel):
-    """Schema for updating a work center."""
+class WorkCellUpdate(BaseModel):
+    """Schema for updating a work cell."""
 
     name: str | None = Field(None, min_length=1, max_length=255)
     code: str | None = Field(None, min_length=1, max_length=50)
@@ -161,7 +161,7 @@ class WorkCenterUpdate(BaseModel):
 
 
 class EquipmentCreate(BaseModel):
-    """Schema for creating equipment within a work center."""
+    """Schema for creating equipment within a work cell."""
 
     name: str = Field(..., min_length=1, max_length=255)
     code: str = Field(..., min_length=1, max_length=50)
@@ -178,7 +178,7 @@ class EquipmentRead(BaseModel):
     name: str
     code: str
     description: str | None = None
-    work_center_id: UUID
+    work_cell_id: UUID
     equipment_type: str | None = None
     status: str
     capabilities: dict[str, Any] | None = None

@@ -160,7 +160,7 @@ export default function DispatchPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Work Center
+                    Work Cell
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                     Equipment
@@ -183,7 +183,7 @@ export default function DispatchPage() {
                     className="hover:bg-gray-50 transition-colors"
                   >
                     <td className="px-4 py-2.5 text-sm text-gray-900">
-                      {opt.work_center_id ?? "—"}
+                      {opt.work_cell_id ?? "—"}
                     </td>
                     <td className="px-4 py-2.5 text-sm font-mono text-gray-700">
                       {opt.equipment_id
@@ -225,7 +225,7 @@ export default function DispatchPage() {
             <input
               value={queueWc}
               onChange={(e) => setQueueWc(e.target.value)}
-              placeholder="Filter by work center…"
+              placeholder="Filter by work cell…"
               className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-56"
             />
           </div>
@@ -244,7 +244,7 @@ export default function DispatchPage() {
                     Unit / Lot
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Work Center
+                    Work Cell
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                     Equipment

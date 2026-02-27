@@ -139,7 +139,7 @@ export default function SiteListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => navigate(`/sites/${site.id}/areas`)}
+                        onClick={() => navigate(`/sites/${site.id}/areas`, { state: { siteName: site.name } })}
                         className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
                         title="View Areas"
                       >

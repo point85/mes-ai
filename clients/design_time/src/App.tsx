@@ -10,7 +10,7 @@ import { UoMListPage } from "./pages/uom";
 import { SiteListPage } from "./pages/sites";
 import { AreaListPage } from "./pages/areas";
 import { LineListPage } from "./pages/lines";
-import { WorkCenterListPage } from "./pages/work-centers";
+import { WorkCellListPage } from "./pages/work-cells";
 import { EquipmentListPage } from "./pages/equipment";
 import { ProductListPage } from "./pages/products";
 import { MaterialListPage } from "./pages/materials";
@@ -42,8 +42,8 @@ export default function App() {
             <Route path="/sites" element={<SiteListPage />} />
             <Route path="/sites/:siteId/areas" element={<AreaListPage />} />
             <Route path="/areas/:areaId/lines" element={<LineListPage />} />
-            <Route path="/lines/:lineId/work-centers" element={<WorkCenterListPage />} />
-            <Route path="/work-centers/:wcId/equipment" element={<EquipmentListPage />} />
+            <Route path="/lines/:lineId/work-cells" element={<WorkCellListPage />} />
+            <Route path="/work-cells/:wcId/equipment" element={<EquipmentListPage />} />
             {/* Products & Materials */}
             <Route path="/products" element={<ProductListPage />} />
             <Route path="/materials" element={<MaterialListPage />} />

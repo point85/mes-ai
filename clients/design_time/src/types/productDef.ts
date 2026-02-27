@@ -118,7 +118,7 @@ export interface RouteStep {
   sequence: number;
   name: string;
   step_type: string;
-  work_center_id: string | null;
+  work_cell_id: string | null;
   expected_cycle_time_sec: number | null;
   is_active: boolean;
   created_at: string;
@@ -129,7 +129,7 @@ export interface RouteStepCreate {
   sequence: number;
   name: string;
   step_type?: string;
-  work_center_id?: string | null;
+  work_cell_id?: string | null;
   expected_cycle_time_sec?: number | null;
 }
 
@@ -137,7 +137,7 @@ export interface RouteStepUpdate {
   sequence?: number;
   name?: string;
   step_type?: string;
-  work_center_id?: string | null;
+  work_cell_id?: string | null;
   expected_cycle_time_sec?: number | null;
 }
 

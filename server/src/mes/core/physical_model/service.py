@@ -1,7 +1,7 @@
 """
 PHYS-MODEL: Business logic service for the physical asset hierarchy.
 
-Provides CRUD operations for Site, Area, ProductionLine, WorkCenter, Equipment.
+Provides CRUD operations for Site, Area, ProductionLine, WorkCell, Equipment.
 All write operations emit domain events via the global event bus.
 """
 
@@ -21,7 +21,7 @@ from mes.framework.events import event_bus
 
 from .events import equipment_created, equipment_status_changed, site_created
 from .exceptions import DuplicateCodeException
-from .models import Area, Equipment, ProductionLine, Site, WorkCenter
+from .models import Area, Equipment, ProductionLine, Site, WorkCell
 
 logger = logging.getLogger("mes.physical_model")
 
@@ -227,14 +227,14 @@ class PhysicalModelService:
         return line
 
     @staticmethod
-    async def get_line_with_work_centers(
+    async def get_line_with_work_cells(
         session: AsyncSession, line_id: UUID
     ) -> ProductionLine:
-        """Get a production line with its work centers eagerly loaded."""
+        """Get a production line with its work cells eagerly loaded."""
         stmt = (
             select(ProductionLine)
             .where(ProductionLine.id == line_id, ProductionLine.is_active.is_(True))
-            .options(selectinload(ProductionLine.work_centers))
+            .options(selectinload(ProductionLine.work_cells))
         )
         result = await session.execute(stmt)
         line = result.scalar_one_or_none()
@@ -242,65 +242,65 @@ class PhysicalModelService:
             raise NotFoundException(resource="ProductionLine", resource_id=str(line_id))
         return line
 
-    # ─── WorkCenter operations ───────────────────────────────────────
+    # ─── WorkCell operations ───────────────────────────────────────
 
     @staticmethod
-    async def list_work_centers_in_line(
+    async def list_work_cells_in_line(
         session: AsyncSession,
         line_id: UUID,
         params: PaginationParams,
-    ) -> tuple[Sequence[WorkCenter], str | None, bool]:
-        """List active work centers belonging to a production line."""
+    ) -> tuple[Sequence[WorkCell], str | None, bool]:
+        """List active work cells belonging to a production line."""
         await PhysicalModelService.get_line(session, line_id)
-        stmt = select(WorkCenter).where(
-            WorkCenter.line_id == line_id, WorkCenter.is_active.is_(True)
+        stmt = select(WorkCell).where(
+            WorkCell.line_id == line_id, WorkCell.is_active.is_(True)
         )
-        return await paginate_query(session, stmt, WorkCenter, params)
+        return await paginate_query(session, stmt, WorkCell, params)
 
     @staticmethod
-    async def get_work_center(session: AsyncSession, wc_id: UUID) -> WorkCenter:
-        """Get a work center by ID."""
-        stmt = select(WorkCenter).where(
-            WorkCenter.id == wc_id, WorkCenter.is_active.is_(True)
+    async def get_work_cell(session: AsyncSession, wc_id: UUID) -> WorkCell:
+        """Get a work cell by ID."""
+        stmt = select(WorkCell).where(
+            WorkCell.id == wc_id, WorkCell.is_active.is_(True)
         )
         result = await session.execute(stmt)
         wc = result.scalar_one_or_none()
         if wc is None:
-            raise NotFoundException(resource="WorkCenter", resource_id=str(wc_id))
+            raise NotFoundException(resource="WorkCell", resource_id=str(wc_id))
         return wc
 
     @staticmethod
-    async def create_work_center(
+    async def create_work_cell(
         session: AsyncSession, line_id: UUID, **kwargs: Any
-    ) -> WorkCenter:
-        """Create a new work center within a production line."""
+    ) -> WorkCell:
+        """Create a new work cell within a production line."""
         await PhysicalModelService.get_line(session, line_id)
 
         existing = await session.execute(
-            select(WorkCenter).where(WorkCenter.code == kwargs["code"])
+            select(WorkCell).where(WorkCell.code == kwargs["code"])
         )
         if existing.scalar_one_or_none() is not None:
-            raise DuplicateCodeException("WorkCenter", kwargs["code"])
+            raise DuplicateCodeException("WorkCell", kwargs["code"])
 
-        wc = WorkCenter(line_id=line_id, **kwargs)
+        wc = WorkCell(line_id=line_id, **kwargs)
         session.add(wc)
         await session.flush()
-        logger.info("Created work center %s (code=%s) in line %s", wc.id, wc.code, line_id)
+        logger.info("Created work cell %s (code=%s) in line %s", wc.id, wc.code, line_id)
         return wc
 
     @staticmethod
-    async def update_work_center(
+    async def update_work_cell(
         session: AsyncSession, wc_id: UUID, **kwargs: Any
-    ) -> WorkCenter:
-        """Update a work center's fields."""
-        wc = await PhysicalModelService.get_work_center(session, wc_id)
+    ) -> WorkCell:
+        """Update a work cell's fields."""
+        wc = await PhysicalModelService.get_work_cell(session, wc_id)
 
         if "code" in kwargs and kwargs["code"] is not None and kwargs["code"] != wc.code:
             existing = await session.execute(
-                select(WorkCenter).where(WorkCenter.code == kwargs["code"], WorkCenter.id != wc_id)
+                select(WorkCell).where(WorkCell.code == kwargs["code"], WorkCell.id != wc_id)
             )
             if existing.scalar_one_or_none() is not None:
-                raise DuplicateCodeException("WorkCenter", kwargs["code"])
+                raise DuplicateCodeException("WorkCell", kwargs["code"])
 
         for key, value in kwargs.items():
             if value is not None:
@@ -311,15 +311,15 @@ class PhysicalModelService:
     # ─── Equipment operations ────────────────────────────────────────
 
     @staticmethod
-    async def list_equipment_in_work_center(
+    async def list_equipment_in_work_cell(
         session: AsyncSession,
         wc_id: UUID,
         params: PaginationParams,
     ) -> tuple[Sequence[Equipment], str | None, bool]:
-        """List active equipment belonging to a work center."""
-        await PhysicalModelService.get_work_center(session, wc_id)
+        """List active equipment belonging to a work cell."""
+        await PhysicalModelService.get_work_cell(session, wc_id)
         stmt = select(Equipment).where(
-            Equipment.work_center_id == wc_id, Equipment.is_active.is_(True)
+            Equipment.work_cell_id == wc_id, Equipment.is_active.is_(True)
         )
         return await paginate_query(session, stmt, Equipment, params)
 
@@ -339,8 +339,8 @@ class PhysicalModelService:
     async def create_equipment(
         session: AsyncSession, wc_id: UUID, **kwargs: Any
     ) -> Equipment:
-        """Create new equipment within a work center."""
-        await PhysicalModelService.get_work_center(session, wc_id)
+        """Create new equipment within a work cell."""
+        await PhysicalModelService.get_work_cell(session, wc_id)
 
         existing = await session.execute(
             select(Equipment).where(Equipment.code == kwargs["code"])
@@ -348,14 +348,14 @@ class PhysicalModelService:
         if existing.scalar_one_or_none() is not None:
             raise DuplicateCodeException("Equipment", kwargs["code"])
 
-        equip = Equipment(work_center_id=wc_id, **kwargs)
+        equip = Equipment(work_cell_id=wc_id, **kwargs)
         session.add(equip)
         await session.flush()
 
         await event_bus.publish(
             equipment_created(str(equip.id), equip.code, str(wc_id))
         )
-        logger.info("Created equipment %s (code=%s) in work center %s", equip.id, equip.code, wc_id)
+        logger.info("Created equipment %s (code=%s) in work cell %s", equip.id, equip.code, wc_id)
         return equip
 
     @staticmethod

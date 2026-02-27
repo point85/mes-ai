@@ -5,8 +5,8 @@ Endpoints per ARCHITECTURE.md §6.3 — Physical Model (PHYS-MODEL):
 - Sites CRUD:              /api/v1/sites
 - Areas within a site:     /api/v1/sites/{site_id}/areas
 - Lines within an area:    /api/v1/areas/{area_id}/lines
-- Work centers in a line:  /api/v1/lines/{line_id}/work-centers
-- Equipment in a WC:       /api/v1/work-centers/{wc_id}/equipment
+- Work cells in a line:    /api/v1/lines/{line_id}/work-cells
+- Equipment in a WC:       /api/v1/work-cells/{wc_id}/equipment
 - Equipment status patch:  /api/v1/equipment/{equip_id}/status
 """
 
@@ -37,9 +37,9 @@ from .schemas import (
     SiteCreate,
     SiteRead,
     SiteUpdate,
-    WorkCenterCreate,
-    WorkCenterRead,
-    WorkCenterUpdate,
+    WorkCellCreate,
+    WorkCellRead,
+    WorkCellUpdate,
 )
 from .service import PhysicalModelService
 
@@ -227,75 +227,75 @@ async def update_line(
     return success_response(ProductionLineRead.model_validate(line).model_dump())
 
 
-# ─── Work Centers ─────────────────────────────────────────────────────
+# ─── Work Cells ───────────────────────────────────────────────────────
 
 
-@router.get("/lines/{line_id}/work-centers")
-async def list_work_centers(
+@router.get("/lines/{line_id}/work-cells")
+async def list_work_cells(
     line_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("physical_model.read")),
 ):
-    """List work centers within a production line."""
-    items, cursor, has_more = await svc.list_work_centers_in_line(session, line_id, params)
+    """List work cells within a production line."""
+    items, cursor, has_more = await svc.list_work_cells_in_line(session, line_id, params)
     return list_response(
-        [WorkCenterRead.model_validate(wc).model_dump() for wc in items],
+        [WorkCellRead.model_validate(wc).model_dump() for wc in items],
         cursor=cursor,
         limit=params.limit,
         has_more=has_more,
     )
 
 
-@router.post("/lines/{line_id}/work-centers", status_code=201)
-async def create_work_center(
+@router.post("/lines/{line_id}/work-cells", status_code=201)
+async def create_work_cell(
     line_id: UUID,
-    body: WorkCenterCreate,
+    body: WorkCellCreate,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("physical_model.create")),
 ):
-    """Create a work center within a production line."""
-    wc = await svc.create_work_center(session, line_id, **body.model_dump())
+    """Create a work cell within a production line."""
+    wc = await svc.create_work_cell(session, line_id, **body.model_dump())
     await session.commit()
-    return success_response(WorkCenterRead.model_validate(wc).model_dump())
+    return success_response(WorkCellRead.model_validate(wc).model_dump())
 
 
-@router.get("/work-centers/{wc_id}")
-async def get_work_center(
+@router.get("/work-cells/{wc_id}")
+async def get_work_cell(
     wc_id: UUID,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("physical_model.read")),
 ):
-    """Get a work center by ID."""
-    wc = await svc.get_work_center(session, wc_id)
-    return success_response(WorkCenterRead.model_validate(wc).model_dump())
+    """Get a work cell by ID."""
+    wc = await svc.get_work_cell(session, wc_id)
+    return success_response(WorkCellRead.model_validate(wc).model_dump())
 
 
-@router.put("/work-centers/{wc_id}")
-async def update_work_center(
+@router.put("/work-cells/{wc_id}")
+async def update_work_cell(
     wc_id: UUID,
-    body: WorkCenterUpdate,
+    body: WorkCellUpdate,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("physical_model.update")),
 ):
-    """Update a work center."""
-    wc = await svc.update_work_center(session, wc_id, **body.model_dump(exclude_unset=True))
+    """Update a work cell."""
+    wc = await svc.update_work_cell(session, wc_id, **body.model_dump(exclude_unset=True))
     await session.commit()
-    return success_response(WorkCenterRead.model_validate(wc).model_dump())
+    return success_response(WorkCellRead.model_validate(wc).model_dump())
 
 
 # ─── Equipment ────────────────────────────────────────────────────────
 
 
-@router.get("/work-centers/{wc_id}/equipment")
+@router.get("/work-cells/{wc_id}/equipment")
 async def list_equipment(
     wc_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("physical_model.read")),
 ):
-    """List equipment within a work center."""
-    items, cursor, has_more = await svc.list_equipment_in_work_center(session, wc_id, params)
+    """List equipment within a work cell."""
+    items, cursor, has_more = await svc.list_equipment_in_work_cell(session, wc_id, params)
     return list_response(
         [EquipmentRead.model_validate(e).model_dump() for e in items],
         cursor=cursor,
@@ -304,14 +304,14 @@ async def list_equipment(
     )
 
 
-@router.post("/work-centers/{wc_id}/equipment", status_code=201)
+@router.post("/work-cells/{wc_id}/equipment", status_code=201)
 async def create_equipment(
     wc_id: UUID,
     body: EquipmentCreate,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("physical_model.create")),
 ):
-    """Create equipment within a work center."""
+    """Create equipment within a work cell."""
     equip = await svc.create_equipment(session, wc_id, **body.model_dump())
     await session.commit()
     return success_response(EquipmentRead.model_validate(equip).model_dump())

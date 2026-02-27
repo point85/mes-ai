@@ -12,8 +12,8 @@ export interface DispatchOption {
   equipment_id: string;
   equipment_code: string;
   equipment_name: string;
-  work_center_id: string;
-  work_center_code: string;
+  work_cell_id: string;
+  work_cell_code: string;
   step_id: string;
   step_name: string | null;
   queue_depth: number;

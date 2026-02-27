@@ -5,7 +5,7 @@ Endpoints:
 - POST /api/v1/dispatch/evaluate              Evaluate dispatch for a unit/lot
 - POST /api/v1/dispatch/execute               Execute a dispatch decision
 - GET  /api/v1/dispatch/strategies             List available dispatch strategies
-- GET  /api/v1/dispatch/queue/{work_center_id} Get dispatch queue for a work center
+- GET  /api/v1/dispatch/queue/{work_cell_id} Get dispatch queue for a work cell
 """
 
 from __future__ import annotations
@@ -76,14 +76,14 @@ async def list_strategies(
     )
 
 
-@router.get("/queue/{work_center_id}")
+@router.get("/queue/{work_cell_id}")
 async def get_queue(
-    work_center_id: UUID,
+    work_cell_id: UUID,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("dispatch.read")),
 ):
-    """Get the dispatch queue for a work center."""
-    queue = await DispatchService.get_queue(session, work_center_id)
+    """Get the dispatch queue for a work cell."""
+    queue = await DispatchService.get_queue(session, work_cell_id)
     return success_response(
         [item.model_dump() for item in queue],
     )

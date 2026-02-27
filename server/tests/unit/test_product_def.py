@@ -289,21 +289,21 @@ class TestRouteStepSchemas:
     def test_step_create_defaults(self):
         schema = RouteStepCreate(sequence=10, name="Step 1")
         assert schema.step_type == "production"
-        assert schema.work_center_id is None
+        assert schema.work_cell_id is None
         assert schema.expected_cycle_time_sec is None
 
     def test_step_create_invalid_type(self):
         with pytest.raises(Exception):
             RouteStepCreate(sequence=10, name="Bad", step_type="unknown")
 
-    def test_step_create_with_work_center(self):
+    def test_step_create_with_work_cell(self):
         wc_id = uuid.uuid4()
         schema = RouteStepCreate(
             sequence=10,
             name="Step",
-            work_center_id=wc_id,
+            work_cell_id=wc_id,
         )
-        assert schema.work_center_id == wc_id
+        assert schema.work_cell_id == wc_id
 
     def test_step_create_zero_sequence_rejected(self):
         with pytest.raises(Exception):

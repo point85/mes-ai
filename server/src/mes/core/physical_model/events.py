@@ -35,7 +35,7 @@ def site_created(site_id: str, code: str) -> MESEvent:
     )
 
 
-def equipment_created(equipment_id: str, code: str, work_center_id: str) -> MESEvent:
+def equipment_created(equipment_id: str, code: str, work_cell_id: str) -> MESEvent:
     """Create an event for new equipment creation."""
     return MESEvent(
         event_type="physical_model.equipment.created",
@@ -43,6 +43,6 @@ def equipment_created(equipment_id: str, code: str, work_center_id: str) -> MESE
         payload={
             "equipment_id": equipment_id,
             "code": code,
-            "work_center_id": work_center_id,
+            "work_cell_id": work_cell_id,
         },
     )

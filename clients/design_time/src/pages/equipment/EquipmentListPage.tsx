@@ -1,13 +1,13 @@
 /**
  * Equipment List Page — leaf level of the ISA-95 hierarchy.
- * Shows equipment for a given work center with status badges.
+ * Shows equipment for a given work cell with status badges.
  */
 
 import { useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { PlusIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 import {
-  useWorkCenter,
+  useWorkCell,
   useLine,
   useArea,
   useSite,
@@ -23,19 +23,38 @@ const STATUS_BADGE: Record<string, string> = {
   idle: "bg-yellow-50 text-yellow-700",
 };
 
+interface LocationState {
+  siteName?: string;
+  siteId?: string;
+  areaName?: string;
+  areaId?: string;
+  lineName?: string;
+  lineId?: string;
+  wcName?: string;
+}
+
 export default function EquipmentListPage() {
   const { wcId } = useParams<{ wcId: string }>();
+  const { state } = useLocation();
+  const locState = (state ?? {}) as LocationState;
 
   const [editingEquip, setEditingEquip] = useState<Equipment | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState("");
 
-  const { data: wc } = useWorkCenter(wcId!);
-  const { data: line } = useLine(wc?.line_id ?? "");
-  const { data: area } = useArea(line?.area_id ?? "");
-  const { data: site } = useSite(area?.site_id ?? "");
+  const { data: wc } = useWorkCell(wcId!);
+  const { data: line } = useLine(wc?.line_id ?? locState.lineId ?? "");
+  const { data: area } = useArea(line?.area_id ?? locState.areaId ?? "");
+  const { data: site } = useSite(area?.site_id ?? locState.siteId ?? "");
   const { data, isLoading, error } = useEquipment(wcId!);
 
+  const siteName = site?.name ?? locState.siteName ?? "…";
+  const siteId = site?.id ?? area?.site_id ?? locState.siteId ?? "";
+  const areaName = area?.name ?? locState.areaName ?? "…";
+  const areaId = area?.id ?? line?.area_id ?? locState.areaId ?? "";
+  const lineName = line?.name ?? locState.lineName ?? "…";
+  const lineId = line?.id ?? wc?.line_id ?? locState.lineId ?? "";
+  const wcName = wc?.name ?? locState.wcName ?? "…";
   const equipmentList: Equipment[] = data?.data ?? [];
 
   const filtered = useMemo(() => {
@@ -51,10 +70,10 @@ export default function EquipmentListPage() {
       <Breadcrumb
         crumbs={[
           { label: "Sites", to: "/sites" },
-          { label: site?.name ?? "…", to: site ? `/sites/${site.id}/areas` : undefined },
-          { label: area?.name ?? "…", to: area ? `/areas/${area.id}/lines` : undefined },
-          { label: line?.name ?? "…", to: line ? `/lines/${line.id}/work-centers` : undefined },
-          { label: wc?.name ?? "…" },
+          { label: siteName, to: siteId ? `/sites/${siteId}/areas` : undefined },
+          { label: areaName, to: areaId ? `/areas/${areaId}/lines` : undefined },
+          { label: lineName, to: lineId ? `/lines/${lineId}/work-cells` : undefined },
+          { label: wcName },
         ]}
       />
 
@@ -63,8 +82,8 @@ export default function EquipmentListPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Equipment</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Equipment in work center{" "}
-            <span className="font-medium">{wc?.name ?? "…"}</span>.
+            Equipment in work cell{" "}
+            <span className="font-medium">{wcName}</span>.
           </p>
         </div>
         <button

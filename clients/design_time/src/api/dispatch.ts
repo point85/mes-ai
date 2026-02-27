@@ -41,10 +41,10 @@ export async function fetchDispatchStrategies(): Promise<DispatchStrategyInfo[]>
 }
 
 export async function fetchDispatchQueue(
-  workCenterId: string,
+  workCellId: string,
 ): Promise<DispatchQueueItem[]> {
   const { data } = await api.get<ApiResponse<DispatchQueueItem[]>>(
-    `/dispatch/queue/${workCenterId}`,
+    `/dispatch/queue/${workCellId}`,
   );
   return data.data;
 }

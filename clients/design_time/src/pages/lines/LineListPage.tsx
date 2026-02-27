@@ -1,9 +1,9 @@
 /**
- * Production Line List Page — shows lines for a given area with drill-down to Work Centers.
+ * Production Line List Page — shows lines for a given area with drill-down to Work Cells.
  */
 
 import { useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   PlusIcon,
   PencilSquareIcon,
@@ -14,18 +14,29 @@ import { Breadcrumb } from "../../components/layout";
 import type { ProductionLine } from "../../types";
 import LineFormDialog from "./LineFormDialog";
 
+interface LocationState {
+  siteName?: string;
+  siteId?: string;
+  areaName?: string;
+}
+
 export default function LineListPage() {
   const { areaId } = useParams<{ areaId: string }>();
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const locState = (state ?? {}) as LocationState;
 
   const [editingLine, setEditingLine] = useState<ProductionLine | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState("");
 
   const { data: area } = useArea(areaId!);
-  const { data: site } = useSite(area?.site_id ?? "");
+  const { data: site } = useSite(area?.site_id ?? locState.siteId ?? "");
   const { data, isLoading, error } = useLines(areaId!);
 
+  const siteName = site?.name ?? locState.siteName ?? "…";
+  const siteId = site?.id ?? area?.site_id ?? locState.siteId ?? "";
+  const areaName = area?.name ?? locState.areaName ?? "…";
   const lines: ProductionLine[] = data?.data ?? [];
 
   const filtered = useMemo(() => {
@@ -41,8 +52,8 @@ export default function LineListPage() {
       <Breadcrumb
         crumbs={[
           { label: "Sites", to: "/sites" },
-          { label: site?.name ?? "…", to: site ? `/sites/${site.id}/areas` : undefined },
-          { label: area?.name ?? "…" },
+          { label: siteName, to: siteId ? `/sites/${siteId}/areas` : undefined },
+          { label: areaName },
         ]}
       />
 
@@ -51,7 +62,7 @@ export default function LineListPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Production Lines</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Lines within area <span className="font-medium">{area?.name ?? "…"}</span>.
+            Lines within area <span className="font-medium">{areaName}</span>.
           </p>
         </div>
         <button
@@ -114,9 +125,9 @@ export default function LineListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => navigate(`/lines/${line.id}/work-centers`)}
+                        onClick={() => navigate(`/lines/${line.id}/work-cells`, { state: { siteName, siteId, areaName, areaId, lineName: line.name } })}
                         className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                        title="View Work Centers"
+                        title="View Work Cells"
                       >
                         <ChevronRightIcon className="h-4 w-4" />
                       </button>

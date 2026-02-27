@@ -27,7 +27,7 @@ from mes.core.physical_model.models import (
     Equipment,
     ProductionLine,
     Site,
-    WorkCenter,
+    WorkCell,
 )
 from mes.core.physical_model.schemas import (
     AreaCreate,
@@ -43,9 +43,9 @@ from mes.core.physical_model.schemas import (
     SiteCreate,
     SiteRead,
     SiteUpdate,
-    WorkCenterCreate,
-    WorkCenterRead,
-    WorkCenterUpdate,
+    WorkCellCreate,
+    WorkCellRead,
+    WorkCellUpdate,
 )
 
 
@@ -71,15 +71,15 @@ class TestPhysicalModels:
     def test_production_line_tablename(self):
         assert ProductionLine.__tablename__ == "production_lines"
 
-    def test_work_center_tablename(self):
-        assert WorkCenter.__tablename__ == "work_centers"
+    def test_work_cell_tablename(self):
+        assert WorkCell.__tablename__ == "work_cells"
 
     def test_equipment_tablename(self):
         assert Equipment.__tablename__ == "equipment"
 
     def test_all_models_inherit_base_columns(self):
         """All physical model entities must have id, created_at, updated_at, is_active."""
-        for model_cls in [Site, Area, ProductionLine, WorkCenter, Equipment]:
+        for model_cls in [Site, Area, ProductionLine, WorkCell, Equipment]:
             mapper = model_cls.__mapper__
             col_names = {c.key for c in mapper.columns}
             assert "id" in col_names, f"{model_cls.__name__} missing 'id'"
@@ -170,18 +170,18 @@ class TestProductionLineSchemas:
         assert schema.name is None
 
 
-class TestWorkCenterSchemas:
-    def test_work_center_create_default_type(self):
-        schema = WorkCenterCreate(name="Station A", code="WC-A")
+class TestWorkCellSchemas:
+    def test_work_cell_create_default_type(self):
+        schema = WorkCellCreate(name="Station A", code="WC-A")
         assert schema.wc_type == "manual"
 
-    def test_work_center_create_automated(self):
-        schema = WorkCenterCreate(name="Robot A", code="WC-R1", wc_type="automated")
+    def test_work_cell_create_automated(self):
+        schema = WorkCellCreate(name="Robot A", code="WC-R1", wc_type="automated")
         assert schema.wc_type == "automated"
 
-    def test_work_center_create_invalid_type(self):
+    def test_work_cell_create_invalid_type(self):
         with pytest.raises(Exception):
-            WorkCenterCreate(name="Bad", code="WC-BAD", wc_type="unknown")
+            WorkCellCreate(name="Bad", code="WC-BAD", wc_type="unknown")
 
 
 class TestEquipmentSchemas:
@@ -217,7 +217,7 @@ class TestEquipmentSchemas:
             id=uuid.uuid4(),
             name="Mill",
             code="ML-01",
-            work_center_id=uuid.uuid4(),
+            work_cell_id=uuid.uuid4(),
             status="up",
             is_active=True,
             created_at=now,
@@ -252,7 +252,7 @@ class TestPhysicalModelEvents:
         event = equipment_created("eq-1", "EQ-001", "wc-1")
         assert event.event_type == "physical_model.equipment.created"
         assert event.payload["equipment_id"] == "eq-1"
-        assert event.payload["work_center_id"] == "wc-1"
+        assert event.payload["work_cell_id"] == "wc-1"
 
 
 # ─── Exception tests ─────────────────────────────────────────────────
@@ -268,6 +268,6 @@ class TestPhysicalModelExceptions:
         assert exc.details["code"] == "PLANT-01"
 
     def test_duplicate_code_exception_different_entities(self):
-        for entity in ["Site", "Area", "ProductionLine", "WorkCenter", "Equipment"]:
+        for entity in ["Site", "Area", "ProductionLine", "WorkCell", "Equipment"]:
             exc = DuplicateCodeException(entity, "CODE-1")
             assert entity in str(exc)

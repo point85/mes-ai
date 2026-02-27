@@ -1,5 +1,5 @@
 /**
- * Work Center Create / Edit dialog — modal form with Zod validation.
+ * Work Cell Create / Edit dialog — modal form with Zod validation.
  */
 
 import { useEffect } from "react";
@@ -8,8 +8,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { useCreateWorkCenter, useUpdateWorkCenter } from "../../hooks/usePhysicalModel";
-import type { WorkCenter } from "../../types";
+import { useCreateWorkCell, useUpdateWorkCell } from "../../hooks/usePhysicalModel";
+import type { WorkCell } from "../../types";
 
 const wcSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
@@ -25,15 +25,15 @@ const wcSchema = z.object({
 type WCFormData = z.infer<typeof wcSchema>;
 
 interface Props {
-  workCenter: WorkCenter | null;
+  workCell: WorkCell | null;
   lineId: string;
   onClose: () => void;
 }
 
-export default function WorkCenterFormDialog({ workCenter, lineId, onClose }: Props) {
-  const isEdit = !!workCenter;
-  const createMut = useCreateWorkCenter();
-  const updateMut = useUpdateWorkCenter();
+export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props) {
+  const isEdit = !!workCell;
+  const createMut = useCreateWorkCell();
+  const updateMut = useUpdateWorkCell();
 
   const {
     register,
@@ -46,20 +46,20 @@ export default function WorkCenterFormDialog({ workCenter, lineId, onClose }: Pr
   });
 
   useEffect(() => {
-    if (workCenter) {
+    if (workCell) {
       reset({
-        name: workCenter.name,
-        code: workCenter.code,
-        description: workCenter.description ?? "",
-        wc_type: workCenter.wc_type,
+        name: workCell.name,
+        code: workCell.code,
+        description: workCell.description ?? "",
+        wc_type: workCell.wc_type,
       });
     }
-  }, [workCenter, reset]);
+  }, [workCell, reset]);
 
   const onSubmit = async (data: WCFormData) => {
     try {
       if (isEdit) {
-        await updateMut.mutateAsync({ id: workCenter!.id, ...data });
+        await updateMut.mutateAsync({ id: workCell!.id, ...data });
       } else {
         await createMut.mutateAsync({ lineId, ...data });
       }
@@ -78,7 +78,7 @@ export default function WorkCenterFormDialog({ workCenter, lineId, onClose }: Pr
         <DialogPanel className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <DialogTitle className="text-lg font-semibold text-gray-900">
-              {isEdit ? "Edit Work Center" : "New Work Center"}
+              {isEdit ? "Edit Work Cell" : "New Work Cell"}
             </DialogTitle>
             <button
               onClick={onClose}
@@ -113,7 +113,7 @@ export default function WorkCenterFormDialog({ workCenter, lineId, onClose }: Pr
               <input
                 {...register("name")}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                placeholder="CNC Work Center"
+                placeholder="CNC Work Cell"
               />
               {errors.name && (
                 <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>

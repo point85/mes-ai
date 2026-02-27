@@ -13,9 +13,9 @@ import type {
   ProductionLine,
   ProductionLineCreate,
   ProductionLineUpdate,
-  WorkCenter,
-  WorkCenterCreate,
-  WorkCenterUpdate,
+  WorkCell,
+  WorkCellCreate,
+  WorkCellUpdate,
   Equipment,
   EquipmentCreate,
   EquipmentUpdate,
@@ -116,40 +116,40 @@ export async function updateLine(
   return data.data;
 }
 
-// ─── Work Centers ─────────────────────────────────────────────────────
+// ─── Work Cells ──────────────────────────────────────────────────────
 
-export async function fetchWorkCenters(
+export async function fetchWorkCells(
   lineId: string,
-): Promise<ApiListResponse<WorkCenter>> {
-  const { data } = await api.get<ApiListResponse<WorkCenter>>(
-    `/lines/${lineId}/work-centers`,
+): Promise<ApiListResponse<WorkCell>> {
+  const { data } = await api.get<ApiListResponse<WorkCell>>(
+    `/lines/${lineId}/work-cells`,
     { params: { limit: "200" } },
   );
   return data;
 }
 
-export async function fetchWorkCenter(wcId: string): Promise<WorkCenter> {
-  const { data } = await api.get<ApiResponse<WorkCenter>>(`/work-centers/${wcId}`);
+export async function fetchWorkCell(wcId: string): Promise<WorkCell> {
+  const { data } = await api.get<ApiResponse<WorkCell>>(`/work-cells/${wcId}`);
   return data.data;
 }
 
-export async function createWorkCenter(
+export async function createWorkCell(
   lineId: string,
-  body: WorkCenterCreate,
-): Promise<WorkCenter> {
-  const { data } = await api.post<ApiResponse<WorkCenter>>(
-    `/lines/${lineId}/work-centers`,
+  body: WorkCellCreate,
+): Promise<WorkCell> {
+  const { data } = await api.post<ApiResponse<WorkCell>>(
+    `/lines/${lineId}/work-cells`,
     body,
   );
   return data.data;
 }
 
-export async function updateWorkCenter(
+export async function updateWorkCell(
   wcId: string,
-  body: WorkCenterUpdate,
-): Promise<WorkCenter> {
-  const { data } = await api.put<ApiResponse<WorkCenter>>(
-    `/work-centers/${wcId}`,
+  body: WorkCellUpdate,
+): Promise<WorkCell> {
+  const { data } = await api.put<ApiResponse<WorkCell>>(
+    `/work-cells/${wcId}`,
     body,
   );
   return data.data;
@@ -161,7 +161,7 @@ export async function fetchEquipment(
   wcId: string,
 ): Promise<ApiListResponse<Equipment>> {
   const { data } = await api.get<ApiListResponse<Equipment>>(
-    `/work-centers/${wcId}/equipment`,
+    `/work-cells/${wcId}/equipment`,
     { params: { limit: "200" } },
   );
   return data;
@@ -172,7 +172,7 @@ export async function createEquipment(
   body: EquipmentCreate,
 ): Promise<Equipment> {
   const { data } = await api.post<ApiResponse<Equipment>>(
-    `/work-centers/${wcId}/equipment`,
+    `/work-cells/${wcId}/equipment`,
     body,
   );
   return data.data;

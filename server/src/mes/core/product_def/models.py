@@ -9,7 +9,7 @@ Entities:
 - RouteStep:         An individual step/operation within a route
 - StepParameter:     A data parameter spec attached to a route step
 
-Route steps reference work centers from PHYS-MODEL and will later
+Route steps reference work cells from PHYS-MODEL and will later
 reference MaterialDefinition from MAT-MGMT.
 """
 
@@ -165,7 +165,7 @@ class ProcessRoute(BaseModel):
 class RouteStep(BaseModel):
     """
     An individual step/operation within a ProcessRoute.
-    References a WorkCenter from PHYS-MODEL to define where work is performed.
+    References a WorkCell from PHYS-MODEL to define where work is performed.
     The sequence field defines step ordering (e.g. 10, 20, 30 for easy insertion).
     """
 
@@ -184,10 +184,10 @@ class RouteStep(BaseModel):
         String(20), nullable=False, default="production",
         comment="Step type: 'production', 'inspection', or 'rework'",
     )
-    work_center_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("work_centers.id"),
+    work_cell_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_cells.id"),
         nullable=True, index=True,
-        comment="Work center where this step is performed (nullable for unassigned steps)",
+        comment="Work cell where this step is performed (nullable for unassigned steps)",
     )
     expected_cycle_time_sec: Mapped[float | None] = mapped_column(
         Float, nullable=True,

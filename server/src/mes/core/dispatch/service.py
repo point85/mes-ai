@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mes.framework.api.exceptions import NotFoundException
 from mes.framework.events import event_bus
 
-from mes.core.physical_model.models import Equipment, WorkCenter
+from mes.core.physical_model.models import Equipment, WorkCell
 from mes.core.product_def.models import RouteStep
 from mes.core.wip.models import Unit, Lot
 from mes.core.performance.models import EquipmentStateLog
@@ -145,8 +145,8 @@ class DispatchService:
         target_step = next_steps[0]
 
         # ── Find eligible equipment at the target step ──────────────
-        # Equipment at the work center linked to the step
-        if target_step.work_center_id is None:
+        # Equipment at the work cell linked to the step
+        if target_step.work_cell_id is None:
             return DispatchEvaluateResponse(
                 unit_id=unit_id,
                 lot_id=lot_id,
@@ -155,10 +155,10 @@ class DispatchService:
             )
 
         equip_stmt = (
-            select(Equipment, WorkCenter)
-            .join(WorkCenter, Equipment.work_center_id == WorkCenter.id)
+            select(Equipment, WorkCell)
+            .join(WorkCell, Equipment.work_cell_id == WorkCell.id)
             .where(
-                Equipment.work_center_id == target_step.work_center_id,
+                Equipment.work_cell_id == target_step.work_cell_id,
                 Equipment.is_active.is_(True),
             )
         )
@@ -214,8 +214,8 @@ class DispatchService:
                 equipment_id=equip.id,
                 equipment_code=equip.code,
                 equipment_name=equip.name,
-                work_center_id=wc.id,
-                work_center_code=wc.code,
+                work_cell_id=wc.id,
+                work_cell_code=wc.code,
                 step_id=target_step.id,
                 step_name=target_step.name,
                 queue_depth=queue_depth,
@@ -325,13 +325,13 @@ class DispatchService:
     @staticmethod
     async def get_queue(
         session: AsyncSession,
-        work_center_id: UUID,
+        work_cell_id: UUID,
     ) -> list[DispatchQueueItem]:
-        """Get the dispatch queue for a work center (all WIP at its equipment)."""
-        # Get all equipment in the work center
+        """Get the dispatch queue for a work cell (all WIP at its equipment)."""
+        # Get all equipment in the work cell
         equip_result = await session.execute(
             select(Equipment.id).where(
-                Equipment.work_center_id == work_center_id,
+                Equipment.work_cell_id == work_cell_id,
             )
         )
         equip_ids = [eid for (eid,) in equip_result.all()]

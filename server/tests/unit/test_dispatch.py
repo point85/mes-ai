@@ -77,8 +77,8 @@ class TestDispatchOption:
             equipment_id=uuid.uuid4(),
             equipment_code="EQ-001",
             equipment_name="CNC Mill",
-            work_center_id=uuid.uuid4(),
-            work_center_code="WC-001",
+            work_cell_id=uuid.uuid4(),
+            work_cell_code="WC-001",
             step_id=uuid.uuid4(),
             step_name="Machining",
             queue_depth=3,
@@ -94,8 +94,8 @@ class TestDispatchOption:
             equipment_id=uuid.uuid4(),
             equipment_code="EQ-1",
             equipment_name="Equip",
-            work_center_id=uuid.uuid4(),
-            work_center_code="WC-1",
+            work_cell_id=uuid.uuid4(),
+            work_cell_code="WC-1",
             step_id=uuid.uuid4(),
         )
         assert opt.queue_depth == 0
@@ -116,8 +116,8 @@ class TestDispatchEvaluateResponse:
             equipment_id=uuid.uuid4(),
             equipment_code="EQ-1",
             equipment_name="Mill",
-            work_center_id=uuid.uuid4(),
-            work_center_code="WC-1",
+            work_cell_id=uuid.uuid4(),
+            work_cell_code="WC-1",
             step_id=uuid.uuid4(),
         )
         resp = DispatchEvaluateResponse(
@@ -209,8 +209,8 @@ def _make_options(queue_depths: list[int]) -> list[DispatchOption]:
             equipment_id=uuid.uuid4(),
             equipment_code=f"EQ-{i}",
             equipment_name=f"Equipment {i}",
-            work_center_id=uuid.uuid4(),
-            work_center_code="WC-1",
+            work_cell_id=uuid.uuid4(),
+            work_cell_code="WC-1",
             step_id=uuid.uuid4(),
             queue_depth=qd,
         )
@@ -357,4 +357,4 @@ class TestServiceAndRouteImports:
         assert "/api/v1/dispatch/evaluate" in paths
         assert "/api/v1/dispatch/execute" in paths
         assert "/api/v1/dispatch/strategies" in paths
-        assert "/api/v1/dispatch/queue/{work_center_id}" in paths
+        assert "/api/v1/dispatch/queue/{work_cell_id}" in paths

@@ -49,8 +49,8 @@ class DispatchOption(BaseModel):
     equipment_id: UUID
     equipment_code: str
     equipment_name: str
-    work_center_id: UUID
-    work_center_code: str
+    work_cell_id: UUID
+    work_cell_code: str
     step_id: UUID
     step_name: str | None = None
     queue_depth: int = 0
@@ -96,7 +96,7 @@ class DispatchStrategyInfo(BaseModel):
 
 
 class DispatchQueueItem(BaseModel):
-    """An item in the dispatch queue for a work center."""
+    """An item in the dispatch queue for a work cell."""
 
     unit_id: UUID | None = None
     lot_id: UUID | None = None

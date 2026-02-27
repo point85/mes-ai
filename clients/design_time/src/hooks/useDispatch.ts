@@ -16,8 +16,8 @@ import type {
 
 const KEYS = {
   strategies: ["dispatchStrategies"] as const,
-  queue: (workCenterId: string) =>
-    ["dispatchQueue", workCenterId] as const,
+  queue: (workCellId: string) =>
+    ["dispatchQueue", workCellId] as const,
 };
 
 export function useDispatchStrategies() {
@@ -27,11 +27,11 @@ export function useDispatchStrategies() {
   });
 }
 
-export function useDispatchQueue(workCenterId: string, enabled = true) {
+export function useDispatchQueue(workCellId: string, enabled = true) {
   return useQuery({
-    queryKey: KEYS.queue(workCenterId),
-    queryFn: () => fetchDispatchQueue(workCenterId),
-    enabled: !!workCenterId && enabled,
+    queryKey: KEYS.queue(workCellId),
+    queryFn: () => fetchDispatchQueue(workCellId),
+    enabled: !!workCellId && enabled,
     refetchInterval: 10_000, // Auto-refresh queue every 10s
   });
 }

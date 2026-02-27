@@ -16,7 +16,7 @@ The Manufacturing Enterprise Solutions Association (MESA) defined the original 1
 |---|---|---|
 | 1 | **Resource Allocation & Status** | Manage equipment, tools, materials, labor, and other resources required for manufacturing. Track real-time status and availability. |
 | 2 | **Operations/Detail Scheduling** | Sequence and time production activities based on priorities, attributes, characteristics, and recipes/rules associated with specific production equipment. |
-| 3 | **Dispatching Production Units** | Manage the flow of production in the form of jobs, orders, batches, lots, and work orders. Dispatch to work centers based on real-time conditions. |
+| 3 | **Dispatching Production Units** | Manage the flow of production in the form of jobs, orders, batches, lots, and work orders. Dispatch to work cells based on real-time conditions. |
 | 4 | **Document Control** | Control records and forms that must be maintained with the production unit, including work instructions, recipes, drawings, SOPs, batch records, ECN notifications, and as-planned/as-built records. |
 | 5 | **Data Collection/Acquisition** | Collect real-time data from the shop floor via manual entry, equipment interfaces, or automated data collection systems. Provide an interface to production operations data. |
 | 6 | **Labor Management** | Track personnel status, qualifications, certifications, and time. Provide ability to track indirect activities such as material preparation or tooling work. |
@@ -199,7 +199,7 @@ Based on the survey, the following is the prioritized list of required functiona
 
 | Module ID | Module Name | ISA-95 Category | Description |
 |---|---|---|---|
-| `PHYS-MODEL` | Physical Model | Foundation | Define the physical hierarchy: Enterprise → Site → Area → Production Line → Work Center → Equipment. All MES operations reference this model. |
+| `PHYS-MODEL` | Physical Model | Foundation | Define the physical hierarchy: Enterprise → Site → Area → Production Line → Work Cell → Equipment. All MES operations reference this model. |
 | `WIP-TRACK` | WIP Tracking | Production Ops | Track units/lots as they move through the physical model. Maintain current location, status, quantity, and disposition of each WIP entity. |
 | `ROUTE-DEF` | Route Definition | Production Ops | Define the sequence of steps (operations) a product must follow. Support linear, branching, and rework routes. |
 | `ROUTE-ENGINE` | Routing Engine | Production Ops | Enforce routing rules: validate that WIP moves to permitted next steps, prevent out-of-sequence operations. |

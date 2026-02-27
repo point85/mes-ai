@@ -4,9 +4,9 @@ PHYS-MODEL: SQLAlchemy models for the ISA-95 physical asset hierarchy.
 Entities:
 - Site:           Top-level organizational unit (factory / plant)
 - Area:           Logical grouping within a site (department / shop)
-- ProductionLine: A linear arrangement of work centers within an area
-- WorkCenter:     A station where operations are performed (manual or automated)
-- Equipment:      An individual machine or device within a work center
+- ProductionLine: A linear arrangement of work cells within an area
+- WorkCell:       A station where operations are performed (manual or automated)
+- Equipment:      An individual machine or device within a work cell
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ class Area(BaseModel):
 class ProductionLine(BaseModel):
     """
     ISA-95 — Production Line within an Area.
-    A linear arrangement of work centers that process units sequentially.
+    A linear arrangement of work cells that process units sequentially.
     """
 
     __tablename__ = "production_lines"
@@ -90,23 +90,23 @@ class ProductionLine(BaseModel):
 
     # Relationships
     area: Mapped["Area"] = relationship("Area", back_populates="production_lines")
-    work_centers: Mapped[list["WorkCenter"]] = relationship(
-        "WorkCenter", back_populates="production_line", cascade="all, delete-orphan",
-        order_by="WorkCenter.name",
+    work_cells: Mapped[list["WorkCell"]] = relationship(
+        "WorkCell", back_populates="production_line", cascade="all, delete-orphan",
+        order_by="WorkCell.name",
     )
 
     def __repr__(self) -> str:
         return f"<ProductionLine id={self.id} code={self.code}>"
 
 
-class WorkCenter(BaseModel):
+class WorkCell(BaseModel):
     """
-    ISA-95 — Work Center within a Production Line.
+    ISA-95 — Work Cell within a Production Line.
     A station where manufacturing operations are performed.
     Can be manual (human-operated) or automated (machine-driven).
     """
 
-    __tablename__ = "work_centers"
+    __tablename__ = "work_cells"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
@@ -116,25 +116,25 @@ class WorkCenter(BaseModel):
     )
     wc_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="manual",
-        comment="Work center type: 'manual' or 'automated'",
+        comment="Work cell type: 'manual' or 'automated'",
     )
 
     # Relationships
     production_line: Mapped["ProductionLine"] = relationship(
-        "ProductionLine", back_populates="work_centers",
+        "ProductionLine", back_populates="work_cells",
     )
     equipment: Mapped[list["Equipment"]] = relationship(
-        "Equipment", back_populates="work_center", cascade="all, delete-orphan",
+        "Equipment", back_populates="work_cell", cascade="all, delete-orphan",
         order_by="Equipment.name",
     )
 
     def __repr__(self) -> str:
-        return f"<WorkCenter id={self.id} code={self.code}>"
+        return f"<WorkCell id={self.id} code={self.code}>"
 
 
 class Equipment(BaseModel):
     """
-    ISA-95 — Equipment within a Work Center.
+    ISA-95 — Equipment within a Work Cell.
     An individual machine, tool, or device that performs operations on units.
     Status is a simplified dispatch-level status; detailed state machine
     is handled by pluggable equipment_state_model plugins (see D025).
@@ -145,8 +145,8 @@ class Equipment(BaseModel):
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    work_center_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=False, index=True,
+    work_cell_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_cells.id"), nullable=False, index=True,
     )
     equipment_type: Mapped[str | None] = mapped_column(
         String(100), nullable=True,
@@ -162,8 +162,8 @@ class Equipment(BaseModel):
     )
 
     # Relationships
-    work_center: Mapped["WorkCenter"] = relationship(
-        "WorkCenter", back_populates="equipment",
+    work_cell: Mapped["WorkCell"] = relationship(
+        "WorkCell", back_populates="equipment",
     )
 
     def __repr__(self) -> str:

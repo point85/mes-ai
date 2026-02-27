@@ -172,7 +172,7 @@ class RouteStepCreate(BaseModel):
     sequence: int = Field(..., ge=1)
     name: str = Field(..., min_length=1, max_length=255)
     step_type: str = Field("production", pattern=r"^(production|inspection|rework)$")
-    work_center_id: UUID | None = None
+    work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
 
 
@@ -184,7 +184,7 @@ class RouteStepRead(BaseModel):
     sequence: int
     name: str
     step_type: str
-    work_center_id: UUID | None = None
+    work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = None
     is_active: bool
     created_at: datetime
@@ -199,7 +199,7 @@ class RouteStepUpdate(BaseModel):
     sequence: int | None = Field(None, ge=1)
     name: str | None = Field(None, min_length=1, max_length=255)
     step_type: str | None = Field(None, pattern=r"^(production|inspection|rework)$")
-    work_center_id: UUID | None = None
+    work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
 
 

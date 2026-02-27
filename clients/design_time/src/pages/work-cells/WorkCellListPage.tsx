@@ -1,18 +1,18 @@
 /**
- * Work Center List Page — shows work centers for a given line with drill-down to Equipment.
+ * Work Cell List Page — shows work cells for a given line with drill-down to Equipment.
  */
 
 import { useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   PlusIcon,
   PencilSquareIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import { useLine, useArea, useSite, useWorkCenters } from "../../hooks/usePhysicalModel";
+import { useLine, useArea, useSite, useWorkCells } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
-import type { WorkCenter } from "../../types";
-import WorkCenterFormDialog from "./WorkCenterFormDialog";
+import type { WorkCell } from "../../types";
+import WorkCellFormDialog from "./WorkCellFormDialog";
 
 const TYPE_BADGE: Record<string, string> = {
   manual: "bg-blue-50 text-blue-700",
@@ -20,46 +20,61 @@ const TYPE_BADGE: Record<string, string> = {
   hybrid: "bg-purple-50 text-purple-700",
 };
 
-export default function WorkCenterListPage() {
+interface LocationState {
+  siteName?: string;
+  siteId?: string;
+  areaName?: string;
+  areaId?: string;
+  lineName?: string;
+}
+
+export default function WorkCellListPage() {
   const { lineId } = useParams<{ lineId: string }>();
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const locState = (state ?? {}) as LocationState;
 
-  const [editingWC, setEditingWC] = useState<WorkCenter | null>(null);
+  const [editingWC, setEditingWC] = useState<WorkCell | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState("");
 
   const { data: line } = useLine(lineId!);
-  const { data: area } = useArea(line?.area_id ?? "");
-  const { data: site } = useSite(area?.site_id ?? "");
-  const { data, isLoading, error } = useWorkCenters(lineId!);
+  const { data: area } = useArea(line?.area_id ?? locState.areaId ?? "");
+  const { data: site } = useSite(area?.site_id ?? locState.siteId ?? "");
+  const { data, isLoading, error } = useWorkCells(lineId!);
 
-  const workCenters: WorkCenter[] = data?.data ?? [];
+  const siteName = site?.name ?? locState.siteName ?? "…";
+  const siteId = site?.id ?? area?.site_id ?? locState.siteId ?? "";
+  const areaName = area?.name ?? locState.areaName ?? "…";
+  const areaId = area?.id ?? line?.area_id ?? locState.areaId ?? "";
+  const lineName = line?.name ?? locState.lineName ?? "…";
+  const workCells: WorkCell[] = data?.data ?? [];
 
   const filtered = useMemo(() => {
-    if (!search) return workCenters;
+    if (!search) return workCells;
     const q = search.toLowerCase();
-    return workCenters.filter(
+    return workCells.filter(
       (wc) => wc.name.toLowerCase().includes(q) || wc.code.toLowerCase().includes(q),
     );
-  }, [workCenters, search]);
+  }, [workCells, search]);
 
   return (
     <div className="space-y-6">
       <Breadcrumb
         crumbs={[
           { label: "Sites", to: "/sites" },
-          { label: site?.name ?? "…", to: site ? `/sites/${site.id}/areas` : undefined },
-          { label: area?.name ?? "…", to: area ? `/areas/${area.id}/lines` : undefined },
-          { label: line?.name ?? "…" },
+          { label: siteName, to: siteId ? `/sites/${siteId}/areas` : undefined },
+          { label: areaName, to: areaId ? `/areas/${areaId}/lines` : undefined },
+          { label: lineName },
         ]}
       />
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Work Centers</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Work Cells</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Work centers on line <span className="font-medium">{line?.name ?? "…"}</span>.
+            Work cells on line <span className="font-medium">{lineName}</span>.
           </p>
         </div>
         <button
@@ -67,7 +82,7 @@ export default function WorkCenterListPage() {
           className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors"
         >
           <PlusIcon className="h-4 w-4" />
-          New Work Center
+          New Work Cell
         </button>
       </div>
 
@@ -81,15 +96,15 @@ export default function WorkCenterListPage() {
           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64"
         />
         <span className="text-xs text-gray-400">
-          {filtered.length} work center{filtered.length !== 1 ? "s" : ""}
+          {filtered.length} work cell{filtered.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {/* Loading / error */}
-      {isLoading && <p className="text-sm text-gray-500">Loading work centers…</p>}
+      {isLoading && <p className="text-sm text-gray-500">Loading work cells…</p>}
       {error && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-          Failed to load work centers.
+          Failed to load work cells.
         </div>
       )}
 
@@ -128,7 +143,7 @@ export default function WorkCenterListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => navigate(`/work-centers/${wc.id}/equipment`)}
+                        onClick={() => navigate(`/work-cells/${wc.id}/equipment`, { state: { siteName, siteId, areaName, areaId, lineName, lineId, wcName: wc.name } })}
                         className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
                         title="View Equipment"
                       >
@@ -148,7 +163,7 @@ export default function WorkCenterListPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
-                    No work centers found.
+                    No work cells found.
                   </td>
                 </tr>
               )}
@@ -159,8 +174,8 @@ export default function WorkCenterListPage() {
 
       {/* Create / Edit dialog */}
       {(showCreate || editingWC) && (
-        <WorkCenterFormDialog
-          workCenter={editingWC}
+        <WorkCellFormDialog
+          workCell={editingWC}
           lineId={lineId!}
           onClose={() => {
             setShowCreate(false);

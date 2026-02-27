@@ -190,7 +190,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 ┌─────────────────────── Physical Model ───────────────────────┐
 │                                                               │
 │  Site ──1:N──▶ Area ──1:N──▶ ProductionLine ──1:N──▶        │
-│  WorkCenter ──1:N──▶ Equipment                               │
+│  WorkCell ──1:N──▶ Equipment                                 │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
 
@@ -248,9 +248,9 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 |---|---|---|
 | **Site** | `id`, `name`, `code`, `description`, `timezone`, `address` | → Areas |
 | **Area** | `id`, `name`, `code`, `description`, `site_id` | → Site, → ProductionLines |
-| **ProductionLine** | `id`, `name`, `code`, `description`, `area_id` | → Area, → WorkCenters |
-| **WorkCenter** | `id`, `name`, `code`, `description`, `line_id`, `wc_type` (manual/automated) | → ProductionLine, → Equipment |
-| **Equipment** | `id`, `name`, `code`, `description`, `work_center_id`, `equipment_type`, `status` (up/down/idle), `capabilities` (JSON) | → WorkCenter, → RouteSteps (M:N) |
+| **ProductionLine** | `id`, `name`, `code`, `description`, `area_id` | → Area, → WorkCells |
+| **WorkCell** | `id`, `name`, `code`, `description`, `line_id`, `wc_type` (manual/automated) | → ProductionLine, → Equipment |
+| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `status` (up/down/idle), `capabilities` (JSON) | → WorkCell, → RouteSteps (M:N) |
 
 #### Product Definition (PROD-DEF)
 
@@ -260,7 +260,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **BillOfMaterial** | `id`, `product_id`, `version`, `effective_date`, `expiry_date` | → ProductDefinition, → BOMItems |
 | **BOMItem** | `id`, `bom_id`, `material_id`, `quantity`, `uom`, `position` | → BillOfMaterial, → MaterialDefinition |
 | **ProcessRoute** | `id`, `product_id`, `version`, `name`, `description`, `is_default` | → ProductDefinition, → RouteSteps |
-| **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework), `work_center_id`, `expected_cycle_time_sec` | → ProcessRoute, → WorkCenter, → StepParameters |
+| **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework), `work_cell_id`, `expected_cycle_time_sec` | → ProcessRoute, → WorkCell, → StepParameters |
 | **StepParameter** | `id`, `step_id`, `name`, `data_type`, `uom`, `target_value`, `lower_limit`, `upper_limit`, `is_required` | → RouteStep |
 
 > **ISA-95 Route Ownership Boundary**
@@ -272,7 +272,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 > However, the MES must hold a **local execution copy** of routes for four reasons:
 >
 > 1. **Execution sequencing** — When a unit completes step 20 the MES must know step 30 is next
->    and which work centers can run it. Calling the ERP on every unit move would introduce
+>    and which work cells can run it. Calling the ERP on every unit move would introduce
 >    unacceptable latency, tight coupling, and loss of offline resilience.
 > 2. **Data collection anchoring** — Every quality test, data point, material consumption,
 >    non-conformance, and history record is captured per `RouteStep`. The step is the foreign-key
@@ -389,19 +389,19 @@ SQLAlchemy supports all standard relationship types. The patterns used throughou
 Two sides of the same relationship using `relationship()` + `ForeignKey`:
 
 ```python
-class WorkCenter(Base):
-    __tablename__ = "work_center"
+class WorkCell(Base):
+    __tablename__ = "work_cell"
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     line_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("production_line.id"))
 
-    # Many-to-One: each work center belongs to one production line
-    production_line: Mapped["ProductionLine"] = relationship(back_populates="work_centers")
+    # Many-to-One: each work cell belongs to one production line
+    production_line: Mapped["ProductionLine"] = relationship(back_populates="work_cells")
 
-    # One-to-Many: each work center has many equipment
-    equipment: Mapped[list["Equipment"]] = relationship(back_populates="work_center")
+    # One-to-Many: each work cell has many equipment
+    equipment: Mapped[list["Equipment"]] = relationship(back_populates="work_cell")
 ```
 
-**Used for:** Site→Areas, Area→Lines, Line→WorkCenters, WorkCenter→Equipment, ProductionOrder→Units, ProductionOrder→Lots, Route→Steps, Step→Parameters, and all other parent-child hierarchies.
+**Used for:** Site→Areas, Area→Lines, Line→WorkCells, WorkCell→Equipment, ProductionOrder→Units, ProductionOrder→Lots, Route→Steps, Step→Parameters, and all other parent-child hierarchies.
 
 #### Many-to-Many
 
@@ -459,8 +459,8 @@ class UserRole(Base):
 
 | Relationship | SQLAlchemy Pattern | Used In |
 |---|---|---|
-| One-to-Many | `relationship()` + `ForeignKey` | Site→Areas, Line→WorkCenters, Order→Units, Route→Steps, etc. |
-| Many-to-One | Same (reverse side) | Equipment→WorkCenter, Unit→RouteStep, Unit→Equipment |
+| One-to-Many | `relationship()` + `ForeignKey` | Site→Areas, Line→WorkCells, Order→Units, Route→Steps, etc. |
+| Many-to-One | Same (reverse side) | Equipment→WorkCell, Unit→RouteStep, Unit→Equipment |
 | Many-to-Many | `relationship(secondary=...)` | RouteStep↔Equipment |
 | Many-to-Many + data | Association object class | User↔Role (via UserRole) |
 
@@ -1863,11 +1863,11 @@ activates a new state model, the system:
 | `GET` | `/api/v1/areas/{area_id}/lines` | List production lines in an area |
 | `POST` | `/api/v1/areas/{area_id}/lines` | Create production line in an area |
 | `GET` | `/api/v1/lines/{line_id}` | Get production line by ID |
-| `GET` | `/api/v1/lines/{line_id}/work-centers` | List work centers in a line |
-| `POST` | `/api/v1/lines/{line_id}/work-centers` | Create work center in a line |
-| `GET` | `/api/v1/work-centers/{wc_id}` | Get work center by ID |
-| `GET` | `/api/v1/work-centers/{wc_id}/equipment` | List equipment in a work center |
-| `POST` | `/api/v1/work-centers/{wc_id}/equipment` | Create equipment in a work center |
+| `GET` | `/api/v1/lines/{line_id}/work-cells` | List work cells in a line |
+| `POST` | `/api/v1/lines/{line_id}/work-cells` | Create work cell in a line |
+| `GET` | `/api/v1/work-cells/{wc_id}` | Get work cell by ID |
+| `GET` | `/api/v1/work-cells/{wc_id}/equipment` | List equipment in a work cell |
+| `POST` | `/api/v1/work-cells/{wc_id}/equipment` | Create equipment in a work cell |
 | `GET` | `/api/v1/equipment/{equip_id}` | Get equipment by ID |
 | `PUT` | `/api/v1/equipment/{equip_id}` | Update equipment |
 | `PATCH` | `/api/v1/equipment/{equip_id}/status` | Update equipment status |
@@ -1924,7 +1924,7 @@ activates a new state model, the system:
 | `POST` | `/api/v1/dispatch/evaluate` | Evaluate dispatch for a unit/lot (returns recommendation) |
 | `POST` | `/api/v1/dispatch/execute` | Execute a dispatch decision |
 | `GET` | `/api/v1/dispatch/strategies` | List available dispatch strategies |
-| `GET` | `/api/v1/dispatch/queue/{work_center_id}` | Get dispatch queue for a work center |
+| `GET` | `/api/v1/dispatch/queue/{work_cell_id}` | Get dispatch queue for a work cell |
 
 #### Material Management (MAT-MGMT)
 
@@ -2296,7 +2296,7 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 | **Bill of Materials** | ERP product engineering | PROD-DEF module | On production order receipt or scheduled sync |
 | **Product/Item Master** | ERP product management | PROD-DEF module | Scheduled sync |
 | **Routing** | ERP routing/recipe management | ROUTE-DEF module | On production order receipt |
-| **Work Center Master** | ERP work center definitions | PHYS-MODEL module | Initial setup + scheduled sync |
+| **Work Cell Master** | ERP work cell definitions | PHYS-MODEL module | Initial setup + scheduled sync |
 
 #### 9.2.3 Outbound Data Flows (MES → ERP)
 
@@ -2313,7 +2313,7 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 #### 9.2.3a Route & Operation Ownership (ISA-95 Boundary)
 
 A common source of confusion: an MES is primarily concerned with the **physical model** defined
-by ISA-95 (sites, areas, lines, work centers, equipment). An ERP, by contrast, deals with
+by ISA-95 (sites, areas, lines, work cells, equipment). An ERP, by contrast, deals with
 **logical routing and operations** for cost rollups, capacity planning, and standard costing.
 So why does this MES store `ProcessRoute` and `RouteStep` entities at all?
 
@@ -2331,7 +2331,7 @@ So why does this MES store `ProcessRoute` and `RouteStep` entities at all?
 
 | Need | Why | Example |
 |---|---|---|
-| Execution sequencing | Know *what comes next* for every unit/lot in real time | Unit completes step 20 → engine selects step 30 → dispatches to eligible work center |
+| Execution sequencing | Know *what comes next* for every unit/lot in real time | Unit completes step 20 → engine selects step 30 → dispatches to eligible work cell |
 | Data anchoring | Foreign-key target for quality, data, material, NC, history records | `QualityTest.step_id`, `DataPoint.step_id`, `MaterialConsumption.step_id` |
 | Outbound mapping | Map completed step back to ERP operation for cost posting | `report_completion(order, operation, qty, labor_hours)` |
 | Runtime deviation | Handle rework loops, step skips, alternate routes by equipment | ERP route = plan; MES execution = reality |
@@ -2378,7 +2378,7 @@ class ERPInboundAdapter(BaseAdapter):
         self, product_id: str
     ) -> list[ProcessRouteDTO]: ...
 
-    async def sync_work_centers(self) -> list[WorkCenterDTO]: ...
+    async def sync_work_cells(self) -> list[WorkCellDTO]: ...
 
 
 class ERPOutboundAdapter(BaseAdapter):
@@ -2444,7 +2444,7 @@ Each ERP vendor is implemented as a plugin that provides concrete `ERPInboundAda
 | Material Master | `API_PRODUCT_SRV`, `API_MATERIAL_STOCK_SRV` | `BAPI_MATERIAL_GET_DETAIL` |
 | Bill of Materials | `API_BILL_OF_MATERIAL_SRV` | `CSAP_MAT_BOM_READ` |
 | Routing | `API_PRODUCTION_ROUTING` | `BAPI_ROUTING_GET` |
-| Work Centers | `API_WORK_CENTERS_SRV` | `BAPI_WORKCENTER_GET_DETAIL` |
+| Work Cells | `API_WORK_CELLS_SRV` | `BAPI_WORKCENTER_GET_DETAIL` |
 
 **Outbound APIs (MES → ERP):**
 
@@ -2471,7 +2471,7 @@ Each ERP vendor is implemented as a plugin that provides concrete `ERPInboundAda
 | Item/Product Master | `GET /itemsV2` |
 | Bill of Materials | `GET /workDefinitions/{id}/workDefinitionOperationResources` |
 | On-hand Inventory | `GET /inventoryBalances` |
-| Work Centers / Resources | `GET /manufacturingResources` |
+| Work Cells / Resources | `GET /manufacturingResources` |
 
 **Outbound APIs (MES → ERP):**
 
@@ -2996,7 +2996,7 @@ Permissions follow the pattern: **`module.resource.action`**
 | Component | Values |
 |---|---|
 | **module** | `physical_model`, `product_def`, `production`, `wip`, `dispatch`, `material`, `quality`, `data_collect`, `performance`, `plugin`, `auth` |
-| **resource** | `site`, `area`, `line`, `work_center`, `equipment`, `product`, `route`, `order`, `unit`, `lot`, `test`, `nc`, `user`, `role`, etc. |
+| **resource** | `site`, `area`, `line`, `work_cell`, `equipment`, `product`, `route`, `order`, `unit`, `lot`, `test`, `nc`, `user`, `role`, etc. |
 | **action** | `read`, `create`, `update`, `delete`, `execute` |
 
 **Wildcard matching** is supported at any level:
@@ -3009,7 +3009,7 @@ Permissions follow the pattern: **`module.resource.action`**
 
 | Module | Permission | Description | Endpoints Guarded |
 |---|---|---|---|
-| **PHYS-MODEL** | `physical_model.read` | View sites, areas, lines, work centers, equipment | All GET endpoints |
+| **PHYS-MODEL** | `physical_model.read` | View sites, areas, lines, work cells, equipment | All GET endpoints |
 | | `physical_model.create` | Create physical model entities | All POST endpoints |
 | | `physical_model.update` | Update entities, change equipment status | All PUT/PATCH endpoints |
 | | `physical_model.delete` | Soft-delete entities | All DELETE endpoints |
@@ -3060,7 +3060,7 @@ Permissions follow the pattern: **`module.resource.action`**
 
 #### 11.3.4 Example Scenarios
 
-1. **Operator scans a unit at a work center**: Needs `wip.unit.move` — allowed. Tries to modify a production route — needs `product_def.update` — **denied (403)**.
+1. **Operator scans a unit at a work cell**: Needs `wip.unit.move` — allowed. Tries to modify a production route — needs `product_def.update` — **denied (403)**.
 2. **Engineer creates a new product definition**: Needs `product_def.create` — allowed. Tries to install a plugin — needs `plugin.manage` — **denied (403)**.
 3. **Headless equipment client reporting data**: Uses service account with only `data_collect.record` + `wip.unit.move` + `performance.record`.
 4. **Viewer dashboard querying OEE**: Needs `performance.read` — allowed. Tries to scrap a unit — needs `wip.unit.scrap` — **denied (403)**.
@@ -3348,7 +3348,7 @@ The DT-CLIENT handles **definition-time** activities — everything that happens
 
 | Domain | What the DT-CLIENT Configures |
 |---|---|
-| **Physical Model** | Sites, areas, production lines, work centers, equipment (with capabilities/properties) |
+| **Physical Model** | Sites, areas, production lines, work cells, equipment (with capabilities/properties) |
 | **Product Definition** | Products, BOMs, BOM items, process routes, route steps, step parameters |
 | **Material Masters** | Material definitions (raw, intermediate, finished), units of measure |
 | **Quality Setup** | Quality test definitions, pass/fail criteria, sampling plans |
@@ -3434,7 +3434,7 @@ The DT-CLIENT handles **definition-time** activities — everything that happens
 | **Forms** | React Hook Form + Zod | Schema-driven validation; Zod schemas can mirror Pydantic server schemas |
 | **UI Components** | Headless UI library (Radix or Ark) + Tailwind CSS | Unstyled primitives allow consistent theming; AI can generate Tailwind easily |
 | **Tables** | TanStack Table | Headless table engine; sorting, filtering, pagination built-in |
-| **Tree Views** | Custom (physical model) | Hierarchical navigation for Site→Area→Line→WorkCenter→Equipment |
+| **Tree Views** | Custom (physical model) | Hierarchical navigation for Site→Area→Line→WorkCell→Equipment |
 | **HTTP Client** | Native `fetch` + thin wrapper | TanStack Query handles caching; no need for axios |
 | **Auth** | OIDC via `oidc-client-ts` | Standard OIDC client; handles Authorization Code flow + PKCE |
 | **Testing** | Vitest + React Testing Library | Unit and component tests; Vitest is Vite-native |
@@ -3518,7 +3518,7 @@ clients/design_time/
 │   │   │   ├── SiteDetailPage.tsx
 │   │   │   ├── AreaDetailPage.tsx
 │   │   │   ├── LineDetailPage.tsx
-│   │   │   ├── WorkCenterDetailPage.tsx
+│   │   │   ├── WorkCellDetailPage.tsx
 │   │   │   ├── EquipmentDetailPage.tsx
 │   │   │   └── PhysicalModelTreePage.tsx   # Full tree view
 │   │   │
@@ -3629,9 +3629,9 @@ Every configuration domain follows the same **List → Detail → Edit** interac
 │  └────────────────────────────────────────────────────┘ │
 │                                                          │
 │  ┌─ Areas (3) ──────────────────────────── [+ New] ──┐ │
-│  │  Assembly Hall A    →  2 Lines, 8 Work Centers     │ │
-│  │  Paint Shop         →  1 Line,  3 Work Centers     │ │  
-│  │  Final Test         →  1 Line,  4 Work Centers     │ │
+│  │  Assembly Hall A    →  2 Lines, 8 Work Cells       │ │
+│  │  Paint Shop         →  1 Line,  3 Work Cells       │ │  
+│  │  Final Test         →  1 Line,  4 Work Cells       │ │
 │  └────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -3662,7 +3662,7 @@ The physical hierarchy is the most complex configuration UI. A dedicated tree pa
 │  ─────────────── Detail Panel ───────────────────────── │
 │  Equipment: Robot Arm R-001                              │
 │  Code: R-001  Type: robotic_arm  Status: running         │
-│  Work Center: WC-101 Chassis Mount                       │
+│  Work Cell: WC-101 Chassis Mount                         │
 │  Capabilities: { "axes": 6, "payload_kg": 10 }          │
 │  [Edit] [View History]                                   │
 └─────────────────────────────────────────────────────────┘
@@ -3671,7 +3671,7 @@ The physical hierarchy is the most complex configuration UI. A dedicated tree pa
 **Interactions:**
 - Click a tree node → detail panel shows entity properties
 - Double-click or Edit → opens inline edit form
-- Drag-and-drop → reparent equipment between work centers (with confirmation)
+- Drag-and-drop → reparent equipment between work cells (with confirmation)
 - Right-click → context menu (add child, delete, duplicate)
 
 #### Route Step Visual Editor
@@ -3701,7 +3701,7 @@ Process routes are configured using a visual flow editor:
 │                                                          │
 │  ─────────── Step Detail ─────────────────────────────  │
 │  Step: Chassis Mount (production)                        │
-│  Work Center: WC-101    Cycle Time: 45s                  │
+│  Work Cell: WC-101    Cycle Time: 45s                    │
 │  Eligible Equipment: Robot Arm R-001, Robot Arm R-002    │
 │  Parameters:                                             │
 │    Torque (Nm)  target=25  min=23  max=27  [required]   │
@@ -3870,7 +3870,7 @@ export const SiteCreateSchema = z.object({
 
 **Validation rules that only exist server-side** (cannot be checked client-side):
 - Uniqueness: "site code must be unique" → requires database query
-- Referential integrity: "work center's line_id must exist" → requires database lookup
+- Referential integrity: "work cell's line_id must exist" → requires database lookup
 - Business rules: "cannot delete a site with active production orders" → requires cross-module query
 
 The client handles these by displaying server-side error responses inline on the relevant form fields.
@@ -3936,7 +3936,7 @@ const routes = [
   { path: "/sites/:siteId",         element: <SiteDetailPage /> },
   { path: "/areas/:areaId",         element: <AreaDetailPage /> },
   { path: "/lines/:lineId",         element: <LineDetailPage /> },
-  { path: "/work-centers/:wcId",    element: <WorkCenterDetailPage /> },
+  { path: "/work-cells/:wcId",    element: <WorkCellDetailPage /> },
   { path: "/equipment/:equipId",    element: <EquipmentDetailPage /> },
 
   // Product Definition
@@ -4625,14 +4625,14 @@ async def seed_all(client: httpx.AsyncClient):
     area = await create(client, f"/sites/{site['id']}/areas", {"name": "Assembly", "code": "ASSY"})
     line = await create(client, f"/areas/{area['id']}/lines", {"name": "Line 1", "code": "L1"})
 
-    wc1 = await create(client, f"/lines/{line['id']}/work-centers",
+    wc1 = await create(client, f"/lines/{line['id']}/work-cells",
                         {"name": "Chassis Mount", "code": "WC-101", "wc_type": "automated"})
-    wc2 = await create(client, f"/lines/{line['id']}/work-centers",
+    wc2 = await create(client, f"/lines/{line['id']}/work-cells",
                         {"name": "Wiring", "code": "WC-102", "wc_type": "manual"})
-    wc3 = await create(client, f"/lines/{line['id']}/work-centers",
+    wc3 = await create(client, f"/lines/{line['id']}/work-cells",
                         {"name": "Final Test", "code": "WC-103", "wc_type": "automated"})
 
-    eq1 = await create(client, f"/work-centers/{wc1['id']}/equipment",
+    eq1 = await create(client, f"/work-cells/{wc1['id']}/equipment",
                         {"name": "Robot Arm", "code": "R-001", "equipment_type": "robotic_arm",
                          "capabilities": {"axes": 6, "payload_kg": 10}})
 
@@ -4643,7 +4643,7 @@ async def seed_all(client: httpx.AsyncClient):
                          {"name": "Main Route", "version": "1.0", "is_default": True})
     # ... steps, parameters, materials, quality tests
 
-    print(f"Seeded: 1 site, 1 area, 1 line, 3 work centers, 1 equipment, 1 product, 1 route")
+    print(f"Seeded: 1 site, 1 area, 1 line, 3 work cells, 1 equipment, 1 product, 1 route")
 ```
 
 **Seeder is invoked via:**
