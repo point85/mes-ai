@@ -89,6 +89,11 @@ export async function fetchLines(areaId: string): Promise<ApiListResponse<Produc
   return data;
 }
 
+export async function fetchLine(lineId: string): Promise<ProductionLine> {
+  const { data } = await api.get<ApiResponse<ProductionLine>>(`/lines/${lineId}`);
+  return data.data;
+}
+
 export async function createLine(
   areaId: string,
   body: ProductionLineCreate,
@@ -121,6 +126,11 @@ export async function fetchWorkCenters(
     { params: { limit: "200" } },
   );
   return data;
+}
+
+export async function fetchWorkCenter(wcId: string): Promise<WorkCenter> {
+  const { data } = await api.get<ApiResponse<WorkCenter>>(`/work-centers/${wcId}`);
+  return data.data;
 }
 
 export async function createWorkCenter(

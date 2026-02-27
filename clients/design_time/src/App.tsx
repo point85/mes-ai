@@ -8,6 +8,10 @@ import { AppLayout } from "./components/layout";
 import DashboardPage from "./pages/DashboardPage";
 import { UoMListPage } from "./pages/uom";
 import { SiteListPage } from "./pages/sites";
+import { AreaListPage } from "./pages/areas";
+import { LineListPage } from "./pages/lines";
+import { WorkCenterListPage } from "./pages/work-centers";
+import { EquipmentListPage } from "./pages/equipment";
 import { ProductListPage } from "./pages/products";
 import { MaterialListPage } from "./pages/materials";
 import { DataDefListPage } from "./pages/data-collection";
@@ -34,7 +38,13 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/uom" element={<UoMListPage />} />
+            {/* ISA-95 Plant Model hierarchy */}
             <Route path="/sites" element={<SiteListPage />} />
+            <Route path="/sites/:siteId/areas" element={<AreaListPage />} />
+            <Route path="/areas/:areaId/lines" element={<LineListPage />} />
+            <Route path="/lines/:lineId/work-centers" element={<WorkCenterListPage />} />
+            <Route path="/work-centers/:wcId/equipment" element={<EquipmentListPage />} />
+            {/* Products & Materials */}
             <Route path="/products" element={<ProductListPage />} />
             <Route path="/materials" element={<MaterialListPage />} />
             <Route path="/data-definitions" element={<DataDefListPage />} />

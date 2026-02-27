@@ -4,16 +4,19 @@
  */
 
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   PlusIcon,
   TrashIcon,
   PencilSquareIcon,
+  ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { useSites, useDeleteSite } from "../../hooks/usePhysicalModel";
 import type { Site } from "../../types";
 import SiteFormDialog from "./SiteFormDialog";
 
 export default function SiteListPage() {
+  const navigate = useNavigate();
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState("");
@@ -135,6 +138,13 @@ export default function SiteListPage() {
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => navigate(`/sites/${site.id}/areas`)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="View Areas"
+                      >
+                        <ChevronRightIcon className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => setEditingSite(site)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"

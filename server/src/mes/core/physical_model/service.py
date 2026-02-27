@@ -207,6 +207,26 @@ class PhysicalModelService:
         return line
 
     @staticmethod
+    async def update_line(
+        session: AsyncSession, line_id: UUID, **kwargs: Any
+    ) -> ProductionLine:
+        """Update a production line's fields."""
+        line = await PhysicalModelService.get_line(session, line_id)
+
+        if "code" in kwargs and kwargs["code"] is not None and kwargs["code"] != line.code:
+            existing = await session.execute(
+                select(ProductionLine).where(ProductionLine.code == kwargs["code"], ProductionLine.id != line_id)
+            )
+            if existing.scalar_one_or_none() is not None:
+                raise DuplicateCodeException("ProductionLine", kwargs["code"])
+
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(line, key, value)
+        await session.flush()
+        return line
+
+    @staticmethod
     async def get_line_with_work_centers(
         session: AsyncSession, line_id: UUID
     ) -> ProductionLine:

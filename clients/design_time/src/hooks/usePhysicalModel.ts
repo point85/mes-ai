@@ -10,12 +10,15 @@ import {
   updateSite,
   deleteSite,
   fetchAreas,
+  fetchArea,
   createArea,
   updateArea,
   fetchLines,
+  fetchLine,
   createLine,
   updateLine,
   fetchWorkCenters,
+  fetchWorkCenter,
   createWorkCenter,
   updateWorkCenter,
   fetchEquipment,
@@ -29,8 +32,11 @@ const KEYS = {
   sites: ["sites"] as const,
   siteDetail: (id: string) => ["sites", id] as const,
   areas: (siteId: string) => ["areas", siteId] as const,
+  areaDetail: (id: string) => ["area", id] as const,
   lines: (areaId: string) => ["lines", areaId] as const,
+  lineDetail: (id: string) => ["line", id] as const,
   workCenters: (lineId: string) => ["workCenters", lineId] as const,
+  workCenterDetail: (id: string) => ["workCenter", id] as const,
   equipment: (wcId: string) => ["equipment", wcId] as const,
 };
 
@@ -82,6 +88,14 @@ export function useAreas(siteId: string) {
   });
 }
 
+export function useArea(id: string) {
+  return useQuery({
+    queryKey: KEYS.areaDetail(id),
+    queryFn: () => fetchArea(id),
+    enabled: !!id,
+  });
+}
+
 export function useCreateArea() {
   const qc = useQueryClient();
   return useMutation({
@@ -106,6 +120,14 @@ export function useLines(areaId: string) {
     queryKey: KEYS.lines(areaId),
     queryFn: () => fetchLines(areaId),
     enabled: !!areaId,
+  });
+}
+
+export function useLine(id: string) {
+  return useQuery({
+    queryKey: KEYS.lineDetail(id),
+    queryFn: () => fetchLine(id),
+    enabled: !!id,
   });
 }
 
@@ -134,6 +156,14 @@ export function useWorkCenters(lineId: string) {
     queryKey: KEYS.workCenters(lineId),
     queryFn: () => fetchWorkCenters(lineId),
     enabled: !!lineId,
+  });
+}
+
+export function useWorkCenter(id: string) {
+  return useQuery({
+    queryKey: KEYS.workCenterDetail(id),
+    queryFn: () => fetchWorkCenter(id),
+    enabled: !!id,
   });
 }
 

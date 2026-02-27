@@ -214,6 +214,19 @@ async def get_line(
     return success_response(ProductionLineRead.model_validate(line).model_dump())
 
 
+@router.put("/lines/{line_id}")
+async def update_line(
+    line_id: UUID,
+    body: ProductionLineUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """Update a production line."""
+    line = await svc.update_line(session, line_id, **body.model_dump(exclude_unset=True))
+    await session.commit()
+    return success_response(ProductionLineRead.model_validate(line).model_dump())
+
+
 # ─── Work Centers ─────────────────────────────────────────────────────
 
 
@@ -255,6 +268,19 @@ async def get_work_center(
 ):
     """Get a work center by ID."""
     wc = await svc.get_work_center(session, wc_id)
+    return success_response(WorkCenterRead.model_validate(wc).model_dump())
+
+
+@router.put("/work-centers/{wc_id}")
+async def update_work_center(
+    wc_id: UUID,
+    body: WorkCenterUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """Update a work center."""
+    wc = await svc.update_work_center(session, wc_id, **body.model_dump(exclude_unset=True))
+    await session.commit()
     return success_response(WorkCenterRead.model_validate(wc).model_dump())
 
 
