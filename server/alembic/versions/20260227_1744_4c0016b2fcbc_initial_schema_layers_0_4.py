@@ -1,8 +1,8 @@
-"""initial schema layers 0-3
+"""initial schema layers 0-4
 
-Revision ID: 1822ca139098
+Revision ID: 4c0016b2fcbc
 Revises: 
-Create Date: 2026-02-25 15:14:28.019049
+Create Date: 2026-02-27 17:44:38.046038
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '1822ca139098'
+revision: str = '4c0016b2fcbc'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -276,12 +276,12 @@ def upgrade() -> None:
     op.create_index(op.f('ix_production_orders_order_number'), 'production_orders', ['order_number'], unique=True)
     op.create_index(op.f('ix_production_orders_product_id'), 'production_orders', ['product_id'], unique=False)
     op.create_index(op.f('ix_production_orders_route_id'), 'production_orders', ['route_id'], unique=False)
-    op.create_table('work_centers',
+    op.create_table('work_cells',
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('code', sa.String(length=50), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('line_id', sa.UUID(), nullable=False),
-    sa.Column('wc_type', sa.String(length=20), nullable=False, comment="Work center type: 'manual' or 'automated'"),
+    sa.Column('wc_type', sa.String(length=20), nullable=False, comment="Work cell type: 'manual' or 'automated'"),
     sa.Column('id', sa.UUID(), nullable=False, comment='Unique identifier for the entity'),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),
@@ -289,15 +289,15 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['line_id'], ['production_lines.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_work_centers_code'), 'work_centers', ['code'], unique=True)
-    op.create_index(op.f('ix_work_centers_id'), 'work_centers', ['id'], unique=False)
-    op.create_index(op.f('ix_work_centers_line_id'), 'work_centers', ['line_id'], unique=False)
-    op.create_index(op.f('ix_work_centers_name'), 'work_centers', ['name'], unique=False)
+    op.create_index(op.f('ix_work_cells_code'), 'work_cells', ['code'], unique=True)
+    op.create_index(op.f('ix_work_cells_id'), 'work_cells', ['id'], unique=False)
+    op.create_index(op.f('ix_work_cells_line_id'), 'work_cells', ['line_id'], unique=False)
+    op.create_index(op.f('ix_work_cells_name'), 'work_cells', ['name'], unique=False)
     op.create_table('equipment',
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('code', sa.String(length=50), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('work_center_id', sa.UUID(), nullable=False),
+    sa.Column('work_cell_id', sa.UUID(), nullable=False),
     sa.Column('equipment_type', sa.String(length=100), nullable=True, comment='Free-form equipment type classification'),
     sa.Column('status', sa.String(length=20), nullable=False, comment="Operational status: 'up', 'down', 'idle'"),
     sa.Column('capabilities', sa.JSON(), nullable=True, comment='Freeform JSON describing equipment capabilities for dispatch matching'),
@@ -305,31 +305,31 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),
     sa.Column('is_active', sa.Boolean(), nullable=False, comment='Soft delete flag. False means the entity is logically deleted.'),
-    sa.ForeignKeyConstraint(['work_center_id'], ['work_centers.id'], ),
+    sa.ForeignKeyConstraint(['work_cell_id'], ['work_cells.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_equipment_code'), 'equipment', ['code'], unique=True)
     op.create_index(op.f('ix_equipment_id'), 'equipment', ['id'], unique=False)
     op.create_index(op.f('ix_equipment_name'), 'equipment', ['name'], unique=False)
-    op.create_index(op.f('ix_equipment_work_center_id'), 'equipment', ['work_center_id'], unique=False)
+    op.create_index(op.f('ix_equipment_work_cell_id'), 'equipment', ['work_cell_id'], unique=False)
     op.create_table('route_steps',
     sa.Column('route_id', sa.UUID(), nullable=False),
     sa.Column('sequence', sa.Integer(), nullable=False, comment='Step sequence number (10, 20, 30 convention for easy insertion)'),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('step_type', sa.String(length=20), nullable=False, comment="Step type: 'production', 'inspection', or 'rework'"),
-    sa.Column('work_center_id', sa.UUID(), nullable=True, comment='Work center where this step is performed (nullable for unassigned steps)'),
+    sa.Column('work_cell_id', sa.UUID(), nullable=True, comment='Work cell where this step is performed (nullable for unassigned steps)'),
     sa.Column('expected_cycle_time_sec', sa.Float(), nullable=True, comment='Expected cycle time in seconds for performance analysis'),
     sa.Column('id', sa.UUID(), nullable=False, comment='Unique identifier for the entity'),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),
     sa.Column('is_active', sa.Boolean(), nullable=False, comment='Soft delete flag. False means the entity is logically deleted.'),
     sa.ForeignKeyConstraint(['route_id'], ['process_routes.id'], ),
-    sa.ForeignKeyConstraint(['work_center_id'], ['work_centers.id'], ),
+    sa.ForeignKeyConstraint(['work_cell_id'], ['work_cells.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_route_steps_id'), 'route_steps', ['id'], unique=False)
     op.create_index(op.f('ix_route_steps_route_id'), 'route_steps', ['route_id'], unique=False)
-    op.create_index(op.f('ix_route_steps_work_center_id'), 'route_steps', ['work_center_id'], unique=False)
+    op.create_index(op.f('ix_route_steps_work_cell_id'), 'route_steps', ['work_cell_id'], unique=False)
     op.create_table('data_definitions',
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('code', sa.String(length=50), nullable=False, comment='Unique definition code (e.g. TEMP-OVEN-1, TORQUE-BOLT-A)'),
@@ -353,6 +353,27 @@ def upgrade() -> None:
     op.create_index(op.f('ix_data_definitions_id'), 'data_definitions', ['id'], unique=False)
     op.create_index(op.f('ix_data_definitions_name'), 'data_definitions', ['name'], unique=False)
     op.create_index(op.f('ix_data_definitions_step_id'), 'data_definitions', ['step_id'], unique=False)
+    op.create_table('equipment_state_logs',
+    sa.Column('equipment_id', sa.UUID(), nullable=False),
+    sa.Column('state_model', sa.String(length=50), nullable=False, comment="State model plugin ID (e.g. 'packml', 'semi_e10', 'oee_tpm')"),
+    sa.Column('state', sa.String(length=50), nullable=False, comment="Plugin-specific state name (e.g. 'Execute', 'Idle')"),
+    sa.Column('sub_state', sa.String(length=50), nullable=True, comment='Optional sub-state within the state'),
+    sa.Column('dispatch_category', sa.String(length=30), nullable=False, comment='Canonical dispatch category: available, busy, unavailable_planned, unavailable_unplanned'),
+    sa.Column('oee_bucket', sa.String(length=30), nullable=False, comment='OEE bucket: uptime_value_add, uptime_non_value, downtime_planned, downtime_unplanned, excluded'),
+    sa.Column('started_at', sa.DateTime(timezone=True), nullable=False, comment='When this state began'),
+    sa.Column('ended_at', sa.DateTime(timezone=True), nullable=True, comment='When this state ended (null = current state)'),
+    sa.Column('reason_code', sa.String(length=50), nullable=True, comment='Optional reason code for the state change'),
+    sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('id', sa.UUID(), nullable=False, comment='Unique identifier for the entity'),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),
+    sa.Column('is_active', sa.Boolean(), nullable=False, comment='Soft delete flag. False means the entity is logically deleted.'),
+    sa.ForeignKeyConstraint(['equipment_id'], ['equipment.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_equipment_state_logs_equipment_id'), 'equipment_state_logs', ['equipment_id'], unique=False)
+    op.create_index(op.f('ix_equipment_state_logs_id'), 'equipment_state_logs', ['id'], unique=False)
+    op.create_index(op.f('ix_equipment_state_logs_started_at'), 'equipment_state_logs', ['started_at'], unique=False)
     op.create_table('lots',
     sa.Column('lot_number', sa.String(length=200), nullable=False, comment='Unique lot identifier'),
     sa.Column('order_id', sa.UUID(), nullable=False),
@@ -377,6 +398,45 @@ def upgrade() -> None:
     op.create_index(op.f('ix_lots_lot_number'), 'lots', ['lot_number'], unique=True)
     op.create_index(op.f('ix_lots_order_id'), 'lots', ['order_id'], unique=False)
     op.create_index(op.f('ix_lots_product_id'), 'lots', ['product_id'], unique=False)
+    op.create_table('production_counters',
+    sa.Column('equipment_id', sa.UUID(), nullable=False),
+    sa.Column('order_id', sa.UUID(), nullable=True),
+    sa.Column('shift_date', sa.Date(), nullable=False, comment='The calendar date of the shift'),
+    sa.Column('good_count', sa.Integer(), nullable=False),
+    sa.Column('reject_count', sa.Integer(), nullable=False),
+    sa.Column('rework_count', sa.Integer(), nullable=False),
+    sa.Column('ideal_cycle_time_sec', sa.Float(), nullable=True, comment='Ideal cycle time in seconds for this product/equipment combo'),
+    sa.Column('actual_run_time_sec', sa.Float(), nullable=True, comment='Actual productive run time in seconds for the shift'),
+    sa.Column('id', sa.UUID(), nullable=False, comment='Unique identifier for the entity'),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),
+    sa.Column('is_active', sa.Boolean(), nullable=False, comment='Soft delete flag. False means the entity is logically deleted.'),
+    sa.ForeignKeyConstraint(['equipment_id'], ['equipment.id'], ),
+    sa.ForeignKeyConstraint(['order_id'], ['production_orders.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_production_counters_equipment_id'), 'production_counters', ['equipment_id'], unique=False)
+    op.create_index(op.f('ix_production_counters_id'), 'production_counters', ['id'], unique=False)
+    op.create_index(op.f('ix_production_counters_order_id'), 'production_counters', ['order_id'], unique=False)
+    op.create_index(op.f('ix_production_counters_shift_date'), 'production_counters', ['shift_date'], unique=False)
+    op.create_table('quality_tests',
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('code', sa.String(length=50), nullable=False, comment='Unique test code'),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('test_type', sa.String(length=20), nullable=False, comment='Test type: inline, offline, destructive'),
+    sa.Column('step_id', sa.UUID(), nullable=True, comment='Optional route step where this test is performed'),
+    sa.Column('parameters', sa.JSON(), nullable=True, comment='JSON describing test parameters, criteria, and tolerances'),
+    sa.Column('id', sa.UUID(), nullable=False, comment='Unique identifier for the entity'),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),
+    sa.Column('is_active', sa.Boolean(), nullable=False, comment='Soft delete flag. False means the entity is logically deleted.'),
+    sa.ForeignKeyConstraint(['step_id'], ['route_steps.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_quality_tests_code'), 'quality_tests', ['code'], unique=True)
+    op.create_index(op.f('ix_quality_tests_id'), 'quality_tests', ['id'], unique=False)
+    op.create_index(op.f('ix_quality_tests_name'), 'quality_tests', ['name'], unique=False)
+    op.create_index(op.f('ix_quality_tests_step_id'), 'quality_tests', ['step_id'], unique=False)
     op.create_table('step_parameters',
     sa.Column('step_id', sa.UUID(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
@@ -490,6 +550,57 @@ def upgrade() -> None:
     op.create_index(op.f('ix_material_consumptions_material_lot_id'), 'material_consumptions', ['material_lot_id'], unique=False)
     op.create_index(op.f('ix_material_consumptions_step_id'), 'material_consumptions', ['step_id'], unique=False)
     op.create_index(op.f('ix_material_consumptions_unit_id'), 'material_consumptions', ['unit_id'], unique=False)
+    op.create_table('non_conformances',
+    sa.Column('unit_id', sa.UUID(), nullable=True),
+    sa.Column('lot_id', sa.UUID(), nullable=True),
+    sa.Column('step_id', sa.UUID(), nullable=True, comment='Route step where the non-conformance was detected'),
+    sa.Column('nc_type', sa.String(length=20), nullable=False, comment='Non-conformance type: defect, out_of_spec, other'),
+    sa.Column('description', sa.Text(), nullable=False, comment='Detailed description of the non-conformance'),
+    sa.Column('disposition', sa.String(length=20), nullable=True, comment='Disposition: rework, scrap, use_as_is, return (null until resolved)'),
+    sa.Column('status', sa.String(length=20), nullable=False, comment='Workflow status: open, investigating, resolved, closed'),
+    sa.Column('resolved_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('resolved_by_id', sa.UUID(), nullable=True),
+    sa.Column('id', sa.UUID(), nullable=False, comment='Unique identifier for the entity'),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),
+    sa.Column('is_active', sa.Boolean(), nullable=False, comment='Soft delete flag. False means the entity is logically deleted.'),
+    sa.ForeignKeyConstraint(['lot_id'], ['lots.id'], ),
+    sa.ForeignKeyConstraint(['resolved_by_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['step_id'], ['route_steps.id'], ),
+    sa.ForeignKeyConstraint(['unit_id'], ['units.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_non_conformances_id'), 'non_conformances', ['id'], unique=False)
+    op.create_index(op.f('ix_non_conformances_lot_id'), 'non_conformances', ['lot_id'], unique=False)
+    op.create_index(op.f('ix_non_conformances_step_id'), 'non_conformances', ['step_id'], unique=False)
+    op.create_index(op.f('ix_non_conformances_unit_id'), 'non_conformances', ['unit_id'], unique=False)
+    op.create_table('test_results',
+    sa.Column('test_id', sa.UUID(), nullable=False),
+    sa.Column('unit_id', sa.UUID(), nullable=True, comment='Unit tested (null if lot-level test)'),
+    sa.Column('lot_id', sa.UUID(), nullable=True, comment='Lot tested (null if unit-level test)'),
+    sa.Column('result', sa.String(length=10), nullable=False, comment='Test result: pass, fail'),
+    sa.Column('measured_values', sa.JSON(), nullable=True, comment='JSON of measured values (e.g. {"dimension_a": 10.5})'),
+    sa.Column('operator_id', sa.UUID(), nullable=True),
+    sa.Column('equipment_id', sa.UUID(), nullable=True, comment='Test equipment used'),
+    sa.Column('tested_at', sa.DateTime(timezone=True), nullable=False, comment='When the test was performed'),
+    sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('id', sa.UUID(), nullable=False, comment='Unique identifier for the entity'),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),
+    sa.Column('is_active', sa.Boolean(), nullable=False, comment='Soft delete flag. False means the entity is logically deleted.'),
+    sa.ForeignKeyConstraint(['equipment_id'], ['equipment.id'], ),
+    sa.ForeignKeyConstraint(['lot_id'], ['lots.id'], ),
+    sa.ForeignKeyConstraint(['operator_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['test_id'], ['quality_tests.id'], ),
+    sa.ForeignKeyConstraint(['unit_id'], ['units.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_test_results_equipment_id'), 'test_results', ['equipment_id'], unique=False)
+    op.create_index(op.f('ix_test_results_id'), 'test_results', ['id'], unique=False)
+    op.create_index(op.f('ix_test_results_lot_id'), 'test_results', ['lot_id'], unique=False)
+    op.create_index(op.f('ix_test_results_operator_id'), 'test_results', ['operator_id'], unique=False)
+    op.create_index(op.f('ix_test_results_test_id'), 'test_results', ['test_id'], unique=False)
+    op.create_index(op.f('ix_test_results_unit_id'), 'test_results', ['unit_id'], unique=False)
     op.create_table('unit_history',
     sa.Column('unit_id', sa.UUID(), nullable=False),
     sa.Column('step_id', sa.UUID(), nullable=False),
@@ -522,6 +633,18 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_unit_history_id'), table_name='unit_history')
     op.drop_index(op.f('ix_unit_history_equipment_id'), table_name='unit_history')
     op.drop_table('unit_history')
+    op.drop_index(op.f('ix_test_results_unit_id'), table_name='test_results')
+    op.drop_index(op.f('ix_test_results_test_id'), table_name='test_results')
+    op.drop_index(op.f('ix_test_results_operator_id'), table_name='test_results')
+    op.drop_index(op.f('ix_test_results_lot_id'), table_name='test_results')
+    op.drop_index(op.f('ix_test_results_id'), table_name='test_results')
+    op.drop_index(op.f('ix_test_results_equipment_id'), table_name='test_results')
+    op.drop_table('test_results')
+    op.drop_index(op.f('ix_non_conformances_unit_id'), table_name='non_conformances')
+    op.drop_index(op.f('ix_non_conformances_step_id'), table_name='non_conformances')
+    op.drop_index(op.f('ix_non_conformances_lot_id'), table_name='non_conformances')
+    op.drop_index(op.f('ix_non_conformances_id'), table_name='non_conformances')
+    op.drop_table('non_conformances')
     op.drop_index(op.f('ix_material_consumptions_unit_id'), table_name='material_consumptions')
     op.drop_index(op.f('ix_material_consumptions_step_id'), table_name='material_consumptions')
     op.drop_index(op.f('ix_material_consumptions_material_lot_id'), table_name='material_consumptions')
@@ -550,6 +673,16 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_step_parameters_step_id'), table_name='step_parameters')
     op.drop_index(op.f('ix_step_parameters_id'), table_name='step_parameters')
     op.drop_table('step_parameters')
+    op.drop_index(op.f('ix_quality_tests_step_id'), table_name='quality_tests')
+    op.drop_index(op.f('ix_quality_tests_name'), table_name='quality_tests')
+    op.drop_index(op.f('ix_quality_tests_id'), table_name='quality_tests')
+    op.drop_index(op.f('ix_quality_tests_code'), table_name='quality_tests')
+    op.drop_table('quality_tests')
+    op.drop_index(op.f('ix_production_counters_shift_date'), table_name='production_counters')
+    op.drop_index(op.f('ix_production_counters_order_id'), table_name='production_counters')
+    op.drop_index(op.f('ix_production_counters_id'), table_name='production_counters')
+    op.drop_index(op.f('ix_production_counters_equipment_id'), table_name='production_counters')
+    op.drop_table('production_counters')
     op.drop_index(op.f('ix_lots_product_id'), table_name='lots')
     op.drop_index(op.f('ix_lots_order_id'), table_name='lots')
     op.drop_index(op.f('ix_lots_lot_number'), table_name='lots')
@@ -557,25 +690,29 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_lots_current_step_id'), table_name='lots')
     op.drop_index(op.f('ix_lots_current_equipment_id'), table_name='lots')
     op.drop_table('lots')
+    op.drop_index(op.f('ix_equipment_state_logs_started_at'), table_name='equipment_state_logs')
+    op.drop_index(op.f('ix_equipment_state_logs_id'), table_name='equipment_state_logs')
+    op.drop_index(op.f('ix_equipment_state_logs_equipment_id'), table_name='equipment_state_logs')
+    op.drop_table('equipment_state_logs')
     op.drop_index(op.f('ix_data_definitions_step_id'), table_name='data_definitions')
     op.drop_index(op.f('ix_data_definitions_name'), table_name='data_definitions')
     op.drop_index(op.f('ix_data_definitions_id'), table_name='data_definitions')
     op.drop_index(op.f('ix_data_definitions_code'), table_name='data_definitions')
     op.drop_table('data_definitions')
-    op.drop_index(op.f('ix_route_steps_work_center_id'), table_name='route_steps')
+    op.drop_index(op.f('ix_route_steps_work_cell_id'), table_name='route_steps')
     op.drop_index(op.f('ix_route_steps_route_id'), table_name='route_steps')
     op.drop_index(op.f('ix_route_steps_id'), table_name='route_steps')
     op.drop_table('route_steps')
-    op.drop_index(op.f('ix_equipment_work_center_id'), table_name='equipment')
+    op.drop_index(op.f('ix_equipment_work_cell_id'), table_name='equipment')
     op.drop_index(op.f('ix_equipment_name'), table_name='equipment')
     op.drop_index(op.f('ix_equipment_id'), table_name='equipment')
     op.drop_index(op.f('ix_equipment_code'), table_name='equipment')
     op.drop_table('equipment')
-    op.drop_index(op.f('ix_work_centers_name'), table_name='work_centers')
-    op.drop_index(op.f('ix_work_centers_line_id'), table_name='work_centers')
-    op.drop_index(op.f('ix_work_centers_id'), table_name='work_centers')
-    op.drop_index(op.f('ix_work_centers_code'), table_name='work_centers')
-    op.drop_table('work_centers')
+    op.drop_index(op.f('ix_work_cells_name'), table_name='work_cells')
+    op.drop_index(op.f('ix_work_cells_line_id'), table_name='work_cells')
+    op.drop_index(op.f('ix_work_cells_id'), table_name='work_cells')
+    op.drop_index(op.f('ix_work_cells_code'), table_name='work_cells')
+    op.drop_table('work_cells')
     op.drop_index(op.f('ix_production_orders_route_id'), table_name='production_orders')
     op.drop_index(op.f('ix_production_orders_product_id'), table_name='production_orders')
     op.drop_index(op.f('ix_production_orders_order_number'), table_name='production_orders')

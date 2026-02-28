@@ -34,3 +34,6 @@ __pycache__/
 
 # Backup files
 *.bak
+
+# PostgreSQL data directory
+server/pgdata/

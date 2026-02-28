@@ -26,6 +26,8 @@ import mes.core.production.models  # noqa: F401
 import mes.core.wip.models  # noqa: F401
 import mes.core.material.models  # noqa: F401
 import mes.core.data_collection.models  # noqa: F401
+import mes.core.quality.models  # noqa: F401
+import mes.core.performance.models  # noqa: F401
 
 from mes.framework.db.base import Base
 

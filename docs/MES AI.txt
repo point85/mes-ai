@@ -131,7 +131,7 @@ Ctrl+C trap cleanly kills both processes
 Node.js detection alongside Python
 
 PostgreSQL server:
-Created pg-service.ps1. Usage (from an elevated PowerShell):
+Created pg-service.ps1. Usage (from an admin PowerShell):
 
 Command	Effect
 .\pg-service.ps1 install	Init data dir, register Windows service, start, create mes_ai database
@@ -141,3 +141,27 @@ Command	Effect
 .\pg-service.ps1 status	Show service state, port, and PG version
 .\pg-service.ps1 uninstall	Stop, remove service, optionally delete data
 The service is named postgresql-mes (auto-start), data lives in server\pgdata, and it auto-discovers PG binaries from PATH or common install locations.
+
+################# Feb 27 ##############
+to initialize the database:
+alembic upgrade head
+to check current version:
+alembic current
+to create default UOMs:
+cd c:\dev\mes_ai\server
+python scripts/seed_uom.py
+
+To start MES server and DT-CLIENT For WSL2/bash: 
+cd /mnt/c/dev/mes_ai/server
+./scripts/dev-setup.sh          # setup + start both services
+./scripts/dev-setup.sh --start  # start only (skip install)
+
+For Windows PowerShell, there's no combined script — you start each separately:
+# Terminal 1: MES server
+cd c:\dev\mes_ai\server
+$env:MES_AUTH_MODE = "none"
+uvicorn mes.main:app --reload --port 8000
+
+# Terminal 2: DT-CLIENT
+cd c:\dev\mes_ai\clients\design_time
+npm run dev

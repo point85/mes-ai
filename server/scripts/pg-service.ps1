@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Manage PostgreSQL 16 as a Windows service for MES AI development.
 
@@ -7,12 +7,12 @@
     Expects PostgreSQL binaries to be on PATH or at the default install location.
 
 .PARAMETER Action
-    install   — Initialise the data directory and register the Windows service.
-    start     — Start the PostgreSQL service.
-    stop      — Stop the PostgreSQL service.
-    restart   — Stop then start the service.
-    status    — Show current service state.
-    uninstall — Stop the service and remove it from Windows.
+    install   - Initialise the data directory and register the Windows service.
+    start     - Start the PostgreSQL service.
+    stop      - Stop the PostgreSQL service.
+    restart   - Stop then start the service.
+    status    - Show current service state.
+    uninstall - Stop the service and remove it from Windows.
 
 .EXAMPLE
     .\pg-service.ps1 install
@@ -27,8 +27,9 @@ param(
     [string]$Action
 )
 
-# ── Configuration ────────────────────────────────────────────────
+# -- Configuration ----------------------------------------------------------------
 $ServiceName = "postgresql-mes"
+$ServiceDescription = "PostgreSQL MES database service"
 $PgPort = 5432
 $PgUser = "postgres"
 $PgPassword = "postgres"
@@ -36,7 +37,7 @@ $PgDatabase = "mes_ai"
 $DataDir = Join-Path $PSScriptRoot "..\pgdata"
 $DataDir = [System.IO.Path]::GetFullPath($DataDir)
 
-# ── Locate PostgreSQL binaries ───────────────────────────────────
+# -- Locate PostgreSQL binaries ----------------------------------------------------
 
 function Find-PgBin {
     # 1. Check PATH
@@ -71,7 +72,7 @@ Write-Host "PostgreSQL binaries : $PgBin" -ForegroundColor DarkGray
 Write-Host "Data directory      : $DataDir" -ForegroundColor DarkGray
 Write-Host ""
 
-# ── Require elevation ────────────────────────────────────────────
+# -- Require elevation -------------------------------------------------------------
 
 function Assert-Admin {
     $current = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -81,7 +82,7 @@ function Assert-Admin {
     }
 }
 
-# ── Actions ──────────────────────────────────────────────────────
+# -- Actions ----------------------------------------------------------------------
 
 function Invoke-PgInstall {
     Assert-Admin
@@ -124,6 +125,8 @@ function Invoke-PgInstall {
             Write-Error "Failed to register service (exit code $LASTEXITCODE)."
             exit 1
         }
+        # Set service description
+        Set-Service -Name $ServiceName -Description $ServiceDescription
         Write-Host "[OK] Service '$ServiceName' registered (manual start)." -ForegroundColor Green
     }
 
@@ -260,7 +263,7 @@ function Uninstall-Pg {
     Write-Host "=== PostgreSQL uninstalled ===" -ForegroundColor Green
 }
 
-# ── Dispatch ─────────────────────────────────────────────────────
+# -- Dispatch ---------------------------------------------------------------------
 
 switch ($Action) {
     "install"   { Invoke-PgInstall }
