@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-03-13",
-  "lastSessionId": "S011",
+  "lastSessionId": "S012",
 
   "phases": [
     {
@@ -59,9 +59,45 @@
     {
       "id": "P4",
       "name": "Integration Adapters",
-      "status": "not-started",
+      "status": "complete",
       "description": "ERP adapters, equipment/PLC adapters, test equipment adapters (with mocks)",
-      "tasks": []
+      "tasks": [
+        {
+          "id": "T4.1",
+          "name": "Abstract adapter interfaces (BaseAdapter, ERP, Equipment, TestEquipment)",
+          "status": "complete"
+        },
+        {
+          "id": "T4.2",
+          "name": "DTOs for all adapter types (Pydantic ERPs, dataclass Equipment/Test)",
+          "status": "complete"
+        },
+        {
+          "id": "T4.3",
+          "name": "Mock implementations (ERP inbound/outbound, Equipment, TestEquipment)",
+          "status": "complete"
+        },
+        {
+          "id": "T4.4",
+          "name": "ERP outbound retry queue (model, service, exponential backoff, REST endpoints)",
+          "status": "complete"
+        },
+        {
+          "id": "T4.5",
+          "name": "AdapterFactory with config-driven instantiation and lifecycle",
+          "status": "complete"
+        },
+        {
+          "id": "T4.6",
+          "name": "Example dispatch plugin (manifest.yaml + plugin.py)",
+          "status": "complete"
+        },
+        {
+          "id": "T4.7",
+          "name": "Unit tests (97 new tests for all adapter code)",
+          "status": "complete"
+        }
+      ]
     },
     {
       "id": "P5",
@@ -91,7 +127,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete (all server modules Layers 0-4). P5 DT-CLIENT editors complete for all modules (T5.1 + T5.2). 608 unit tests passing. Architecture updated with §3.3 Multi-Language Client Integration. Next: P4 Integration Adapters, Alembic Layer 4 migration, RT-GUI, or P6 Testing & CI.",
+  "currentTask": "P3 complete (all server modules Layers 0-4). P4 complete (Integration Adapters: ERP, Equipment, TestEquipment with mocks, factory, outbound queue, example plugin). P5 DT-CLIENT editors complete for all modules (T5.1 + T5.2). 705 unit tests passing. Next: Alembic Layer 4 migration, RT-GUI, or P6 Testing & CI.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -108,10 +144,10 @@
       "QUAL-MGMT":     { "name": "Quality Management",             "phase": "P3", "status": "implemented" },
       "PERF-ANALYSIS": { "name": "Performance Analysis",           "phase": "P3", "status": "implemented" },
       "GENEALOGY":     { "name": "Product Genealogy/Traceability", "phase": "P3", "status": "implemented" },
-      "ERP-IBOUND":    { "name": "ERP Inbound Adapter",            "phase": "P4", "status": "planned" },
-      "ERP-OBOUND":    { "name": "ERP Outbound Adapter",           "phase": "P4", "status": "planned" },
-      "EQUIP-INTFC":   { "name": "Equipment Interface Adapter",    "phase": "P4", "status": "planned" },
-      "TEST-INTFC":    { "name": "Test Equipment Adapter",         "phase": "P4", "status": "planned" },
+      "ERP-IBOUND":    { "name": "ERP Inbound Adapter",            "phase": "P4", "status": "implemented" },
+      "ERP-OBOUND":    { "name": "ERP Outbound Adapter",           "phase": "P4", "status": "implemented" },
+      "EQUIP-INTFC":   { "name": "Equipment Interface Adapter",    "phase": "P4", "status": "implemented" },
+      "TEST-INTFC":    { "name": "Test Equipment Adapter",         "phase": "P4", "status": "implemented" },
       "RT-GUI":        { "name": "Runtime GUI Client",             "phase": "P5", "status": "planned" },
       "RT-HEADLESS":   { "name": "Runtime Headless Client",        "phase": "P5", "status": "planned" },
       "DT-CLIENT":     { "name": "Design-Time Client",             "phase": "P5", "status": "in-progress" },

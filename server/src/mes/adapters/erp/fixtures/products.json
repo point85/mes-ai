@@ -1,0 +1,23 @@
+[
+  {
+    "code": "WIDGET-A",
+    "name": "Standard Widget A",
+    "product_type": "discrete",
+    "version": "1.0",
+    "description": "Standard widget with steel housing"
+  },
+  {
+    "code": "WIDGET-B",
+    "name": "Premium Widget B",
+    "product_type": "discrete",
+    "version": "1.0",
+    "description": "Premium widget with plastic housing and PCB"
+  },
+  {
+    "code": "GADGET-X",
+    "name": "Gadget Model X",
+    "product_type": "discrete",
+    "version": "2.0",
+    "description": "Next-generation gadget"
+  }
+]

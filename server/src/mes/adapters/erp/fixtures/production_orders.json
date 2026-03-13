@@ -1,0 +1,29 @@
+[
+  {
+    "erp_reference": "PO-2026-001",
+    "product_code": "WIDGET-A",
+    "quantity_ordered": 100,
+    "planned_start": "2026-03-15T06:00:00Z",
+    "planned_end": "2026-03-15T18:00:00Z",
+    "priority": 500,
+    "uom": "EA"
+  },
+  {
+    "erp_reference": "PO-2026-002",
+    "product_code": "WIDGET-B",
+    "quantity_ordered": 50,
+    "planned_start": "2026-03-16T06:00:00Z",
+    "planned_end": "2026-03-16T14:00:00Z",
+    "priority": 300,
+    "uom": "EA"
+  },
+  {
+    "erp_reference": "PO-2026-003",
+    "product_code": "GADGET-X",
+    "quantity_ordered": 200,
+    "planned_start": "2026-03-17T06:00:00Z",
+    "planned_end": "2026-03-18T18:00:00Z",
+    "priority": 700,
+    "uom": "EA"
+  }
+]

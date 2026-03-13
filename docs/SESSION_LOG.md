@@ -829,6 +829,100 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 3. **P5 continued: RT-GUI** — Runtime operator client
 4. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
 
+---
+
+## Session S012 — 2026-03-13
+
+**Phase**: P4 (Integration Adapters)  
+**Objective**: Implement all integration adapter infrastructure per ARCHITECTURE.md §9
+
+### What Happened
+1. Resumed from S011 — read `PROJECT_STATE.json` and `SESSION_LOG.md`.
+2. Researched architecture specs (§9.1–§9.4, §7 Plugin Framework) and existing codebase patterns.
+3. Created detailed implementation plan in session memory (7 phases, A–G).
+4. **Phase A — Foundation Interfaces**: Created `adapters/` package with:
+   - `base.py`: `BaseAdapter` ABC (connect/disconnect/health_check lifecycle)
+   - `erp/interfaces.py`: `ERPInboundAdapter` (6 sync methods), `ERPOutboundAdapter` (6 report methods), `ERPTransformLayer` (pass-through base)
+   - `erp/dtos.py`: 15 Pydantic DTOs (8 inbound, 7 outbound) — ProductionOrderDTO, BillOfMaterialDTO, ERPConfirmation, CompletionReport, etc.
+   - `erp/exceptions.py`: ERPConnectionError, ERPSyncError, ERPOutboundError
+   - `equipment/interfaces.py`: `EquipmentAdapter` (tag-based: read/write/subscribe/browse), `MOMEquipmentAdapter` (topic-based: subscribe/publish/consume)
+   - `equipment/dtos.py`: 4 dataclasses — TagValue, TagInfo, SubscriptionHandle, EquipmentState
+   - `equipment/exceptions.py`: EquipmentConnectionError, TagNotFoundError, CommunicationTimeoutError
+   - `test_equipment/interfaces.py`: `TestEquipmentAdapter`, `FileDropTestAdapter`
+   - `test_equipment/dtos.py`: TestResultDTO dataclass
+   - `test_equipment/exceptions.py`: TestEquipmentConnectionError, ResultParsingError
+5. **Phase B — Mock Implementations**:
+   - `erp/mock_adapter.py`: MockERPTransformLayer, MockERPInboundAdapter (JSON fixture reader, configurable latency/failure_rate), MockERPOutboundAdapter (in-memory + file, .reports property, MOCK-NNNN numbering)
+   - `erp/fixtures/`: 3 JSON fixture files (production_orders, materials, products)
+   - `equipment/mock_adapter.py`: MockEquipmentAdapter (in-memory tag store, noise, subscriptions)
+   - `test_equipment/mock_adapter.py`: MockTestEquipmentAdapter (configurable pass_rate, measurement ranges)
+6. **Phase C — ERP Outbound Queue**:
+   - `erp/queue.py`: ERPOutboundQueueItem (SQLAlchemy model), QueueItemRead/QueueItemCreate/QueueStats (Pydantic), ERPOutboundQueueService (enqueue, process_queue with exponential backoff, list_failed, retry_item, get_stats), event factories, _dispatch_report routing helper
+   - `erp/routes.py`: 3 REST endpoints (GET /api/v1/erp/queue, GET stats, POST retry)
+7. **Phase D — Adapter Factory + Config Integration**:
+   - `factory.py`: AdapterFactory (create_adapters, connect_all, disconnect_all, health_check), config-driven factory functions for ERP/Equipment/TestEquipment
+   - `config.py`: Added 18 adapter settings (ERP_ADAPTER, EQUIP_ADAPTER, TEST_EQUIP_ADAPTER, connection URLs, mock params)
+   - `main.py`: Integrated adapter_factory into lifespan startup/shutdown, added erp_queue_router, updated health endpoint
+8. **Phase E — Example Plugin**:
+   - `plugins/example_plugin/manifest.yaml`: Declares dispatch_strategy extension point "priority_weighted"
+   - `plugins/example_plugin/plugin.py`: ExampleDispatchPlugin (MESPlugin subclass) with lifecycle, event handler, scoring logic, REST endpoint
+9. **Phase F — Unit Tests**: Created 4 test files with 97 new tests:
+   - `test_erp_adapters.py`: DTO validation, mock inbound fixture loading, mock outbound reporting, exception construction, queue schemas, event factories (49 tests)
+   - `test_equipment_adapters.py`: DTO construction, mock tag store CRUD, subscriptions, noise, browse, state, exceptions (28 tests)
+   - `test_test_equipment_adapters.py`: TestResultDTO, mock result generation, pass_rate, subscriptions, measurement ranges, exceptions (14 tests)
+   - `test_adapter_factory.py`: Factory creates mock when config=mock, None when config=none, lifecycle connect/disconnect/health (6 tests)
+10. All 705 tests pass (608 existing + 97 new).
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `server/src/mes/adapters/__init__.py` | Package init |
+| `server/src/mes/adapters/base.py` | BaseAdapter ABC |
+| `server/src/mes/adapters/factory.py` | AdapterFactory + config-driven creation |
+| `server/src/mes/adapters/erp/__init__.py` | ERP package init |
+| `server/src/mes/adapters/erp/interfaces.py` | ERPInboundAdapter, ERPOutboundAdapter, ERPTransformLayer ABCs |
+| `server/src/mes/adapters/erp/dtos.py` | 15 Pydantic DTOs |
+| `server/src/mes/adapters/erp/exceptions.py` | ERP domain exceptions |
+| `server/src/mes/adapters/erp/mock_adapter.py` | Mock ERP inbound + outbound |
+| `server/src/mes/adapters/erp/queue.py` | Outbound queue model + service |
+| `server/src/mes/adapters/erp/routes.py` | Queue admin REST endpoints |
+| `server/src/mes/adapters/erp/fixtures/*.json` | 3 fixture files |
+| `server/src/mes/adapters/equipment/__init__.py` | Equipment package init |
+| `server/src/mes/adapters/equipment/interfaces.py` | EquipmentAdapter, MOMEquipmentAdapter ABCs |
+| `server/src/mes/adapters/equipment/dtos.py` | 4 dataclasses |
+| `server/src/mes/adapters/equipment/exceptions.py` | Equipment domain exceptions |
+| `server/src/mes/adapters/equipment/mock_adapter.py` | Mock equipment adapter |
+| `server/src/mes/adapters/test_equipment/__init__.py` | Test equipment package init |
+| `server/src/mes/adapters/test_equipment/interfaces.py` | TestEquipmentAdapter, FileDropTestAdapter ABCs |
+| `server/src/mes/adapters/test_equipment/dtos.py` | TestResultDTO dataclass |
+| `server/src/mes/adapters/test_equipment/exceptions.py` | Test equipment exceptions |
+| `server/src/mes/adapters/test_equipment/mock_adapter.py` | Mock test equipment adapter |
+| `server/plugins/example_plugin/manifest.yaml` | Example plugin manifest |
+| `server/plugins/example_plugin/plugin.py` | Example dispatch plugin |
+| `server/tests/unit/test_erp_adapters.py` | ERP adapter tests (49) |
+| `server/tests/unit/test_equipment_adapters.py` | Equipment adapter tests (28) |
+| `server/tests/unit/test_test_equipment_adapters.py` | Test equipment adapter tests (14) |
+| `server/tests/unit/test_adapter_factory.py` | Adapter factory tests (6) |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/config.py` | Added 18 adapter configuration settings (ERP, Equipment, TestEquipment) |
+| `server/src/mes/main.py` | Integrated AdapterFactory into lifespan, added ERP queue router, updated health endpoint |
+| `docs/PROJECT_STATE.json` | P4→complete with 7 tasks, 4 module statuses→implemented, session bumped to S012 |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- **P4 (Integration Adapters)**: COMPLETE — all abstract interfaces, mock implementations, outbound queue, factory, example plugin, 97 tests.
+- **P3 (Core Server)**: COMPLETE — 12 core modules, now 705 tests passing.
+- **P5 (DT-CLIENT)**: All editors complete for Layers 0-4.
+
+**Ready for next work:**
+1. **Alembic migration for Layer 4 tables** — Quality, Performance, ERP outbound queue models need DB schema
+2. **P5 continued: RT-GUI** — Runtime operator client
+3. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+4. **Vendor-specific adapter plugins** — SAP S/4HANA, OPC-UA, MQTT (as needed)
+
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 

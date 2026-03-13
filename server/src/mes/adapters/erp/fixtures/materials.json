@@ -1,0 +1,30 @@
+[
+  {
+    "code": "RAW-STEEL-01",
+    "name": "Carbon Steel Sheet",
+    "material_type": "raw",
+    "uom": "kg",
+    "description": "1mm carbon steel sheet stock"
+  },
+  {
+    "code": "RAW-PLASTIC-01",
+    "name": "ABS Plastic Pellets",
+    "material_type": "raw",
+    "uom": "kg",
+    "description": "ABS injection molding pellets"
+  },
+  {
+    "code": "COMP-SCREW-M3",
+    "name": "M3x10 Machine Screw",
+    "material_type": "raw",
+    "uom": "EA",
+    "description": "M3 x 10mm stainless steel machine screw"
+  },
+  {
+    "code": "COMP-PCB-01",
+    "name": "Main Control PCB",
+    "material_type": "intermediate",
+    "uom": "EA",
+    "description": "Pre-assembled main control board"
+  }
+]

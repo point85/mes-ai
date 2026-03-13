@@ -41,6 +41,33 @@ class Settings(BaseSettings):
     EVENT_BUS_TYPE: str = "memory"  # "memory" | "redis" | "kafka" | "nats"
     REDIS_URL: str = "redis://localhost:6379"
 
+    # --- Integration Adapters (P4) ---
+    # ERP adapter: "none" | "mock" | vendor plugin ID (e.g. "sap_s4hana", "dynamics365")
+    ERP_ADAPTER: str = "none"
+    ERP_BASE_URL: str = ""
+    ERP_AUTH_TYPE: str = "oauth2"  # "oauth2" | "basic" | "api_key"
+    ERP_CLIENT_ID: str = ""
+    ERP_CLIENT_SECRET: str = ""
+    ERP_TOKEN_URL: str = ""
+    ERP_POLL_INTERVAL_SEC: int = 300
+    ERP_RETRY_MAX_ATTEMPTS: int = 5
+    ERP_RETRY_BACKOFF_SEC: int = 30
+    ERP_MOCK_LATENCY_MS: int = 0
+    ERP_MOCK_FAILURE_RATE: float = 0.0
+
+    # Equipment adapter: "none" | "mock" | "opcua" | "mqtt" | "modbus" | "rest"
+    EQUIP_ADAPTER: str = "none"
+    EQUIP_OPCUA_URL: str = ""
+    EQUIP_MQTT_BROKER: str = ""
+    EQUIP_MQTT_TOPIC_PREFIX: str = "factory"
+    EQUIP_MODBUS_HOST: str = ""
+    EQUIP_MODBUS_PORT: int = 502
+    EQUIP_MOCK_LATENCY_MS: int = 0
+    EQUIP_MOCK_FAILURE_RATE: float = 0.0
+
+    # Test equipment adapter: "none" | "mock"
+    TEST_EQUIP_ADAPTER: str = "none"
+
     model_config = SettingsConfigDict(
         env_prefix="MES_",
         env_file=".env",

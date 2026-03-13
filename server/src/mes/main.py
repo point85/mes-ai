@@ -30,10 +30,15 @@ from mes.core.performance.routes import router as performance_router
 from mes.core.genealogy.routes import router as genealogy_router
 from mes.core.dispatch.routes import router as dispatch_router
 
+# Integration adapter routers (P4)
+from mes.adapters.erp.routes import router as erp_queue_router
+from mes.adapters.factory import AdapterFactory
+
 logger = logging.getLogger("mes")
 
-# Module-level plugin manager singleton
+# Module-level singletons
 plugin_manager = PluginManager()
+adapter_factory = AdapterFactory()
 
 
 @asynccontextmanager
@@ -58,11 +63,15 @@ async def lifespan(app: FastAPI):
 
     await plugin_manager.start_all()
 
+    # Connect integration adapters
+    await adapter_factory.connect_all()
+
     logger.info("MES AI server ready")
     yield
 
     # Shutdown
     logger.info("MES AI server shutting down")
+    await adapter_factory.disconnect_all()
     await plugin_manager.stop_all()
     event_bus.clear()
     logger.info("MES AI server stopped")
@@ -115,6 +124,9 @@ def create_app() -> FastAPI:
     app.include_router(genealogy_router)
     app.include_router(dispatch_router)
 
+    # Integration adapter routes (P4)
+    app.include_router(erp_queue_router)
+
     @app.get("/health", tags=["System"])
     async def health_check():
         """Basic health check endpoint."""
@@ -124,6 +136,8 @@ def create_app() -> FastAPI:
             "auth_mode": settings.AUTH_MODE,
             "event_bus": settings.EVENT_BUS_TYPE,
             "plugins_loaded": len(plugin_manager.plugins),
+            "erp_adapter": settings.ERP_ADAPTER,
+            "equip_adapter": settings.EQUIP_ADAPTER,
         }
 
     return app
