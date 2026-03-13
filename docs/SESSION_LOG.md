@@ -776,3 +776,60 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S011 — 2026-03-13
+
+**Phase**: P2 update + P5 verification  
+**Objective**: Architecture update for multi-language client integration; verify DT-CLIENT Layer 4 editors
+
+### What Happened
+1. Resumed from S010 by reading `PROJECT_STATE.json` and `SESSION_LOG.md`.
+2. Verified all 608 unit tests still pass (4.34s).
+3. **Architecture Update** — User asked whether ARCHITECTURE.md addresses integration from C, C++, Java, C# clients:
+   - Gap analysis: REST API is inherently language-agnostic, but no explicit section existed for non-Python/JS clients.
+   - Added **§3.3 Multi-Language Client Integration** to `docs/ARCHITECTURE.md` with 4 subsections:
+     - §3.3.1: OpenAPI spec endpoints + SDK generation via `openapi-generator-cli` for C#, Java, C++
+     - §3.3.2: JWT authentication from non-browser clients with C# and Java code examples
+     - §3.3.3: Common integration patterns table (equipment controllers, ERP bridges, test equipment, dashboards, MOM bridges)
+     - §3.3.4: WebSocket event streaming with per-language library recommendations
+   - Renumbered former §3.3 (Development & CI) → §3.4
+4. **DT-CLIENT Layer 4 Editors** — Verified all Layer 4 editors were already fully implemented:
+   - Quality: QualityTestListPage (160L), QualityTestFormDialog (191L), NCListPage (211L), NCFormDialog (193L)
+   - Performance: PerformancePage (240L), StateChangeFormDialog (237L), CounterFormDialog (186L)
+   - Genealogy: GenealogyViewerPage (309L)
+   - Dispatch: DispatchPage (298L)
+   - All wiring in place: App.tsx routes, Sidebar nav, DashboardPage cards, barrel exports
+   - TypeScript compiles with zero errors; Vite build succeeds (619 KB JS, 21 KB CSS)
+5. Updated `PROJECT_STATE.json`:
+   - P3 status → `complete` (all Layers 0-4 done)
+   - Added T5.2 for Layer 4 DT-CLIENT editors (complete)
+   - Added decision D032 (multi-language client integration architecture)
+   - Updated currentPhase to P5, currentTask with full status summary
+
+### Decision Log
+| ID | Decision |
+|----|----------|
+| D032 | Architecture §3.3: Multi-Language Client Integration — OpenAPI SDK generation, JWT auth for non-browser clients, WebSocket event streaming for C/C++/Java/C# |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `docs/ARCHITECTURE.md` | Added §3.3 Multi-Language Client Integration (4 subsections); renumbered §3.3→§3.4 |
+| `docs/PROJECT_STATE.json` | P3→complete, T5.2 added, D032 added, session/date bumped |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- **P3 (Core Server)**: COMPLETE — all 12 core modules across Layers 0-4, 608 tests passing.
+- **P5 (DT-CLIENT)**: All editors complete for Layers 0-4 (T5.1 + T5.2). Build passes.
+- **Architecture**: Updated with §3.3 multi-language client integration.
+
+**Ready for next work:**
+1. **P4: Integration Adapters** — ERP (inbound/outbound), Equipment (OPC-UA/MQTT/Modbus), Test Equipment — all with mock implementations
+2. **Alembic migration for Layer 4 tables** — Quality + Performance models need DB schema
+3. **P5 continued: RT-GUI** — Runtime operator client
+4. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

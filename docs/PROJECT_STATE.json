@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-02-25",
-  "lastSessionId": "S010",
+  "lastUpdated": "2026-03-13",
+  "lastSessionId": "S011",
 
   "phases": [
     {
@@ -26,7 +26,7 @@
     {
       "id": "P3",
       "name": "Core Server Implementation",
-      "status": "in-progress",
+      "status": "complete",
       "description": "Build core server: data model, REST API, plugin framework, dispatching engine",
       "tasks": [
         {
@@ -73,6 +73,11 @@
           "id": "T5.1",
           "name": "DT-CLIENT: Design-time editors for Layer 0-3 modules",
           "status": "complete"
+        },
+        {
+          "id": "T5.2",
+          "name": "DT-CLIENT: Design-time editors for Layer 4 modules (Quality, Performance, Genealogy, Dispatch)",
+          "status": "complete"
         }
       ]
     },
@@ -85,8 +90,8 @@
     }
   ],
 
-  "currentPhase": "P3",
-  "currentTask": "Layer 4 complete (QUAL-MGMT, PERF-ANALYSIS, GENEALOGY, DISPATCH). All P3 server modules implemented. 608 unit tests passing. Next: DT-CLIENT editors for Layer 4 modules, or RT-GUI, or P4 integration adapters.",
+  "currentPhase": "P5",
+  "currentTask": "P3 complete (all server modules Layers 0-4). P5 DT-CLIENT editors complete for all modules (T5.1 + T5.2). 608 unit tests passing. Architecture updated with §3.3 Multi-Language Client Integration. Next: P4 Integration Adapters, Alembic Layer 4 migration, RT-GUI, or P6 Testing & CI.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -300,6 +305,12 @@
       "date": "2026-02-24",
       "decision": "DT-CLIENT bootstrapped early (during P3) to build editors alongside server modules. React+TS+Vite+Tailwind+TanStack Query+React Hook Form+Zod+Headless UI. Vite dev server proxies /api to FastAPI at :8000.",
       "rationale": "Building the editor immediately after the server module validates the API design and gives a visual tool for testing. One editor per server module, added incrementally."
+    },
+    {
+      "id": "D032",
+      "date": "2026-03-13",
+      "decision": "Architecture §3.3 added: Multi-Language Client Integration — OpenAPI SDK generation for C#/Java/C++, JWT auth from non-browser clients, WebSocket event streaming for all languages.",
+      "rationale": "REST API is inherently language-agnostic; documenting SDK generation and authentication patterns ensures equipment controllers (C/C++/C#) and ERP bridges (Java/C#) can integrate without guesswork."
     }
   ],
 

@@ -77,7 +77,117 @@ An open-source Manufacturing Execution System (MES) framework with a plugin arch
 | **Runtime Headless** | Python (httpx) | Same language as server; simplifies testing and automation |
 | **Design-Time** | React + TypeScript | Shared component library with Runtime GUI |
 
-### 3.3 Development & CI
+### 3.3 Multi-Language Client Integration
+
+The MES server exposes a **language-agnostic REST API** over HTTP/HTTPS. Any programming language with an HTTP client can integrate — C, C++, Java, C#/.NET, Go, Rust, etc. This is critical for manufacturing environments where equipment controllers, ERP bridges, and shop-floor applications are written in diverse languages.
+
+#### 3.3.1 OpenAPI Specification & SDK Generation
+
+FastAPI auto-generates an **OpenAPI 3.1** specification at runtime:
+
+| Endpoint | Format | Purpose |
+|---|---|---|
+| `/api/v1/openapi.json` | JSON | Machine-readable spec for code generators |
+| `/api/v1/docs` | Swagger UI | Interactive API explorer (browser) |
+| `/api/v1/redoc` | ReDoc | Alternative API documentation |
+
+**Client SDK generation** via [OpenAPI Generator](https://openapi-generator.tech/):
+
+```bash
+# Generate a C# client library
+openapi-generator-cli generate \
+  -i http://localhost:8000/api/v1/openapi.json \
+  -g csharp -o ./clients/csharp_client
+
+# Generate a Java client library
+openapi-generator-cli generate \
+  -i http://localhost:8000/api/v1/openapi.json \
+  -g java -o ./clients/java_client
+
+# Generate a C++ client library (using cpp-restsdk)
+openapi-generator-cli generate \
+  -i http://localhost:8000/api/v1/openapi.json \
+  -g cpp-restsdk -o ./clients/cpp_client
+```
+
+Supported generators include: `csharp`, `java`, `cpp-restsdk`, `go`, `rust`, `kotlin`, `python`, `typescript-axios`, and [many more](https://openapi-generator.tech/docs/generators/).
+
+#### 3.3.2 Authentication from Non-Browser Clients
+
+Non-browser clients authenticate using JWT bearer tokens:
+
+1. **Obtain token** — `POST /api/v1/auth/local/login` with `{"username": "...", "password": "..."}` (local mode) or exchange an OIDC token via the OIDC flow (production mode).
+2. **Attach to requests** — Include `Authorization: Bearer <token>` header on every subsequent API call.
+3. **Refresh** — Tokens expire per `ACCESS_TOKEN_EXPIRE_MINUTES` (default 30). Re-authenticate or use refresh token before expiry.
+
+**C# example** (equipment controller posting a data collection point):
+```csharp
+using var client = new HttpClient { BaseAddress = new Uri("http://mes-server:8000") };
+
+// Authenticate
+var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/local/login",
+    new { username = "equipment_svc", password = "secret" });
+var token = (await loginResponse.Content.ReadFromJsonAsync<JsonElement>())
+    .GetProperty("access_token").GetString();
+client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+
+// Post data collection point
+await client.PostAsJsonAsync("/api/v1/data-collection/collect", new {
+    definition_id = "uuid-of-temperature-def",
+    unit_id = "uuid-of-current-unit",
+    value_numeric = 72.5,
+    source = "equipment"
+});
+```
+
+**Java example** (ERP bridge creating a production order):
+```java
+HttpClient client = HttpClient.newHttpClient();
+
+// Authenticate
+HttpRequest loginReq = HttpRequest.newBuilder()
+    .uri(URI.create("http://mes-server:8000/api/v1/auth/local/login"))
+    .header("Content-Type", "application/json")
+    .POST(BodyPublishers.ofString("{\"username\":\"erp_svc\",\"password\":\"secret\"}"))
+    .build();
+String token = JsonParser.parseString(
+    client.send(loginReq, BodyHandlers.ofString()).body())
+    .getAsJsonObject().get("access_token").getAsString();
+
+// Create production order
+HttpRequest orderReq = HttpRequest.newBuilder()
+    .uri(URI.create("http://mes-server:8000/api/v1/production/orders"))
+    .header("Authorization", "Bearer " + token)
+    .header("Content-Type", "application/json")
+    .POST(BodyPublishers.ofString("{\"order_number\":\"WO-2026-001\","
+        + "\"product_id\":\"uuid\",\"quantity_ordered\":100}"))
+    .build();
+client.send(orderReq, BodyHandlers.ofString());
+```
+
+#### 3.3.3 Common Integration Patterns
+
+| Pattern | Language | Use Case |
+|---|---|---|
+| **Equipment controller → MES** | C, C++, C# | PLC/microcontroller reports state changes, data collection, unit completions via REST calls to the MES server |
+| **ERP bridge → MES** | Java, C# | ERP system pushes production orders, material definitions, BOM updates to MES inbound endpoints |
+| **MES → ERP bridge** | Java, C# | MES posts WIP completions, material consumption, scrap reports to an ERP adapter service |
+| **Test equipment → MES** | C, C++, LabVIEW | Test stations post quality test results and data collection points |
+| **Custom dashboard → MES** | Any | Read-only client queries performance OEE, production status, genealogy |
+| **MES → MOM/MQ** | Java, C# | Message-oriented middleware bridge subscribes to MES WebSocket events and publishes to Kafka/RabbitMQ/JMS |
+
+#### 3.3.4 WebSocket Events for Non-Browser Clients
+
+The MES event bus exposes a WebSocket gateway for real-time event streaming. Non-browser clients connect using any WebSocket library:
+
+- **C#**: `System.Net.WebSockets.ClientWebSocket`
+- **Java**: `jakarta.websocket` or Tyrus
+- **C/C++**: libwebsockets, Boost.Beast
+- **Go**: `gorilla/websocket`
+
+Clients subscribe to dot-notation event topics (e.g., `wip.unit.completed`, `equipment.state.changed`, `dispatch.executed`) and receive JSON-encoded `MESEvent` payloads in real-time.
+
+### 3.4 Development & CI
 
 | Component | Technology |
 |---|---|
