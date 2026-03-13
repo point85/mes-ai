@@ -927,3 +927,56 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S013 — 2026-03-13
+
+**Phase**: Infrastructure (Alembic)  
+**Objective**: Create and apply Alembic migration for Layer 4 tables and ERP outbound queue
+
+### What Happened
+1. Resumed from S012 — read `PROJECT_STATE.json` and `SESSION_LOG.md`.
+2. Fixed 18 Pylance "Import could not be resolved" warnings by pointing Pylance to system Python at `C:\Users\kentr\AppData\Local\Programs\Python\Python313\python.exe` (packages installed there, not in workspace `.venv`).
+3. Researched migration scope:
+   - Scanned all `__tablename__` definitions (33 total) vs existing migration (32 tables).
+   - Found `erp_outbound_queue` (from `adapters.erp.queue`) was unmigrated.
+   - Discovered Layer 4 tables (quality_tests, test_results, non_conformances, equipment_state_logs, production_counters) were in the initial migration script but never applied to the database.
+4. Updated `alembic/env.py` — added `import mes.adapters.erp.queue` so Alembic sees all models.
+5. Started PostgreSQL service (`postgresql-x64-18`) via elevated `Start-Process`.
+6. Fixed stale `alembic_version` in database:
+   - DB had orphan revision `a3b4c5d6e7f8` (doesn't exist in versions/).
+   - Created `scripts/fix_alembic.py` (asyncpg-based) to stamp correct revision `4c0016b2fcbc`.
+7. Generated migration via `alembic revision --autogenerate`:
+   - Revision `c6b762b32512` (down: `4c0016b2fcbc`)
+   - Creates 6 tables: `erp_outbound_queue`, `equipment_state_logs`, `production_counters`, `quality_tests`, `non_conformances`, `test_results`
+   - Fixes index renames from work_centers→work_cells refactoring (equipment, route_steps, work_cells tables)
+8. Applied migration: `alembic upgrade head` — success.
+9. Verified full round-trip: downgrade → upgrade — clean.
+10. All 705 unit tests still pass.
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `server/alembic/versions/20260313_1141_c6b762b32512_add_erp_outbound_queue_table.py` | Migration: 6 new tables + index fixes |
+| `server/scripts/fix_alembic.py` | Utility to fix stale alembic_version via asyncpg |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/alembic/env.py` | Added `import mes.adapters.erp.queue` |
+| `docs/PROJECT_STATE.json` | Session bumped to S013, currentTask updated |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- Alembic migration chain: `4c0016b2fcbc` → `c6b762b32512` (head)
+- Database has all 38 tables (32 from initial + 6 new)
+- 705 tests passing
+
+**Ready for next work:**
+1. **P5 continued: RT-GUI** — Runtime operator client
+2. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+3. **Vendor-specific adapter plugins** — SAP S/4HANA, OPC-UA, MQTT
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

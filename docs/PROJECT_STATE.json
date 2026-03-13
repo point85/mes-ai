@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-03-13",
-  "lastSessionId": "S012",
+  "lastSessionId": "S013",
 
   "phases": [
     {
@@ -127,7 +127,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete (all server modules Layers 0-4). P4 complete (Integration Adapters: ERP, Equipment, TestEquipment with mocks, factory, outbound queue, example plugin). P5 DT-CLIENT editors complete for all modules (T5.1 + T5.2). 705 unit tests passing. Next: Alembic Layer 4 migration, RT-GUI, or P6 Testing & CI.",
+  "currentTask": "P3 complete (all server modules Layers 0-4). P4 complete (Integration Adapters). P5 DT-CLIENT editors complete. Alembic Layer 4 migration complete (c6b762b32512: 6 new tables + index fixes). 705 unit tests passing. Next: RT-GUI, P6 Testing & CI, or vendor adapter plugins.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
