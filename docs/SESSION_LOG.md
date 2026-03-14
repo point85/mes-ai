@@ -980,3 +980,88 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S014 — 2026-03-14
+
+**Phase**: P4 (Integration Adapters — Vendor Plugin)  
+**Objective**: Implement SAP S/4HANA vendor-specific ERP adapter
+
+### What Happened
+1. Resumed from S013 — read `PROJECT_STATE.json` and `SESSION_LOG.md`.
+2. Researched existing adapter architecture: BaseAdapter, ERPInboundAdapter, ERPOutboundAdapter, ERPTransformLayer, MockERP implementations, AdapterFactory, config settings.
+3. Implemented **SAP S/4HANA adapter** (`adapters/erp/sap_s4hana/`):
+   - **`config.py`**: `SAPSettings` — 14 SAP-specific settings (company code, plant, storage location, 7 OData API paths, token URL, request timeout, page size, API key header). Uses `extra="ignore"` to coexist with base `MES_*` env vars.
+   - **`transform.py`**: `SAPS4HANATransformLayer` — maps SAP field names (ManufacturingOrder/AUFNR, Material/MATNR, TotalQuantity/GAMNG, etc.) to MES canonical DTOs. 7 inbound transforms (production order, material, product, BOM with expanded items, routing with operations, work cell) + 2 outbound transforms (completion→SAP confirmation payload, consumption→SAP goods movement with 261 movement type). Helper functions for SAP datetime parsing (ISO 8601 + legacy /Date()/), priority mapping (SAP 1-5 → MES 0-999), material type mapping (ROH/HALB/FERT/HIBE/VERP/ERSA), product type mapping, activity type mapping.
+   - **`client.py`**: `SAPS4HANAClient` — async HTTP client using httpx. Supports 3 auth modes: OAuth2 client credentials, HTTP Basic, API key. Token lifecycle management with auto-refresh 60s before expiry. CSRF token negotiation for write operations. OData V4 server-driven paging via @odata.nextLink. Error mapping to MES exceptions (ERPConnectionError, ERPSyncError, ERPOutboundError).
+   - **`adapter.py`**: `SAPS4HANAInboundAdapter` — 6 sync methods using OData $filter by plant, incremental sync via LastChangeDateTime, $expand for BOM items and routing operations. `SAPS4HANAOutboundAdapter` — 6 report methods posting to SAP confirmation and goods movement APIs (completion, consumption/261, scrap, labor, downtime, quality inspection results).
+4. Wired SAP adapter into `AdapterFactory._create_erp_adapters()`: `MES_ERP_ADAPTER=sap_s4hana` creates SAPS4HANAInbound + OutboundAdapter pair.
+5. Wrote **54 unit tests** in `test_sap_s4hana_adapter.py`:
+   - Transform inbound: production order (OData V4 + legacy fields + default priority), material (3 types), product (discrete + configurable), BOM (with items + empty), routing (sorted operations + inspection type), work cell (standard + legacy fields) — 16 tests
+   - Transform outbound: completion (with/without step), consumption (with/without lot) — 4 tests
+   - Helpers: datetime parsing (6), priority mapping (2), material type mapping (2), product type mapping (2), safe_int (3) — 15 tests
+   - Config: defaults + API paths — 2 tests
+   - Client: OAuth2/Basic/API key header construction — 3 tests
+   - Inbound adapter (mocked HTTP): connect/disconnect, health, 6 sync methods, since filter — 10 tests
+   - Outbound adapter (mocked HTTP): 6 report methods — 6 tests
+   - Factory: sap_s4hana creates correct adapter types — 1 test
+6. **All 759 tests pass** (705 existing + 54 new).
+
+### SAP S/4HANA API Coverage
+
+| SAP API | OData Path | MES Method |
+|---------|-----------|------------|
+| Production Order | API_PRODUCTION_ORDER_2_SRV | sync_production_orders |
+| Material Master | API_MATERIAL_SRV | sync_materials |
+| Product Master | API_PRODUCT_SRV | sync_products |
+| Bill of Material | API_BILL_OF_MATERIAL_SRV | sync_boms |
+| Production Routing | API_PRODUCTION_ROUTING | sync_routings |
+| Work Centers | API_WORK_CENTERS | sync_work_cells |
+| Order Confirmation | API_PROD_ORDER_CONFIRMATION_2_SRV | report_completion, report_scrap, report_labor, report_downtime |
+| Goods Movement | (via Production Order) | report_consumption |
+| QM Inspection | (via Confirmation) | report_quality_result |
+
+### Configuration to Enable
+
+```bash
+# Minimal SAP S/4HANA configuration
+MES_ERP_ADAPTER=sap_s4hana
+MES_ERP_BASE_URL=https://my-s4hana.example.com
+MES_ERP_AUTH_TYPE=oauth2
+MES_ERP_CLIENT_ID=mes-client
+MES_ERP_CLIENT_SECRET=secret
+MES_ERP_TOKEN_URL=https://my-s4hana.example.com/oauth/token
+MES_SAP_PLANT=1000
+MES_SAP_COMPANY_CODE=1000
+```
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `server/src/mes/adapters/erp/sap_s4hana/__init__.py` | Package docstring |
+| `server/src/mes/adapters/erp/sap_s4hana/config.py` | SAPSettings (14 fields) |
+| `server/src/mes/adapters/erp/sap_s4hana/transform.py` | SAPS4HANATransformLayer + 7 helpers |
+| `server/src/mes/adapters/erp/sap_s4hana/client.py` | SAPS4HANAClient (httpx, OAuth2, CSRF, paging) |
+| `server/src/mes/adapters/erp/sap_s4hana/adapter.py` | SAPS4HANAInboundAdapter + OutboundAdapter |
+| `server/tests/unit/test_sap_s4hana_adapter.py` | 54 unit tests |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/adapters/factory.py` | Added sap_s4hana case in `_create_erp_adapters()` |
+| `docs/PROJECT_STATE.json` | Session bumped to S014, currentTask updated |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- SAP S/4HANA adapter fully implemented with transform layer, HTTP client, inbound + outbound adapters.
+- Factory wired: `MES_ERP_ADAPTER=sap_s4hana` activates the adapter pair.
+- 759 tests passing.
+
+**Ready for next work:**
+1. **P5 continued: RT-GUI** — Runtime operator client
+2. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+3. **More vendor adapters** — Oracle Cloud, Dynamics 365, OPC-UA, MQTT
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

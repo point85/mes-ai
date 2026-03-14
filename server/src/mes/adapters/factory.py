@@ -127,6 +127,13 @@ def _create_erp_adapters() -> tuple[Any, Any]:
     elif adapter_type == "none":
         return None, None
 
+    elif adapter_type == "sap_s4hana":
+        from mes.adapters.erp.sap_s4hana.adapter import (
+            SAPS4HANAInboundAdapter,
+            SAPS4HANAOutboundAdapter,
+        )
+        return SAPS4HANAInboundAdapter(), SAPS4HANAOutboundAdapter()
+
     else:
         # Future: load vendor-specific adapter plugin
         logger.warning("ERP adapter '%s' not implemented, falling back to none", adapter_type)
