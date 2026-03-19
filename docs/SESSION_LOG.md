@@ -1279,3 +1279,69 @@ MES_EQUIP_MQTT_TIMEOUT=15
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S017 — 2026-03-18
+
+**Phase**: P4 (Integration Adapters — ERP Vendor Plugin)  
+**Objective**: Implement Oracle Cloud ERP vendor-specific adapter
+
+### What Happened
+1. Resumed from S016 — read existing SAP S/4HANA ERP adapter pattern as reference for Oracle implementation.
+2. Studied all SAP adapter files: config.py (SAPSettings), client.py (OData V4 client), transform.py (field mapping), adapter.py (inbound + outbound).
+3. Studied ERP interfaces (ERPInboundAdapter 6 methods, ERPOutboundAdapter 6 methods, ERPTransformLayer) and all 16 DTOs.
+4. Created Oracle Cloud ERP adapter package following the same 4-file pattern.
+5. Created unit tests following the SAP test pattern (60 tests).
+6. Wired Oracle adapter into AdapterFactory (`MES_ERP_ADAPTER=oracle`).
+7. All 931 tests passing (60 new + 871 existing).
+
+### Key Design Differences from SAP
+| Aspect | SAP S/4HANA | Oracle Cloud ERP |
+|--------|-------------|------------------|
+| API Style | OData V4 | Standard REST |
+| Pagination | `@odata.nextLink` (server-driven) | `offset`/`limit` + `hasMore` |
+| CSRF Tokens | Required for writes | Not required |
+| Field Names | German-origin (`AUFNR`, `MATNR`) + OData V4 | CamelCase (`WorkOrderNumber`, `ItemNumber`) |
+| Filtering | `$filter` (OData expression) | `q` (semicolon-separated) |
+| Org Filter | `Plant` (`SAP_PLANT`) | `OrganizationCode` (`ORACLE_ORGANIZATION_CODE`) |
+| Auth Scope | N/A | `ORACLE_TOKEN_SCOPE` for IDCS |
+| Error Format | `error.message.value` | `detail` / `title` / `o:errorCode` |
+| Collection Key | `value` | `items` |
+| Next Page | `@odata.nextLink` | `hasMore` boolean |
+
+### Decision Log
+| ID | Decision |
+|----|----------|
+| D035 | Oracle ERP adapter: httpx REST client (no OData/CSRF), Oracle Fusion REST APIs with offset/limit pagination, IDCS OAuth2 with optional scope, OrganizationCode-based filtering, 60 unit tests |
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `server/src/mes/adapters/erp/oracle/__init__.py` | Package docstring |
+| `server/src/mes/adapters/erp/oracle/config.py` | OracleSettings (16 fields: org context, 8 API paths, OAuth2, timeouts) |
+| `server/src/mes/adapters/erp/oracle/client.py` | OracleClient (httpx, 3 auth modes, offset/limit pagination, error mapping) |
+| `server/src/mes/adapters/erp/oracle/transform.py` | OracleTransformLayer (6 inbound + 2 outbound transforms + 6 helpers) |
+| `server/src/mes/adapters/erp/oracle/adapter.py` | OracleInboundAdapter + OracleOutboundAdapter (12 methods total) |
+| `server/tests/unit/test_oracle_adapter.py` | 60 unit tests |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/adapters/factory.py` | Added `oracle` case in `_create_erp_adapters()` |
+| `docs/PROJECT_STATE.json` | Session bumped to S017, T4.10 added, ORACLE-ADAPTER module registered, D035 added, test count updated to 931 |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- Oracle Cloud ERP adapter fully implemented with REST client, transform layer, inbound/outbound adapters, config, and 60 tests.
+- Factory wired: `MES_ERP_ADAPTER=oracle` activates the adapter.
+- 931 tests passing.
+
+**Ready for next work:**
+1. **More ERP vendor adapters** — Microsoft Dynamics 365 F&O, Infor M3
+2. **More equipment adapters** — Modbus TCP
+3. **P5 continued: RT-GUI** — Runtime operator client
+4. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

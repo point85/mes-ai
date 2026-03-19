@@ -134,6 +134,13 @@ def _create_erp_adapters() -> tuple[Any, Any]:
         )
         return SAPS4HANAInboundAdapter(), SAPS4HANAOutboundAdapter()
 
+    elif adapter_type == "oracle":
+        from mes.adapters.erp.oracle.adapter import (
+            OracleInboundAdapter,
+            OracleOutboundAdapter,
+        )
+        return OracleInboundAdapter(), OracleOutboundAdapter()
+
     else:
         # Future: load vendor-specific adapter plugin
         logger.warning("ERP adapter '%s' not implemented, falling back to none", adapter_type)
