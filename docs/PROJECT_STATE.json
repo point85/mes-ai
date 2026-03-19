@@ -147,7 +147,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters). P5 DT-CLIENT editors complete. Plugin management system implemented (REST API, CLI, DB config table, adapter-to-plugin bridge, DT-CLIENT plugin UI). Alembic migrations applied. 954 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Modbus equipment, D365 ERP, Infor M3 ERP).",
+  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters). P5 DT-CLIENT editors complete. Plugin management system implemented (REST API, CLI, DB config table, adapter-to-plugin bridge, DT-CLIENT plugin UI). File-drop test results example plugin created (demonstrates end-user plugin development). Alembic migrations applied. 984 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Modbus equipment, D365 ERP, Infor M3 ERP).",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -176,6 +176,7 @@
       "DT-CLIENT":     { "name": "Design-Time Client",             "phase": "P5", "status": "in-progress" },
       "PLUGIN-FW":     { "name": "Plugin Framework",               "phase": "P3", "status": "implemented" },
       "PLUGIN-MGMT":   { "name": "Plugin Management (API/CLI/UI)", "phase": "P5", "status": "implemented" },
+      "EXAMPLE-PLUGIN": { "name": "File-Drop Test Results Example Plugin", "phase": "P5", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },

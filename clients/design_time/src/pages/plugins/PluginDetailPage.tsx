@@ -151,14 +151,14 @@ export default function PluginDetailPage() {
       {/* Config editor */}
       <div className="rounded-lg border border-gray-200 p-4 space-y-3">
         <h2 className="text-sm font-semibold text-gray-700">Configuration</h2>
-        {plugin.config_schema?.properties && (
+        {plugin.config_schema?.properties ? (
           <div className="text-xs text-gray-400">
             Schema keys:{" "}
             {Object.keys(
               plugin.config_schema.properties as Record<string, unknown>,
             ).join(", ")}
           </div>
-        )}
+        ) : null}
         <textarea
           value={configText}
           onChange={(e) => {

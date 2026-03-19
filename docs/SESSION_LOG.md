@@ -1421,10 +1421,48 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 | `docs/PROJECT_STATE.json` | S018, T5.3, 954 tests, PLUGIN-MGMT module |
 | `docs/SESSION_LOG.md` | This session entry |
 
-### Where We Stopped
+### Where We Stopped (Plugin Management)
 - Full plugin management system implemented end-to-end.
 - 954 tests passing, no regressions.
 - End users can now: list plugins, view details, edit config, enable/disable, browse adapter catalog — all via REST API, CLI, or DT-CLIENT UI.
+
+---
+
+### S018 continued — File-Drop Test Results Example Plugin
+
+**Objective**: Create a realistic example end-user plugin demonstrating the full plugin lifecycle
+
+#### What Happened
+1. Designed and implemented a **file-drop test results collector** plugin under `server/plugins/file_drop_test_results/`.
+2. The plugin demonstrates every aspect of end-user plugin development:
+   - **Directory polling**: watches a configurable folder for `*.txt` files at a configurable interval
+   - **File parsing**: reads key=value test result files (TEST_ID, EQUIPMENT_ID, SERIAL, RESULT, measurements)
+   - **DB persistence**: creates its own table (`plugin_file_drop_results`) and writes parsed records
+   - **File management**: moves processed files to `successful/` or `failed/` subfolders
+   - **Simulator**: optional background task generates sample test files with random data
+   - **REST endpoints**: GET /status, GET /results, POST /simulate
+   - **Full lifecycle**: initialize → start → stop with proper asyncio task cleanup
+3. All plugin config (watch_dir, poll_interval, file_pattern, db_table, simulator settings) is declared in `manifest.yaml` and can be overridden via the plugin management REST API or DT-CLIENT UI.
+4. Wrote 30 unit tests covering: file parsing (5), file generation (3), plugin lifecycle (7), file movement (3), file processing (3), stats (2), REST endpoints (6), buffer cap (1).
+5. **984 total tests passing** (954 + 30 new).
+
+#### Files Created
+| File | Description |
+|------|-------------|
+| `server/plugins/file_drop_test_results/manifest.yaml` | Plugin manifest with 8 config properties |
+| `server/plugins/file_drop_test_results/plugin.py` | Full plugin: watcher, parser, DB writer, simulator, REST endpoints |
+| `server/tests/unit/test_file_drop_plugin.py` | 30 unit tests |
+
+#### Files Modified
+| File | Change |
+|------|--------|
+| `docs/PROJECT_STATE.json` | 984 tests, EXAMPLE-PLUGIN module |
+| `docs/SESSION_LOG.md` | This session continuation |
+
+### Where We Stopped
+- Plugin management system + example plugin fully implemented.
+- **984 tests passing**, no regressions.
+- End users have a complete reference plugin showing how to build, configure, and test custom plugins.
 
 **Ready for next work:**
 1. **More vendor adapters** — Modbus TCP equipment, D365 F&O ERP, Infor M3 ERP
