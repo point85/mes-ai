@@ -1065,3 +1065,107 @@ MES_SAP_COMPANY_CODE=1000
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S015 — 2026-03-18
+
+**Phase**: P4 (Integration Adapters — Vendor Plugin)  
+**Objective**: Implement OPC-UA vendor-specific equipment adapter
+
+### What Happened
+1. Resumed from S014 — read `PROJECT_STATE.json` and `SESSION_LOG.md`, verified 759 tests passing.
+2. Researched existing equipment adapter architecture: `EquipmentAdapter` interface (6 methods), DTOs (TagValue, TagInfo, SubscriptionHandle, EquipmentState), MockEquipmentAdapter patterns, AdapterFactory config-driven creation.
+3. Implemented **OPC-UA equipment adapter** (`adapters/equipment/opcua/`):
+   - **`config.py`**: `OPCUASettings` — 15 OPC-UA specific settings (endpoint URL, security mode/policy, auth type, username/password/certs, namespace index, equipment ID, state tag, request/session timeouts, subscription interval). Uses `extra="ignore"` to coexist with base `MES_*` env vars.
+   - **`client.py`**: `OPCUAClient` — async wrapper around `asyncua.Client`:
+     - Connection lifecycle with security negotiation (None, Sign, SignAndEncrypt)
+     - Three auth modes: anonymous, username/password, certificate
+     - NodeId resolution with caching (handles `ns=N;s=...` notation and plain string → configured namespace)
+     - Tag read: reads DataValue, maps StatusCode → quality string, maps VariantType → MES data_type
+     - Tag write: reads current variant type to preserve it, then writes with correct type
+     - Subscriptions: shared `asyncua.Subscription` with per-tag `MonitoredItem` handles
+     - `_SubHandler` class dispatches data change notifications to registered callbacks (sync and async)
+     - Address space browsing: recursive walk up to configurable depth, returns Variable nodes with access level detection
+     - State tag reading for equipment state derivation
+     - Health check via Server_ServerStatus_State node read
+     - Helper functions: `_map_status_code()`, `_map_variant_type()`, `_infer_python_type()`, `_UA_TYPE_MAP` (12 OPC-UA → MES type mappings)
+   - **`adapter.py`**: `OPCUAEquipmentAdapter` — concrete `EquipmentAdapter` implementation:
+     - Delegates to `OPCUAClient` for all OPC-UA operations
+     - `read_tag()` returns `TagValue` DTO
+     - `subscribe_tag()` / `unsubscribe()` manage `SubscriptionHandle` objects
+     - `get_equipment_state()` reads configurable state tag, maps to `EquipmentState` with dispatch_category and oee_bucket via two lookup maps
+     - `browse_tags()` returns `TagInfo` list
+     - State mapping: 9 states (running, idle, stopped, fault, faulted, error, maintenance, setup, changeover) → dispatch categories (available, busy, unavailable_planned, unavailable_unplanned) and OEE buckets (uptime_value_add, uptime_non_value, downtime_planned, downtime_unplanned)
+4. Added `asyncua` as optional dependency: `pip install mes-ai[opcua]`
+5. Wired OPC-UA into `AdapterFactory._create_equipment_adapter()`: `MES_EQUIP_ADAPTER=opcua` creates `OPCUAEquipmentAdapter`.
+6. Wrote **49 unit tests** in `test_opcua_adapter.py`:
+   - Config: defaults, custom overrides (2 tests)
+   - Helpers: `_infer_python_type` for bool/int/float/string/list/None (6), `_UA_TYPE_MAP` coverage (1), `_map_variant_type` none/variant/unknown (3), `_map_status_code` none/fallback (2) — 12 tests
+   - Client lifecycle: connect missing URL, connect success, connect with username auth, disconnect, health check not connected, health check connected (6 tests)
+   - Client tag ops: resolve node with ns= prefix, resolve plain name, resolve not found, resolve caching (4 tests)
+   - Client state tag: no state configured, state returns value (2 tests)
+   - SubHandler: callback invoked, partial match, no match, error handled (4 tests)
+   - Adapter interface: equipment_id, connect/disconnect/health delegates, read_tag, write_tag, subscribe_tag, unsubscribe, browse_tags, browse_tags_with_root (10 tests)
+   - State mapping: running/idle/fault/maintenance/unknown states, dispatch/OEE map entries (6 tests)
+   - Factory integration: opcua creates OPCUAEquipmentAdapter, mock still works, none returns None (3 tests)
+7. **All 808 tests pass** (759 existing + 49 new).
+
+### OPC-UA Configuration Reference
+
+```bash
+# Minimal OPC-UA configuration (anonymous, no security)
+MES_EQUIP_ADAPTER=opcua
+MES_EQUIP_OPCUA_URL=opc.tcp://plc-01:4840
+MES_EQUIP_OPCUA_NAMESPACE=2
+MES_EQUIP_OPCUA_EQUIPMENT_ID=PLC-01
+MES_EQUIP_OPCUA_STATE_TAG=ns=2;s=MachineState
+
+# With username authentication
+MES_EQUIP_OPCUA_AUTH_TYPE=username
+MES_EQUIP_OPCUA_USERNAME=opcua_user
+MES_EQUIP_OPCUA_PASSWORD=opcua_pass
+
+# With security (signed + encrypted)
+MES_EQUIP_OPCUA_SECURITY_MODE=sign_and_encrypt
+MES_EQUIP_OPCUA_SECURITY_POLICY=Basic256Sha256
+MES_EQUIP_OPCUA_CLIENT_CERT=/path/to/client.der
+MES_EQUIP_OPCUA_CLIENT_KEY=/path/to/client.pem
+MES_EQUIP_OPCUA_SERVER_CERT=/path/to/server.der
+```
+
+### Decision Log
+| ID | Decision |
+|----|----------|
+| D033 | OPC-UA adapter: asyncua as optional dependency, supports 3 security modes, 3 auth types, tag caching, subscription dispatching, state→dispatch/OEE mapping |
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `server/src/mes/adapters/equipment/opcua/__init__.py` | Package docstring |
+| `server/src/mes/adapters/equipment/opcua/config.py` | OPCUASettings (15 fields) |
+| `server/src/mes/adapters/equipment/opcua/client.py` | OPCUAClient (asyncua wrapper, security, subscriptions, browse) |
+| `server/src/mes/adapters/equipment/opcua/adapter.py` | OPCUAEquipmentAdapter (EquipmentAdapter implementation) |
+| `server/tests/unit/test_opcua_adapter.py` | 49 unit tests |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/adapters/factory.py` | Added `opcua` case in `_create_equipment_adapter()` |
+| `server/pyproject.toml` | Added `[opcua]` optional dependency group with `asyncua>=1.1.0` |
+| `docs/PROJECT_STATE.json` | Session bumped to S015, T4.8 added, OPCUA-ADAPTER module registered, D033 added |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- OPC-UA equipment adapter fully implemented with client wrapper, adapter, config, and 49 tests.
+- Factory wired: `MES_EQUIP_ADAPTER=opcua` activates the adapter.
+- 808 tests passing.
+
+**Ready for next work:**
+1. **MQTT equipment adapter** — `MES_EQUIP_ADAPTER=mqtt` using aiomqtt
+2. **P5 continued: RT-GUI** — Runtime operator client
+3. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+4. **More vendor adapters** — Oracle Cloud ERP, Dynamics 365 F&O
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

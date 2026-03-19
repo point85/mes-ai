@@ -159,11 +159,15 @@ def _create_equipment_adapter() -> Any:
             failure_rate=settings.EQUIP_MOCK_FAILURE_RATE,
         )
 
+    elif adapter_type == "opcua":
+        from mes.adapters.equipment.opcua.adapter import OPCUAEquipmentAdapter
+        return OPCUAEquipmentAdapter()
+
     elif adapter_type == "none":
         return None
 
     else:
-        # Future: load protocol-specific adapter (opcua, mqtt, modbus, rest)
+        # Future: load protocol-specific adapter (mqtt, modbus, rest)
         logger.warning("Equipment adapter '%s' not implemented, falling back to none", adapter_type)
         return None
 

@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-03-14",
-  "lastSessionId": "S014",
+  "lastUpdated": "2026-03-18",
+  "lastSessionId": "S015",
 
   "phases": [
     {
@@ -96,6 +96,11 @@
           "id": "T4.7",
           "name": "Unit tests (97 new tests for all adapter code)",
           "status": "complete"
+        },
+        {
+          "id": "T4.8",
+          "name": "OPC-UA vendor equipment adapter (config, client, adapter, 49 tests)",
+          "status": "complete"
         }
       ]
     },
@@ -127,7 +132,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA vendor adapter). P5 DT-CLIENT editors complete. Alembic migrations applied. 759 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Oracle, D365).",
+  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + OPC-UA equipment vendor adapters). P5 DT-CLIENT editors complete. Alembic migrations applied. 808 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (MQTT equipment, Oracle ERP, D365 ERP).",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -147,6 +152,7 @@
       "ERP-IBOUND":    { "name": "ERP Inbound Adapter",            "phase": "P4", "status": "implemented" },
       "ERP-OBOUND":    { "name": "ERP Outbound Adapter",           "phase": "P4", "status": "implemented" },
       "EQUIP-INTFC":   { "name": "Equipment Interface Adapter",    "phase": "P4", "status": "implemented" },
+      "OPCUA-ADAPTER": { "name": "OPC-UA Equipment Adapter",        "phase": "P4", "status": "implemented" },
       "TEST-INTFC":    { "name": "Test Equipment Adapter",         "phase": "P4", "status": "implemented" },
       "RT-GUI":        { "name": "Runtime GUI Client",             "phase": "P5", "status": "planned" },
       "RT-HEADLESS":   { "name": "Runtime Headless Client",        "phase": "P5", "status": "planned" },
@@ -347,6 +353,12 @@
       "date": "2026-03-13",
       "decision": "Architecture §3.3 added: Multi-Language Client Integration — OpenAPI SDK generation for C#/Java/C++, JWT auth from non-browser clients, WebSocket event streaming for all languages.",
       "rationale": "REST API is inherently language-agnostic; documenting SDK generation and authentication patterns ensures equipment controllers (C/C++/C#) and ERP bridges (Java/C#) can integrate without guesswork."
+    },
+    {
+      "id": "D033",
+      "date": "2026-03-18",
+      "decision": "OPC-UA equipment adapter: asyncua as optional dependency (pip install mes-ai[opcua]). Supports None/Sign/SignAndEncrypt security, anonymous/username/certificate auth, tag-based NodeId resolution with caching, data change subscriptions, address space browsing, configurable state tag with dispatch/OEE mapping.",
+      "rationale": "OPC-UA is the primary industrial communication standard per D020. Optional dependency keeps the core footprint small. State mapping to dispatch categories ensures integration with DISPATCH engine."
     }
   ],
 
