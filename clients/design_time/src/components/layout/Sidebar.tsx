@@ -18,6 +18,7 @@ import {
   ChartBarIcon,
   LinkIcon,
   ArrowsRightLeftIcon,
+  PuzzlePieceIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -76,6 +77,7 @@ const sections: NavSection[] = [
   {
     title: "Admin",
     items: [
+      { label: "Plugins", to: "/plugins", icon: PuzzlePieceIcon },
       { label: "Settings", to: "/settings", icon: Cog6ToothIcon },
     ],
   },

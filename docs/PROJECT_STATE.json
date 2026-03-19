@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-03-18",
-  "lastSessionId": "S017",
+  "lastUpdated": "2026-03-19",
+  "lastSessionId": "S018",
 
   "phases": [
     {
@@ -129,6 +129,11 @@
           "id": "T5.2",
           "name": "DT-CLIENT: Design-time editors for Layer 4 modules (Quality, Performance, Genealogy, Dispatch)",
           "status": "complete"
+        },
+        {
+          "id": "T5.3",
+          "name": "Plugin Management: REST API, CLI, DB config, adapter bridge, DT-CLIENT UI",
+          "status": "complete"
         }
       ]
     },
@@ -142,7 +147,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters). P5 DT-CLIENT editors complete. Alembic migrations applied. 931 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Modbus equipment, D365 ERP, Infor M3 ERP).",
+  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters). P5 DT-CLIENT editors complete. Plugin management system implemented (REST API, CLI, DB config table, adapter-to-plugin bridge, DT-CLIENT plugin UI). Alembic migrations applied. 954 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Modbus equipment, D365 ERP, Infor M3 ERP).",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -170,6 +175,7 @@
       "RT-HEADLESS":   { "name": "Runtime Headless Client",        "phase": "P5", "status": "planned" },
       "DT-CLIENT":     { "name": "Design-Time Client",             "phase": "P5", "status": "in-progress" },
       "PLUGIN-FW":     { "name": "Plugin Framework",               "phase": "P3", "status": "implemented" },
+      "PLUGIN-MGMT":   { "name": "Plugin Management (API/CLI/UI)", "phase": "P5", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },

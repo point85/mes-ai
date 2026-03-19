@@ -16,12 +16,39 @@ dependencies = [
     "pyyaml>=6.0.1",
 ]
 
+[project.scripts]
+mes = "mes.cli:main"
+
 [project.optional-dependencies]
 opcua = [
     "asyncua>=1.1.0",
 ]
 mqtt = [
     "aiomqtt>=2.0.0",
+]
+sap = [
+    "pyrfc>=3.3",
+]
+oracle = [
+    "oracledb>=2.1.0",
+]
+modbus = [
+    "pymodbus>=3.6.0",
+]
+kafka = [
+    "aiokafka>=0.10.0",
+]
+nats = [
+    "nats-py>=2.7.0",
+]
+rabbitmq = [
+    "aio-pika>=9.4.0",
+]
+redis = [
+    "redis[hiredis]>=5.0.0",
+]
+all = [
+    "mes-ai[opcua,mqtt,sap,oracle,modbus,kafka,nats,rabbitmq,redis]",
 ]
 dev = [
     "pytest>=8.1.1",

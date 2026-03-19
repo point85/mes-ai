@@ -9,3 +9,4 @@ export * from "./quality";
 export * from "./performance";
 export * from "./genealogy";
 export * from "./dispatch";
+export * from "./plugins";

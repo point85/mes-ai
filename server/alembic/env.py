@@ -19,6 +19,7 @@ from mes.config import settings
 
 # -- Import ALL model modules so Base.metadata has every table --
 import mes.framework.auth.models  # noqa: F401
+import mes.framework.plugin.models  # noqa: F401
 import mes.core.physical_model.models  # noqa: F401
 import mes.core.product_def.models  # noqa: F401
 import mes.core.uom.models  # noqa: F401

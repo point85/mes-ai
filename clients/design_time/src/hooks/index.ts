@@ -8,3 +8,4 @@ export * from "./useQuality";
 export * from "./usePerformance";
 export * from "./useGenealogy";
 export * from "./useDispatch";
+export * from "./usePlugins";

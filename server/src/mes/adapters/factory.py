@@ -3,6 +3,8 @@ Integration Adapters: Factory for creating adapter instances from configuration.
 
 AdapterFactory reads MES_ERP_ADAPTER and MES_EQUIP_ADAPTER config values to
 instantiate the appropriate adapter implementations (mock or vendor-specific).
+When the configured adapter type isn't built-in, the factory queries the
+PluginManager for a loaded plugin that provides the matching extension point.
 
 Per ARCHITECTURE.md §9.2.8 and §9.3.3.
 """
@@ -142,7 +144,10 @@ def _create_erp_adapters() -> tuple[Any, Any]:
         return OracleInboundAdapter(), OracleOutboundAdapter()
 
     else:
-        # Future: load vendor-specific adapter plugin
+        # Try to find a plugin providing an equipment_driver for this adapter type
+        adapter = _find_plugin_adapter(adapter_type, "equipment_driver")
+        if adapter is not None:
+            return adapter
         logger.warning("ERP adapter '%s' not implemented, falling back to none", adapter_type)
         return None, None
 
@@ -178,7 +183,10 @@ def _create_equipment_adapter() -> Any:
         return None
 
     else:
-        # Future: load protocol-specific adapter (modbus, rest)
+        # Try to find a plugin providing an equipment_driver for this adapter type
+        adapter = _find_plugin_adapter(adapter_type, "equipment_driver")
+        if adapter is not None:
+            return adapter
         logger.warning("Equipment adapter '%s' not implemented, falling back to none", adapter_type)
         return None
 
@@ -198,5 +206,35 @@ def _create_test_equipment_adapter() -> Any:
         return None
 
     else:
+        adapter = _find_plugin_adapter(adapter_type, "equipment_driver")
+        if adapter is not None:
+            return adapter
         logger.warning("Test equipment adapter '%s' not implemented, falling back to none", adapter_type)
         return None
+
+
+def _find_plugin_adapter(adapter_type: str, extension_point_type: str) -> Any:
+    """
+    Query the PluginManager for a loaded plugin that provides an adapter
+    matching the requested type and extension point.
+
+    Returns the plugin instance if found (the plugin IS the adapter),
+    or None if no matching plugin is loaded.
+    """
+    try:
+        from mes.main import plugin_manager
+    except ImportError:
+        return None
+
+    for _plugin_id, info in plugin_manager.plugins.items():
+        for ep in info.manifest.extension_points:
+            if ep.type == extension_point_type and (
+                ep.name == adapter_type or info.manifest.id == adapter_type
+            ):
+                logger.info(
+                    "Resolved adapter '%s' via plugin '%s'",
+                    adapter_type,
+                    info.manifest.id,
+                )
+                return info.instance
+    return None

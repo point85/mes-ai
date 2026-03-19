@@ -274,11 +274,11 @@ class PluginManager:
 
     def _resolve_config(self, manifest: PluginManifest) -> dict[str, Any]:
         """
-        Resolve plugin configuration by merging manifest defaults
-        with any user-overridden values.
+        Resolve plugin configuration by extracting defaults from the
+        manifest's JSON Schema config_schema.
 
-        Currently returns defaults from the manifest's config_schema.
-        In future, user overrides will be loaded from the plugin_config DB table.
+        DB overrides are merged at request time in the REST API layer
+        (routes.py) where an async DB session is available.
         """
         config: dict[str, Any] = {}
         schema = manifest.config_schema
@@ -286,4 +286,21 @@ class PluginManager:
         for key, prop_def in properties.items():
             if "default" in prop_def:
                 config[key] = prop_def["default"]
+        return config
+
+    async def resolve_config_with_overrides(
+        self, manifest: PluginManifest, overrides: dict[str, Any]
+    ) -> dict[str, Any]:
+        """
+        Merge manifest defaults with user-provided DB overrides.
+
+        Args:
+            manifest: Plugin manifest (provides config_schema defaults).
+            overrides: Dict of user config overrides from the plugin_config table.
+
+        Returns:
+            Merged configuration dict.
+        """
+        config = self._resolve_config(manifest)
+        config.update(overrides)
         return config

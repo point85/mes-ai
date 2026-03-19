@@ -1345,3 +1345,94 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S018 — 2026-03-19
+
+**Phase**: P5 (Plugin Management System)  
+**Objective**: Implement end-to-end plugin management — REST API, CLI, DB config, adapter bridge, DT-CLIENT UI
+
+### What Happened
+1. Analyzed existing plugin framework: PluginManager, MESPlugin ABC, PluginManifest, example plugin.
+2. Identified 5 gaps: no catalog API, no enable/disable, no config persistence, no CLI, no adapter-plugin bridge.
+3. Implemented all 6 work streams:
+
+#### Server-side
+- **pyproject.toml extras**: Added `sap`, `oracle`, `modbus`, `kafka`, `nats`, `rabbitmq`, `redis`, `all` optional dependency groups + `[project.scripts]` CLI entry-point.
+- **PluginConfig DB model**: `plugin_config` table with `plugin_id` (unique), `enabled`, `config_overrides` (JSONB), `notes`.
+- **Alembic migration**: `a1b2c3d4e5f6_add_plugin_config_table` creating the `plugin_config` table.
+- **Plugin REST API** (6 endpoints):
+  - `GET /api/v1/plugins` — list all plugins with status
+  - `GET /api/v1/plugins/{id}` — full detail with resolved config
+  - `PUT /api/v1/plugins/{id}/config` — update config overrides
+  - `POST /api/v1/plugins/{id}/enable` — enable (starts immediately)
+  - `POST /api/v1/plugins/{id}/disable` — disable (stops immediately)
+  - `GET /api/v1/plugins/catalog` — adapter types with install status
+- **Config resolution**: Updated `PluginManager._resolve_config()` and added `resolve_config_with_overrides()` for merging DB overrides.
+- **Plugin CLI** (`mes` command):
+  - `mes plugin list` — list discovered plugins
+  - `mes plugin search <keyword>` — search by name/id/description
+  - `mes plugin info <id>` — detailed plugin information
+  - `mes plugin install <extra>` — install adapter dependencies via pip
+  - `mes plugin extras` — list available extras with install status
+- **Adapter-to-plugin bridge**: Updated `AdapterFactory` else branches to call `_find_plugin_adapter()`, which queries PluginManager for matching `equipment_driver` extension points.
+
+#### DT-CLIENT
+- **Types**: `types/plugins.ts` — PluginSummary, PluginDetail, PluginConfigUpdate, AdapterInfo
+- **API layer**: `api/plugins.ts` — fetchPlugins, fetchPlugin, updatePluginConfig, enablePlugin, disablePlugin, fetchAdapterCatalog
+- **Hooks**: `hooks/usePlugins.ts` — usePlugins, usePlugin, useUpdatePluginConfig, useEnablePlugin, useDisablePlugin, useAdapterCatalog
+- **Plugin List Page**: Table with search, status badges, enable/disable buttons, link to detail
+- **Plugin Detail Page**: Full info grid, JSON config editor, enable/disable controls, permissions display
+- **Routing**: `/plugins` and `/plugins/:pluginId` routes in App.tsx, "Plugins" nav in Sidebar under Admin
+
+#### Tests
+- 23 new unit tests: config resolution (3), schema validation (4), CLI commands (8), adapter bridge (2), REST API (2), manager extensions (4)
+- **954 total tests passing** (23 new + 931 existing)
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `server/src/mes/framework/plugin/models.py` | PluginConfig SQLAlchemy model |
+| `server/src/mes/framework/plugin/schemas.py` | Pydantic schemas (PluginSummary, PluginDetail, PluginConfigUpdate, AdapterInfo) |
+| `server/src/mes/framework/plugin/routes.py` | 6 REST API endpoints for plugin management |
+| `server/src/mes/cli.py` | CLI entry-point (`mes plugin` commands) |
+| `server/alembic/versions/20260319_1000_a1b2c3d4e5f6_add_plugin_config_table.py` | Migration |
+| `server/tests/unit/test_plugin_management.py` | 23 unit tests |
+| `clients/design_time/src/types/plugins.ts` | TypeScript types |
+| `clients/design_time/src/api/plugins.ts` | API wrappers |
+| `clients/design_time/src/hooks/usePlugins.ts` | TanStack Query hooks |
+| `clients/design_time/src/pages/plugins/index.ts` | Page barrel exports |
+| `clients/design_time/src/pages/plugins/PluginListPage.tsx` | Plugin list UI |
+| `clients/design_time/src/pages/plugins/PluginDetailPage.tsx` | Plugin detail + config editor UI |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/pyproject.toml` | Added 9 optional extras + `[project.scripts]` |
+| `server/alembic/env.py` | Added `import mes.framework.plugin.models` |
+| `server/src/mes/framework/plugin/__init__.py` | Extended exports |
+| `server/src/mes/framework/plugin/manager.py` | Updated `_resolve_config`, added `resolve_config_with_overrides` |
+| `server/src/mes/main.py` | Registered plugin_router |
+| `server/src/mes/adapters/factory.py` | Added `_find_plugin_adapter()` bridge |
+| `clients/design_time/src/types/index.ts` | Added plugins export |
+| `clients/design_time/src/api/index.ts` | Added plugins export |
+| `clients/design_time/src/hooks/index.ts` | Added usePlugins export |
+| `clients/design_time/src/App.tsx` | Added /plugins routes |
+| `clients/design_time/src/components/layout/Sidebar.tsx` | Added Plugins nav item |
+| `docs/PROJECT_STATE.json` | S018, T5.3, 954 tests, PLUGIN-MGMT module |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- Full plugin management system implemented end-to-end.
+- 954 tests passing, no regressions.
+- End users can now: list plugins, view details, edit config, enable/disable, browse adapter catalog — all via REST API, CLI, or DT-CLIENT UI.
+
+**Ready for next work:**
+1. **More vendor adapters** — Modbus TCP equipment, D365 F&O ERP, Infor M3 ERP
+2. **P5 continued: RT-GUI** — Runtime operator client
+3. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+4. **Plugin marketplace** — remote plugin catalog + install from registry
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

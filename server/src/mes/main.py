@@ -34,6 +34,9 @@ from mes.core.dispatch.routes import router as dispatch_router
 from mes.adapters.erp.routes import router as erp_queue_router
 from mes.adapters.factory import AdapterFactory
 
+# Plugin management routes
+from mes.framework.plugin.routes import router as plugin_router
+
 logger = logging.getLogger("mes")
 
 # Module-level singletons
@@ -126,6 +129,9 @@ def create_app() -> FastAPI:
 
     # Integration adapter routes (P4)
     app.include_router(erp_queue_router)
+
+    # Plugin management routes
+    app.include_router(plugin_router)
 
     @app.get("/health", tags=["System"])
     async def health_check():
