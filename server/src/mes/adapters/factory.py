@@ -163,11 +163,15 @@ def _create_equipment_adapter() -> Any:
         from mes.adapters.equipment.opcua.adapter import OPCUAEquipmentAdapter
         return OPCUAEquipmentAdapter()
 
+    elif adapter_type == "mqtt":
+        from mes.adapters.equipment.mqtt.adapter import MQTTEquipmentAdapter
+        return MQTTEquipmentAdapter()
+
     elif adapter_type == "none":
         return None
 
     else:
-        # Future: load protocol-specific adapter (mqtt, modbus, rest)
+        # Future: load protocol-specific adapter (modbus, rest)
         logger.warning("Equipment adapter '%s' not implemented, falling back to none", adapter_type)
         return None
 

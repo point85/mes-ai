@@ -1159,6 +1159,116 @@ MES_EQUIP_OPCUA_SERVER_CERT=/path/to/server.der
 - Factory wired: `MES_EQUIP_ADAPTER=opcua` activates the adapter.
 - 808 tests passing.
 
+---
+
+## Session S016 — 2026-03-18
+
+**Phase**: P4 (Integration Adapters — Vendor Plugin)  
+**Objective**: Implement MQTT vendor-specific equipment adapter
+
+### What Happened
+1. Resumed from S015 — read existing OPC-UA adapter pattern as reference for MQTT implementation.
+2. Implemented **MQTT equipment adapter** (`adapters/equipment/mqtt/`):
+   - **`config.py`**: `MQTTSettings` — 16 MQTT-specific settings (broker host/port, TLS toggle + CA/client cert/key paths, username/password, client ID, equipment ID, topic prefix, state topic, QoS 0-2, keepalive, reconnect interval, timeout).
+   - **`client.py`**: `MQTTClient` — async wrapper around `aiomqtt.Client`:
+     - Connection lifecycle with TLS support (ssl.SSLContext) and username/password auth
+     - Automatic wildcard subscription (`{prefix}/#`) on connect to discover all tags
+     - Background `_listen_loop` task receives messages and updates local tag cache
+     - Tag-to-topic mapping: `{prefix}/{tag_name}` convention with bidirectional conversion
+     - `read_tag()` returns from local cache (instant, no roundtrip) — raises TagNotFoundError if no value yet received
+     - `write_tag()` publishes to topic with retain=True, supports JSON/numeric/string payload encoding
+     - `subscribe_tag()` registers callback, dispatched by listener loop on message arrival (event-driven, no polling)
+     - `browse()` returns all discovered tags from cache
+     - `read_state_topic()` reads from configurable state topic in cache
+     - Payload auto-decoding: JSON → dict/list, numeric strings → int/float, boolean strings → bool, fallback to string
+     - Health check: connected flag + client instance check
+     - Helper: `_CachedValue` slots class, `_infer_python_type()` (6 types including "object" for dicts)
+   - **`adapter.py`**: `MQTTEquipmentAdapter` — concrete `EquipmentAdapter` implementation:
+     - Delegates to `MQTTClient` for all MQTT operations
+     - Same state→dispatch/OEE mapping as OPC-UA (9 states → 4 dispatch categories + 5 OEE buckets)
+     - `get_equipment_state()` reads from configurable state topic
+     - `browse_tags()` returns TagInfo list from cached discovered topics
+3. Added `aiomqtt>=2.0.0` as optional dependency: `pip install mes-ai[mqtt]`
+4. Wired MQTT into `AdapterFactory._create_equipment_adapter()`: `MES_EQUIP_ADAPTER=mqtt` creates `MQTTEquipmentAdapter`.
+5. Wrote **63 unit tests** in `test_mqtt_adapter.py`:
+   - Config: defaults, custom overrides (2 tests)
+   - Helpers: `_infer_python_type` for bool/int/float/list/dict/string (6), `_encode_payload` bytes/dict/list/scalar (4), `_decode_payload` json/int/float/bool/string (5) — 15 tests
+   - Client lifecycle: connect missing aiomqtt, connect success, connect with username, connect with TLS, connect failure, disconnect, health_check connected/disconnected (8 tests)
+   - Client tag ops: read from cache, read not found, write publishes, write not connected, write timeout, subscribe registers callback, unsubscribe removes callback (7 tests)
+   - Topic/tag mapping: simple tag→topic, already-full topic, strip prefix, no prefix, nested tags (5 tests)
+   - Browse: empty cache, cached tags (2 tests)
+   - State topic: no state configured, returns cached, no value received (3 tests)
+   - Listener loop: message updates cache, message dispatches callback (2 tests)
+   - Adapter interface: equipment_id, connect/disconnect/health delegates, read_tag, write_tag, subscribe_tag, unsubscribe, browse_tags, get_equipment_state (10 tests)
+   - State mapping: running/idle/fault/maintenance/unknown states, map entries consistency (6 tests)
+   - Factory integration: mqtt creates MQTTEquipmentAdapter, mock still works, none returns None (3 tests)
+6. **All 871 tests pass** (808 existing + 63 new).
+
+### MQTT Configuration Reference
+
+```bash
+# Minimal MQTT configuration (no auth, no TLS)
+MES_EQUIP_ADAPTER=mqtt
+MES_EQUIP_MQTT_BROKER_HOST=mqtt-broker.local
+MES_EQUIP_MQTT_BROKER_PORT=1883
+MES_EQUIP_MQTT_TOPIC_PREFIX=mes/equipment
+MES_EQUIP_MQTT_EQUIPMENT_ID=LINE1-EQUIP-01
+MES_EQUIP_MQTT_STATE_TOPIC=mes/equipment/state
+
+# With username/password authentication
+MES_EQUIP_MQTT_USERNAME=mqtt_user
+MES_EQUIP_MQTT_PASSWORD=mqtt_pass
+
+# With TLS
+MES_EQUIP_MQTT_USE_TLS=true
+MES_EQUIP_MQTT_BROKER_PORT=8883
+MES_EQUIP_MQTT_TLS_CA_CERT=/path/to/ca.crt
+MES_EQUIP_MQTT_TLS_CLIENT_CERT=/path/to/client.crt
+MES_EQUIP_MQTT_TLS_CLIENT_KEY=/path/to/client.key
+
+# QoS and timing
+MES_EQUIP_MQTT_QOS=2
+MES_EQUIP_MQTT_KEEPALIVE=30
+MES_EQUIP_MQTT_TIMEOUT=15
+```
+
+### Key Design Differences from OPC-UA
+| Aspect | OPC-UA | MQTT |
+|--------|--------|------|
+| Protocol | Request/response | Pub/sub |
+| Read | Direct server read | Local cache (from incoming messages) |
+| Write | Direct server write | Publish to topic (retained) |
+| Subscribe | MonitoredItem + sampling interval | Callback on message arrival (event-driven) |
+| Browse | Recursive address space walk | Discovered topics from wildcard subscription |
+| Payload | OPC-UA Variant types | JSON / numeric / boolean / string auto-decode |
+
+### Decision Log
+| ID | Decision |
+|----|----------|
+| D034 | MQTT adapter: aiomqtt as optional dependency, topic-based tag mapping, local value cache, TLS + auth, JSON/auto-decode payloads, event-driven subscriptions, state topic with dispatch/OEE mapping |
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `server/src/mes/adapters/equipment/mqtt/__init__.py` | Package docstring |
+| `server/src/mes/adapters/equipment/mqtt/config.py` | MQTTSettings (16 fields) |
+| `server/src/mes/adapters/equipment/mqtt/client.py` | MQTTClient (aiomqtt wrapper, TLS, cache, subscriptions) |
+| `server/src/mes/adapters/equipment/mqtt/adapter.py` | MQTTEquipmentAdapter (EquipmentAdapter implementation) |
+| `server/tests/unit/test_mqtt_adapter.py` | 63 unit tests |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/adapters/factory.py` | Added `mqtt` case in `_create_equipment_adapter()` |
+| `server/pyproject.toml` | Added `[mqtt]` optional dependency group with `aiomqtt>=2.0.0` |
+| `docs/PROJECT_STATE.json` | Session bumped to S016, T4.9 added, MQTT-ADAPTER module registered, D034 added |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- MQTT equipment adapter fully implemented with client wrapper, adapter, config, and 63 tests.
+- Factory wired: `MES_EQUIP_ADAPTER=mqtt` activates the adapter.
+- 871 tests passing.
+
 **Ready for next work:**
 1. **MQTT equipment adapter** — `MES_EQUIP_ADAPTER=mqtt` using aiomqtt
 2. **P5 continued: RT-GUI** — Runtime operator client
