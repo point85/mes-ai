@@ -249,10 +249,15 @@ mes_ai/
 │   │           ├── equipment/         # EQUIP-INTFC
 │   │           └── test_equipment/    # TEST-INTFC
 │   │
-│   ├── plugins/                       # Built-in example plugins
-│   │   └── example_plugin/
-│   │       ├── manifest.yaml
-│   │       └── plugin.py
+│   ├── plugins/                       # Plugin directories
+│   │   ├── system/                    # Plugins by project contributors
+│   │   │   ├── example_plugin/
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   └── file_drop_test_results/
+│   │   │       ├── manifest.yaml
+│   │   │       └── plugin.py
+│   │   └── user/                      # End-user plugins (copied here)
 │   │
 │   └── tests/                         # Automated tests
 │       ├── conftest.py                # Shared fixtures (test DB, client)
@@ -2096,13 +2101,14 @@ activates a new state model, the system:
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/v1/plugins` | List installed plugins |
-| `POST` | `/api/v1/plugins/install` | Install a plugin |
-| `DELETE` | `/api/v1/plugins/{plugin_id}` | Uninstall a plugin |
-| `POST` | `/api/v1/plugins/{plugin_id}/enable` | Enable a plugin |
-| `POST` | `/api/v1/plugins/{plugin_id}/disable` | Disable a plugin |
-| `GET` | `/api/v1/plugins/{plugin_id}/config` | Get plugin configuration |
-| `PUT` | `/api/v1/plugins/{plugin_id}/config` | Update plugin configuration |
+| `GET` | `/api/v1/plugins` | List all discovered plugins (installed + available) |
+| `GET` | `/api/v1/plugins/{plugin_id}` | Plugin detail (parameters, config, state) |
+| `POST` | `/api/v1/plugins/{plugin_id}/install` | Install a plugin (provide parameter values) |
+| `POST` | `/api/v1/plugins/{plugin_id}/uninstall` | Uninstall a plugin (stops if running, clears state) |
+| `POST` | `/api/v1/plugins/{plugin_id}/enable` | Enable an installed plugin (load + start) |
+| `POST` | `/api/v1/plugins/{plugin_id}/disable` | Disable a running plugin (stop) |
+| `PUT` | `/api/v1/plugins/{plugin_id}/config` | Update plugin configuration overrides |
+| `GET` | `/api/v1/plugins/catalog` | Adapter catalog (available extras) |
 
 #### Real-Time Events (WebSocket)
 
@@ -2114,13 +2120,20 @@ activates a new state model, the system:
 
 ## 7. Plugin Framework (PLUGIN-FW)
 
-### 7.1 Plugin Structure
+### 7.1 Plugin Directory Structure
 
-A plugin is a Python package with a standard layout:
+Plugins are organized into two directories under `server/plugins/`:
+
+| Directory | Env Variable | Purpose |
+|---|---|---|
+| `plugins/system/` | `MES_PLUGIN_DIR` | Plugins authored by project contributors. Shipped with the repo. |
+| `plugins/user/` | `MES_PLUGIN_USER_DIR` | End-user plugins. Users copy their plugin folder here. |
+
+Each plugin is a folder with a standard layout:
 
 ```
 my_plugin/
-├── manifest.yaml          # Plugin metadata & declarations
+├── manifest.yaml          # Plugin metadata, parameters & declarations
 ├── plugin.py              # Plugin entry point (implements MESPlugin)
 ├── models.py              # Optional: additional DB models
 ├── schemas.py             # Optional: additional Pydantic schemas
@@ -2129,7 +2142,11 @@ my_plugin/
 └── requirements.txt       # Optional: additional dependencies
 ```
 
+The `origin` field in `manifest.yaml` identifies the source: `system` or `user`.
+
 ### 7.2 Plugin Manifest
+
+The manifest declares plugin identity, metadata, parameters, and extension points:
 
 ```yaml
 id: my-custom-plugin
@@ -2137,7 +2154,27 @@ name: My Custom Plugin
 version: 1.0.0
 description: Adds custom dispatching logic for multi-criteria optimization
 author: AI Agent
+comment: Concise purpose note shown in plugin lists.
+category: dispatch          # Grouping: dispatch, data-collection, integration, general, etc.
+origin: system              # system = project contributor, user = end-user
 min_mes_version: "0.1.0"
+
+# Parameters: declared config the end user provides at install time
+parameters:
+  - name: broker_url
+    type: string
+    description: MQTT broker connection URL
+    required: true
+  - name: poll_interval
+    type: number
+    description: Seconds between polling cycles
+    required: false
+    default: 5.0
+  - name: api_key
+    type: string
+    description: API key for external service
+    required: true
+    secret: true              # Masked in UI, never logged
 
 # Custom permissions this plugin introduces (auto-registered on install)
 permissions:
@@ -2145,8 +2182,6 @@ permissions:
     description: View optimizer configuration
   - id: my_custom_plugin.config.update
     description: Modify optimizer weights and parameters
-  - id: my_custom_plugin.simulate
-    description: Run dispatch simulations
 
 # Existing core permissions this plugin's logic requires
 required_core_permissions:
@@ -2157,9 +2192,6 @@ required_core_permissions:
 extension_points:
   - type: dispatch_strategy
     name: multi_criteria_dispatch
-  - type: operation_hook
-    hook: before_unit_move
-    handler: plugin:on_before_unit_move
   - type: rest_endpoint
     prefix: /api/v1/custom/optimization
 
@@ -2171,19 +2203,62 @@ event_subscriptions:
 # Dependencies on other plugins
 dependencies: []
 
-# Plugin configuration schema (JSON Schema)
+# Legacy JSON-Schema config (still supported; merged with parameter defaults)
 config_schema:
   type: object
   properties:
     optimization_weight:
       type: number
       default: 0.7
-    max_queue_depth:
-      type: integer
-      default: 10
 ```
 
-### 7.3 Plugin Base Class
+#### Manifest Fields Summary
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | Yes | Unique plugin identifier (kebab-case) |
+| `name` | Yes | Human-readable display name |
+| `version` | Yes | SemVer string |
+| `description` | No | Multi-line description |
+| `author` | No | Author name or organization |
+| `comment` | No | Short note shown in list views |
+| `category` | No | Grouping tag (default: `general`) |
+| `origin` | No | `system` or `user` (default: `user`) |
+| `min_mes_version` | No | Minimum compatible MES version |
+| `parameters` | No | List of `ManifestParameter` declarations |
+| `permissions` | No | Custom permissions introduced by the plugin |
+| `required_core_permissions` | No | Core permissions the plugin needs |
+| `extension_points` | No | List of extension point registrations |
+| `event_subscriptions` | No | Event types the plugin listens to |
+| `dependencies` | No | Other plugin IDs this plugin depends on |
+| `config_schema` | No | Legacy JSON Schema for default config values |
+
+### 7.3 Plugin Parameters
+
+Parameters are the primary mechanism for end-user configuration at install time:
+
+```python
+class ManifestParameter(BaseModel):
+    name: str          # Parameter key (e.g. 'broker_url')
+    type: str          # string, number, boolean, integer
+    description: str   # Human-readable help text
+    required: bool     # Must be provided at install time
+    default: Any       # Default value (optional parameters only)
+    secret: bool       # Masked in UI (passwords, API keys)
+```
+
+**Validation at install time:**
+- All parameters with `required: true` must have values in the install request
+- Type validation is performed against the declared type
+- Secret values are stored in `parameter_values` JSONB but masked in API responses
+
+**Config resolution order** (highest priority wins):
+1. `config_overrides` (runtime changes via PUT /config)
+2. `parameter_values` (provided at install time)
+3. `config_schema` defaults (from manifest)
+4. `parameter` defaults (from manifest)
+
+### 7.4 Plugin Base Class
 
 ```python
 from abc import ABC, abstractmethod
@@ -2216,21 +2291,56 @@ class MESPlugin(ABC):
         return None
 ```
 
-### 7.4 Plugin Lifecycle
+### 7.5 Plugin Lifecycle
+
+Plugins follow a DB-driven lifecycle with explicit install/uninstall steps:
 
 ```
-discover → validate manifest → load module → initialize(config)
-    → start() → [running] → stop() → unload
+┌───────────┐    install     ┌───────────┐    enable    ┌─────────┐
+│ Available  │──────────────▶│ Installed  │────────────▶│ Running  │
+│ (on disk)  │               │ (disabled) │             │ (active) │
+└───────────┘               └───────────┘             └─────────┘
+      ▲                          │  ▲                      │
+      │         uninstall        │  │       disable         │
+      └──────────────────────────┘  └──────────────────────┘
 ```
 
-1. **Discover**: Scan `plugins/` directory and installed packages for `manifest.yaml`
-2. **Validate**: Check manifest schema, version compatibility, dependency resolution
-3. **Load**: Import Python module, instantiate `MESPlugin` subclass
-4. **Initialize**: Call `initialize(config)` with merged default + user config
-5. **Start**: Call `start()` — plugin is now active
-6. **Stop**: Call `stop()` on shutdown or disable — plugin cleans up
+| State | `installed` | `enabled` | Loaded in memory | Description |
+|---|---|---|---|---|
+| **Available** | `false` | `false` | No | Manifest discovered on disk, not yet installed |
+| **Installed (disabled)** | `true` | `false` | No | Parameters provided, persisted in DB, not running |
+| **Running (enabled)** | `true` | `true` | Yes | `initialize()` + `start()` called, actively processing |
 
-### 7.5 Extension Points
+**Server startup sequence:**
+1. `discover_all()` — Scans both `plugins/system/` and `plugins/user/` for `manifest.yaml` files; creates `PluginInfo` objects (no code loaded yet)
+2. `load_and_start(installed_ids)` — Queries `plugin_config` table for rows with `installed=True AND enabled=True`; for each matching plugin: imports module → `initialize(config)` → `start()`
+
+**Runtime operations:**
+- **Install** (`POST /install`): Validates required parameters → creates/updates `plugin_config` row with `installed=True`, `parameter_values` stored
+- **Uninstall** (`POST /uninstall`): Stops plugin if running → clears DB row
+- **Enable** (`POST /enable`): Requires `installed=True` → loads module → `initialize()` → `start()` → sets `enabled=True`
+- **Disable** (`POST /disable`): Calls `stop()` → unloads module → sets `enabled=False`
+
+### 7.6 Plugin Data Model
+
+The `plugin_config` table persists plugin state across server restarts:
+
+```sql
+CREATE TABLE plugin_config (
+    id              UUID PRIMARY KEY,
+    plugin_id       VARCHAR(255) UNIQUE NOT NULL,  -- matches manifest.id
+    installed       BOOLEAN NOT NULL DEFAULT false, -- parameters provided
+    enabled         BOOLEAN NOT NULL DEFAULT false, -- should start on boot
+    parameter_values JSONB NOT NULL DEFAULT '{}',   -- user-provided params
+    config_overrides JSONB NOT NULL DEFAULT '{}',   -- runtime config changes
+    notes           TEXT,                           -- admin annotations
+    is_active       BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+### 7.7 Extension Points
 
 | Type | Description | Example |
 |---|---|---|
@@ -2243,12 +2353,27 @@ discover → validate manifest → load module → initialize(config)
 | **equipment_driver** | Custom equipment communication protocol | Proprietary PLC protocol, custom sensor interface |
 | **equipment_state_model** | Equipment state machine definition (states, transitions, dispatch/OEE mappings). **Only one active at a time.** | PackML (ISA-TR88), SEMI E10/E58, OEE/TPM |
 
-### 7.6 Plugin Isolation
+### 7.8 Plugin Isolation
 
 - Plugins run in the same process but are loaded in separate module namespaces
 - Plugin errors are caught and logged; a failing plugin does not crash the server
 - Plugin database models use a schema prefix: `plugin_{plugin_id}_` to avoid table name conflicts
-- Plugin configuration is stored in a `plugin_config` table, not in environment variables
+- Plugin configuration is stored in the `plugin_config` table, not in environment variables
+
+### 7.9 CLI Plugin Commands
+
+The MES CLI provides plugin management from the command line:
+
+```bash
+mes plugin list                  # List all discovered plugins (origin, category, status)
+mes plugin info <plugin-id>      # Show plugin details, parameters, config
+mes plugin install <plugin-id>   # Install via REST API (prompts for required params)
+mes plugin uninstall <plugin-id> # Uninstall via REST API
+mes plugin enable <plugin-id>    # Enable an installed plugin
+mes plugin disable <plugin-id>   # Disable a running plugin
+mes adapter install <extras>     # Install pip extras (e.g. mqtt, oracle)
+mes adapter extras               # List available pip extra groups
+```
 
 ## 8. Event Bus (EVENT-BUS)
 
