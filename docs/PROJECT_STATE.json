@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-03-19",
-  "lastSessionId": "S018",
+  "lastUpdated": "2026-03-20",
+  "lastSessionId": "S019",
 
   "phases": [
     {
@@ -147,7 +147,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters). P5 DT-CLIENT editors complete. Plugin management system implemented (REST API, CLI, DB config table, adapter-to-plugin bridge, DT-CLIENT plugin UI). File-drop test results example plugin created (demonstrates end-user plugin development). Alembic migrations applied. 984 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Modbus equipment, D365 ERP, Infor M3 ERP).",
+  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters). P5 DT-CLIENT editors complete. Plugin system redesigned: two-directory structure (system/user), full lifecycle (available→installed→enabled/disabled→uninstalled), manifest parameters (required/optional/secret), REST API with install/uninstall/enable/disable endpoints, CLI commands, DT-CLIENT UI with Available/Installed tabs and parameter forms. 991 unit tests passing. Alembic migration needed for plugin_config table changes. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Modbus equipment, D365 ERP, Infor M3 ERP).",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -390,6 +390,12 @@
       "date": "2026-03-18",
       "decision": "Oracle Cloud ERP adapter: httpx-based REST client (no OData, no CSRF). Oracle Fusion REST APIs with offset/limit pagination, Oracle IDCS/OCI IAM OAuth2 token flow with optional scope. Organization-code-based filtering (not plant-code like SAP). Oracle field naming (WorkOrderNumber, ItemNumber, OrganizationCode) mapped to MES canonical DTOs. 60 unit tests covering transforms, config, client headers, inbound/outbound adapters, and factory integration.",
       "rationale": "Oracle Cloud ERP is a major enterprise ERP per D019. REST APIs (not OData) with different pagination and field naming conventions than SAP. Same 4-file vendor package pattern (config, client, transform, adapter) ensures consistency across ERP adapters."
+    },
+    {
+      "id": "D036",
+      "date": "2026-03-20",
+      "decision": "Plugin system redesign: two directories (plugins/system for contributors, plugins/user for end users), DB-driven install lifecycle (available→installed→enabled→disabled→uninstalled), manifest parameters (ManifestParameter: name, type, description, required, default, secret), enhanced metadata (comment, category, origin, author). Parameter values provided at install time, validated before enabling. REST API: install/uninstall/enable/disable/config endpoints. CLI: offline list/search/info + server-backed install/uninstall/enable/disable. DT-CLIENT: Available/Installed tabs, parameter input form on install/detail pages.",
+      "rationale": "Original plugin system auto-loaded all plugins with no install/uninstall lifecycle, no parameter declaration, and no system/user distinction. Redesign enables end users to add custom plugins to a separate directory, configure parameters at install time, and manage lifecycle through UI or CLI without modifying plugin code."
     }
   ],
 

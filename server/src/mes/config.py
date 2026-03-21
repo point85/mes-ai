@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     OIDC_REDIRECT_URI: str = ""
 
     # --- Plugin Framework (PLUGIN-FW) ---
-    PLUGIN_DIR: str = "plugins"
+    PLUGIN_DIR: str = "plugins/system"
+    PLUGIN_USER_DIR: str = "plugins/user"
 
     # --- Event Bus (EVENT-BUS) ---
     EVENT_BUS_TYPE: str = "memory"  # "memory" | "redis" | "kafka" | "nats"

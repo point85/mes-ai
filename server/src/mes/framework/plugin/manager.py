@@ -1,8 +1,12 @@
 """
 PLUGIN-FW: Plugin lifecycle manager.
 
-Manages the full plugin lifecycle per ARCHITECTURE.md §7.4:
-    discover → validate manifest → load module → initialize(config) → start() → stop()
+Plugin lifecycle:
+    available → installed (parameter values provided) → enabled (running) → disabled → uninstalled
+
+Two plugin directories:
+    - system: plugins created by project contributors (PLUGIN_DIR)
+    - user:   plugins created by end users (PLUGIN_USER_DIR)
 
 Plugin isolation:
 - Plugin errors are caught and logged; a failing plugin does not crash the server.
@@ -29,30 +33,36 @@ logger = logging.getLogger("mes.plugin")
 
 
 class PluginInfo:
-    """Runtime state for a loaded plugin."""
+    """Runtime state for a discovered plugin."""
 
     def __init__(
         self,
         manifest: PluginManifest,
-        instance: MESPlugin,
         path: Path,
+        instance: MESPlugin | None = None,
     ) -> None:
         self.manifest = manifest
-        self.instance = instance
         self.path = path
+        self.instance = instance
+        self.is_loaded: bool = False
         self.is_running: bool = False
         self.error: str | None = None
 
 
 class PluginManager:
     """
-    Manages plugin discovery, loading, lifecycle, and extension point registration.
+    Manages plugin discovery, installation, lifecycle, and extension point registration.
+
+    Scans both system and user plugin directories. Only installed+enabled plugins
+    are loaded and started at boot time.
 
     Usage:
         manager = PluginManager()
-        await manager.discover_and_load()  # Scans plugin directories
-        await manager.start_all()           # Starts all loaded plugins
-        await manager.stop_all()            # Stops all running plugins
+        await manager.discover_all()       # Scans both directories for manifests
+        await manager.load_and_start()     # Loads + starts installed & enabled plugins
+        await manager.stop_all()           # Stops all running plugins
+
+    Install/uninstall/enable/disable are triggered via REST API or CLI and update DB state.
     """
 
     def __init__(self) -> None:
@@ -60,76 +70,114 @@ class PluginManager:
 
     @property
     def plugins(self) -> dict[str, PluginInfo]:
-        """Returns the registry of loaded plugins keyed by plugin ID."""
+        """Returns the registry of all discovered plugins keyed by plugin ID."""
         return dict(self._plugins)
 
-    async def discover_and_load(self) -> list[str]:
+    # ── Discovery ─────────────────────────────────────────────────────
+
+    async def discover_all(self) -> list[str]:
         """
-        Scan configured plugin directories for plugins, validate manifests,
-        and load plugin instances.
+        Scan system and user plugin directories for plugins with manifest.yaml.
+        Populates self._plugins with PluginInfo (manifest + path only, not loaded).
 
         Returns:
-            List of successfully loaded plugin IDs.
+            List of discovered plugin IDs.
         """
-        loaded: list[str] = []
-        plugin_dir = Path(settings.PLUGIN_DIR)
+        discovered: list[str] = []
 
-        if not plugin_dir.exists():
-            logger.info("Plugin directory '%s' does not exist, skipping discovery", plugin_dir)
-            return loaded
-
-        for candidate in plugin_dir.iterdir():
-            if not candidate.is_dir():
+        for plugin_dir, origin in [
+            (Path(settings.PLUGIN_DIR), "system"),
+            (Path(settings.PLUGIN_USER_DIR), "user"),
+        ]:
+            if not plugin_dir.exists():
+                logger.info("Plugin directory '%s' does not exist, skipping", plugin_dir)
                 continue
 
-            manifest_path = candidate / "manifest.yaml"
-            if not manifest_path.exists():
-                logger.debug("Skipping '%s' — no manifest.yaml found", candidate.name)
-                continue
+            for candidate in sorted(plugin_dir.iterdir()):
+                if not candidate.is_dir():
+                    continue
 
+                manifest_path = candidate / "manifest.yaml"
+                if not manifest_path.exists():
+                    logger.debug("Skipping '%s' — no manifest.yaml found", candidate.name)
+                    continue
+
+                try:
+                    manifest = PluginManifest.from_yaml(manifest_path)
+                    # Enforce the origin based on which directory it lives in
+                    manifest.origin = origin
+                    if manifest.id in self._plugins:
+                        logger.warning(
+                            "Duplicate plugin '%s' found in %s — ignoring",
+                            manifest.id,
+                            candidate,
+                        )
+                        continue
+                    self._plugins[manifest.id] = PluginInfo(
+                        manifest=manifest,
+                        path=candidate,
+                    )
+                    discovered.append(manifest.id)
+                except Exception as exc:
+                    logger.error(
+                        "Failed to parse manifest in '%s': %s",
+                        candidate.name,
+                        exc,
+                        exc_info=True,
+                    )
+
+        logger.info("Discovered %d plugin(s): %s", len(discovered), discovered)
+        return discovered
+
+    # ── Loading & Starting (for installed+enabled plugins) ─────────────
+
+    async def load_and_start(self, installed_ids: set[str] | None = None) -> list[str]:
+        """
+        Load and start all plugins that are installed + enabled.
+
+        Args:
+            installed_ids: Set of plugin IDs that are installed+enabled in DB.
+                          If None, loads ALL discovered plugins (backward compat).
+
+        Returns:
+            List of successfully started plugin IDs.
+        """
+        started: list[str] = []
+        for plugin_id, info in self._plugins.items():
+            if installed_ids is not None and plugin_id not in installed_ids:
+                continue
             try:
-                plugin_id = await self._load_plugin(candidate, manifest_path)
-                loaded.append(plugin_id)
+                await self._load_plugin(info)
+                await self._start_plugin(plugin_id, info)
+                started.append(plugin_id)
             except Exception as exc:
+                info.error = str(exc)
                 logger.error(
-                    "Failed to load plugin from '%s': %s",
-                    candidate.name,
+                    "Failed to load/start plugin '%s': %s",
+                    plugin_id,
                     exc,
                     exc_info=True,
                 )
+        return started
 
-        logger.info("Discovered and loaded %d plugin(s): %s", len(loaded), loaded)
-        return loaded
+    async def _load_plugin(self, info: PluginInfo) -> None:
+        """Load a single plugin: import module, instantiate, initialize."""
+        if info.is_loaded:
+            return
 
-    async def _load_plugin(self, plugin_path: Path, manifest_path: Path) -> str:
-        """
-        Load a single plugin: validate manifest, import module, instantiate.
-
-        Args:
-            plugin_path: Directory containing the plugin.
-            manifest_path: Path to manifest.yaml.
-
-        Returns:
-            Plugin ID.
-
-        Raises:
-            Exception: On validation or import failure.
-        """
-        # 1. Validate manifest
-        manifest = PluginManifest.from_yaml(manifest_path)
+        plugin_path = info.path
+        manifest = info.manifest
         plugin_id = manifest.id
 
-        if plugin_id in self._plugins:
-            raise ValueError(f"Plugin '{plugin_id}' is already loaded")
-
-        # 2. Check dependencies
+        # Check dependencies
         for dep_id in manifest.dependencies:
-            if dep_id not in self._plugins:
+            dep = self._plugins.get(dep_id)
+            if dep is None or not dep.is_loaded:
                 raise ValueError(
                     f"Plugin '{plugin_id}' requires '{dep_id}' which is not loaded"
                 )
 
-        # 3. Load Python module
+        # Load Python module
         plugin_module_path = plugin_path / "plugin.py"
         if not plugin_module_path.exists():
             raise FileNotFoundError(f"Plugin entry point not found: {plugin_module_path}")
@@ -143,7 +191,7 @@ class PluginManager:
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
 
-        # 4. Find and instantiate MESPlugin subclass
+        # Find and instantiate MESPlugin subclass
         plugin_class = None
         for attr_name in dir(module):
             attr = getattr(module, attr_name)
@@ -162,11 +210,11 @@ class PluginManager:
 
         instance = plugin_class()
 
-        # 5. Initialize with config
+        # Initialize with resolved config
         config = self._resolve_config(manifest)
         await instance.initialize(config)
 
-        # 6. Register event handlers
+        # Register event handlers
         event_handlers = instance.get_event_handlers()
         if event_handlers:
             for topic, handler in event_handlers.items():
@@ -177,78 +225,79 @@ class PluginManager:
                     topic,
                 )
 
-        # 7. Store plugin info
-        self._plugins[plugin_id] = PluginInfo(
-            manifest=manifest,
-            instance=instance,
-            path=plugin_path,
+        info.instance = instance
+        info.is_loaded = True
+        logger.info("Loaded plugin '%s' v%s", plugin_id, manifest.version)
+
+    async def _start_plugin(self, plugin_id: str, info: PluginInfo) -> None:
+        """Start a loaded plugin."""
+        if not info.is_loaded or info.instance is None:
+            raise RuntimeError(f"Plugin '{plugin_id}' is not loaded")
+        if info.is_running:
+            return
+
+        await info.instance.start()
+        info.is_running = True
+        logger.info("Started plugin '%s'", plugin_id)
+
+        from mes.framework.events import MESEvent
+        await event_bus.publish(
+            MESEvent(
+                event_type="plugin.loaded",
+                source="PLUGIN-FW",
+                payload={"plugin_id": plugin_id, "version": info.manifest.version},
+            )
         )
 
-        logger.info("Loaded plugin '%s' v%s", plugin_id, manifest.version)
-        return plugin_id
+    # ── Stop ──────────────────────────────────────────────────────────
 
-    async def start_all(self) -> None:
-        """Start all loaded plugins that are not yet running."""
-        for plugin_id, info in self._plugins.items():
-            if info.is_running:
-                continue
-            try:
-                await info.instance.start()
-                info.is_running = True
-                logger.info("Started plugin '%s'", plugin_id)
-
-                # Emit plugin.loaded event
-                from mes.framework.events import MESEvent
-
-                await event_bus.publish(
-                    MESEvent(
-                        event_type="plugin.loaded",
-                        source="PLUGIN-FW",
-                        payload={"plugin_id": plugin_id, "version": info.manifest.version},
-                    )
-                )
-            except Exception as exc:
-                info.error = str(exc)
-                logger.error(
-                    "Failed to start plugin '%s': %s",
-                    plugin_id,
-                    exc,
-                    exc_info=True,
-                )
-
-                # Emit plugin.error event
-                from mes.framework.events import MESEvent
-
-                await event_bus.publish(
-                    MESEvent(
-                        event_type="plugin.error",
-                        source="PLUGIN-FW",
-                        payload={"plugin_id": plugin_id, "error": str(exc)},
-                    )
-                )
+    async def stop_plugin(self, plugin_id: str) -> None:
+        """Stop a single running plugin."""
+        info = self._plugins.get(plugin_id)
+        if info is None or not info.is_running or info.instance is None:
+            return
+        try:
+            await info.instance.stop()
+            info.is_running = False
+            logger.info("Stopped plugin '%s'", plugin_id)
+        except Exception as exc:
+            logger.error("Error stopping plugin '%s': %s", plugin_id, exc, exc_info=True)
 
     async def stop_all(self) -> None:
-        """Stop all running plugins in reverse load order."""
+        """Stop all running plugins in reverse discovery order."""
         for plugin_id in reversed(list(self._plugins.keys())):
-            info = self._plugins[plugin_id]
-            if not info.is_running:
-                continue
-            try:
-                await info.instance.stop()
-                info.is_running = False
-                logger.info("Stopped plugin '%s'", plugin_id)
-            except Exception as exc:
-                logger.error(
-                    "Error stopping plugin '%s': %s",
-                    plugin_id,
-                    exc,
-                    exc_info=True,
-                )
+            await self.stop_plugin(plugin_id)
+
+    # ── Enable/Disable (runtime, after DB state changes) ──────────────
+
+    async def enable_plugin(self, plugin_id: str, parameter_values: dict[str, Any] | None = None) -> None:
+        """Load and start a plugin at runtime (after it's been installed in DB)."""
+        info = self._plugins.get(plugin_id)
+        if info is None:
+            raise ValueError(f"Plugin '{plugin_id}' not found")
+        if info.is_running:
+            return
+
+        # Apply parameter values to config resolution if provided
+        if parameter_values:
+            # Store for config resolution
+            info._parameter_values = parameter_values  # type: ignore[attr-defined]
+
+        await self._load_plugin(info)
+        await self._start_plugin(plugin_id, info)
+
+    async def disable_plugin(self, plugin_id: str) -> None:
+        """Stop a running plugin at runtime."""
+        await self.stop_plugin(plugin_id)
+
+    # ── Routes ────────────────────────────────────────────────────────
 
     async def get_plugin_routes(self) -> list:
         """Collect all FastAPI routers from loaded plugins."""
         routers = []
         for plugin_id, info in self._plugins.items():
+            if not info.is_loaded or info.instance is None:
+                continue
             try:
                 routes = info.instance.get_routes()
                 if routes:
@@ -264,43 +313,71 @@ class PluginManager:
                 )
         return routers
 
+    # ── Query ─────────────────────────────────────────────────────────
+
     def get_plugin(self, plugin_id: str) -> PluginInfo | None:
-        """Get a loaded plugin's info by ID."""
+        """Get a discovered plugin's info by ID."""
         return self._plugins.get(plugin_id)
 
     def is_loaded(self, plugin_id: str) -> bool:
         """Check if a plugin is loaded."""
-        return plugin_id in self._plugins
+        info = self._plugins.get(plugin_id)
+        return info is not None and info.is_loaded
+
+    # ── Config Resolution ─────────────────────────────────────────────
 
     def _resolve_config(self, manifest: PluginManifest) -> dict[str, Any]:
         """
-        Resolve plugin configuration by extracting defaults from the
-        manifest's JSON Schema config_schema.
+        Resolve plugin configuration from manifest parameters and legacy config_schema.
 
-        DB overrides are merged at request time in the REST API layer
-        (routes.py) where an async DB session is available.
+        Priority: parameter defaults → config_schema defaults → parameter_values override.
         """
         config: dict[str, Any] = {}
+
+        # Legacy config_schema defaults
         schema = manifest.config_schema
         properties = schema.get("properties", {})
         for key, prop_def in properties.items():
             if "default" in prop_def:
                 config[key] = prop_def["default"]
+
+        # New-style parameter defaults
+        for param in manifest.parameters:
+            if param.default is not None:
+                config[param.name] = param.default
+
         return config
 
     async def resolve_config_with_overrides(
-        self, manifest: PluginManifest, overrides: dict[str, Any]
+        self, manifest: PluginManifest, parameter_values: dict[str, Any],
+        config_overrides: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
-        Merge manifest defaults with user-provided DB overrides.
+        Merge manifest defaults with user parameter values and config overrides.
 
         Args:
-            manifest: Plugin manifest (provides config_schema defaults).
-            overrides: Dict of user config overrides from the plugin_config table.
+            manifest: Plugin manifest (provides defaults).
+            parameter_values: User-provided parameter values from install.
+            config_overrides: Additional runtime overrides.
 
         Returns:
             Merged configuration dict.
         """
         config = self._resolve_config(manifest)
-        config.update(overrides)
+        config.update(parameter_values)
+        if config_overrides:
+            config.update(config_overrides)
         return config
+
+    def validate_parameters(self, manifest: PluginManifest, parameter_values: dict[str, Any]) -> list[str]:
+        """
+        Validate that all required parameters are provided.
+
+        Returns:
+            List of error messages (empty if valid).
+        """
+        errors: list[str] = []
+        for param in manifest.parameters:
+            if param.required and param.name not in parameter_values:
+                errors.append(f"Required parameter '{param.name}' is missing")
+        return errors

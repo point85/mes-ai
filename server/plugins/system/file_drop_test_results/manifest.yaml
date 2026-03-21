@@ -8,6 +8,9 @@ description: >
   subfolder depending on the DB write outcome.
   Includes a built-in simulator that periodically generates sample files.
 author: MES AI Contributors
+comment: System plugin for collecting test equipment results via file drops.
+category: data-collection
+origin: system
 min_mes_version: "0.1.0"
 
 permissions:

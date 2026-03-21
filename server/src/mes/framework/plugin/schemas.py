@@ -1,5 +1,7 @@
 """
 PLUGIN-FW: Pydantic schemas for plugin management API responses and requests.
+
+Plugin lifecycle: available → installed → enabled/disabled → uninstalled
 """
 
 from __future__ import annotations
@@ -7,6 +9,20 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+# ─── Parameter schema (mirrors ManifestParameter for API responses) ───
+
+
+class ParameterSchema(BaseModel):
+    """Describes a plugin parameter for the UI install form."""
+
+    name: str
+    type: str = "string"
+    description: str = ""
+    required: bool = False
+    default: Any = None
+    secret: bool = False
 
 
 # ─── Response schemas ──────────────────────────────────────────────────
@@ -20,9 +36,13 @@ class PluginSummary(BaseModel):
     version: str
     description: str = ""
     author: str = ""
+    comment: str = ""
+    category: str = "general"
+    origin: str = "user"
+    installed: bool = False
+    enabled: bool = False
     is_loaded: bool = False
     is_running: bool = False
-    enabled: bool = True
     error: str | None = None
     extension_points: list[str] = Field(default_factory=list)
 
@@ -31,6 +51,8 @@ class PluginDetail(PluginSummary):
     """Full plugin information for detail responses."""
 
     min_mes_version: str = "0.1.0"
+    parameters: list[ParameterSchema] = Field(default_factory=list)
+    parameter_values: dict[str, Any] = Field(default_factory=dict)
     permissions: list[dict[str, str]] = Field(default_factory=list)
     required_core_permissions: list[str] = Field(default_factory=list)
     event_subscriptions: list[str] = Field(default_factory=list)
@@ -43,8 +65,18 @@ class PluginDetail(PluginSummary):
 # ─── Request schemas ──────────────────────────────────────────────────
 
 
+class PluginInstallRequest(BaseModel):
+    """Request body for installing a plugin (providing parameter values)."""
+
+    parameter_values: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Values for manifest-declared parameters (required params must be included)",
+    )
+    notes: str | None = Field(None, description="Optional admin notes")
+
+
 class PluginConfigUpdate(BaseModel):
-    """Request body for updating plugin configuration."""
+    """Request body for updating plugin configuration after installation."""
 
     config_overrides: dict[str, Any] = Field(
         ..., description="Configuration key-value pairs to persist"

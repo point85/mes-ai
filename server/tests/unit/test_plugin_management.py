@@ -19,8 +19,10 @@ from mes.framework.plugin.manager import PluginManager, PluginInfo
 from mes.framework.plugin.manifest import PluginManifest
 from mes.framework.plugin.schemas import (
     AdapterInfo,
+    ParameterSchema,
     PluginConfigUpdate,
     PluginDetail,
+    PluginInstallRequest,
     PluginSummary,
 )
 
@@ -79,8 +81,8 @@ class TestConfigResolution:
     async def test_resolve_with_overrides(self):
         manager = PluginManager()
         manifest = _make_manifest()
-        overrides = {"weight": 0.9, "custom_key": "value"}
-        result = await manager.resolve_config_with_overrides(manifest, overrides)
+        param_values = {"weight": 0.9, "custom_key": "value"}
+        result = await manager.resolve_config_with_overrides(manifest, param_values)
         assert result["weight"] == 0.9
         assert result["mode"] == "auto"
         assert result["custom_key"] == "value"
@@ -98,11 +100,29 @@ class TestPluginSchemas:
             is_loaded=True,
             is_running=True,
             enabled=True,
+            installed=True,
             extension_points=["dispatch_strategy"],
         )
         d = s.model_dump()
         assert d["id"] == "test-plugin"
         assert d["is_running"] is True
+        assert d["installed"] is True
+
+    def test_plugin_summary_defaults(self):
+        s = PluginSummary(
+            id="test-plugin",
+            name="Test",
+            version="1.0.0",
+            is_loaded=False,
+            is_running=False,
+            enabled=False,
+            installed=False,
+            extension_points=[],
+        )
+        d = s.model_dump()
+        assert d["comment"] == ""
+        assert d["category"] == "general"
+        assert d["origin"] == "user"
 
     def test_plugin_detail_extends_summary(self):
         d = PluginDetail(
@@ -112,11 +132,14 @@ class TestPluginSchemas:
             is_loaded=True,
             is_running=False,
             enabled=True,
+            installed=True,
             config_schema={"properties": {"x": {"type": "number"}}},
             config_values={"x": 42},
         )
         dump = d.model_dump()
         assert dump["config_values"]["x"] == 42
+        assert dump["parameters"] == []
+        assert dump["parameter_values"] == {}
 
     def test_adapter_info(self):
         a = AdapterInfo(
@@ -127,6 +150,23 @@ class TestPluginSchemas:
             is_installed=False,
         )
         assert a.is_installed is False
+
+    def test_plugin_install_request(self):
+        r = PluginInstallRequest(parameter_values={"key": "value"}, notes="test")
+        assert r.parameter_values == {"key": "value"}
+        assert r.notes == "test"
+
+    def test_parameter_schema(self):
+        p = ParameterSchema(
+            name="host",
+            type="string",
+            description="Database host",
+            required=True,
+            default=None,
+            secret=False,
+        )
+        assert p.name == "host"
+        assert p.required is True
 
 
 # ─── Plugin Config Update Schema ──────────────────────────────────────
@@ -150,6 +190,7 @@ class TestPluginConfigUpdate:
 class TestCLI:
     def test_plugin_list_empty(self, tmp_path: Path, monkeypatch, capsys):
         monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(tmp_path))
+        monkeypatch.setattr("mes.config.settings.PLUGIN_USER_DIR", str(tmp_path / "user"))
         from mes.cli import cmd_list
         import argparse
         cmd_list(argparse.Namespace())
@@ -158,9 +199,10 @@ class TestCLI:
 
     def test_plugin_list_with_plugins(self, tmp_path: Path, monkeypatch, capsys):
         monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(tmp_path))
+        monkeypatch.setattr("mes.config.settings.PLUGIN_USER_DIR", str(tmp_path / "user"))
         plugin_dir = tmp_path / "my_plugin"
         plugin_dir.mkdir()
-        manifest = {"id": "my-plugin", "name": "My Plugin", "version": "2.0.0"}
+        manifest = {"id": "my-plugin", "name": "My Plugin", "version": "2.0.0", "origin": "system"}
         with open(plugin_dir / "manifest.yaml", "w") as f:
             yaml.dump(manifest, f)
 
@@ -173,6 +215,7 @@ class TestCLI:
 
     def test_plugin_search_match(self, tmp_path: Path, monkeypatch, capsys):
         monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(tmp_path))
+        monkeypatch.setattr("mes.config.settings.PLUGIN_USER_DIR", str(tmp_path / "user"))
         plugin_dir = tmp_path / "dispatch_plugin"
         plugin_dir.mkdir()
         manifest = {"id": "dispatch-opt", "name": "Dispatch Optimizer", "version": "1.0.0"}
@@ -187,6 +230,7 @@ class TestCLI:
 
     def test_plugin_search_no_match(self, tmp_path: Path, monkeypatch, capsys):
         monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(tmp_path))
+        monkeypatch.setattr("mes.config.settings.PLUGIN_USER_DIR", str(tmp_path / "user"))
         from mes.cli import cmd_search
         import argparse
         cmd_search(argparse.Namespace(keyword="nonexistent"))
@@ -195,6 +239,7 @@ class TestCLI:
 
     def test_plugin_info(self, tmp_path: Path, monkeypatch, capsys):
         monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(tmp_path))
+        monkeypatch.setattr("mes.config.settings.PLUGIN_USER_DIR", str(tmp_path / "user"))
         plugin_dir = tmp_path / "info_plugin"
         plugin_dir.mkdir()
         manifest = {
@@ -203,6 +248,9 @@ class TestCLI:
             "version": "3.0.0",
             "author": "Tester",
             "description": "A plugin for testing info",
+            "comment": "Test comment",
+            "category": "test",
+            "origin": "system",
         }
         with open(plugin_dir / "manifest.yaml", "w") as f:
             yaml.dump(manifest, f)
@@ -214,18 +262,20 @@ class TestCLI:
         assert "Info Plugin" in out
         assert "3.0.0" in out
         assert "Tester" in out
+        assert "system" in out
 
     def test_plugin_info_not_found(self, tmp_path: Path, monkeypatch):
         monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(tmp_path))
+        monkeypatch.setattr("mes.config.settings.PLUGIN_USER_DIR", str(tmp_path / "user"))
         from mes.cli import cmd_info
         import argparse
         with pytest.raises(SystemExit):
             cmd_info(argparse.Namespace(plugin_id="nonexistent"))
 
     def test_extras_list(self, capsys):
-        from mes.cli import cmd_extras
+        from mes.cli import cmd_adapter_extras
         import argparse
-        cmd_extras(argparse.Namespace())
+        cmd_adapter_extras(argparse.Namespace())
         out = capsys.readouterr().out
         assert "opcua" in out
         assert "mqtt" in out
@@ -249,7 +299,8 @@ class TestAdapterPluginBridge:
             extension_points=[{"type": "equipment_driver", "name": "modbus"}],
         )
         instance = DummyPlugin()
-        info = PluginInfo(manifest=manifest, instance=instance, path=Path("/tmp"))
+        info = PluginInfo(manifest=manifest, path=Path("/tmp"), instance=instance)
+        info.is_loaded = True
         info.is_running = True
 
         mock_manager = MagicMock()
@@ -336,22 +387,24 @@ class TestPluginRoutes:
 
 class TestPluginManagerExtended:
     @pytest.mark.asyncio
-    async def test_discover_skips_disabled_plugins(self, tmp_path: Path, monkeypatch):
-        """Test that discover_and_load loads plugins regardless of DB state
-        (disabling happens at start time, not load time)."""
-        monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(tmp_path))
+    async def test_discover_scans_both_dirs(self, tmp_path: Path, monkeypatch):
+        """Test that discover_all scans both system and user directories."""
+        sys_dir = tmp_path / "system"
+        usr_dir = tmp_path / "user"
+        sys_dir.mkdir()
+        usr_dir.mkdir()
+        monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(sys_dir))
+        monkeypatch.setattr("mes.config.settings.PLUGIN_USER_DIR", str(usr_dir))
 
-        plugin_dir = tmp_path / "test_plugin"
-        plugin_dir.mkdir()
-
-        manifest = {"id": "test-plugin", "name": "Test Plugin", "version": "1.0.0"}
-        with open(plugin_dir / "manifest.yaml", "w") as f:
+        # System plugin
+        sp = sys_dir / "sys_plugin"
+        sp.mkdir()
+        manifest = {"id": "sys-plugin", "name": "Sys Plugin", "version": "1.0.0", "origin": "system"}
+        with open(sp / "manifest.yaml", "w") as f:
             yaml.dump(manifest, f)
-
         plugin_code = '''
 from mes.framework.plugin.base import MESPlugin
 from typing import Any
-
 class TestMESPlugin(MESPlugin):
     async def initialize(self, config: dict[str, Any]) -> None:
         self.config = config
@@ -360,22 +413,71 @@ class TestMESPlugin(MESPlugin):
     async def stop(self) -> None:
         pass
 '''
-        with open(plugin_dir / "plugin.py", "w") as f:
+        with open(sp / "plugin.py", "w") as f:
+            f.write(plugin_code)
+
+        # User plugin
+        up = usr_dir / "usr_plugin"
+        up.mkdir()
+        manifest2 = {"id": "usr-plugin", "name": "User Plugin", "version": "1.0.0", "origin": "user"}
+        with open(up / "manifest.yaml", "w") as f:
+            yaml.dump(manifest2, f)
+        with open(up / "plugin.py", "w") as f:
             f.write(plugin_code)
 
         manager = PluginManager()
-        loaded = await manager.discover_and_load()
-        assert "test-plugin" in loaded
+        discovered = await manager.discover_all()
+        assert "sys-plugin" in discovered
+        assert "usr-plugin" in discovered
 
     @pytest.mark.asyncio
     async def test_resolve_config_with_overrides_merges(self):
         manager = PluginManager()
         manifest = _make_manifest()
-        overrides = {"weight": 0.9}
-        result = await manager.resolve_config_with_overrides(manifest, overrides)
+        param_values = {"weight": 0.9}
+        result = await manager.resolve_config_with_overrides(manifest, param_values)
         assert result["weight"] == 0.9
         assert result["mode"] == "auto"
+
+    @pytest.mark.asyncio
+    async def test_resolve_config_with_config_overrides(self):
+        manager = PluginManager()
+        manifest = _make_manifest()
+        param_values = {"weight": 0.8}
+        config_overrides = {"mode": "manual"}
+        result = await manager.resolve_config_with_overrides(manifest, param_values, config_overrides)
+        assert result["weight"] == 0.8
+        assert result["mode"] == "manual"
 
     def test_get_plugin_not_loaded(self):
         manager = PluginManager()
         assert manager.get_plugin("nonexistent") is None
+
+    def test_validate_parameters_all_optional(self):
+        manager = PluginManager()
+        manifest = _make_manifest()  # No parameters defined, just config_schema
+        errors = manager.validate_parameters(manifest, {})
+        assert errors == []
+
+    def test_validate_parameters_missing_required(self):
+        from mes.framework.plugin.manifest import ManifestParameter
+        manager = PluginManager()
+        manifest = _make_manifest(
+            parameters=[
+                {"name": "host", "type": "string", "description": "DB host", "required": True},
+                {"name": "port", "type": "integer", "description": "DB port", "required": False, "default": 5432},
+            ]
+        )
+        errors = manager.validate_parameters(manifest, {})
+        assert len(errors) == 1
+        assert "host" in errors[0]
+
+    def test_validate_parameters_all_provided(self):
+        manager = PluginManager()
+        manifest = _make_manifest(
+            parameters=[
+                {"name": "host", "type": "string", "description": "DB host", "required": True},
+            ]
+        )
+        errors = manager.validate_parameters(manifest, {"host": "localhost"})
+        assert errors == []

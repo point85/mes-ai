@@ -142,9 +142,10 @@ class TestPluginManager:
     async def test_discover_empty_directory(self, tmp_path: Path, monkeypatch):
         """Plugin manager should handle empty plugin directory gracefully."""
         monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(tmp_path))
+        monkeypatch.setattr("mes.config.settings.PLUGIN_USER_DIR", str(tmp_path / "user"))
         manager = PluginManager()
-        loaded = await manager.discover_and_load()
-        assert loaded == []
+        discovered = await manager.discover_all()
+        assert discovered == []
 
     @pytest.mark.asyncio
     async def test_discover_nonexistent_directory(self, monkeypatch):
@@ -152,14 +153,18 @@ class TestPluginManager:
         monkeypatch.setattr(
             "mes.config.settings.PLUGIN_DIR", "/nonexistent/path/to/plugins"
         )
+        monkeypatch.setattr(
+            "mes.config.settings.PLUGIN_USER_DIR", "/nonexistent/path/to/user_plugins"
+        )
         manager = PluginManager()
-        loaded = await manager.discover_and_load()
-        assert loaded == []
+        discovered = await manager.discover_all()
+        assert discovered == []
 
     @pytest.mark.asyncio
     async def test_discover_and_load_plugin(self, tmp_path: Path, monkeypatch):
         """Full lifecycle: discover → load → start → stop a test plugin."""
         monkeypatch.setattr("mes.config.settings.PLUGIN_DIR", str(tmp_path))
+        monkeypatch.setattr("mes.config.settings.PLUGIN_USER_DIR", str(tmp_path / "user"))
 
         # Create a test plugin directory
         plugin_dir = tmp_path / "test_plugin"
@@ -200,15 +205,19 @@ class TestMESPlugin(MESPlugin):
             f.write(plugin_code)
 
         manager = PluginManager()
-        loaded = await manager.discover_and_load()
-        assert "test-plugin" in loaded
+        discovered = await manager.discover_all()
+        assert "test-plugin" in discovered
 
         info = manager.get_plugin("test-plugin")
         assert info is not None
         assert info.manifest.id == "test-plugin"
+        assert info.is_loaded is False
         assert info.is_running is False
 
-        await manager.start_all()
+        # Load and start with this plugin's id in the installed set
+        started = await manager.load_and_start({"test-plugin"})
+        assert "test-plugin" in started
+        assert info.is_loaded is True
         assert info.is_running is True
 
         await manager.stop_all()

@@ -5,6 +5,9 @@ description: >
   Demonstrates the plugin framework by providing a "priority_weighted"
   dispatch strategy and reacting to WIP movement events.
 author: MES AI Contributors
+comment: Reference implementation showing how to build a dispatch-strategy plugin.
+category: dispatch
+origin: system
 min_mes_version: "0.1.0"
 
 permissions:

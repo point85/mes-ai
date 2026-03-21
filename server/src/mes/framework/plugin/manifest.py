@@ -2,14 +2,14 @@
 PLUGIN-FW: Plugin manifest schema and validation.
 
 The manifest.yaml file in each plugin directory declares:
-- Plugin identity (id, name, version, author)
+- Plugin identity (id, name, version, author, description, comment, category, origin)
 - Minimum MES version compatibility
 - Extension points the plugin implements
 - Events the plugin subscribes to
 - Custom permissions the plugin introduces
 - Required core permissions
 - Dependencies on other plugins
-- Configuration schema (JSON Schema)
+- Parameters: required and optional configuration the end user provides at install time
 """
 
 from __future__ import annotations
@@ -38,18 +38,40 @@ class ManifestExtensionPoint(BaseModel):
     prefix: str | None = Field(None, description="API prefix (for rest_endpoint type)")
 
 
+class ManifestParameter(BaseModel):
+    """A configuration parameter declared by a plugin author.
+
+    Required parameters must be provided during installation.
+    Optional parameters have defaults and can be overridden.
+    """
+
+    name: str = Field(..., description="Parameter key (e.g. 'broker_url')")
+    type: str = Field("string", description="Data type: string, number, boolean, integer")
+    description: str = Field("", description="Human-readable description")
+    required: bool = Field(False, description="Must be provided at install time")
+    default: Any = Field(None, description="Default value (only for optional parameters)")
+    secret: bool = Field(False, description="Whether to mask this value in UI (e.g. passwords)")
+
+
 class PluginManifest(BaseModel):
     """
     Parsed and validated plugin manifest.
-    Corresponds to the manifest.yaml file per ARCHITECTURE.md §7.2.
+    Corresponds to the manifest.yaml file in each plugin directory.
     """
 
+    # ── Required identity fields ──
     id: str = Field(..., description="Unique plugin identifier (e.g. 'my-custom-plugin')")
     name: str = Field(..., description="Human-readable plugin name")
     version: str = Field(..., description="Semantic version string")
     description: str = Field("", description="Brief plugin description")
     author: str = Field("", description="Plugin author")
+    comment: str = Field("", description="Free-form comment from the plugin author")
+    category: str = Field("general", description="Plugin category (e.g. erp, equipment, quality, dispatch, general)")
+    origin: str = Field("user", description="Origin: 'system' (project contributors) or 'user' (end user)")
     min_mes_version: str = Field("0.1.0", description="Minimum MES server version required")
+
+    # ── Parameters (required + optional config the end user provides at install time) ──
+    parameters: list[ManifestParameter] = Field(default_factory=list)
 
     # Custom permissions this plugin introduces
     permissions: list[ManifestPermission] = Field(default_factory=list)
@@ -66,7 +88,7 @@ class PluginManifest(BaseModel):
     # Other plugins this plugin depends on
     dependencies: list[str] = Field(default_factory=list)
 
-    # Configuration schema (JSON Schema format)
+    # Legacy config_schema kept for backward compatibility; prefer `parameters`
     config_schema: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod

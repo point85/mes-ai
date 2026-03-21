@@ -6,12 +6,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchPlugins,
   fetchPlugin,
-  updatePluginConfig,
+  installPlugin,
+  uninstallPlugin,
   enablePlugin,
   disablePlugin,
+  updatePluginConfig,
   fetchAdapterCatalog,
 } from "../api/plugins";
-import type { PluginConfigUpdate } from "../types";
+import type { PluginInstallRequest, PluginConfigUpdate } from "../types";
 
 const KEYS = {
   plugins: ["plugins"] as const,
@@ -33,16 +35,24 @@ export function usePlugin(pluginId: string) {
   });
 }
 
-// ─── Plugin mutations ─────────────────────────────────────────────────
+// ─── Plugin lifecycle mutations ───────────────────────────────────────
 
-export function useUpdatePluginConfig() {
+export function useInstallPlugin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
       pluginId,
       ...body
-    }: PluginConfigUpdate & { pluginId: string }) =>
-      updatePluginConfig(pluginId, body),
+    }: PluginInstallRequest & { pluginId: string }) =>
+      installPlugin(pluginId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.plugins }),
+  });
+}
+
+export function useUninstallPlugin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (pluginId: string) => uninstallPlugin(pluginId),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.plugins }),
   });
 }
@@ -59,6 +69,20 @@ export function useDisablePlugin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (pluginId: string) => disablePlugin(pluginId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.plugins }),
+  });
+}
+
+// ─── Config mutation ──────────────────────────────────────────────────
+
+export function useUpdatePluginConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      pluginId,
+      ...body
+    }: PluginConfigUpdate & { pluginId: string }) =>
+      updatePluginConfig(pluginId, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.plugins }),
   });
 }

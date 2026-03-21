@@ -1,13 +1,17 @@
 """
 PLUGIN-FW: REST API routes for plugin management.
 
+Plugin lifecycle: available → installed → enabled/disabled → uninstalled
+
 Endpoints:
-    GET  /api/v1/plugins              — List all discovered plugins
-    GET  /api/v1/plugins/{plugin_id}  — Get plugin detail + config
-    PUT  /api/v1/plugins/{plugin_id}/config   — Update plugin config overrides
-    POST /api/v1/plugins/{plugin_id}/enable   — Enable a plugin
-    POST /api/v1/plugins/{plugin_id}/disable  — Disable a plugin
-    GET  /api/v1/plugins/catalog      — List available adapter types
+    GET   /api/v1/plugins                         — List all plugins (available + installed)
+    GET   /api/v1/plugins/{plugin_id}             — Get plugin detail + config
+    POST  /api/v1/plugins/{plugin_id}/install     — Install a plugin (provide parameter values)
+    POST  /api/v1/plugins/{plugin_id}/uninstall   — Uninstall a plugin
+    POST  /api/v1/plugins/{plugin_id}/enable      — Enable an installed plugin
+    POST  /api/v1/plugins/{plugin_id}/disable     — Disable a running plugin
+    PUT   /api/v1/plugins/{plugin_id}/config      — Update plugin config overrides
+    GET   /api/v1/plugins/catalog                 — List available adapter types
 """
 
 from __future__ import annotations
@@ -26,9 +30,11 @@ from mes.framework.db import get_db_session
 from .models import PluginConfig
 from .schemas import (
     AdapterInfo,
+    ParameterSchema,
     PluginConfigUpdate,
     PluginDetail,
     PluginEnableRequest,
+    PluginInstallRequest,
     PluginSummary,
 )
 
@@ -118,7 +124,13 @@ async def _get_or_create_plugin_config(
     )
     row = result.scalar_one_or_none()
     if row is None:
-        row = PluginConfig(plugin_id=plugin_id, enabled=True, config_overrides={})
+        row = PluginConfig(
+            plugin_id=plugin_id,
+            installed=False,
+            enabled=False,
+            parameter_values={},
+            config_overrides={},
+        )
         session.add(row)
         await session.flush()
     return row
@@ -148,10 +160,9 @@ async def list_adapter_catalog():
 async def list_plugins(
     session: AsyncSession = Depends(get_db_session),
 ):
-    """List all discovered plugins with their status."""
+    """List all discovered plugins with their status (available, installed, enabled)."""
     from mes.main import plugin_manager
 
-    summaries = []
     # Get DB config rows indexed by plugin_id
     db_configs: dict[str, PluginConfig] = {}
     result = await session.execute(
@@ -160,6 +171,7 @@ async def list_plugins(
     for row in result.scalars().all():
         db_configs[row.plugin_id] = row
 
+    summaries = []
     for plugin_id, info in plugin_manager.plugins.items():
         db_cfg = db_configs.get(plugin_id)
         summaries.append(
@@ -169,9 +181,13 @@ async def list_plugins(
                 version=info.manifest.version,
                 description=info.manifest.description,
                 author=info.manifest.author,
-                is_loaded=True,
+                comment=info.manifest.comment,
+                category=info.manifest.category,
+                origin=info.manifest.origin,
+                installed=db_cfg.installed if db_cfg else False,
+                enabled=db_cfg.enabled if db_cfg else False,
+                is_loaded=info.is_loaded,
                 is_running=info.is_running,
-                enabled=db_cfg.enabled if db_cfg else True,
                 error=info.error,
                 extension_points=[
                     ep.type for ep in info.manifest.extension_points
@@ -196,9 +212,23 @@ async def get_plugin_detail(
     db_cfg = await _get_or_create_plugin_config(session, plugin_id)
     await session.commit()
 
-    # Merge config: manifest defaults + DB overrides
-    resolved_config = plugin_manager._resolve_config(info.manifest)
-    resolved_config.update(db_cfg.config_overrides)
+    # Merge config: manifest defaults + parameter values + DB overrides
+    resolved_config = await plugin_manager.resolve_config_with_overrides(
+        info.manifest, db_cfg.parameter_values, db_cfg.config_overrides,
+    )
+
+    # Build parameter schema list for UI
+    param_schemas = [
+        ParameterSchema(
+            name=p.name,
+            type=p.type,
+            description=p.description,
+            required=p.required,
+            default=p.default,
+            secret=p.secret,
+        ).model_dump()
+        for p in info.manifest.parameters
+    ]
 
     detail = PluginDetail(
         id=info.manifest.id,
@@ -206,12 +236,18 @@ async def get_plugin_detail(
         version=info.manifest.version,
         description=info.manifest.description,
         author=info.manifest.author,
-        is_loaded=True,
-        is_running=info.is_running,
+        comment=info.manifest.comment,
+        category=info.manifest.category,
+        origin=info.manifest.origin,
+        installed=db_cfg.installed,
         enabled=db_cfg.enabled,
+        is_loaded=info.is_loaded,
+        is_running=info.is_running,
         error=info.error,
         extension_points=[ep.type for ep in info.manifest.extension_points],
         min_mes_version=info.manifest.min_mes_version,
+        parameters=param_schemas,
+        parameter_values=db_cfg.parameter_values,
         permissions=[
             {"id": p.id, "description": p.description}
             for p in info.manifest.permissions
@@ -226,13 +262,144 @@ async def get_plugin_detail(
     return success_response(detail.model_dump())
 
 
+@router.post("/{plugin_id}/install")
+async def install_plugin(
+    plugin_id: str,
+    body: PluginInstallRequest | None = None,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """
+    Install a plugin by providing parameter values.
+    Validates that all required parameters are present.
+    """
+    from mes.main import plugin_manager
+
+    info = plugin_manager.get_plugin(plugin_id)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
+
+    param_values = body.parameter_values if body else {}
+    notes = body.notes if body else None
+
+    # Validate required parameters
+    errors = plugin_manager.validate_parameters(info.manifest, param_values)
+    if errors:
+        raise HTTPException(status_code=422, detail={"errors": errors})
+
+    db_cfg = await _get_or_create_plugin_config(session, plugin_id)
+    db_cfg.installed = True
+    db_cfg.enabled = False  # Installed but not yet enabled
+    db_cfg.parameter_values = param_values
+    if notes is not None:
+        db_cfg.notes = notes
+    await session.commit()
+
+    logger.info("Installed plugin '%s'", plugin_id)
+    return success_response({
+        "plugin_id": plugin_id,
+        "installed": True,
+        "enabled": False,
+        "parameter_values": param_values,
+    })
+
+
+@router.post("/{plugin_id}/uninstall")
+async def uninstall_plugin(
+    plugin_id: str,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Uninstall a plugin — stops it if running, clears DB state."""
+    from mes.main import plugin_manager
+
+    info = plugin_manager.get_plugin(plugin_id)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
+
+    # Stop if running
+    if info.is_running:
+        await plugin_manager.disable_plugin(plugin_id)
+
+    # Clear DB state
+    db_cfg = await _get_or_create_plugin_config(session, plugin_id)
+    db_cfg.installed = False
+    db_cfg.enabled = False
+    db_cfg.parameter_values = {}
+    db_cfg.config_overrides = {}
+    await session.commit()
+
+    logger.info("Uninstalled plugin '%s'", plugin_id)
+    return success_response({"plugin_id": plugin_id, "installed": False})
+
+
+@router.post("/{plugin_id}/enable")
+async def enable_plugin_route(
+    plugin_id: str,
+    body: PluginEnableRequest | None = None,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Enable an installed plugin — loads and starts it."""
+    from mes.main import plugin_manager
+
+    info = plugin_manager.get_plugin(plugin_id)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
+
+    db_cfg = await _get_or_create_plugin_config(session, plugin_id)
+    if not db_cfg.installed:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Plugin '{plugin_id}' must be installed before enabling",
+        )
+
+    db_cfg.enabled = True
+    if body and body.notes is not None:
+        db_cfg.notes = body.notes
+    await session.commit()
+
+    # Load and start the plugin at runtime
+    try:
+        await plugin_manager.enable_plugin(plugin_id, db_cfg.parameter_values)
+    except Exception as exc:
+        info.error = str(exc)
+        logger.error("Failed to enable plugin '%s': %s", plugin_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    logger.info("Enabled plugin '%s'", plugin_id)
+    return success_response({"plugin_id": plugin_id, "enabled": True})
+
+
+@router.post("/{plugin_id}/disable")
+async def disable_plugin_route(
+    plugin_id: str,
+    body: PluginEnableRequest | None = None,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Disable a running plugin — stops it."""
+    from mes.main import plugin_manager
+
+    info = plugin_manager.get_plugin(plugin_id)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
+
+    db_cfg = await _get_or_create_plugin_config(session, plugin_id)
+    db_cfg.enabled = False
+    if body and body.notes is not None:
+        db_cfg.notes = body.notes
+    await session.commit()
+
+    await plugin_manager.disable_plugin(plugin_id)
+
+    logger.info("Disabled plugin '%s'", plugin_id)
+    return success_response({"plugin_id": plugin_id, "enabled": False})
+
+
 @router.put("/{plugin_id}/config")
 async def update_plugin_config(
     plugin_id: str,
     body: PluginConfigUpdate,
     session: AsyncSession = Depends(get_db_session),
 ):
-    """Update configuration overrides for a plugin."""
+    """Update configuration overrides for an installed plugin."""
     from mes.main import plugin_manager
 
     info = plugin_manager.get_plugin(plugin_id)
@@ -247,66 +414,3 @@ async def update_plugin_config(
 
     logger.info("Updated config for plugin '%s': %s", plugin_id, body.config_overrides)
     return success_response({"plugin_id": plugin_id, "config_overrides": db_cfg.config_overrides})
-
-
-@router.post("/{plugin_id}/enable")
-async def enable_plugin(
-    plugin_id: str,
-    body: PluginEnableRequest | None = None,
-    session: AsyncSession = Depends(get_db_session),
-):
-    """Enable a plugin (will be started on next boot or immediately if loaded)."""
-    from mes.main import plugin_manager
-
-    info = plugin_manager.get_plugin(plugin_id)
-    if info is None:
-        raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
-
-    db_cfg = await _get_or_create_plugin_config(session, plugin_id)
-    db_cfg.enabled = True
-    if body and body.notes is not None:
-        db_cfg.notes = body.notes
-    await session.commit()
-
-    # If loaded but not running, start it now
-    if not info.is_running:
-        try:
-            await info.instance.start()
-            info.is_running = True
-            logger.info("Plugin '%s' enabled and started", plugin_id)
-        except Exception as exc:
-            info.error = str(exc)
-            logger.error("Plugin '%s' enabled but failed to start: %s", plugin_id, exc)
-
-    return success_response({"plugin_id": plugin_id, "enabled": True, "is_running": info.is_running})
-
-
-@router.post("/{plugin_id}/disable")
-async def disable_plugin(
-    plugin_id: str,
-    body: PluginEnableRequest | None = None,
-    session: AsyncSession = Depends(get_db_session),
-):
-    """Disable a plugin (stops it immediately if running)."""
-    from mes.main import plugin_manager
-
-    info = plugin_manager.get_plugin(plugin_id)
-    if info is None:
-        raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
-
-    db_cfg = await _get_or_create_plugin_config(session, plugin_id)
-    db_cfg.enabled = False
-    if body and body.notes is not None:
-        db_cfg.notes = body.notes
-    await session.commit()
-
-    # Stop the plugin if running
-    if info.is_running:
-        try:
-            await info.instance.stop()
-            info.is_running = False
-            logger.info("Plugin '%s' disabled and stopped", plugin_id)
-        except Exception as exc:
-            logger.error("Plugin '%s' disable error during stop: %s", plugin_id, exc)
-
-    return success_response({"plugin_id": plugin_id, "enabled": False, "is_running": info.is_running})

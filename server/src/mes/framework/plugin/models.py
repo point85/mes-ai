@@ -1,8 +1,10 @@
 """
 PLUGIN-FW: Database models for plugin configuration persistence.
 
-Stores per-plugin enabled/disabled state and user-overridden configuration
-values so that they survive server restarts.
+Stores per-plugin installed/enabled state and user-provided parameter values
+so that they survive server restarts.
+
+Lifecycle:  available → installed (params filled) → enabled → disabled → uninstalled
 """
 
 from __future__ import annotations
@@ -20,9 +22,12 @@ class PluginConfig(BaseModel):
     """
     Persisted plugin configuration and state.
 
-    One row per plugin_id. Tracks whether the plugin is enabled and
-    stores user-overridden configuration values (merged on top of
-    manifest defaults at resolve time).
+    One row per plugin_id. Tracks:
+    - installed: whether the plugin has been installed (params provided)
+    - enabled: whether the plugin should be started on boot
+    - parameter_values: user-provided values for manifest-declared parameters
+    - config_overrides: additional runtime config overrides
+    - notes: admin annotations
     """
 
     __tablename__ = "plugin_config"
@@ -35,10 +40,24 @@ class PluginConfig(BaseModel):
         comment="Plugin identifier matching manifest.id",
     )
 
+    installed: Mapped[bool] = mapped_column(
+        default=False,
+        nullable=False,
+        comment="Whether the plugin has been installed (parameters provided)",
+    )
+
     enabled: Mapped[bool] = mapped_column(
-        default=True,
+        default=False,
         nullable=False,
         comment="Whether the plugin should be started on boot",
+    )
+
+    parameter_values: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        server_default="{}",
+        nullable=False,
+        comment="User-provided parameter values (filled during install)",
     )
 
     config_overrides: Mapped[dict[str, Any]] = mapped_column(
@@ -46,7 +65,7 @@ class PluginConfig(BaseModel):
         default=dict,
         server_default="{}",
         nullable=False,
-        comment="User-overridden config values (merged over manifest defaults)",
+        comment="Additional runtime config overrides (merged over manifest defaults)",
     )
 
     notes: Mapped[str | None] = mapped_column(

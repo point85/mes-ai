@@ -1,41 +1,53 @@
 """
 CLI entry-point for MES plugin management.
 
-Usage:
+Offline commands (no server required):
     python -m mes.cli plugin list
     python -m mes.cli plugin search <keyword>
-    python -m mes.cli plugin install <extra>
     python -m mes.cli plugin info <plugin_id>
 
-These commands can be run offline without a running server (except
-'info' which reads from the plugin directory).
+Server commands (calls REST API at MES_SERVER_URL):
+    python -m mes.cli plugin install <plugin_id> [--param key=value ...]
+    python -m mes.cli plugin uninstall <plugin_id>
+    python -m mes.cli plugin enable <plugin_id>
+    python -m mes.cli plugin disable <plugin_id>
+
+Adapter extras:
+    python -m mes.cli adapter install <extra>
+    python -m mes.cli adapter extras
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib
+import json
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from mes.config import settings
 from mes.framework.plugin.manifest import PluginManifest
 
+# Default server URL for CLI → REST API calls
+DEFAULT_SERVER_URL = "http://localhost:8000"
+
 
 def _discover_manifests() -> list[PluginManifest]:
-    """Scan the plugin directory and return parsed manifests."""
-    plugin_dir = Path(settings.PLUGIN_DIR)
+    """Scan both system and user plugin directories and return parsed manifests."""
     manifests: list[PluginManifest] = []
-    if not plugin_dir.exists():
-        return manifests
-    for candidate in sorted(plugin_dir.iterdir()):
-        manifest_path = candidate / "manifest.yaml"
-        if candidate.is_dir() and manifest_path.exists():
-            try:
-                manifests.append(PluginManifest.from_yaml(manifest_path))
-            except Exception as exc:
-                print(f"  WARNING: {candidate.name}: {exc}", file=sys.stderr)
+    for plugin_dir in [Path(settings.PLUGIN_DIR), Path(settings.PLUGIN_USER_DIR)]:
+        if not plugin_dir.exists():
+            continue
+        for candidate in sorted(plugin_dir.iterdir()):
+            manifest_path = candidate / "manifest.yaml"
+            if candidate.is_dir() and manifest_path.exists():
+                try:
+                    manifests.append(PluginManifest.from_yaml(manifest_path))
+                except Exception as exc:
+                    print(f"  WARNING: {candidate.name}: {exc}", file=sys.stderr)
     return manifests
 
 
@@ -54,15 +66,17 @@ EXTRAS_CATALOG = {
 
 
 def cmd_list(_args: argparse.Namespace) -> None:
-    """List plugins in the configured plugin directory."""
+    """List plugins discovered in system and user directories."""
     manifests = _discover_manifests()
     if not manifests:
-        print("No plugins found in", settings.PLUGIN_DIR)
+        print("No plugins found in", settings.PLUGIN_DIR, "or", settings.PLUGIN_USER_DIR)
         return
-    print(f"{'ID':<30} {'Version':<10} {'Name'}")
-    print("-" * 70)
+    print(f"{'ID':<30} {'Version':<10} {'Origin':<8} {'Category':<12} {'Name'}")
+    print("-" * 90)
     for m in manifests:
-        print(f"{m.id:<30} {m.version:<10} {m.name}")
+        origin = m.origin or "?"
+        category = m.category or ""
+        print(f"{m.id:<30} {m.version:<10} {origin:<8} {category:<12} {m.name}")
     print(f"\n{len(manifests)} plugin(s) found.")
 
 
@@ -99,6 +113,9 @@ def cmd_info(args: argparse.Namespace) -> None:
     print(f"  Version:     {match.version}")
     print(f"  Author:      {match.author or '(not set)'}")
     print(f"  Description: {match.description or '(none)'}")
+    print(f"  Comment:     {match.comment or '(none)'}")
+    print(f"  Category:    {match.category or '(none)'}")
+    print(f"  Origin:      {match.origin or '(none)'}")
     print(f"  Min MES:     {match.min_mes_version}")
     if match.extension_points:
         print(f"  Extensions:  {', '.join(ep.type for ep in match.extension_points)}")
@@ -106,11 +123,75 @@ def cmd_info(args: argparse.Namespace) -> None:
         print(f"  Events:      {', '.join(match.event_subscriptions)}")
     if match.dependencies:
         print(f"  Depends on:  {', '.join(match.dependencies)}")
+    if match.parameters:
+        print("  Parameters:")
+        for p in match.parameters:
+            req = "required" if p.required else "optional"
+            default = f", default={p.default}" if p.default is not None else ""
+            print(f"    {p.name} ({p.type}, {req}{default}): {p.description}")
     if match.config_schema.get("properties"):
         print("  Config keys:", ", ".join(match.config_schema["properties"].keys()))
 
 
 def cmd_install(args: argparse.Namespace) -> None:
+    """Install a plugin via the server REST API."""
+    server = args.server or DEFAULT_SERVER_URL
+    param_values: dict[str, str] = {}
+    for pv in args.param or []:
+        if "=" not in pv:
+            print(f"Invalid --param format: '{pv}' (expected key=value)")
+            sys.exit(1)
+        k, v = pv.split("=", 1)
+        param_values[k] = v
+
+    body = json.dumps({"parameter_values": param_values}).encode()
+    url = f"{server}/api/v1/plugins/{args.plugin_id}/install"
+    _api_post(url, body, f"Installed plugin '{args.plugin_id}'")
+
+
+def cmd_uninstall(args: argparse.Namespace) -> None:
+    """Uninstall a plugin via the server REST API."""
+    server = args.server or DEFAULT_SERVER_URL
+    url = f"{server}/api/v1/plugins/{args.plugin_id}/uninstall"
+    _api_post(url, b"{}", f"Uninstalled plugin '{args.plugin_id}'")
+
+
+def cmd_enable(args: argparse.Namespace) -> None:
+    """Enable a plugin via the server REST API."""
+    server = args.server or DEFAULT_SERVER_URL
+    url = f"{server}/api/v1/plugins/{args.plugin_id}/enable"
+    _api_post(url, b"{}", f"Enabled plugin '{args.plugin_id}'")
+
+
+def cmd_disable(args: argparse.Namespace) -> None:
+    """Disable a plugin via the server REST API."""
+    server = args.server or DEFAULT_SERVER_URL
+    url = f"{server}/api/v1/plugins/{args.plugin_id}/disable"
+    _api_post(url, b"{}", f"Disabled plugin '{args.plugin_id}'")
+
+
+def _api_post(url: str, body: bytes, success_msg: str) -> None:
+    """Make a POST request to the MES server API."""
+    req = urllib.request.Request(
+        url, data=body, headers={"Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            data = json.loads(resp.read())
+            print(success_msg)
+            if "data" in data:
+                for k, v in data["data"].items():
+                    print(f"  {k}: {v}")
+    except urllib.error.HTTPError as exc:
+        detail = json.loads(exc.read()) if exc.readable() else {}
+        print(f"Error ({exc.code}): {detail.get('detail', exc.reason)}", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as exc:
+        print(f"Cannot reach server: {exc.reason}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_adapter_install(args: argparse.Namespace) -> None:
     """Install an adapter extra via pip."""
     extra = args.extra
     if extra not in EXTRAS_CATALOG:
@@ -129,7 +210,7 @@ def cmd_install(args: argparse.Namespace) -> None:
     sys.exit(result.returncode)
 
 
-def cmd_extras(_args: argparse.Namespace) -> None:
+def cmd_adapter_extras(_args: argparse.Namespace) -> None:
     """List available pip extras and their installation status."""
     print(f"{'Extra':<12} {'Installed':<12} {'Description'}")
     print("-" * 70)
@@ -170,6 +251,10 @@ def main(argv: list[str] | None = None) -> None:
         prog="mes",
         description="MES AI command-line interface",
     )
+    parser.add_argument(
+        "--server", default=None,
+        help=f"Server URL for API commands (default: {DEFAULT_SERVER_URL})",
+    )
     sub = parser.add_subparsers(dest="command")
 
     # ── plugin sub-commands ──
@@ -184,10 +269,27 @@ def main(argv: list[str] | None = None) -> None:
     info_p = plugin_sub.add_parser("info", help="Show plugin details")
     info_p.add_argument("plugin_id", help="Plugin ID")
 
-    install_p = plugin_sub.add_parser("install", help="Install an adapter extra")
-    install_p.add_argument("extra", help="Extra name (e.g. opcua, sap, oracle)")
+    install_p = plugin_sub.add_parser("install", help="Install a plugin (requires server)")
+    install_p.add_argument("plugin_id", help="Plugin ID")
+    install_p.add_argument("--param", action="append", help="Parameter as key=value")
 
-    plugin_sub.add_parser("extras", help="List available pip extras")
+    uninstall_p = plugin_sub.add_parser("uninstall", help="Uninstall a plugin (requires server)")
+    uninstall_p.add_argument("plugin_id", help="Plugin ID")
+
+    enable_p = plugin_sub.add_parser("enable", help="Enable a plugin (requires server)")
+    enable_p.add_argument("plugin_id", help="Plugin ID")
+
+    disable_p = plugin_sub.add_parser("disable", help="Disable a plugin (requires server)")
+    disable_p.add_argument("plugin_id", help="Plugin ID")
+
+    # ── adapter sub-commands ──
+    adapter_parser = sub.add_parser("adapter", help="Adapter dependency management")
+    adapter_sub = adapter_parser.add_subparsers(dest="adapter_cmd")
+
+    adapter_install_p = adapter_sub.add_parser("install", help="Install an adapter extra via pip")
+    adapter_install_p.add_argument("extra", help="Extra name (e.g. opcua, sap, oracle)")
+
+    adapter_sub.add_parser("extras", help="List available pip extras")
 
     args = parser.parse_args(argv)
 
@@ -197,11 +299,23 @@ def main(argv: list[str] | None = None) -> None:
             "search": cmd_search,
             "info": cmd_info,
             "install": cmd_install,
-            "extras": cmd_extras,
+            "uninstall": cmd_uninstall,
+            "enable": cmd_enable,
+            "disable": cmd_disable,
         }
         handler = handlers.get(args.plugin_cmd)
         if handler is None:
             plugin_parser.print_help()
+            sys.exit(1)
+        handler(args)
+    elif args.command == "adapter":
+        handlers = {
+            "install": cmd_adapter_install,
+            "extras": cmd_adapter_extras,
+        }
+        handler = handlers.get(args.adapter_cmd)
+        if handler is None:
+            adapter_parser.print_help()
             sys.exit(1)
         handler(args)
     else:

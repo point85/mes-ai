@@ -1474,3 +1474,62 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+### S019 — Plugin System Redesign
+
+**Objective**: Redesign the plugin system with two-directory structure (system/user), full install lifecycle, manifest parameters, and enhanced metadata.
+
+#### What Changed
+
+**Backend Framework:**
+- `manifest.py` — Added `ManifestParameter` model (name, type, description, required, default, secret), added `comment`, `category`, `origin` fields to `PluginManifest`
+- `config.py` — Split `PLUGIN_DIR` into `plugins/system` (MES_PLUGIN_DIR) and `plugins/user` (MES_PLUGIN_USER_DIR)
+- `models.py` — Added `installed` (bool), `parameter_values` (JSONB) columns to `PluginConfig`; changed `enabled` default to False
+- `schemas.py` — Added `ParameterSchema`, `PluginInstallRequest`; enhanced `PluginSummary` and `PluginDetail` with new fields
+- `manager.py` — Full rewrite: `discover_all()` scans both dirs without loading, `load_and_start(installed_ids)` loads only DB-installed plugins, `enable_plugin()`/`disable_plugin()` for runtime lifecycle, `validate_parameters()` checks required params
+- `main.py` — Lifespan uses `discover_all()` + `load_and_start()` with DB-driven installed IDs
+
+**REST API:**
+- `routes.py` — Added `POST /install`, `POST /uninstall` endpoints; updated enable (requires installed=True), updated list (shows all discovered with installed/enabled status), updated detail (includes parameters + parameter_values)
+
+**CLI:**
+- `cli.py` — Scans both system and user dirs; added `install/uninstall/enable/disable` commands (calls server API); moved pip extras to `adapter install/extras` subcommand; list/info show origin, category, comment
+
+**DT-CLIENT:**
+- `types/plugins.ts` — Added `ParameterSchema`, `PluginInstallRequest`, new fields on Summary/Detail
+- `api/plugins.ts` — Added `installPlugin()`, `uninstallPlugin()` API calls
+- `hooks/usePlugins.ts` — Added `useInstallPlugin()`, `useUninstallPlugin()` hooks
+- `PluginListPage.tsx` — Tabs for Available/Installed; install/uninstall/enable/disable actions per row
+- `PluginDetailPage.tsx` — Parameter input form for uninstalled plugins; read-only param view for installed; install/uninstall/enable/disable controls
+
+**Plugin Directories:**
+- Moved `example_plugin` and `file_drop_test_results` to `plugins/system/`
+- Created empty `plugins/user/` directory
+- Updated both manifests with `origin: system`, `category`, `comment` fields
+
+**Tests:**
+- Updated `test_plugin_framework.py` — Uses `discover_all()` + `load_and_start()` API
+- Updated `test_plugin_management.py` — New tests for validate_parameters, PluginInstallRequest, two-directory scanning, config_overrides merge
+- Fixed `test_file_drop_plugin.py` import path for new directory structure
+- **991 total tests passing** (984 → 991, +7 new tests)
+
+#### Plugin Lifecycle (New)
+```
+Available → Install (provide params) → Installed/Disabled → Enable → Running → Disable → Installed/Disabled → Uninstall → Available
+```
+
+#### Decision
+- **D036**: Plugin redesign — system/user directories, install lifecycle, manifest parameters, enhanced metadata
+
+#### Pending
+- Alembic migration for `plugin_config` table changes (`installed` bool, `parameter_values` JSONB columns)
+
+### Where We Stopped
+- Plugin redesign fully implemented across server, CLI, and DT-CLIENT.
+- **991 tests passing**, no regressions.
+- Alembic migration for the new DB columns still needed.
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

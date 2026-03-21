@@ -30,7 +30,7 @@ from httpx import ASGITransport, AsyncClient
 # can locate the plugins directory.
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "plugins" / "file_drop_test_results"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "plugins" / "system" / "file_drop_test_results"))
 
 from plugin import (  # type: ignore[import-not-found]  # noqa: E402
     FileDropTestResultsPlugin,

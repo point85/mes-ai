@@ -6,6 +6,7 @@ import api from "./client";
 import type {
   PluginSummary,
   PluginDetail,
+  PluginInstallRequest,
   PluginConfigUpdate,
   AdapterInfo,
   ApiResponse,
@@ -26,13 +27,22 @@ export async function fetchPlugin(pluginId: string): Promise<PluginDetail> {
   return data.data;
 }
 
-export async function updatePluginConfig(
+export async function installPlugin(
   pluginId: string,
-  body: PluginConfigUpdate,
+  body: PluginInstallRequest,
 ): Promise<Record<string, unknown>> {
-  const { data } = await api.put<ApiResponse<Record<string, unknown>>>(
-    `/plugins/${encodeURIComponent(pluginId)}/config`,
+  const { data } = await api.post<ApiResponse<Record<string, unknown>>>(
+    `/plugins/${encodeURIComponent(pluginId)}/install`,
     body,
+  );
+  return data.data;
+}
+
+export async function uninstallPlugin(
+  pluginId: string,
+): Promise<Record<string, unknown>> {
+  const { data } = await api.post<ApiResponse<Record<string, unknown>>>(
+    `/plugins/${encodeURIComponent(pluginId)}/uninstall`,
   );
   return data.data;
 }
@@ -47,6 +57,17 @@ export async function enablePlugin(pluginId: string): Promise<Record<string, unk
 export async function disablePlugin(pluginId: string): Promise<Record<string, unknown>> {
   const { data } = await api.post<ApiResponse<Record<string, unknown>>>(
     `/plugins/${encodeURIComponent(pluginId)}/disable`,
+  );
+  return data.data;
+}
+
+export async function updatePluginConfig(
+  pluginId: string,
+  body: PluginConfigUpdate,
+): Promise<Record<string, unknown>> {
+  const { data } = await api.put<ApiResponse<Record<string, unknown>>>(
+    `/plugins/${encodeURIComponent(pluginId)}/config`,
+    body,
   );
   return data.data;
 }

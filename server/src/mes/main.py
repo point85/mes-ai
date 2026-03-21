@@ -48,7 +48,7 @@ adapter_factory = AdapterFactory()
 async def lifespan(app: FastAPI):
     """
     Application lifespan handler.
-    Startup: register event handlers, discover/load/start plugins, seed default roles.
+    Startup: register event handlers, discover plugins, load installed+enabled, seed default roles.
     Shutdown: stop plugins, clean up.
     """
     logger.info("MES AI server starting (v%s)", settings.VERSION)
@@ -57,14 +57,18 @@ async def lifespan(app: FastAPI):
     for topic, handler in get_registered_handlers():
         event_bus.subscribe(topic, handler)
 
-    # Discover, load and start plugins
-    await plugin_manager.discover_and_load()
+    # Discover all plugins from system + user directories
+    await plugin_manager.discover_all()
+
+    # Determine which plugins are installed + enabled from DB
+    installed_ids = await _get_installed_enabled_plugin_ids()
+
+    # Load and start installed + enabled plugins
+    await plugin_manager.load_and_start(installed_ids)
 
     # Register plugin routes
     for router in await plugin_manager.get_plugin_routes():
         app.include_router(router)
-
-    await plugin_manager.start_all()
 
     # Connect integration adapters
     await adapter_factory.connect_all()
@@ -78,6 +82,27 @@ async def lifespan(app: FastAPI):
     await plugin_manager.stop_all()
     event_bus.clear()
     logger.info("MES AI server stopped")
+
+
+async def _get_installed_enabled_plugin_ids() -> set[str]:
+    """Query the DB for plugin_config rows where installed=True AND enabled=True."""
+    try:
+        from mes.framework.db import async_session_factory
+        from mes.framework.plugin.models import PluginConfig
+        from sqlalchemy import select
+
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(PluginConfig.plugin_id).where(
+                    PluginConfig.installed.is_(True),
+                    PluginConfig.enabled.is_(True),
+                    PluginConfig.is_active.is_(True),
+                )
+            )
+            return {row[0] for row in result.all()}
+    except Exception as exc:
+        logger.warning("Could not query plugin_config (DB may not be ready): %s", exc)
+        return set()
 
 
 def create_app() -> FastAPI:
