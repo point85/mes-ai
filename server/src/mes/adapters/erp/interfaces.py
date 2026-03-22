@@ -9,11 +9,9 @@ Per ARCHITECTURE.md §9.2.4.
 
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any
-
-from mes.adapters.base import BaseAdapter
 
 from .dtos import (
     BillOfMaterialDTO,
@@ -29,13 +27,28 @@ from .dtos import (
 )
 
 
-class ERPInboundAdapter(BaseAdapter):
+class ERPInboundAdapter(ABC):
     """
     Pulls data from ERP into MES.
 
     Each method syncs a category of master/transactional data.
     The ``since`` parameter enables incremental sync (only changes after that timestamp).
     """
+
+    @abstractmethod
+    async def connect(self) -> None:
+        """Establish connection to the ERP system."""
+        ...
+
+    @abstractmethod
+    async def disconnect(self) -> None:
+        """Gracefully close the ERP connection."""
+        ...
+
+    @abstractmethod
+    async def health_check(self) -> bool:
+        """Check if the adapter can communicate with the ERP system."""
+        ...
 
     @abstractmethod
     async def sync_production_orders(
@@ -78,13 +91,28 @@ class ERPInboundAdapter(BaseAdapter):
         ...
 
 
-class ERPOutboundAdapter(BaseAdapter):
+class ERPOutboundAdapter(ABC):
     """
     Pushes data from MES back to ERP.
 
     Each method sends a specific report type. All return an ERPConfirmation
     indicating whether the ERP accepted the data.
     """
+
+    @abstractmethod
+    async def connect(self) -> None:
+        """Establish connection to the ERP system."""
+        ...
+
+    @abstractmethod
+    async def disconnect(self) -> None:
+        """Gracefully close the ERP connection."""
+        ...
+
+    @abstractmethod
+    async def health_check(self) -> bool:
+        """Check if the adapter can communicate with the ERP system."""
+        ...
 
     @abstractmethod
     async def report_completion(

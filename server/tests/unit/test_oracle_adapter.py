@@ -6,7 +6,6 @@ Covers:
 - OracleSettings configuration defaults
 - OracleClient auth header construction
 - OracleInboundAdapter / OracleOutboundAdapter (with mocked HTTP)
-- Factory integration (oracle adapter type)
 """
 
 from __future__ import annotations
@@ -824,24 +823,3 @@ class TestOracleOutboundAdapter:
         assert result.erp_doc_number == "QR-001"
 
 
-# ═══════════════════════════════════════════════════════════════════
-# Factory integration
-# ═══════════════════════════════════════════════════════════════════
-
-
-class TestFactoryOracleAdapter:
-    def test_factory_creates_oracle_adapters(self):
-        with patch("mes.adapters.factory.settings") as mock_settings:
-            mock_settings.ERP_ADAPTER = "oracle"
-            mock_settings.EQUIP_ADAPTER = "none"
-            mock_settings.TEST_EQUIP_ADAPTER = "none"
-
-            from mes.adapters.factory import _create_erp_adapters
-            inbound, outbound = _create_erp_adapters()
-
-            from mes.adapters.erp.oracle.adapter import (
-                OracleInboundAdapter,
-                OracleOutboundAdapter,
-            )
-            assert isinstance(inbound, OracleInboundAdapter)
-            assert isinstance(outbound, OracleOutboundAdapter)

@@ -4,7 +4,7 @@ Unit tests for MQTT Equipment Adapter.
 All tests use mocking — no real MQTT broker is required.
 Tests cover: MQTTSettings, MQTTClient lifecycle, tag operations,
 payload encoding/decoding, MQTTEquipmentAdapter, state mapping,
-and AdapterFactory integration.
+and adapter plugin integration.
 """
 
 from __future__ import annotations
@@ -819,47 +819,6 @@ class TestEquipmentStateMapping:
         from mes.adapters.equipment.mqtt.adapter import _STATE_DISPATCH_MAP, _STATE_OEE_MAP
 
         assert set(_STATE_DISPATCH_MAP.keys()) == set(_STATE_OEE_MAP.keys())
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  AdapterFactory Integration
-# ═══════════════════════════════════════════════════════════════════════════
-
-class TestAdapterFactoryMQTT:
-    """Verify the factory creates the MQTT adapter."""
-
-    def test_mqtt_creates_adapter(self):
-        with patch("mes.adapters.factory.settings") as mock_settings:
-            mock_settings.EQUIP_ADAPTER = "mqtt"
-            from mes.adapters.factory import _create_equipment_adapter
-
-            adapter = _create_equipment_adapter()
-
-        from mes.adapters.equipment.mqtt.adapter import MQTTEquipmentAdapter
-
-        assert isinstance(adapter, MQTTEquipmentAdapter)
-
-    def test_mock_still_works(self):
-        with patch("mes.adapters.factory.settings") as mock_settings:
-            mock_settings.EQUIP_ADAPTER = "mock"
-            mock_settings.EQUIP_MOCK_LATENCY_MS = 0
-            mock_settings.EQUIP_MOCK_FAILURE_RATE = 0.0
-            from mes.adapters.factory import _create_equipment_adapter
-
-            adapter = _create_equipment_adapter()
-
-        from mes.adapters.equipment.mock_adapter import MockEquipmentAdapter
-
-        assert isinstance(adapter, MockEquipmentAdapter)
-
-    def test_none_returns_none(self):
-        with patch("mes.adapters.factory.settings") as mock_settings:
-            mock_settings.EQUIP_ADAPTER = "none"
-            from mes.adapters.factory import _create_equipment_adapter
-
-            adapter = _create_equipment_adapter()
-
-        assert adapter is None
 
 
 # ═══════════════════════════════════════════════════════════════════════════

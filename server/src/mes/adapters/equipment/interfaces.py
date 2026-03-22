@@ -9,22 +9,35 @@ Per ARCHITECTURE.md §9.3.2.
 
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
-
-from mes.adapters.base import BaseAdapter
 
 from .dtos import EquipmentState, SubscriptionHandle, TagInfo, TagValue
 
 
-class EquipmentAdapter(BaseAdapter):
+class EquipmentAdapter(ABC):
     """
     Abstract interface for direct equipment communication.
 
     Supports tag-based read/write/subscribe patterns used by
     OPC-UA, MQTT, Modbus, and REST-based equipment.
     """
+
+    @abstractmethod
+    async def connect(self) -> None:
+        """Establish connection to the equipment."""
+        ...
+
+    @abstractmethod
+    async def disconnect(self) -> None:
+        """Gracefully close the equipment connection."""
+        ...
+
+    @abstractmethod
+    async def health_check(self) -> bool:
+        """Check if the adapter can communicate with the equipment."""
+        ...
 
     @abstractmethod
     async def read_tag(self, tag_name: str) -> TagValue:
@@ -80,7 +93,7 @@ class EquipmentAdapter(BaseAdapter):
         ...
 
 
-class MOMEquipmentAdapter(BaseAdapter):
+class MOMEquipmentAdapter(ABC):
     """
     Abstract interface for equipment data via message-oriented middleware.
 
@@ -89,6 +102,21 @@ class MOMEquipmentAdapter(BaseAdapter):
 
     Per ARCHITECTURE.md §9.3.2.
     """
+
+    @abstractmethod
+    async def connect(self) -> None:
+        """Establish connection to the message broker."""
+        ...
+
+    @abstractmethod
+    async def disconnect(self) -> None:
+        """Gracefully close the broker connection."""
+        ...
+
+    @abstractmethod
+    async def health_check(self) -> bool:
+        """Check if the adapter can communicate with the broker."""
+        ...
 
     @abstractmethod
     async def subscribe_topic(

@@ -11,7 +11,7 @@ Tests cover:
 - OPCUAEquipmentAdapter interface mapping
 - _SubHandler data change notification dispatch
 - State → dispatch category / OEE bucket mapping
-- AdapterFactory integration (opcua creates OPCUAEquipmentAdapter)
+- AdapterPlugin wrapper (OPCUAEquipmentAdapter as plugin)
 
 All asyncua dependencies are mocked — no real OPC-UA server required.
 """
@@ -686,43 +686,3 @@ class TestEquipmentStateMapping:
         assert _STATE_OEE_MAP["setup"] == "uptime_non_value"
         assert _STATE_OEE_MAP["error"] == "downtime_unplanned"
         assert _STATE_OEE_MAP["stopped"] == "downtime_planned"
-
-
-# ═══════════════════════════════════════════════════════════════════
-# AdapterFactory Integration
-# ═══════════════════════════════════════════════════════════════════
-
-
-class TestAdapterFactoryOPCUA:
-    def test_opcua_creates_adapter(self):
-        with patch("mes.adapters.factory.settings") as mock_settings:
-            mock_settings.EQUIP_ADAPTER = "opcua"
-            mock_settings.EQUIP_MOCK_LATENCY_MS = 0
-            mock_settings.EQUIP_MOCK_FAILURE_RATE = 0.0
-
-            from mes.adapters.factory import _create_equipment_adapter
-            adapter = _create_equipment_adapter()
-
-        from mes.adapters.equipment.opcua.adapter import OPCUAEquipmentAdapter
-        assert isinstance(adapter, OPCUAEquipmentAdapter)
-
-    def test_mock_still_works(self):
-        with patch("mes.adapters.factory.settings") as mock_settings:
-            mock_settings.EQUIP_ADAPTER = "mock"
-            mock_settings.EQUIP_MOCK_LATENCY_MS = 0
-            mock_settings.EQUIP_MOCK_FAILURE_RATE = 0.0
-
-            from mes.adapters.factory import _create_equipment_adapter
-            adapter = _create_equipment_adapter()
-
-        from mes.adapters.equipment.mock_adapter import MockEquipmentAdapter
-        assert isinstance(adapter, MockEquipmentAdapter)
-
-    def test_none_returns_none(self):
-        with patch("mes.adapters.factory.settings") as mock_settings:
-            mock_settings.EQUIP_ADAPTER = "none"
-
-            from mes.adapters.factory import _create_equipment_adapter
-            adapter = _create_equipment_adapter()
-
-        assert adapter is None

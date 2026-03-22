@@ -1,0 +1,57 @@
+id: sap-s4hana-erp
+name: SAP S/4HANA ERP Adapter
+version: "1.0.0"
+description: >
+  SAP S/4HANA integration via OData V4 APIs.
+  Pulls production orders, materials, products, BOMs, routings, and work centers.
+  Pushes completion confirmations, goods movements, scrap, labor, and quality results.
+author: MES AI Contributors
+comment: >
+  Requires SAP S/4HANA Cloud or on-premise with OData V4 enabled.
+  Configure via MES_ERP_* and MES_SAP_* environment variables.
+  Install with: pip install mes-ai[sap]
+category: erp
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: base_url
+    type: string
+    description: SAP S/4HANA base URL (e.g. https://my-s4hana.example.com)
+    required: true
+  - name: auth_type
+    type: string
+    description: "Authentication type: oauth2, basic, or api_key"
+    required: false
+    default: oauth2
+  - name: client_id
+    type: string
+    description: OAuth2 client ID
+    required: false
+  - name: client_secret
+    type: string
+    description: OAuth2 client secret
+    required: false
+    secret: true
+  - name: plant
+    type: string
+    description: SAP plant code (Werk)
+    required: true
+    default: "1000"
+  - name: company_code
+    type: string
+    description: SAP company code (Buchungskreis)
+    required: false
+    default: "1000"
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: erp_inbound
+    name: sap_s4hana_inbound
+  - type: erp_outbound
+    name: sap_s4hana_outbound
+
+event_subscriptions: []
+dependencies: []

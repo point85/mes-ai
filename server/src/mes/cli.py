@@ -11,18 +11,12 @@ Server commands (calls REST API at MES_SERVER_URL):
     python -m mes.cli plugin uninstall <plugin_id>
     python -m mes.cli plugin enable <plugin_id>
     python -m mes.cli plugin disable <plugin_id>
-
-Adapter extras:
-    python -m mes.cli adapter install <extra>
-    python -m mes.cli adapter extras
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
-import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -49,20 +43,6 @@ def _discover_manifests() -> list[PluginManifest]:
                 except Exception as exc:
                     print(f"  WARNING: {candidate.name}: {exc}", file=sys.stderr)
     return manifests
-
-
-EXTRAS_CATALOG = {
-    "opcua": "OPC-UA equipment adapter (asyncua)",
-    "mqtt": "MQTT equipment adapter (aiomqtt)",
-    "sap": "SAP S/4HANA ERP adapter (pyrfc)",
-    "oracle": "Oracle Cloud ERP adapter (oracledb)",
-    "modbus": "Modbus TCP equipment adapter (pymodbus)",
-    "kafka": "Kafka event bus transport (aiokafka)",
-    "nats": "NATS event bus transport (nats-py)",
-    "rabbitmq": "RabbitMQ event bus transport (aio-pika)",
-    "redis": "Redis cache/transport (redis)",
-    "all": "Install all optional adapter dependencies",
-}
 
 
 def cmd_list(_args: argparse.Namespace) -> None:
@@ -191,61 +171,6 @@ def _api_post(url: str, body: bytes, success_msg: str) -> None:
         sys.exit(1)
 
 
-def cmd_adapter_install(args: argparse.Namespace) -> None:
-    """Install an adapter extra via pip."""
-    extra = args.extra
-    if extra not in EXTRAS_CATALOG:
-        print(f"Unknown extra '{extra}'. Available extras:")
-        for name, desc in EXTRAS_CATALOG.items():
-            installed = _is_installed(name)
-            status = "installed" if installed else "not installed"
-            print(f"  {name:<12} {desc} [{status}]")
-        sys.exit(1)
-
-    print(f"Installing mes-ai[{extra}] ...")
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", f"mes-ai[{extra}]"],
-        capture_output=False,
-    )
-    sys.exit(result.returncode)
-
-
-def cmd_adapter_extras(_args: argparse.Namespace) -> None:
-    """List available pip extras and their installation status."""
-    print(f"{'Extra':<12} {'Installed':<12} {'Description'}")
-    print("-" * 70)
-    for name, desc in EXTRAS_CATALOG.items():
-        if name == "all":
-            continue
-        installed = "yes" if _is_installed(name) else "no"
-        print(f"{name:<12} {installed:<12} {desc}")
-
-
-_EXTRA_CHECK_MODULES = {
-    "opcua": "asyncua",
-    "mqtt": "aiomqtt",
-    "sap": "pyrfc",
-    "oracle": "oracledb",
-    "modbus": "pymodbus",
-    "kafka": "aiokafka",
-    "nats": "nats",
-    "rabbitmq": "aio_pika",
-    "redis": "redis",
-}
-
-
-def _is_installed(extra: str) -> bool:
-    """Check if the package(s) for a given extra are importable."""
-    module_name = _EXTRA_CHECK_MODULES.get(extra)
-    if module_name is None:
-        return False
-    try:
-        importlib.import_module(module_name)
-        return True
-    except ImportError:
-        return False
-
-
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="mes",
@@ -282,15 +207,6 @@ def main(argv: list[str] | None = None) -> None:
     disable_p = plugin_sub.add_parser("disable", help="Disable a plugin (requires server)")
     disable_p.add_argument("plugin_id", help="Plugin ID")
 
-    # ── adapter sub-commands ──
-    adapter_parser = sub.add_parser("adapter", help="Adapter dependency management")
-    adapter_sub = adapter_parser.add_subparsers(dest="adapter_cmd")
-
-    adapter_install_p = adapter_sub.add_parser("install", help="Install an adapter extra via pip")
-    adapter_install_p.add_argument("extra", help="Extra name (e.g. opcua, sap, oracle)")
-
-    adapter_sub.add_parser("extras", help="List available pip extras")
-
     args = parser.parse_args(argv)
 
     if args.command == "plugin":
@@ -306,16 +222,6 @@ def main(argv: list[str] | None = None) -> None:
         handler = handlers.get(args.plugin_cmd)
         if handler is None:
             plugin_parser.print_help()
-            sys.exit(1)
-        handler(args)
-    elif args.command == "adapter":
-        handlers = {
-            "install": cmd_adapter_install,
-            "extras": cmd_adapter_extras,
-        }
-        handler = handlers.get(args.adapter_cmd)
-        if handler is None:
-            adapter_parser.print_help()
             sys.exit(1)
         handler(args)
     else:

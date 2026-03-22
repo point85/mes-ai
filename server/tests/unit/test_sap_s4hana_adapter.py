@@ -6,7 +6,6 @@ Covers:
 - SAPSettings configuration defaults
 - SAPS4HANAClient auth header construction
 - SAPS4HANAInboundAdapter / SAPS4HANAOutboundAdapter (with mocked HTTP)
-- Factory integration (sap_s4hana adapter type)
 """
 
 from __future__ import annotations
@@ -771,26 +770,3 @@ class TestSAPOutboundAdapter:
         )
         assert result.success is True
         assert result.erp_doc_number == "IL-001"
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Factory integration
-# ═══════════════════════════════════════════════════════════════════
-
-
-class TestFactorySAPAdapter:
-    def test_factory_creates_sap_adapters(self):
-        with patch("mes.adapters.factory.settings") as mock_settings:
-            mock_settings.ERP_ADAPTER = "sap_s4hana"
-            mock_settings.EQUIP_ADAPTER = "none"
-            mock_settings.TEST_EQUIP_ADAPTER = "none"
-
-            from mes.adapters.factory import _create_erp_adapters
-            inbound, outbound = _create_erp_adapters()
-
-        from mes.adapters.erp.sap_s4hana.adapter import (
-            SAPS4HANAInboundAdapter,
-            SAPS4HANAOutboundAdapter,
-        )
-        assert isinstance(inbound, SAPS4HANAInboundAdapter)
-        assert isinstance(outbound, SAPS4HANAOutboundAdapter)

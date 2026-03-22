@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-03-20",
-  "lastSessionId": "S019",
+  "lastUpdated": "2026-03-21",
+  "lastSessionId": "S020",
 
   "phases": [
     {
@@ -84,7 +84,7 @@
         },
         {
           "id": "T4.5",
-          "name": "AdapterFactory with config-driven instantiation and lifecycle",
+          "name": "Adapter-plugin unification: adapters managed as plugins via PluginManager",
           "status": "complete"
         },
         {
@@ -147,7 +147,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters). P5 DT-CLIENT editors complete. Plugin system redesigned: two-directory structure (system/user), full lifecycle (available→installed→enabled/disabled→uninstalled), manifest parameters (required/optional/secret), REST API with install/uninstall/enable/disable endpoints, CLI commands, DT-CLIENT UI with Available/Installed tabs and parameter forms. 991 unit tests passing. Alembic migration needed for plugin_config table changes. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Modbus equipment, D365 ERP, Infor M3 ERP).",
+  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters). P5 DT-CLIENT editors complete. Plugin system redesigned: two-directory structure (system/user), full lifecycle (available→installed→enabled/disabled→uninstalled), manifest parameters (required/optional/secret), REST API with install/uninstall/enable/disable endpoints, CLI commands, DT-CLIENT UI with Available/Installed tabs and parameter forms. S020: Unified adapter-plugin architecture — AdapterFactory removed, BaseAdapter removed, all adapters are now plugins managed by PluginManager. 7 adapter plugin wrappers created (mock_erp, mock_equipment, mock_test_equipment, sap_s4hana_erp, oracle_cloud_erp, opcua_equipment, mqtt_equipment). 983 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Modbus equipment, D365 ERP, Infor M3 ERP).",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -396,6 +396,12 @@
       "date": "2026-03-20",
       "decision": "Plugin system redesign: two directories (plugins/system for contributors, plugins/user for end users), DB-driven install lifecycle (available→installed→enabled→disabled→uninstalled), manifest parameters (ManifestParameter: name, type, description, required, default, secret), enhanced metadata (comment, category, origin, author). Parameter values provided at install time, validated before enabling. REST API: install/uninstall/enable/disable/config endpoints. CLI: offline list/search/info + server-backed install/uninstall/enable/disable. DT-CLIENT: Available/Installed tabs, parameter input form on install/detail pages.",
       "rationale": "Original plugin system auto-loaded all plugins with no install/uninstall lifecycle, no parameter declaration, and no system/user distinction. Redesign enables end users to add custom plugins to a separate directory, configure parameters at install time, and manage lifecycle through UI or CLI without modifying plugin code."
+    },
+    {
+      "id": "D037",
+      "date": "2026-03-21",
+      "decision": "Unified adapter-plugin architecture: AdapterFactory and BaseAdapter removed. Every adapter is now a plugin (manifest.yaml + plugin.py in plugins/system/). PluginManager exclusively manages adapter lifecycle (discovery, install, enable, start, stop). 3 new extension point types added (erp_inbound, erp_outbound, test_equipment). Adapter interfaces remain as standalone ABCs in adapters/ with connect/disconnect/health_check methods. Plugin wrappers use composition: plugin wraps adapter class, handles lifecycle, delegates operations. Config env vars for adapter selection removed; adapter choice is now plugin install/enable. Catalog endpoint dynamically generated from discovered adapter plugins. CLI adapter subcommands removed.",
+      "rationale": "Two separate lifecycle management systems (AdapterFactory vs PluginManager) created duplication, configuration confusion (env vars vs manifest parameters), and split the extension model. Unifying means one lifecycle (plugin lifecycle), one config mechanism (manifest parameters + DB), one management interface (plugin REST API / CLI / DT-CLIENT UI), and one discovery mechanism (manifest.yaml scanning). Vendor adapter implementation code stays in adapters/ as importable libraries — only the lifecycle wrapper moves to plugins/system/."
     }
   ],
 

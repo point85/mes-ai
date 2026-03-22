@@ -8,17 +8,31 @@ Per ARCHITECTURE.md §9.4.
 
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 
-from mes.adapters.base import BaseAdapter
 from mes.adapters.equipment.dtos import SubscriptionHandle
 
 from .dtos import TestResultDTO
 
 
-class TestEquipmentAdapter(BaseAdapter):
+class TestEquipmentAdapter(ABC):
     """Abstract interface for test equipment data collection."""
+
+    @abstractmethod
+    async def connect(self) -> None:
+        """Establish connection to the test equipment."""
+        ...
+
+    @abstractmethod
+    async def disconnect(self) -> None:
+        """Gracefully close the test equipment connection."""
+        ...
+
+    @abstractmethod
+    async def health_check(self) -> bool:
+        """Check if the adapter can communicate with the test equipment."""
+        ...
 
     @abstractmethod
     async def get_test_result(self, test_id: str) -> TestResultDTO:

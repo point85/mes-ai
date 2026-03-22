@@ -26,6 +26,9 @@ class ExtensionPointType(str, Enum):
     REPORT_GENERATOR = "report_generator"
     EQUIPMENT_DRIVER = "equipment_driver"
     EQUIPMENT_STATE_MODEL = "equipment_state_model"
+    ERP_INBOUND = "erp_inbound"
+    ERP_OUTBOUND = "erp_outbound"
+    TEST_EQUIPMENT = "test_equipment"
 
 
 class MESPlugin(ABC):
@@ -84,5 +87,25 @@ class MESPlugin(ABC):
                 "wip.unit.completed": self.on_unit_completed,
                 "equipment.state.changed": self.on_state_change,
             }
+        """
+        return None
+
+    async def health_check(self) -> bool:
+        """
+        Check if the plugin can communicate with its external system.
+        Override this for adapter plugins that connect to external services.
+        Default returns True (healthy) for non-adapter plugins.
+        """
+        return True
+
+    def get_adapter(self) -> Any:
+        """
+        Return the adapter interface instance(s) this plugin provides.
+
+        For single-adapter plugins (e.g. equipment), return the adapter instance.
+        For multi-adapter plugins (e.g. ERP with inbound + outbound), return a dict:
+            {"erp_inbound": inbound_instance, "erp_outbound": outbound_instance}
+
+        Returns None for non-adapter plugins.
         """
         return None

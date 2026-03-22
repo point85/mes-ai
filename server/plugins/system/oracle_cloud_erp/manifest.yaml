@@ -1,0 +1,52 @@
+id: oracle-cloud-erp
+name: Oracle Cloud ERP Adapter
+version: "1.0.0"
+description: >
+  Oracle Cloud ERP (Fusion) integration via REST APIs.
+  Pulls work orders, items, products, BOMs, routings, and work centers.
+  Pushes completions, material transactions, scrap, labor, and quality results.
+author: MES AI Contributors
+comment: >
+  Requires Oracle Cloud ERP with REST APIs enabled.
+  Configure via MES_ERP_* and MES_ORACLE_* environment variables.
+  Install with: pip install mes-ai[oracle]
+category: erp
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: base_url
+    type: string
+    description: Oracle Cloud ERP base URL
+    required: true
+  - name: auth_type
+    type: string
+    description: "Authentication type: oauth2, basic, or api_key"
+    required: false
+    default: oauth2
+  - name: client_id
+    type: string
+    description: OAuth2 client ID (IDCS)
+    required: false
+  - name: client_secret
+    type: string
+    description: OAuth2 client secret
+    required: false
+    secret: true
+  - name: organization_code
+    type: string
+    description: Oracle manufacturing organization code
+    required: true
+    default: "M1"
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: erp_inbound
+    name: oracle_erp_inbound
+  - type: erp_outbound
+    name: oracle_erp_outbound
+
+event_subscriptions: []
+dependencies: []

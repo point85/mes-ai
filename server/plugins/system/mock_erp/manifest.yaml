@@ -1,0 +1,36 @@
+id: mock-erp
+name: Mock ERP Adapter
+version: "1.0.0"
+description: >
+  In-memory mock ERP adapter for development and testing.
+  Loads fixture data from JSON files (production orders, materials, products).
+  Outbound reports are stored in memory for inspection.
+author: MES AI Contributors
+comment: Use this adapter when no real ERP is available. Ideal for development and automated testing.
+category: erp
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: latency_ms
+    type: integer
+    description: Simulated latency per API call in milliseconds
+    required: false
+    default: 0
+  - name: failure_rate
+    type: number
+    description: Probability of simulated failures (0.0 to 1.0)
+    required: false
+    default: 0.0
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: erp_inbound
+    name: mock_erp_inbound
+  - type: erp_outbound
+    name: mock_erp_outbound
+
+event_subscriptions: []
+dependencies: []

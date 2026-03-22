@@ -381,3 +381,61 @@ class PluginManager:
             if param.required and param.name not in parameter_values:
                 errors.append(f"Required parameter '{param.name}' is missing")
         return errors
+
+    # ── Adapter Access ────────────────────────────────────────────────
+
+    def get_adapter_by_type(self, adapter_type: str) -> Any:
+        """
+        Find the running plugin that provides the given adapter extension point
+        type and return its adapter instance.
+
+        Args:
+            adapter_type: Extension point type (e.g. "erp_inbound", "equipment_driver").
+
+        Returns:
+            The adapter instance, or None if no running plugin provides it.
+        """
+        for info in self._plugins.values():
+            if not info.is_running or info.instance is None:
+                continue
+            for ep in info.manifest.extension_points:
+                if ep.type == adapter_type:
+                    adapter = info.instance.get_adapter()
+                    if isinstance(adapter, dict):
+                        return adapter.get(adapter_type)
+                    return adapter
+        return None
+
+    def get_adapter_plugin(self, adapter_type: str) -> "PluginInfo | None":
+        """
+        Find the running plugin that provides the given adapter type.
+
+        Returns:
+            PluginInfo for the adapter plugin, or None.
+        """
+        for info in self._plugins.values():
+            if not info.is_running or info.instance is None:
+                continue
+            for ep in info.manifest.extension_points:
+                if ep.type == adapter_type:
+                    return info
+        return None
+
+    async def adapter_health(self) -> dict[str, bool]:
+        """Check health of all running adapter plugins."""
+        results: dict[str, bool] = {}
+        adapter_types = {
+            "erp_inbound", "erp_outbound", "equipment_driver", "test_equipment",
+        }
+        for info in self._plugins.values():
+            if not info.is_running or info.instance is None:
+                continue
+            has_adapter = any(
+                ep.type in adapter_types for ep in info.manifest.extension_points
+            )
+            if has_adapter:
+                try:
+                    results[info.manifest.id] = await info.instance.health_check()
+                except Exception:
+                    results[info.manifest.id] = False
+        return results

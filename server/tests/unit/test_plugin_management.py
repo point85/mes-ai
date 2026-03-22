@@ -272,16 +272,6 @@ class TestCLI:
         with pytest.raises(SystemExit):
             cmd_info(argparse.Namespace(plugin_id="nonexistent"))
 
-    def test_extras_list(self, capsys):
-        from mes.cli import cmd_adapter_extras
-        import argparse
-        cmd_adapter_extras(argparse.Namespace())
-        out = capsys.readouterr().out
-        assert "opcua" in out
-        assert "mqtt" in out
-        assert "sap" in out
-        assert "oracle" in out
-
     def test_main_parser_help(self):
         from mes.cli import main
         with pytest.raises(SystemExit) as exc:
@@ -289,38 +279,38 @@ class TestCLI:
         assert exc.value.code == 0
 
 
-# ─── Adapter-to-Plugin Bridge Tests ───────────────────────────────────
+# ─── Adapter Resolution via PluginManager ─────────────────────────────
 
 
 class TestAdapterPluginBridge:
-    def test_find_plugin_adapter_returns_instance(self):
+    def test_get_adapter_by_type_returns_adapter(self):
         manifest = _make_manifest(
             id="modbus-driver",
             extension_points=[{"type": "equipment_driver", "name": "modbus"}],
         )
-        instance = DummyPlugin()
+
+        class _AdapterPlugin(MESPlugin):
+            async def initialize(self, config: dict) -> None: pass
+            async def start(self) -> None: pass
+            async def stop(self) -> None: pass
+            def get_adapter(self):
+                return self  # Return itself as the "adapter"
+
+        instance = _AdapterPlugin()
         info = PluginInfo(manifest=manifest, path=Path("/tmp"), instance=instance)
         info.is_loaded = True
         info.is_running = True
 
-        mock_manager = MagicMock()
-        mock_manager.plugins = {"modbus-driver": info}
+        mgr = PluginManager()
+        mgr._plugins["modbus-driver"] = info
 
-        with patch("mes.adapters.factory.plugin_manager", mock_manager, create=True):
-            from mes.adapters.factory import _find_plugin_adapter
-            # Patch the import inside the function
-            with patch("mes.main.plugin_manager", mock_manager):
-                result = _find_plugin_adapter("modbus", "equipment_driver")
-                assert result is instance
+        result = mgr.get_adapter_by_type("equipment_driver")
+        assert result is instance
 
-    def test_find_plugin_adapter_returns_none(self):
-        mock_manager = MagicMock()
-        mock_manager.plugins = {}
-
-        with patch("mes.main.plugin_manager", mock_manager):
-            from mes.adapters.factory import _find_plugin_adapter
-            result = _find_plugin_adapter("unknown", "equipment_driver")
-            assert result is None
+    def test_get_adapter_by_type_returns_none_when_no_match(self):
+        mgr = PluginManager()
+        result = mgr.get_adapter_by_type("equipment_driver")
+        assert result is None
 
 
 # ─── REST API Tests (using httpx + TestClient pattern) ────────────────
@@ -365,21 +355,33 @@ class TestPluginRoutes:
 
     @pytest.mark.asyncio
     async def test_catalog_endpoint(self):
-        manager = PluginManager()
-        app = _build_test_app(manager)
+        """Catalog is dynamically generated from adapter plugins."""
+        mgr = PluginManager()
 
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/plugins/catalog")
-            assert resp.status_code == 200
-            body = resp.json()
-            assert isinstance(body["data"], list)
-            assert len(body["data"]) > 0
-            # Every entry should have required fields
-            for entry in body["data"]:
-                assert "type" in entry
-                assert "category" in entry
-                assert "is_installed" in entry
+        # Register a fake adapter plugin so catalog is non-empty
+        manifest = _make_manifest(
+            id="mock-erp",
+            extension_points=[{"type": "erp_inbound", "name": "mock"}],
+        )
+        instance = DummyPlugin()
+        info = PluginInfo(manifest=manifest, path=Path("/tmp"), instance=instance)
+        info.is_loaded = True
+        info.is_running = True
+        mgr._plugins["mock-erp"] = info
+
+        app = _build_test_app(mgr)
+
+        with patch("mes.main.plugin_manager", mgr):
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.get("/api/v1/plugins/catalog")
+                assert resp.status_code == 200
+                body = resp.json()
+                assert isinstance(body["data"], list)
+                assert len(body["data"]) == 1
+                entry = body["data"][0]
+                assert entry["type"] == "mock-erp"
+                assert entry["category"] == "erp"
 
 
 # ─── PluginManager Extended Tests ─────────────────────────────────────

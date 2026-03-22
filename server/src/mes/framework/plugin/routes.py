@@ -11,12 +11,11 @@ Endpoints:
     POST  /api/v1/plugins/{plugin_id}/enable      — Enable an installed plugin
     POST  /api/v1/plugins/{plugin_id}/disable     — Disable a running plugin
     PUT   /api/v1/plugins/{plugin_id}/config      — Update plugin config overrides
-    GET   /api/v1/plugins/catalog                 — List available adapter types
+    GET   /api/v1/plugins/catalog                 — List available adapter plugins
 """
 
 from __future__ import annotations
 
-import importlib
 import logging
 from typing import Any
 
@@ -42,71 +41,10 @@ logger = logging.getLogger("mes.plugin.routes")
 
 router = APIRouter(prefix="/api/v1/plugins", tags=["Plugins"])
 
-
-# ─── Adapter catalog ─────────────────────────────────────────────────
-
-ADAPTER_CATALOG: list[dict[str, Any]] = [
-    {
-        "type": "mock",
-        "category": "erp",
-        "description": "In-memory mock ERP adapter for testing",
-        "install_extra": None,
-        "check_import": None,
-    },
-    {
-        "type": "sap_s4hana",
-        "category": "erp",
-        "description": "SAP S/4HANA integration via RFC/OData",
-        "install_extra": "sap",
-        "check_import": "pyrfc",
-    },
-    {
-        "type": "oracle",
-        "category": "erp",
-        "description": "Oracle Cloud ERP integration via REST",
-        "install_extra": "oracle",
-        "check_import": "oracledb",
-    },
-    {
-        "type": "mock",
-        "category": "equipment",
-        "description": "In-memory mock equipment adapter for testing",
-        "install_extra": None,
-        "check_import": None,
-    },
-    {
-        "type": "opcua",
-        "category": "equipment",
-        "description": "OPC-UA equipment integration",
-        "install_extra": "opcua",
-        "check_import": "asyncua",
-    },
-    {
-        "type": "mqtt",
-        "category": "equipment",
-        "description": "MQTT equipment integration",
-        "install_extra": "mqtt",
-        "check_import": "aiomqtt",
-    },
-    {
-        "type": "modbus",
-        "category": "equipment",
-        "description": "Modbus TCP equipment integration",
-        "install_extra": "modbus",
-        "check_import": "pymodbus",
-    },
-]
-
-
-def _is_importable(module_name: str | None) -> bool:
-    """Check if a Python module can be imported without side effects."""
-    if module_name is None:
-        return True
-    try:
-        importlib.import_module(module_name)
-        return True
-    except ImportError:
-        return False
+# Adapter extension-point types used to identify adapter plugins in the catalog.
+_ADAPTER_EP_TYPES = frozenset({
+    "erp_inbound", "erp_outbound", "equipment_driver", "test_equipment",
+})
 
 
 # ─── Helper: get or create DB config row for a plugin ─────────────────
@@ -141,16 +79,28 @@ async def _get_or_create_plugin_config(
 
 @router.get("/catalog")
 async def list_adapter_catalog():
-    """List all available adapter types and whether their dependencies are installed."""
+    """List all discovered adapter plugins and their status."""
+    from mes.main import plugin_manager
+
     items = []
-    for entry in ADAPTER_CATALOG:
+    for plugin_id, info in plugin_manager.plugins.items():
+        ep_types = {ep.type for ep in info.manifest.extension_points}
+        if not ep_types & _ADAPTER_EP_TYPES:
+            continue
+        # Derive category from extension point types
+        if ep_types & {"erp_inbound", "erp_outbound"}:
+            category = "erp"
+        elif "test_equipment" in ep_types:
+            category = "test_equipment"
+        else:
+            category = "equipment"
         items.append(
             AdapterInfo(
-                type=entry["type"],
-                category=entry["category"],
-                description=entry["description"],
-                install_extra=entry["install_extra"],
-                is_installed=_is_importable(entry["check_import"]),
+                type=info.manifest.id,
+                category=category,
+                description=info.manifest.description or info.manifest.name,
+                install_extra=None,
+                is_installed=info.is_loaded,
             ).model_dump()
         )
     return list_response(items)

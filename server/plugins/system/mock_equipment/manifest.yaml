@@ -1,0 +1,43 @@
+id: mock-equipment
+name: Mock Equipment Adapter
+version: "1.0.0"
+description: >
+  In-memory mock equipment adapter for development and testing.
+  Simulates tag reads/writes with configurable noise, latency, and failure rate.
+author: MES AI Contributors
+comment: Use this adapter when no real equipment is available. Ideal for development and automated testing.
+category: equipment
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: equipment_id
+    type: string
+    description: Equipment identifier for this mock instance
+    required: false
+    default: MOCK-EQUIP-01
+  - name: latency_ms
+    type: integer
+    description: Simulated latency per operation in milliseconds
+    required: false
+    default: 0
+  - name: failure_rate
+    type: number
+    description: Probability of simulated failures (0.0 to 1.0)
+    required: false
+    default: 0.0
+  - name: noise_stddev
+    type: number
+    description: Standard deviation of noise added to numeric tag reads
+    required: false
+    default: 0.1
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: equipment_driver
+    name: mock_equipment
+
+event_subscriptions: []
+dependencies: []

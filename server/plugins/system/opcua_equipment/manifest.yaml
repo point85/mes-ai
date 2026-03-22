@@ -1,0 +1,62 @@
+id: opcua-equipment
+name: OPC-UA Equipment Adapter
+version: "1.0.0"
+description: >
+  OPC-UA equipment integration using asyncua library.
+  Supports tag read/write, subscriptions, address space browsing,
+  and equipment state monitoring.
+author: MES AI Contributors
+comment: >
+  Requires asyncua library. Install with: pip install mes-ai[opcua]
+  Configure via MES_EQUIP_OPCUA_* environment variables.
+category: equipment
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: endpoint_url
+    type: string
+    description: OPC-UA server endpoint (e.g. opc.tcp://plc-01:4840)
+    required: true
+  - name: namespace_index
+    type: integer
+    description: Default namespace index for tag resolution
+    required: false
+    default: 2
+  - name: equipment_id
+    type: string
+    description: Equipment identifier for state tracking
+    required: true
+  - name: state_tag
+    type: string
+    description: Tag name to read for equipment state (e.g. ns=2;s=MachineState)
+    required: false
+  - name: security_mode
+    type: string
+    description: "Security mode: none, sign, or sign_and_encrypt"
+    required: false
+    default: none
+  - name: auth_type
+    type: string
+    description: "Authentication: anonymous, username, or certificate"
+    required: false
+    default: anonymous
+  - name: username
+    type: string
+    description: Username for username authentication
+    required: false
+  - name: password
+    type: string
+    description: Password for username authentication
+    required: false
+    secret: true
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: equipment_driver
+    name: opcua_equipment
+
+event_subscriptions: []
+dependencies: []

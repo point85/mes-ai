@@ -1533,3 +1533,81 @@ Available → Install (provide params) → Installed/Disabled → Enable → Run
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S020 — Unified Adapter-Plugin Architecture
+
+**Date:** 2026-03-21
+**Agent:** Claude Opus 4.6 (GitHub Copilot)
+**Branch:** main
+
+### Objective
+Unify the adapter and plugin designs into a single architecture where every adapter is a plugin managed by PluginManager.
+
+### What We Did
+
+1. **Research**: Analyzed both architectures — AdapterFactory (env-var based, hardcoded switch statements) vs PluginManager (manifest-driven discovery, DB-backed install lifecycle).
+
+2. **Design**: Chose composition pattern — plugin wraps adapter class. Vendor code stays in `adapters/` as importable libraries. Plugin wrappers in `plugins/system/` handle lifecycle via MESPlugin.
+
+3. **Plugin framework updates**:
+   - `framework/plugin/base.py`: Added 3 extension point types (erp_inbound, erp_outbound, test_equipment), added `health_check()` and `get_adapter()` methods to MESPlugin
+   - `framework/plugin/manager.py`: Added `get_adapter_by_type()`, `get_adapter_plugin()`, `adapter_health()` methods
+
+4. **Adapter interface updates**:
+   - Removed `BaseAdapter` inheritance from all 3 interface files (ERP, Equipment, TestEquipment)
+   - Made them standalone ABCs with `connect/disconnect/health_check` as direct abstract methods
+
+5. **Created 7 adapter plugin wrappers** (14 new files in `plugins/system/`):
+   - `mock_erp`, `mock_equipment`, `mock_test_equipment`
+   - `sap_s4hana_erp`, `oracle_cloud_erp`
+   - `opcua_equipment`, `mqtt_equipment`
+
+6. **Removed old infrastructure**:
+   - `adapters/factory.py` → moved to `.bak`
+   - `adapters/base.py` → moved to `.bak`
+   - Removed all adapter env vars from `config.py` (ERP_ADAPTER, EQUIP_ADAPTER, TEST_EQUIP_ADAPTER, etc.)
+
+7. **Updated main.py**: Removed AdapterFactory import/singleton, removed `connect_all()/disconnect_all()` from lifespan, updated health endpoint to use `plugin_manager.adapter_health()`
+
+8. **Updated plugin routes**: Replaced hardcoded `ADAPTER_CATALOG` list with dynamic generation from discovered adapter plugins
+
+9. **Updated CLI**: Removed `adapter install/extras` subcommands (adapters are now plugins managed via `plugin install/enable`)
+
+10. **Fixed tests**:
+    - Rewrote `test_adapter_factory.py` to test `get_adapter_by_type()`, `get_adapter_plugin()`, `adapter_health()`
+    - Removed factory integration test classes from vendor adapter tests
+    - Fixed `test_plugin_management.py`: replaced `_find_plugin_adapter` tests, updated catalog endpoint
+    - Updated `test_plugin_framework.py`: added 3 new extension point types to expected set
+
+#### Files Created
+| File | Purpose |
+|---|---|
+| `plugins/system/mock_erp/manifest.yaml` + `plugin.py` | Mock ERP adapter plugin |
+| `plugins/system/mock_equipment/manifest.yaml` + `plugin.py` | Mock equipment adapter plugin |
+| `plugins/system/mock_test_equipment/manifest.yaml` + `plugin.py` | Mock test equipment adapter plugin |
+| `plugins/system/sap_s4hana_erp/manifest.yaml` + `plugin.py` | SAP S/4HANA ERP adapter plugin |
+| `plugins/system/oracle_cloud_erp/manifest.yaml` + `plugin.py` | Oracle Cloud ERP adapter plugin |
+| `plugins/system/opcua_equipment/manifest.yaml` + `plugin.py` | OPC-UA equipment adapter plugin |
+| `plugins/system/mqtt_equipment/manifest.yaml` + `plugin.py` | MQTT equipment adapter plugin |
+
+#### Files Removed (.bak)
+| File | Reason |
+|---|---|
+| `adapters/factory.py` | AdapterFactory replaced by PluginManager |
+| `adapters/base.py` | BaseAdapter replaced by standalone ABCs |
+
+#### Decision
+- **D037**: Unified adapter-plugin architecture — one lifecycle, one config, one management interface
+
+#### Test Results
+- **983 tests passing** (8 removed: factory integration tests for deleted code)
+
+### Where We Stopped
+- Unified architecture fully implemented across server, CLI, and DT-CLIENT.
+- **983 tests passing**, no regressions.
+- `.bak` files (`factory.py.bak`, `base.py.bak`) can be permanently deleted.
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

@@ -1,0 +1,33 @@
+id: mock-test-equipment
+name: Mock Test Equipment Adapter
+version: "1.0.0"
+description: >
+  In-memory mock test equipment adapter for development and testing.
+  Generates simulated test results with configurable pass rate and measurement ranges.
+author: MES AI Contributors
+comment: Use this adapter when no real test equipment is available.
+category: test-equipment
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: equipment_id
+    type: string
+    description: Equipment identifier for this mock instance
+    required: false
+    default: MOCK-TEST-01
+  - name: pass_rate
+    type: number
+    description: Probability of test passing (0.0 to 1.0)
+    required: false
+    default: 0.9
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: test_equipment
+    name: mock_test_equipment
+
+event_subscriptions: []
+dependencies: []

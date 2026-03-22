@@ -1,0 +1,67 @@
+id: mqtt-equipment
+name: MQTT Equipment Adapter
+version: "1.0.0"
+description: >
+  MQTT equipment integration using aiomqtt library.
+  Pub/sub-based tag reads via local cache, retained message writes,
+  event-driven subscriptions, and equipment state monitoring.
+author: MES AI Contributors
+comment: >
+  Requires aiomqtt library. Install with: pip install mes-ai[mqtt]
+  Configure via MES_EQUIP_MQTT_* environment variables.
+category: equipment
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: broker_host
+    type: string
+    description: MQTT broker hostname
+    required: true
+  - name: broker_port
+    type: integer
+    description: MQTT broker port
+    required: false
+    default: 1883
+  - name: topic_prefix
+    type: string
+    description: Topic prefix for equipment tags (e.g. mes/equipment)
+    required: false
+    default: mes/equipment
+  - name: equipment_id
+    type: string
+    description: Equipment identifier for state tracking
+    required: true
+  - name: state_topic
+    type: string
+    description: Topic for equipment state updates
+    required: false
+  - name: username
+    type: string
+    description: MQTT username for authentication
+    required: false
+  - name: password
+    type: string
+    description: MQTT password for authentication
+    required: false
+    secret: true
+  - name: use_tls
+    type: boolean
+    description: Whether to use TLS encryption
+    required: false
+    default: false
+  - name: qos
+    type: integer
+    description: MQTT Quality of Service level (0, 1, or 2)
+    required: false
+    default: 1
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: equipment_driver
+    name: mqtt_equipment
+
+event_subscriptions: []
+dependencies: []

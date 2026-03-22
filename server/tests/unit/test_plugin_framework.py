@@ -129,6 +129,9 @@ class TestExtensionPointType:
             "report_generator",
             "equipment_driver",
             "equipment_state_model",
+            "erp_inbound",
+            "erp_outbound",
+            "test_equipment",
         }
         actual = {e.value for e in ExtensionPointType}
         assert actual == expected
