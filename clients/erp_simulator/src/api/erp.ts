@@ -1,0 +1,192 @@
+import api from "./client";
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
+export interface ERPHealth {
+  inbound: { available: boolean; plugin_id: string | null; healthy: boolean };
+  outbound: { available: boolean; plugin_id: string | null; healthy: boolean };
+}
+
+export interface ProductionOrder {
+  erp_reference: string;
+  product_code: string;
+  quantity_ordered: number;
+  planned_start: string | null;
+  planned_end: string | null;
+  priority: number;
+  uom: string;
+  bom_id: string | null;
+  routing_id: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface MaterialDefinition {
+  code: string;
+  name: string;
+  material_type: string;
+  uom: string;
+  description: string;
+  shelf_life_days: number | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface ProductDefinition {
+  code: string;
+  name: string;
+  product_type: string;
+  version: string;
+  description: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface BOMItem {
+  material_code: string;
+  quantity: number;
+  uom: string;
+  sequence: number;
+}
+
+export interface BillOfMaterial {
+  product_code: string;
+  version: string;
+  items: BOMItem[];
+  metadata: Record<string, unknown>;
+}
+
+export interface RouteStep {
+  sequence: number;
+  name: string;
+  step_type: string;
+  work_center_code: string | null;
+  description: string;
+}
+
+export interface ProcessRoute {
+  product_code: string;
+  name: string;
+  version: string;
+  steps: RouteStep[];
+  metadata: Record<string, unknown>;
+}
+
+export interface WorkCenter {
+  code: string;
+  name: string;
+  area_code: string | null;
+  capabilities: Record<string, unknown>;
+}
+
+export interface ERPConfirmation {
+  success: boolean;
+  erp_doc_number: string | null;
+  message: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface ConfirmationRecord {
+  type: string;
+  sap_document: string;
+  order_id: string;
+  posted_at: string;
+  sap_payload: Record<string, unknown>;
+}
+
+// ── Envelope unwrap helper ────────────────────────────────────────────────
+
+function unwrapData<T>(resp: { data: { data: T } }): T {
+  return resp.data.data;
+}
+
+// ── Health ─────────────────────────────────────────────────────────────────
+
+export async function getERPHealth(): Promise<ERPHealth> {
+  return unwrapData(await api.get("/erp/health"));
+}
+
+// ── Inbound Sync ──────────────────────────────────────────────────────────
+
+export async function syncProductionOrders(): Promise<ProductionOrder[]> {
+  return unwrapData(await api.post("/erp/sync/production-orders"));
+}
+
+export async function syncMaterials(): Promise<MaterialDefinition[]> {
+  return unwrapData(await api.post("/erp/sync/materials"));
+}
+
+export async function syncProducts(): Promise<ProductDefinition[]> {
+  return unwrapData(await api.post("/erp/sync/products"));
+}
+
+export async function syncBoms(productId: string): Promise<BillOfMaterial[]> {
+  return unwrapData(
+    await api.post("/erp/sync/boms", null, { params: { product_id: productId } })
+  );
+}
+
+export async function syncRoutings(productId: string): Promise<ProcessRoute[]> {
+  return unwrapData(
+    await api.post("/erp/sync/routings", null, {
+      params: { product_id: productId },
+    })
+  );
+}
+
+export async function syncWorkCenters(): Promise<WorkCenter[]> {
+  return unwrapData(await api.post("/erp/sync/work-centers"));
+}
+
+// ── Outbound Reports ──────────────────────────────────────────────────────
+
+export async function reportCompletion(data: {
+  order_id: string;
+  qty_good: number;
+  qty_reject: number;
+  step_id?: string;
+}): Promise<ERPConfirmation> {
+  return unwrapData(await api.post("/erp/report/completion", data));
+}
+
+export async function reportConsumption(data: {
+  order_id: string;
+  materials: { material_code: string; quantity: number; uom: string; lot_number?: string }[];
+}): Promise<ERPConfirmation> {
+  return unwrapData(await api.post("/erp/report/consumption", data));
+}
+
+export async function reportScrap(data: {
+  order_id: string;
+  qty_scrapped: number;
+  reason_code: string;
+}): Promise<ERPConfirmation> {
+  return unwrapData(await api.post("/erp/report/scrap", data));
+}
+
+export async function reportLabor(data: {
+  order_id: string;
+  operator_id: string;
+  duration_minutes: number;
+}): Promise<ERPConfirmation> {
+  return unwrapData(await api.post("/erp/report/labor", data));
+}
+
+export async function reportDowntime(data: {
+  equipment_id: string;
+  duration_minutes: number;
+  reason_code: string;
+  started_at: string;
+}): Promise<ERPConfirmation> {
+  return unwrapData(await api.post("/erp/report/downtime", data));
+}
+
+export async function reportQualityResult(data: {
+  order_id: string;
+  test_id: string;
+  result: string;
+  details: Record<string, unknown>;
+}): Promise<ERPConfirmation> {
+  return unwrapData(await api.post("/erp/report/quality-result", data));
+}
+
+export async function getConfirmations(): Promise<ConfirmationRecord[]> {
+  return unwrapData(await api.get("/erp/confirmations"));
+}

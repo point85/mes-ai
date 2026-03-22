@@ -1611,3 +1611,73 @@ Unify the adapter and plugin designs into a single architecture where every adap
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S021 — 2026-03-22
+
+**Phase**: P4 (Integration Adapters) + P5 (Client Implementations)
+**Objective**: SAP ERP Simulator plugin (55 tests) + ERP Simulator GUI client + ERP REST API endpoints
+
+### What Happened
+
+#### 1. SAP ERP Simulator — Test Fixes
+- Fixed async fixture pattern in `test_sap_erp_simulator.py`: replaced `@pytest.fixture(autouse=True) async def setup()` with sync `def adapter()` returning adapter object, `await adapter.connect()` inline in each test
+- Fixed material count assertion (20 materials, not 19)
+- **55 tests pass**, full suite **1038 tests pass**
+
+#### 2. ERP REST API Endpoints (13 new)
+Extended `server/src/mes/adapters/erp/routes.py` from 3 queue-only endpoints to 16 total:
+- `GET /api/v1/erp/health` — checks inbound/outbound adapter availability
+- 6 inbound sync: `POST /api/v1/erp/sync/{production-orders,materials,products,boms,routings,work-centers}`
+- 6 outbound report: `POST /api/v1/erp/report/{completion,consumption,scrap,labor,downtime,quality-result}`
+- `GET /api/v1/erp/confirmations` — lists all SAP confirmation documents
+
+Pydantic request schemas: CompletionRequest, ConsumptionRequest, ScrapRequest, LaborRequest, DowntimeRequest, QualityResultRequest, SyncRequest
+
+Helper functions `_get_erp_inbound()` / `_get_erp_outbound()` use `plugin_manager.get_adapter_by_type()`, raise HTTP 503 if no adapter available.
+
+#### 3. ERP Simulator GUI Client
+Standalone React+Vite application at `clients/erp_simulator/` (port 5174, separate from DT-CLIENT on 5173):
+
+| Component | Description |
+|---|---|
+| `package.json` | React 19, Vite 8, Tailwind 4, axios, TypeScript 5.9 |
+| `vite.config.ts` | Port 5174, proxy `/api` → `localhost:8000` |
+| `src/api/erp.ts` | TypeScript interfaces for all DTOs + API functions for all 16 endpoints |
+| `src/components/Layout.tsx` | Collapsible sidebar with Inbound/Outbound sections, 14 navigation tabs |
+| `src/components/DataTable.tsx` | Generic typed table component |
+| `src/components/StatusBadge.tsx` | Green/red health indicator |
+| `src/pages/DashboardPage.tsx` | Adapter health check with StatusBadge |
+| `src/pages/OrdersPage.tsx` | Sync production orders, 9-column table |
+| `src/pages/MaterialsPage.tsx` | Sync materials, 7-column table |
+| `src/pages/ProductsPage.tsx` | Sync products, 5-column table |
+| `src/pages/BOMsPage.tsx` | Product selector + BOM sync, nested item tables |
+| `src/pages/RoutingsPage.tsx` | Product selector + routing sync, color-coded step types |
+| `src/pages/WorkCentersPage.tsx` | Sync work centers, 4-column table |
+| `src/pages/CompletionPage.tsx` | Report form: order, qty_good, qty_reject, operation |
+| `src/pages/ConsumptionPage.tsx` | Report form: order + dynamic material lines (add/remove) |
+| `src/pages/ScrapPage.tsx` | Report form: order, qty_scrapped, reason_code |
+| `src/pages/LaborPage.tsx` | Report form: order, operator, duration |
+| `src/pages/DowntimePage.tsx` | Report form: equipment, duration, reason, started_at |
+| `src/pages/QualityPage.tsx` | Report form: order, test_id, result (PASS/FAIL/CONDITIONAL), JSON details |
+| `src/pages/ConfirmationsPage.tsx` | Fetches all SAP confirmations, displays in DataTable with expandable payload |
+| `src/App.tsx` | Root component with tab state, maps TabId → page component |
+
+#### Decisions
+- **D038**: SAP ERP Simulator plugin — realistic mock SAP environment (55 tests)
+- **D039**: ERP Simulator GUI — standalone client for ERP integration operations
+
+#### Test Results
+- **1038 tests passing** (55 new SAP ERP simulator tests)
+- TypeScript: zero errors (`npx tsc -b --noEmit`)
+- Vite build: 85 modules, 264KB JS + 16KB CSS
+
+### Where We Stopped
+- SAP ERP Simulator plugin fully implemented and tested
+- ERP Simulator GUI client fully built and building cleanly
+- 13 new REST API endpoints for ERP operations
+- **1038 unit tests passing**, no regressions
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

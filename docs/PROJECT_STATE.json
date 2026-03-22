@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-03-21",
+  "lastUpdated": "2026-03-22",
   "lastSessionId": "S020",
 
   "phases": [
@@ -111,6 +111,11 @@
           "id": "T4.10",
           "name": "Oracle Cloud ERP vendor adapter (config, client, transform, adapter, 60 tests)",
           "status": "complete"
+        },
+        {
+          "id": "T4.11",
+          "name": "SAP ERP Simulator plugin (realistic SAP S/4HANA mock with 20 materials, 3 products, 5 orders, 55 tests)",
+          "status": "complete"
         }
       ]
     },
@@ -134,6 +139,16 @@
           "id": "T5.3",
           "name": "Plugin Management: REST API, CLI, DB config, adapter bridge, DT-CLIENT UI",
           "status": "complete"
+        },
+        {
+          "id": "T5.4",
+          "name": "ERP Simulator GUI: standalone React+Vite client (port 5174) for SAP ERP inbound sync & outbound reporting",
+          "status": "complete"
+        },
+        {
+          "id": "T5.5",
+          "name": "ERP REST API endpoints: 13 new endpoints for sync, report, health, confirmations",
+          "status": "complete"
         }
       ]
     },
@@ -147,7 +162,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters). P5 DT-CLIENT editors complete. Plugin system redesigned: two-directory structure (system/user), full lifecycle (available→installed→enabled/disabled→uninstalled), manifest parameters (required/optional/secret), REST API with install/uninstall/enable/disable endpoints, CLI commands, DT-CLIENT UI with Available/Installed tabs and parameter forms. S020: Unified adapter-plugin architecture — AdapterFactory removed, BaseAdapter removed, all adapters are now plugins managed by PluginManager. 7 adapter plugin wrappers created (mock_erp, mock_equipment, mock_test_equipment, sap_s4hana_erp, oracle_cloud_erp, opcua_equipment, mqtt_equipment). 983 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters (Modbus equipment, D365 ERP, Infor M3 ERP).",
+  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters + SAP ERP Simulator). P5 DT-CLIENT editors complete. Plugin system redesigned: two-directory structure (system/user), full lifecycle (available→installed→enabled/disabled→uninstalled), manifest parameters (required/optional/secret), REST API with install/uninstall/enable/disable endpoints, CLI commands, DT-CLIENT UI with Available/Installed tabs and parameter forms. S020: Unified adapter-plugin architecture — AdapterFactory removed, BaseAdapter removed, all adapters are now plugins managed by PluginManager. 7 adapter plugin wrappers created. S021: SAP ERP Simulator plugin (55 tests). ERP Simulator GUI client (React+Vite, port 5174) with dashboard, 6 inbound sync pages, 6 outbound report pages, confirmations viewer. 13 new ERP REST API endpoints. 1038 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -177,6 +192,8 @@
       "PLUGIN-FW":     { "name": "Plugin Framework",               "phase": "P3", "status": "implemented" },
       "PLUGIN-MGMT":   { "name": "Plugin Management (API/CLI/UI)", "phase": "P5", "status": "implemented" },
       "EXAMPLE-PLUGIN": { "name": "File-Drop Test Results Example Plugin", "phase": "P5", "status": "implemented" },
+      "SAP-SIMULATOR": { "name": "SAP ERP Simulator Plugin",         "phase": "P4", "status": "implemented" },
+      "ERP-SIM-GUI":   { "name": "ERP Simulator GUI Client",         "phase": "P5", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },
@@ -402,6 +419,18 @@
       "date": "2026-03-21",
       "decision": "Unified adapter-plugin architecture: AdapterFactory and BaseAdapter removed. Every adapter is now a plugin (manifest.yaml + plugin.py in plugins/system/). PluginManager exclusively manages adapter lifecycle (discovery, install, enable, start, stop). 3 new extension point types added (erp_inbound, erp_outbound, test_equipment). Adapter interfaces remain as standalone ABCs in adapters/ with connect/disconnect/health_check methods. Plugin wrappers use composition: plugin wraps adapter class, handles lifecycle, delegates operations. Config env vars for adapter selection removed; adapter choice is now plugin install/enable. Catalog endpoint dynamically generated from discovered adapter plugins. CLI adapter subcommands removed.",
       "rationale": "Two separate lifecycle management systems (AdapterFactory vs PluginManager) created duplication, configuration confusion (env vars vs manifest parameters), and split the extension model. Unifying means one lifecycle (plugin lifecycle), one config mechanism (manifest parameters + DB), one management interface (plugin REST API / CLI / DT-CLIENT UI), and one discovery mechanism (manifest.yaml scanning). Vendor adapter implementation code stays in adapters/ as importable libraries — only the lifecycle wrapper moves to plugins/system/."
+    },
+    {
+      "id": "D038",
+      "date": "2026-03-22",
+      "decision": "SAP ERP Simulator plugin: realistic mock SAP S/4HANA environment in plugins/system/sap_erp_simulator/ (5 source files). SAPDataCatalog provides 20 materials, 3 products with BOMs/routings, 5 production orders, 4 work centers — all with realistic SAP field names and numbering conventions. SAPTransformLayer handles bidirectional SAP↔MES DTO conversion. SAPSimulatorOutbound generates SAP-style document numbers per type (confirmation=49x, goods movement=50x, scrap=53x, labor=CAT-, downtime=PM-, quality=QM-). 55 unit tests.",
+      "rationale": "No real SAP system available during development. Realistic simulator enables end-to-end testing of the full ERP integration path (inbound sync + outbound reporting + confirmation tracking) without SAP connectivity. Same data catalog shared by inbound and outbound ensures consistency."
+    },
+    {
+      "id": "D039",
+      "date": "2026-03-22",
+      "decision": "ERP Simulator GUI: standalone React+Vite client at clients/erp_simulator/ (port 5174, separate from DT-CLIENT on 5173). Dashboard with adapter health check, 6 inbound sync pages (orders, materials, products, BOMs, routings, work centers), 6 outbound report pages (completion, consumption, scrap, labor, downtime, quality), confirmations viewer. 13 new REST API endpoints added to server/src/mes/adapters/erp/routes.py.",
+      "rationale": "GUI provides visual interface for manually triggering and inspecting ERP integration operations. Separate app avoids coupling with DT-CLIENT. New REST endpoints expose adapter operations (sync/report) that were previously only available programmatically via plugin manager."
     }
   ],
 
