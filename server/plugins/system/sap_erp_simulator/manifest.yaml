@@ -1,0 +1,53 @@
+id: sap-erp-simulator
+name: SAP ERP Simulator
+version: "1.0.0"
+description: >
+  Realistic SAP S/4HANA ERP simulator for development and integration testing.
+  Generates SAP-authentic OData V4 messages using real SAP field names (AUFNR,
+  MATNR, WERKS, ARBPL, STLNR, etc.) and transforms them through the
+  SAPS4HANATransformLayer.  Inbound: materials, BOMs, production orders,
+  routings, work centers.  Outbound: accepts completion confirmations,
+  consumption/goods-movement reports, scrap, labor, downtime, and quality
+  results — returns SAP-style document numbers.
+author: MES AI Contributors
+comment: >
+  Use this plugin when developing or testing the MES without a live SAP system.
+  Unlike the generic mock-erp plugin, this simulator produces data in native
+  SAP OData V4 format and exercises the full SAPS4HANATransformLayer pipeline.
+category: erp
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: plant
+    type: string
+    description: SAP plant code (Werk)
+    required: false
+    default: "1000"
+  - name: company_code
+    type: string
+    description: SAP company code (Buchungskreis)
+    required: false
+    default: "1000"
+  - name: latency_ms
+    type: integer
+    description: Simulated OData API latency in milliseconds per call
+    required: false
+    default: 0
+  - name: failure_rate
+    type: number
+    description: Probability of simulated SAP RFC/OData errors (0.0 to 1.0)
+    required: false
+    default: 0.0
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: erp_inbound
+    name: sap_erp_simulator_inbound
+  - type: erp_outbound
+    name: sap_erp_simulator_outbound
+
+event_subscriptions: []
+dependencies: []
