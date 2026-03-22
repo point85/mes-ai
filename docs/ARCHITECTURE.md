@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 2 Complete** — fully populated with technology stack, data model, API design, plugin framework, event bus, and integration adapter specifications.
+> Current status: **Phase 4 In Progress** — unified adapter-plugin architecture (D037), 983 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -43,11 +43,20 @@ An open-source Manufacturing Execution System (MES) framework with a plugin arch
 │  │ Event Bus       │  │ REST API     │  │ Auth            │   │
 │  │ (EVENT-BUS)     │  │ (REST-API)   │  │ (AUTH)          │   │
 │  └────────────────┘  └──────────────┘  └─────────────────┘   │
-│  ┌────────────────┐  ┌──────────────┐  ┌─────────────────┐   │
-│  │ Data Layer      │  │ ERP Adapter  │  │ Equipment       │   │
-│  │ (Multi-RDBMS)   │  │ (ERP-*)      │  │ Adapter         │   │
-│  └────────────────┘  └──────────────┘  └─────────────────┘   │
+│  ┌────────────────┐  ┌──────────────────────────────────────┐   │
+│  │ Data Layer      │  │ Adapters (ERP / Equipment / Test)     │   │
+│  │ (Multi-RDBMS)   │  │ managed as Plugins (see §9.1)        │   │
+│  └────────────────┘  └──────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────┘
+
+> **Architectural Decision D037 — Unified Adapter-Plugin Architecture:**
+> All integration adapters (ERP, equipment, test equipment) are managed as
+> plugins through the Plugin Framework. There is no separate `AdapterFactory`
+> or `BaseAdapter` class. Adapter libraries live in `adapters/` as importable
+> Python code; thin plugin wrappers in `plugins/system/` handle lifecycle,
+> configuration, and health checks via the `MESPlugin` ABC. The `PluginManager`
+> is the single entry point for adapter discovery, configuration, and runtime
+> management. See §7 and §9.1 for details.
 ```
 
 ## 3. Technology Stack
@@ -251,10 +260,31 @@ mes_ai/
 │   │
 │   ├── plugins/                       # Plugin directories
 │   │   ├── system/                    # Plugins by project contributors
-│   │   │   ├── example_plugin/
+│   │   │   ├── example_plugin/        # General plugin example
 │   │   │   │   ├── manifest.yaml
 │   │   │   │   └── plugin.py
-│   │   │   └── file_drop_test_results/
+│   │   │   ├── file_drop_test_results/
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── mock_erp/             # Mock ERP adapter plugin (dev/test)
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── mock_equipment/       # Mock equipment adapter plugin (dev/test)
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── mock_test_equipment/  # Mock test equipment adapter plugin (dev/test)
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── sap_s4hana_erp/       # SAP S/4HANA ERP adapter plugin
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── oracle_cloud_erp/     # Oracle Cloud ERP adapter plugin
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── opcua_equipment/      # OPC-UA equipment adapter plugin
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   └── mqtt_equipment/       # MQTT equipment adapter plugin
 │   │   │       ├── manifest.yaml
 │   │   │       └── plugin.py
 │   │   └── user/                      # End-user plugins (copied here)
@@ -2289,7 +2319,28 @@ class MESPlugin(ABC):
     def get_event_handlers(self) -> dict[str, callable] | None:
         """Return mapping of event_type -> handler, or None."""
         return None
+
+    async def health_check(self) -> bool:
+        """Check if the plugin can communicate with its external system.
+        Override for adapter plugins that connect to external services.
+        Default returns True (healthy) for non-adapter plugins."""
+        return True
+
+    def get_adapter(self) -> Any:
+        """Return the adapter interface instance(s) this plugin provides.
+
+        For single-adapter plugins (e.g. equipment), return the adapter instance.
+        For multi-adapter plugins (e.g. ERP with inbound + outbound), return a dict:
+            {"erp_inbound": inbound_instance, "erp_outbound": outbound_instance}
+
+        Returns None for non-adapter plugins."""
+        return None
 ```
+
+> **Decision D037 — Unified Adapter-Plugin Architecture:** The `health_check()` and
+> `get_adapter()` methods were added as part of the adapter unification (S020). Every
+> integration adapter is now a plugin. There is no separate `BaseAdapter` or `AdapterFactory`.
+> The `PluginManager` is the single manager for all adapters. See §9.1 for the full design.
 
 ### 7.5 Plugin Lifecycle
 
@@ -2342,6 +2393,23 @@ CREATE TABLE plugin_config (
 
 ### 7.7 Extension Points
 
+Extension points define the categories of functionality a plugin can provide. Each plugin declares its extension points in `manifest.yaml`. The `ExtensionPointType` enum in code defines the complete set:
+
+```python
+class ExtensionPointType(str, Enum):
+    DISPATCH_STRATEGY    = "dispatch_strategy"
+    OPERATION_HOOK       = "operation_hook"
+    REST_ENDPOINT        = "rest_endpoint"
+    EVENT_HANDLER        = "event_handler"
+    DATA_PROCESSOR       = "data_processor"
+    REPORT_GENERATOR     = "report_generator"
+    EQUIPMENT_DRIVER     = "equipment_driver"
+    EQUIPMENT_STATE_MODEL = "equipment_state_model"
+    ERP_INBOUND          = "erp_inbound"
+    ERP_OUTBOUND         = "erp_outbound"
+    TEST_EQUIPMENT       = "test_equipment"
+```
+
 | Type | Description | Example |
 |---|---|---|
 | **dispatch_strategy** | Custom dispatching algorithm for unit/lot routing | Multi-criteria optimizer, priority-based, load-balanced |
@@ -2350,8 +2418,13 @@ CREATE TABLE plugin_config (
 | **event_handler** | React to system events | Send notification on quality failure, Update external system |
 | **data_processor** | Transform/validate collected data points | Unit conversion, outlier detection, SPC calculation |
 | **report_generator** | Custom report definitions | Shift summary, quality trends, yield analysis |
-| **equipment_driver** | Custom equipment communication protocol | Proprietary PLC protocol, custom sensor interface |
+| **equipment_driver** | Equipment communication protocol adapter | OPC-UA, MQTT, Modbus, custom protocols |
 | **equipment_state_model** | Equipment state machine definition (states, transitions, dispatch/OEE mappings). **Only one active at a time.** | PackML (ISA-TR88), SEMI E10/E58, OEE/TPM |
+| **erp_inbound** | ERP-to-MES data synchronization adapter | SAP S/4HANA inbound, Oracle Cloud inbound, mock ERP |
+| **erp_outbound** | MES-to-ERP reporting adapter | SAP S/4HANA outbound, Oracle Cloud outbound, mock ERP |
+| **test_equipment** | Test equipment data collection adapter | File-drop CSV results, REST-based test equipment |
+
+**Adapter extension point types** (`erp_inbound`, `erp_outbound`, `equipment_driver`, `test_equipment`) identify plugins that wrap integration adapters. The `PluginManager` uses these types to locate adapter instances at runtime via `get_adapter_by_type()` (see §9.1).
 
 ### 7.8 Plugin Isolation
 
@@ -2371,9 +2444,194 @@ mes plugin install <plugin-id>   # Install via REST API (prompts for required pa
 mes plugin uninstall <plugin-id> # Uninstall via REST API
 mes plugin enable <plugin-id>    # Enable an installed plugin
 mes plugin disable <plugin-id>   # Disable a running plugin
-mes adapter install <extras>     # Install pip extras (e.g. mqtt, oracle)
-mes adapter extras               # List available pip extra groups
 ```
+
+> **Note (D037):** The previous `mes adapter install` and `mes adapter extras` subcommands
+> have been removed. Adapter pip extras (e.g., `opcua`, `mqtt`, `oracle`) are now installed
+> directly via `pip install mes-ai[opcua]`. Adapters are managed exclusively through the
+> plugin commands above.
+
+### 7.10 Plugin Metadata Contract Enforcement
+
+The plugin contract is enforced at **two layers**: Pydantic validation (manifest metadata) and Python ABC enforcement (lifecycle methods).
+
+#### Layer 1: Pydantic Manifest Validation
+
+When a plugin directory is discovered, its `manifest.yaml` is parsed and validated by the `PluginManifest` Pydantic model. Any field that fails validation (missing required `id`, `name`, `version`; invalid types; malformed extension points) raises `pydantic.ValidationError` and the plugin is rejected at discovery time — it never reaches the loading stage.
+
+```python
+class PluginManifest(BaseModel):
+    id: str               # Required — unique plugin identifier
+    name: str             # Required — display name
+    version: str          # Required — semver string
+    description: str = ""
+    author: str = ""
+    comment: str = ""
+    category: str = "general"
+    origin: str = "user"
+    min_mes_version: str = "0.1.0"
+    parameters: list[ManifestParameter] = []
+    permissions: list[ManifestPermission] = []
+    extension_points: list[ManifestExtensionPoint] = []
+    event_subscriptions: list[str] = []
+    dependencies: list[str] = []
+    config_schema: dict[str, Any] = {}
+```
+
+#### Layer 2: ABC Enforcement (MESPlugin)
+
+When a plugin is loaded (enabled), the `PluginManager`:
+
+1. Imports the plugin's `plugin.py` module
+2. Scans for a class that subclasses `MESPlugin`
+3. Instantiates it — Python's ABC enforcement prevents instantiation of classes that have not implemented all abstract methods (`initialize`, `start`, `stop`)
+4. Calls `initialize(config)` with the resolved configuration
+5. Calls `start()` to begin operation
+
+If any step fails, the plugin is marked with an error and remains unloaded. The server continues operating.
+
+#### Parameter Validation at Install Time
+
+Before a plugin can be enabled, **required parameters** must be provided. The `validate_parameters()` method checks:
+
+```python
+def validate_parameters(self, manifest: PluginManifest, parameter_values: dict) -> list[str]:
+    errors = []
+    for param in manifest.parameters:
+        if param.required and param.name not in parameter_values:
+            errors.append(f"Required parameter '{param.name}' is missing")
+    return errors
+```
+
+If any required parameters are missing, the install/enable request is rejected with the list of errors.
+
+#### Config Resolution Pipeline
+
+Plugin configuration is resolved through a **priority merge pipeline** (highest priority wins):
+
+```
+1. Parameter defaults (from manifest.yaml → ManifestParameter.default)
+2. config_schema defaults (from manifest.yaml → config_schema.properties.*.default)
+3. parameter_values (provided at install time via REST/CLI/UI, persisted in DB JSONB)
+4. config_overrides (runtime changes via PUT /plugins/{id}/config, persisted in DB JSONB)
+```
+
+```python
+async def resolve_config_with_overrides(
+    self, manifest: PluginManifest,
+    parameter_values: dict[str, Any],
+    config_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    config = self._resolve_config(manifest)   # defaults from manifest
+    config.update(parameter_values)            # user-provided install values
+    if config_overrides:
+        config.update(config_overrides)        # runtime overrides
+    return config
+```
+
+The resolved config dict is what gets passed to `MESPlugin.initialize(config)`.
+
+#### Persistence
+
+Plugin state is persisted in the `plugin_config` database table (§7.6). The `parameter_values` and `config_overrides` are stored as JSONB columns, surviving server restarts. On each startup, the server queries `plugin_config` for rows with `installed=True AND enabled=True` and loads those plugins with their persisted configuration.
+
+### 7.11 Adapter Plugins — Composition Pattern
+
+Integration adapters (ERP, equipment, test equipment) are implemented as plugins using a **composition pattern**: the plugin wraps the adapter library code from `adapters/` and delegates to it.
+
+#### Architecture
+
+```
+                    PluginManager                  Plugin Wrapper              Adapter Library
+                    ─────────────                  ──────────────              ───────────────
+discover_all() ──▶  manifest.yaml    ──────────▶  plugin.py (MESPlugin)  ──▶  adapters/erp/*.py
+enable_plugin() ──▶  initialize()     ──────────▶  create adapter instance     (vendor API code)
+                     start()          ──────────▶  adapter.connect()
+                     stop()           ──────────▶  adapter.disconnect()
+                     health_check()   ──────────▶  adapter.health_check()
+                     get_adapter()    ──────────▶  return adapter instance
+```
+
+**The adapter library** (e.g., `mes.adapters.erp.mock_adapter`) contains the vendor-specific integration logic — HTTP calls, OPC-UA connections, data transformations. It has no knowledge of the plugin framework.
+
+**The plugin wrapper** (e.g., `plugins/system/mock_erp/plugin.py`) implements `MESPlugin`, creates adapter instances in `initialize()`, and exposes them via `get_adapter()`.
+
+#### Example: Mock ERP Adapter Plugin
+
+**manifest.yaml:**
+```yaml
+id: mock-erp
+name: Mock ERP Adapter
+version: "1.0.0"
+category: erp
+origin: system
+
+parameters:
+  - name: latency_ms
+    type: integer
+    description: Simulated latency per API call in milliseconds
+    required: false
+    default: 0
+  - name: failure_rate
+    type: number
+    description: Probability of simulated failures (0.0 to 1.0)
+    required: false
+    default: 0.0
+
+extension_points:
+  - type: erp_inbound
+    name: mock_erp_inbound
+  - type: erp_outbound
+    name: mock_erp_outbound
+```
+
+**plugin.py:**
+```python
+from mes.adapters.erp.mock_adapter import MockERPInboundAdapter, MockERPOutboundAdapter
+from mes.framework.plugin import MESPlugin
+
+class MockERPPlugin(MESPlugin):
+    def __init__(self):
+        self._inbound = None
+        self._outbound = None
+
+    async def initialize(self, config):
+        self._inbound = MockERPInboundAdapter(
+            latency_ms=config.get("latency_ms", 0),
+            failure_rate=config.get("failure_rate", 0.0),
+        )
+        self._outbound = MockERPOutboundAdapter(
+            latency_ms=config.get("latency_ms", 0),
+            failure_rate=config.get("failure_rate", 0.0),
+        )
+
+    async def start(self):
+        await self._inbound.connect()
+        await self._outbound.connect()
+
+    async def stop(self):
+        await self._inbound.disconnect()
+        await self._outbound.disconnect()
+
+    async def health_check(self):
+        return (await self._inbound.health_check() and
+                await self._outbound.health_check())
+
+    def get_adapter(self):
+        return {"erp_inbound": self._inbound, "erp_outbound": self._outbound}
+```
+
+#### Current Adapter Plugins
+
+| Plugin ID | Category | Extension Points | Wraps |
+|---|---|---|---|
+| `mock-erp` | erp | `erp_inbound`, `erp_outbound` | `adapters.erp.mock_adapter` |
+| `mock-equipment` | equipment | `equipment_driver` | `adapters.equipment.mock_adapter` |
+| `mock-test-equipment` | test-equipment | `test_equipment` | `adapters.test_equipment.mock_adapter` |
+| `sap-s4hana-erp` | erp | `erp_inbound`, `erp_outbound` | `adapters.erp.sap_s4hana` |
+| `oracle-cloud-erp` | erp | `erp_inbound`, `erp_outbound` | `adapters.erp.oracle_cloud` |
+| `opcua-equipment` | equipment | `equipment_driver` | `adapters.equipment.opcua_adapter` |
+| `mqtt-equipment` | equipment | `equipment_driver` | `adapters.equipment.mqtt_adapter` |
 
 ## 8. Event Bus (EVENT-BUS)
 
@@ -2482,23 +2740,85 @@ MES_ACTIVEMQ_PORT=61613       # STOMP port
 
 ## 9. Integration Adapters
 
-### 9.1 Adapter Architecture
+### 9.1 Adapter Architecture (Unified with Plugin Framework — D037)
 
-All integration adapters implement a common abstract interface. Each adapter type has a mock implementation for testing and development.
+> **Architectural Decision D037:** All integration adapters are managed through the Plugin
+> Framework. There is no separate `BaseAdapter` class or `AdapterFactory`. Adapter libraries
+> remain in `adapters/` as importable Python packages; thin plugin wrappers in
+> `plugins/system/` implement `MESPlugin` and handle lifecycle. The `PluginManager` is the
+> single entry point for adapter discovery, configuration, health checks, and runtime access.
+
+#### Terminology
+
+| Term | Definition |
+|---|---|
+| **Plugin** | The user-facing management unit. Has a `manifest.yaml`, a `plugin.py`, and is installed/enabled/disabled through the REST API, CLI, or DT-CLIENT. |
+| **Adapter** | The implementation library. Contains vendor-specific integration code (HTTP calls, OPC-UA connections, data transformations). Lives in `src/mes/adapters/`. No knowledge of the plugin framework. |
+| **Plugin wraps Adapter** | A plugin's `plugin.py` creates adapter instances in `initialize()`, calls `connect()`/`disconnect()` in `start()`/`stop()`, and exposes instances via `get_adapter()`. |
+
+#### No Separate Factory
+
+Before D037, an `AdapterFactory` singleton selected adapters at startup based on environment variables (`MES_ERP_ADAPTER=sap_s4hana`, `MES_EQUIP_ADAPTER=opcua`). This created two parallel management systems — one for plugins, one for adapters — with separate configuration, lifecycle, and health check mechanisms.
+
+After D037, the `PluginManager` handles everything:
+
+```
+Before (two systems):                        After (unified):
+───────────────────                          ────────────────
+AdapterFactory                               PluginManager
+  ├── connect_all()                            ├── discover_all()
+  ├── disconnect_all()                         ├── load_and_start()
+  └── health_check()                           ├── stop_all()
+                                               ├── get_adapter_by_type()
+PluginManager                                  ├── get_adapter_plugin()
+  ├── discover_all()                           ├── adapter_health()
+  ├── load_and_start()                         └── enable_plugin() / disable_plugin()
+  └── stop_all()
+```
+
+#### Adapter Access at Runtime
+
+Core modules that need an adapter instance call `PluginManager` methods:
 
 ```python
-class BaseAdapter(ABC):
-    """Base for all integration adapters."""
+# Get the ERP inbound adapter (returns the adapter interface instance)
+erp_inbound = plugin_manager.get_adapter_by_type("erp_inbound")
+if erp_inbound:
+    orders = await erp_inbound.sync_production_orders()
 
-    @abstractmethod
-    async def connect(self) -> None: ...
+# Get the equipment driver adapter
+equipment = plugin_manager.get_adapter_by_type("equipment_driver")
+if equipment:
+    value = await equipment.read_tag("ns=2;s=Oven.Temperature")
 
-    @abstractmethod
-    async def disconnect(self) -> None: ...
-
-    @abstractmethod
-    async def health_check(self) -> bool: ...
+# Check health of all adapter plugins
+health = await plugin_manager.adapter_health()
+# Returns: {"mock-erp": True, "mock-equipment": True}
 ```
+
+**`get_adapter_by_type(adapter_type)`** scans running plugins for one whose manifest declares an extension point matching the requested type, then calls its `get_adapter()` method. For multi-adapter plugins (ERP with inbound + outbound), `get_adapter()` returns a dict keyed by extension point type.
+
+**`adapter_health()`** calls `health_check()` on every running plugin that declares an adapter extension point type (`erp_inbound`, `erp_outbound`, `equipment_driver`, `test_equipment`). Returns a dict of `{plugin_id: bool}`.
+
+#### Health Endpoint
+
+The server health endpoint reports adapter status through the plugin system:
+
+```python
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "version": settings.VERSION,
+        "adapters": await plugin_manager.adapter_health(),
+    }
+```
+
+#### Configuration
+
+Adapter configuration is handled entirely through **plugin parameters** declared in `manifest.yaml` — not through environment variables. Users provide parameter values at install time via the REST API, CLI, or DT-CLIENT. Values are validated, persisted in the `plugin_config` DB table as JSONB, and resolved at startup.
+
+See §7.10 for the config resolution pipeline and §7.11 for the full adapter plugin composition pattern.
 
 ### 9.2 ERP Adapters (ERP-IBOUND, ERP-OBOUND)
 
@@ -2825,18 +3145,86 @@ class SAPTransformLayer(ERPTransformLayer):
 
 #### 9.2.8 ERP Adapter Configuration
 
-```python
-# .env
-MES_ERP_ADAPTER=sap_s4hana              # "sap_s4hana" | "sap_ecc" | "oracle_cloud" | "oracle_ebs" | "dynamics365" | "infor_m3" | "mock"
-MES_ERP_BASE_URL=https://sap-server.factory.com/sap/opu/odata/sap
-MES_ERP_AUTH_TYPE=oauth2                 # "oauth2" | "basic" | "api_key"
-MES_ERP_CLIENT_ID=mes-integration
-MES_ERP_CLIENT_SECRET=secret
-MES_ERP_TOKEN_URL=https://sap-server.factory.com/oauth/token
-MES_ERP_POLL_INTERVAL_SEC=300            # 5 minutes
-MES_ERP_RETRY_MAX_ATTEMPTS=5
-MES_ERP_RETRY_BACKOFF_SEC=30
+> **Updated (D037):** ERP adapter configuration is no longer done via environment variables.
+> Each ERP adapter is a plugin with its own `manifest.yaml` declaring parameters. Users
+> provide values at install time via the REST API, CLI, or DT-CLIENT.
+
+**Example — SAP S/4HANA ERP plugin parameters:**
+
+```yaml
+# plugins/system/sap_s4hana_erp/manifest.yaml
+id: sap-s4hana-erp
+name: SAP S/4HANA ERP Adapter
+category: erp
+extension_points:
+  - type: erp_inbound
+    name: sap_s4hana_inbound
+  - type: erp_outbound
+    name: sap_s4hana_outbound
+
+parameters:
+  - name: base_url
+    type: string
+    description: SAP OData base URL (e.g. https://sap-server/sap/opu/odata/sap)
+    required: true
+  - name: auth_type
+    type: string
+    description: "Authentication: oauth2 | basic | api_key"
+    required: false
+    default: oauth2
+  - name: client_id
+    type: string
+    description: OAuth 2.0 client ID
+    required: true
+  - name: client_secret
+    type: string
+    description: OAuth 2.0 client secret
+    required: true
+    secret: true
+  - name: token_url
+    type: string
+    description: OAuth 2.0 token endpoint URL
+    required: true
+  - name: poll_interval_sec
+    type: integer
+    description: Seconds between inbound sync polls
+    required: false
+    default: 300
+  - name: retry_max_attempts
+    type: integer
+    description: Max retry attempts for failed outbound reports
+    required: false
+    default: 5
+  - name: retry_backoff_sec
+    type: integer
+    description: Base backoff delay between retries
+    required: false
+    default: 30
 ```
+
+**Install via CLI:**
+```bash
+mes plugin install sap-s4hana-erp \
+  --param base_url=https://sap-server.factory.com/sap/opu/odata/sap \
+  --param client_id=mes-integration \
+  --param client_secret=secret \
+  --param token_url=https://sap-server.factory.com/oauth/token
+```
+
+**Install via REST API:**
+```json
+POST /api/v1/plugins/sap-s4hana-erp/install
+{
+  "parameter_values": {
+    "base_url": "https://sap-server.factory.com/sap/opu/odata/sap",
+    "client_id": "mes-integration",
+    "client_secret": "secret",
+    "token_url": "https://sap-server.factory.com/oauth/token"
+  }
+}
+```
+
+Secret parameters are masked in API responses and UI displays.
 
 #### 9.2.9 Mock ERP Adapter
 
@@ -3004,29 +3392,106 @@ class TagInfo:
 
 #### 9.3.3 Equipment Adapter Configuration
 
-```python
-# .env — Direct equipment connection
-MES_EQUIP_ADAPTER=opcua                     # "opcua" | "mqtt" | "modbus" | "rest" | "mock"
-MES_EQUIP_OPCUA_URL=opc.tcp://plc-01:4840
-MES_EQUIP_OPCUA_SECURITY_POLICY=Basic256Sha256
-MES_EQUIP_OPCUA_CERT_PATH=/certs/client.pem
-MES_EQUIP_OPCUA_KEY_PATH=/certs/client.key
+> **Updated (D037):** Equipment adapter configuration is no longer done via environment
+> variables. Each equipment adapter is a plugin with parameters declared in `manifest.yaml`.
 
-# .env — MQTT
-MES_EQUIP_MQTT_BROKER=mqtt://broker.factory.com:1883
-MES_EQUIP_MQTT_TOPIC_PREFIX=factory/line-1
-MES_EQUIP_MQTT_QOS=1
+**Example — OPC-UA Equipment plugin parameters:**
 
-# .env — MOM-based equipment data
-MES_EQUIP_MOM_TYPE=kafka                    # "kafka" | "rabbitmq" | "activemq" | "ibmmq"
-MES_EQUIP_KAFKA_BOOTSTRAP=kafka:9092
-MES_EQUIP_KAFKA_TOPIC=equipment-data
-MES_EQUIP_KAFKA_GROUP_ID=mes-consumer
+```yaml
+# plugins/system/opcua_equipment/manifest.yaml
+id: opcua-equipment
+name: OPC-UA Equipment Adapter
+category: equipment
+extension_points:
+  - type: equipment_driver
+    name: opcua_equipment
 
-# .env — Modbus
-MES_EQUIP_MODBUS_HOST=192.168.1.100
-MES_EQUIP_MODBUS_PORT=502
-MES_EQUIP_MODBUS_UNIT_ID=1
+parameters:
+  - name: endpoint_url
+    type: string
+    description: OPC-UA server endpoint (e.g. opc.tcp://plc-01:4840)
+    required: true
+  - name: namespace_index
+    type: integer
+    description: Default namespace index for tag resolution
+    required: false
+    default: 2
+  - name: equipment_id
+    type: string
+    description: Equipment identifier for state tracking
+    required: true
+  - name: state_tag
+    type: string
+    description: Tag name to read for equipment state
+    required: false
+  - name: security_mode
+    type: string
+    description: "Security mode: none, sign, or sign_and_encrypt"
+    required: false
+    default: none
+  - name: auth_type
+    type: string
+    description: "Authentication: anonymous, username, or certificate"
+    required: false
+    default: anonymous
+  - name: username
+    type: string
+    description: Username for username authentication
+    required: false
+  - name: password
+    type: string
+    description: Password for username authentication
+    required: false
+    secret: true
+```
+
+**Example — MQTT Equipment plugin parameters:**
+
+```yaml
+# plugins/system/mqtt_equipment/manifest.yaml
+id: mqtt-equipment
+name: MQTT Equipment Adapter
+category: equipment
+extension_points:
+  - type: equipment_driver
+    name: mqtt_equipment
+
+parameters:
+  - name: broker_url
+    type: string
+    description: MQTT broker URL (e.g. mqtt://broker.factory.com:1883)
+    required: true
+  - name: topic_prefix
+    type: string
+    description: Topic prefix for equipment data (e.g. factory/line-1)
+    required: false
+    default: "factory"
+  - name: qos
+    type: integer
+    description: MQTT Quality of Service level (0, 1, or 2)
+    required: false
+    default: 1
+  - name: username
+    type: string
+    description: MQTT broker username
+    required: false
+  - name: password
+    type: string
+    description: MQTT broker password
+    required: false
+    secret: true
+```
+
+**Install via REST API:**
+```json
+POST /api/v1/plugins/opcua-equipment/install
+{
+  "parameter_values": {
+    "endpoint_url": "opc.tcp://plc-01.factory.com:4840",
+    "equipment_id": "OVEN-001",
+    "state_tag": "ns=2;s=MachineState"
+  }
+}
 ```
 
 #### 9.3.4 Mock Equipment Adapter
