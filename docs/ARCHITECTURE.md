@@ -2140,6 +2140,28 @@ activates a new state model, the system:
 | `PUT` | `/api/v1/plugins/{plugin_id}/config` | Update plugin configuration overrides |
 | `GET` | `/api/v1/plugins/catalog` | Adapter catalog (available extras) |
 
+#### ERP Integration (ERP-IBOUND, ERP-OBOUND)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/erp/health` | ERP adapter health (inbound + outbound availability) |
+| `POST` | `/api/v1/erp/sync/production-orders` | Sync production orders from ERP |
+| `POST` | `/api/v1/erp/sync/materials` | Sync material master from ERP |
+| `POST` | `/api/v1/erp/sync/products` | Sync product definitions from ERP |
+| `POST` | `/api/v1/erp/sync/boms?product_id=X` | Sync BOMs for a product |
+| `POST` | `/api/v1/erp/sync/routings?product_id=X` | Sync routings for a product |
+| `POST` | `/api/v1/erp/sync/work-centers` | Sync work centers from ERP |
+| `POST` | `/api/v1/erp/report/completion` | Report production completion to ERP |
+| `POST` | `/api/v1/erp/report/consumption` | Report material consumption to ERP |
+| `POST` | `/api/v1/erp/report/scrap` | Report scrap to ERP |
+| `POST` | `/api/v1/erp/report/labor` | Report labor time to ERP |
+| `POST` | `/api/v1/erp/report/downtime` | Report equipment downtime to ERP |
+| `POST` | `/api/v1/erp/report/quality-result` | Report quality test result to ERP |
+| `GET` | `/api/v1/erp/confirmations` | List outbound confirmation documents |
+| `GET` | `/api/v1/erp/queue` | List failed outbound queue items |
+| `GET` | `/api/v1/erp/queue/stats` | Outbound queue statistics |
+| `POST` | `/api/v1/erp/queue/{id}/retry` | Retry a failed outbound item |
+
 #### Real-Time Events (WebSocket)
 
 | Endpoint | Description |
@@ -3259,6 +3281,155 @@ The MES canonical data model (DTOs) aligns with ISA-95 Part 4 object models and 
 | `MaterialConsumptionDTO` | Material Consumed Actual | `<MaterialConsumedActual>` |
 | `ProductDefinitionDTO` | Product Definition | `<ProductDefinition>` |
 | `ProcessRouteDTO` | Process Segment / Operations Schedule | `<ProcessSegment>` |
+
+#### 9.2.11 SAP ERP Simulator (SAP-SIMULATOR)
+
+The SAP ERP Simulator is a **realistic in-memory mock** of SAP S/4HANA that exercises the full ERP integration pipeline without requiring a live SAP system. Unlike the generic mock ERP adapter (§9.2.9) which reads/writes JSON files, the SAP simulator generates data in **native SAP OData V4 format** with authentic field names and runs it through the production `SAPS4HANATransformLayer`.
+
+**Plugin location:** `plugins/system/sap_erp_simulator/`
+
+**Architecture:**
+
+```
+plugins/system/sap_erp_simulator/
+├── manifest.yaml       # Plugin metadata, extension points, parameters
+├── plugin.py           # MESPlugin wrapper — lifecycle, adapter exposure
+├── simulator.py        # Inbound + Outbound adapter implementations
+├── sap_data.py         # SAP OData V4 data catalog (materials, orders, etc.)
+└── transform.py        # Re-exports SAPS4HANATransformLayer from adapters/erp/
+```
+
+**Why not call real SAP APIs?**  No SAP system is available during development. The simulator exists to:
+1. Validate the full inbound sync path (SAP OData → Transform → MES DTOs)
+2. Validate the full outbound report path (MES DTOs → Transform → SAP format → confirmation)
+3. Test the ERP REST API endpoints (§6.3) end-to-end via the GUI client (§18)
+4. Exercise configurable failure injection and latency simulation
+
+##### Data Catalog
+
+The simulator ships with a realistic SAP factory dataset in `sap_data.py`:
+
+| Data Type | Count | SAP Fields Used | Example |
+|---|---|---|---|
+| Materials (MARA) | 20 | `Material`, `MaterialName`, `MaterialType`, `BaseUnit`, `IndustrySector` | `RM-STEEL-001`, `RM-COPPER-002` |
+| Products (MARA FG) | 3 | `Material`, `MaterialName`, `MaterialType`, `BaseUnit` | `FG-WIDGET-100`, `FG-GADGET-300` |
+| BOMs (STKO/STPO) | 3 | `BillOfMaterial`, `BillOfMaterialVariant`, `BOMItemNodeNumber`, `BOMItemQuantity` | 7-material widget BOM |
+| Routings (PLKO/PLPO) | 3 | `Routing`, `RoutingSequence`, `Operation`, `WorkCenter`, `OperationStandardTextCode` | 5-step widget routing |
+| Production Orders (AUFK) | 5 | `ManufacturingOrder`, `Material`, `MfgOrderPlannedTotalQty`, `OrderType` | `000001000100` (PP01) |
+| Work Centers (CRHD) | 4 | `WorkCenter`, `WorkCenterText`, `CostCenter`, `WorkCenterCategoryCode` | `WC-ASSY-01`, `WC-TEST-01` |
+
+All field names match SAP S/4HANA OData V4 API entity properties. The transform layer converts them bidirectionally to MES canonical DTOs.
+
+##### Data Flow — Inbound Sync (ERP → MES)
+
+```
+┌────────────────┐     ┌──────────────────────┐     ┌─────────────────────┐     ┌────────────┐
+│  GUI Client    │     │  MES REST API        │     │  SAP Simulator      │     │ Transform  │
+│  (port 5174)   │     │  (port 8000)         │     │  (in-memory)        │     │ Layer      │
+│                │     │                      │     │                     │     │            │
+│  Click "Sync   │────▶│  POST /api/v1/erp/   │────▶│  sync_materials()   │────▶│ SAP OData  │
+│  Materials"    │     │  sync/materials       │     │  returns SAP_       │     │ → MES DTO  │
+│                │◀────│                      │◀────│  MATERIALS list     │◀────│            │
+│  Display table │     │  list_response(dtos) │     │                     │     │            │
+└────────────────┘     └──────────────────────┘     └─────────────────────┘     └────────────┘
+                                 │
+                                 │  plugin_manager.get_adapter_by_type("erp_inbound")
+                                 │  returns SAPSimulatorInboundAdapter instance
+                                 ▼
+```
+
+**Step-by-step:**
+1. GUI client sends `POST /api/v1/erp/sync/materials` to the MES server
+2. Route handler calls `plugin_manager.get_adapter_by_type("erp_inbound")` to get the active adapter
+3. Adapter's `sync_materials()` reads from `SAP_MATERIALS` dict (in-memory, no network)
+4. `SAPS4HANATransformLayer.to_material()` converts each SAP OData record to `MaterialDefinitionDTO`
+5. DTOs are returned through the REST API envelope as JSON
+
+##### Data Flow — Outbound Report (MES → ERP)
+
+```
+┌────────────────┐     ┌──────────────────────┐     ┌─────────────────────┐     ┌────────────┐
+│  GUI Client    │     │  MES REST API        │     │  SAP Simulator      │     │ Transform  │
+│  (port 5174)   │     │  (port 8000)         │     │  (in-memory)        │     │ Layer      │
+│                │     │                      │     │                     │     │            │
+│  Submit form:  │────▶│  POST /api/v1/erp/   │────▶│  report_completion()│────▶│ MES DTO →  │
+│  order, qty,   │     │  report/completion    │     │  validate order     │     │ SAP BAPI   │
+│  reject        │◀────│                      │◀────│  generate SAP doc#  │◀────│ payload    │
+│  Show SAP doc# │     │  success_response()  │     │  store confirmation │     │            │
+└────────────────┘     └──────────────────────┘     └─────────────────────┘     └────────────┘
+```
+
+**Step-by-step (completion report example):**
+1. GUI client sends `POST /api/v1/erp/report/completion` with `{order_id, qty_good, qty_reject}`
+2. Route handler calls `plugin_manager.get_adapter_by_type("erp_outbound")`
+3. Adapter validates `order_id` exists in the known order book
+4. `SAPS4HANATransformLayer.from_completion()` converts to SAP BAPI payload format
+5. Simulator generates a SAP-style document number (e.g., `4900000001` for confirmations)
+6. Confirmation record is stored in-memory (`adapter.confirmations` list)
+7. `ERPConfirmation(success=True, erp_doc_number="4900000001")` returned to client
+
+##### SAP Document Number Series
+
+The simulator mimics SAP's document numbering conventions:
+
+| Report Type | SAP Transaction | Number Pattern | Example |
+|---|---|---|---|
+| Production Completion | CO11N | `49XXXXXXXX` (10-digit) | `4900000001` |
+| Material Consumption | MIGO 261 | `49XXXXXXXX` (10-digit) | `4900000001` |
+| Scrap Report | MIGO 531 | `49XXXXXXXX` (10-digit) | `4900000001` |
+| Labor Time | CATS | `CAT-XXXXXXXXXX` | `CAT-0000000001` |
+| Downtime | PM Notification M2 | `PM-XXXXXXXXXX` | `PM-0000000001` |
+| Quality Result | QM Recording | `QM-XXXXXXXXXX` | `QM-0000000001` |
+
+##### Plugin Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `plant` | string | `"1000"` | SAP plant code (Werk) |
+| `company_code` | string | `"1000"` | SAP company code (Buchungskreis) |
+| `latency_ms` | integer | `0` | Simulated API latency per call (milliseconds) |
+| `failure_rate` | number | `0.0` | Probability of simulated errors (0.0–1.0) |
+
+##### How to Run
+
+```bash
+# 1. Install and enable the SAP simulator plugin
+mes plugin install sap-erp-simulator
+mes plugin enable sap-erp-simulator
+
+# 2. Start the MES server
+cd server
+$env:MES_AUTH_MODE = "none"
+uvicorn mes.main:app --reload --port 8000
+
+# 3. Start the ERP Simulator GUI (separate terminal)
+cd clients/erp_simulator
+npm run dev
+# → opens http://localhost:5174
+
+# 4. Use the GUI:
+#    - Dashboard: check adapter health (green = connected)
+#    - Inbound tabs: click "Sync" to pull SAP data into MES
+#    - Outbound tabs: fill forms to post reports back to SAP
+#    - Confirmations: view all SAP document numbers generated
+```
+
+Or via REST API directly:
+```bash
+# Health check
+curl http://localhost:8000/api/v1/erp/health
+
+# Sync materials
+curl -X POST http://localhost:8000/api/v1/erp/sync/materials
+
+# Report completion
+curl -X POST http://localhost:8000/api/v1/erp/report/completion \
+  -H 'Content-Type: application/json' \
+  -d '{"order_id": "000001000100", "qty_good": 95, "qty_reject": 5}'
+
+# View confirmations
+curl http://localhost:8000/api/v1/erp/confirmations
+```
 
 ### 9.3 Equipment Adapter (EQUIP-INTFC)
 
@@ -5391,7 +5562,117 @@ services:
       - "1883:1883"
 ```
 
-## 17. Implementation Task Breakdown (Phase 3+)
+## 17. ERP Simulator GUI Client (ERP-SIM-GUI)
+
+A standalone React + TypeScript web application for visually operating the SAP ERP Simulator plugin (§9.2.11). It provides a point-and-click interface for triggering inbound syncs (ERP → MES) and outbound reports (MES → ERP) without using curl or writing code.
+
+> **Key distinction:** This is **not** part of the DT-CLIENT (§15). It is a separate single-purpose application dedicated to ERP integration testing. The DT-CLIENT configures the MES; the ERP Simulator GUI exercises the ERP adapter pipeline.
+
+### 17.1 Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                  ERP Simulator GUI (port 5174)                       │
+│                  React 19 + Vite 8 + Tailwind 4                      │
+│                                                                      │
+│  ┌──────────────────┐  ┌──────────────────────────────────────────┐  │
+│  │  Sidebar Nav      │  │  Page Content                           │  │
+│  │                   │  │                                         │  │
+│  │  ─ Dashboard      │  │  ┌─────────────────────────────────┐   │  │
+│  │                   │  │  │  Dashboard: adapter health       │   │  │
+│  │  INBOUND          │  │  │  Inbound: sync button + table   │   │  │
+│  │  ─ Orders         │  │  │  Outbound: form + result card   │   │  │
+│  │  ─ Materials      │  │  │  Confirmations: doc log table   │   │  │
+│  │  ─ Products       │  │  └─────────────────────────────────┘   │  │
+│  │  ─ BOMs           │  │                                         │  │
+│  │  ─ Routings       │  └──────────────────────────────────────────┘  │
+│  │  ─ Work Centers   │                                               │
+│  │                   │     HTTP (axios)                               │
+│  │  OUTBOUND         │        │                                      │
+│  │  ─ Completion     │        │  /api/v1/erp/*                       │
+│  │  ─ Consumption    │        ▼                                      │
+│  │  ─ Scrap          │  ┌──────────────────────────────────────────┐ │
+│  │  ─ Labor          │  │  Vite dev proxy → http://localhost:8000  │ │
+│  │  ─ Downtime       │  └──────────────────────────────────────────┘ │
+│  │  ─ Quality        │                                               │
+│  │  ─ Confirmations  │                                               │
+│  └──────────────────┘                                                │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                  MES Server (port 8000)                               │
+│                                                                      │
+│  /api/v1/erp/*  →  PluginManager  →  SAP ERP Simulator Plugin       │
+│                     .get_adapter_by_type("erp_inbound")              │
+│                     .get_adapter_by_type("erp_outbound")             │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 17.2 Project Structure
+
+```
+clients/erp_simulator/
+├── package.json              # React 19, Vite 8, Tailwind 4, axios
+├── vite.config.ts            # Port 5174, proxy /api → localhost:8000
+├── tsconfig.json
+├── tsconfig.app.json
+├── index.html
+└── src/
+    ├── main.tsx              # React root
+    ├── App.tsx               # Tab state + page routing
+    ├── index.css             # Tailwind imports
+    ├── vite-env.d.ts         # Vite type declarations
+    ├── api/
+    │   ├── client.ts         # Axios instance (baseURL: /api/v1)
+    │   └── erp.ts            # TypeScript interfaces + API functions
+    ├── components/
+    │   ├── Layout.tsx        # Sidebar layout + tab navigation
+    │   ├── DataTable.tsx     # Generic typed table component
+    │   └── StatusBadge.tsx   # Green/red health dot
+    └── pages/
+        ├── DashboardPage.tsx       # Adapter health check
+        ├── OrdersPage.tsx          # Sync production orders
+        ├── MaterialsPage.tsx       # Sync materials
+        ├── ProductsPage.tsx        # Sync products
+        ├── BOMsPage.tsx            # Sync BOMs (product selector)
+        ├── RoutingsPage.tsx        # Sync routings (product selector)
+        ├── WorkCentersPage.tsx     # Sync work centers
+        ├── CompletionPage.tsx      # Report production completion
+        ├── ConsumptionPage.tsx     # Report material consumption
+        ├── ScrapPage.tsx           # Report scrap
+        ├── LaborPage.tsx           # Report labor time
+        ├── DowntimePage.tsx        # Report downtime
+        ├── QualityPage.tsx         # Report quality result
+        └── ConfirmationsPage.tsx   # View SAP confirmation log
+```
+
+### 17.3 Pages
+
+**Inbound sync pages** (6): Each has a \"Sync\" button that calls the corresponding `POST /api/v1/erp/sync/*` endpoint and displays results in a `DataTable`. BOMs and Routings pages include a product selector dropdown (FG-WIDGET-100, FG-WIDGET-200, FG-GADGET-300).\n\n**Outbound report pages** (6): Each renders a form with pre-filled realistic defaults (e.g., order `000001000100`, qty 95 good / 5 reject). On submit, calls the corresponding `POST /api/v1/erp/report/*` endpoint and displays the SAP document number or error.\n\n**Dashboard**: Calls `GET /api/v1/erp/health` and shows inbound/outbound adapter availability with green/red status badges.\n\n**Confirmations**: Calls `GET /api/v1/erp/confirmations` and displays all SAP confirmation documents in a table with type, SAP doc number, order, timestamp, and expandable JSON payload.
+
+### 17.4 How to Run
+
+```powershell
+# Terminal 1: MES server with SAP simulator enabled
+cd c:\\dev\\mes_ai\\server
+$env:MES_AUTH_MODE = \"none\"
+uvicorn mes.main:app --reload --port 8000
+
+# Terminal 2: ERP Simulator GUI
+cd c:\\dev\\mes_ai\\clients\\erp_simulator
+npm run dev
+# → http://localhost:5174
+```
+
+**Workflow:**
+1. Open http://localhost:5174 → Dashboard tab
+2. Click \"Check Health\" → both adapters should show green
+3. Navigate to Inbound → Materials → click \"Sync Materials\" → 20 SAP materials appear
+4. Navigate to Outbound → Report Completion → fill form → submit → receive SAP doc number
+5. Navigate to Confirmations → click \"Refresh\" → see all generated SAP documents
+
+## 18. Implementation Task Breakdown (Phase 3+)
 
 Phase 3 implementation will follow this dependency order:
 
@@ -5426,4 +5707,4 @@ Each module implementation will include:
 
 ---
 
-*Last updated: 2026-02-22 — Session S002 (Phase 2 Architecture & Design, updated for multi-RDBMS support)*
+*Last updated: 2026-03-22 — Session S021 (SAP ERP Simulator, ERP Simulator GUI Client, ERP REST API endpoints)*
