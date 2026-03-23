@@ -151,17 +151,27 @@ to create default UOMs:
 cd c:\dev\mes_ai\server
 python scripts/seed_uom.py
 
-To start MES server and DT-CLIENT For WSL2/bash: 
-cd /mnt/c/dev/mes_ai/server
-./scripts/dev-setup.sh          # setup + start both services
-./scripts/dev-setup.sh --start  # start only (skip install)
-
 For Windows PowerShell, there's no combined script — you start each separately:
 # Terminal 1: MES server
 cd c:\dev\mes_ai\server
+alembic upgrade head (if schema change)
 $env:MES_AUTH_MODE = "none"
-uvicorn mes.main:app --reload --port 8000
+uvicorn mes.main:app --reload --port 8082
 
-# Terminal 2: DT-CLIENT
+Terminal 2 — Install the SAP simulator plugin (one-time):
+cd c:\dev\mes_ai\server
+python -m mes.cli --server http://localhost:8082 plugin install sap-erp-simulator
+python -m mes.cli --server http://localhost:8082 plugin enable sap-erp-simulator
+
+Terminal 3 — ERP Simulator GUI:
+cd c:\dev\mes_ai\clients\erp_simulator
+npm install
+npm run dev
+
+# Terminal 4: DT-CLIENT
 cd c:\dev\mes_ai\clients\design_time
 npm run dev
+
+
+
+Then open http://localhost:5174 — click Dashboard → "Check Health" → both adapters should show green.

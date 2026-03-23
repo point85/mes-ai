@@ -177,17 +177,42 @@ class PluginManager:
                     f"Plugin '{plugin_id}' requires '{dep_id}' which is not loaded"
                 )
 
-        # Load Python module
+        # Load Python module as a package so relative imports work
         plugin_module_path = plugin_path / "plugin.py"
         if not plugin_module_path.exists():
             raise FileNotFoundError(f"Plugin entry point not found: {plugin_module_path}")
 
-        module_name = f"mes_plugin_{plugin_id.replace('-', '_')}"
-        spec = importlib.util.spec_from_file_location(module_name, plugin_module_path)
+        package_name = f"mes_plugin_{plugin_id.replace('-', '_')}"
+        module_name = f"{package_name}.plugin"
+
+        # Register parent directory on sys.path so sub-modules are importable
+        parent_dir = str(plugin_path.parent)
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+
+        # Create a virtual package for the plugin directory
+        pkg_init = plugin_path / "__init__.py"
+        pkg_spec = importlib.util.spec_from_file_location(
+            package_name,
+            str(pkg_init) if pkg_init.exists() else None,
+            submodule_search_locations=[str(plugin_path)],
+        )
+        if pkg_spec is not None:
+            pkg_module = importlib.util.module_from_spec(pkg_spec)
+            sys.modules[package_name] = pkg_module
+            if pkg_spec.loader is not None and pkg_init.exists():
+                pkg_spec.loader.exec_module(pkg_module)
+
+        # Load plugin.py as a sub-module of the package
+        spec = importlib.util.spec_from_file_location(
+            module_name, plugin_module_path,
+            submodule_search_locations=[],
+        )
         if spec is None or spec.loader is None:
             raise ImportError(f"Cannot create module spec for {plugin_module_path}")
 
         module = importlib.util.module_from_spec(spec)
+        module.__package__ = package_name
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
 
