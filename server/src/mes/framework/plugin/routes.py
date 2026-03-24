@@ -29,6 +29,7 @@ from mes.framework.db import get_db_session
 from .models import PluginConfig
 from .schemas import (
     AdapterInfo,
+    CompanionInfo,
     ParameterSchema,
     PluginConfigUpdate,
     PluginDetail,
@@ -72,6 +73,115 @@ async def _get_or_create_plugin_config(
         session.add(row)
         await session.flush()
     return row
+
+
+# ─── Companion cascade helpers ────────────────────────────────────────
+
+
+async def _build_companion_infos(
+    pm: Any, companions: list, session: AsyncSession,
+) -> list[dict[str, Any]]:
+    """Build CompanionInfo dicts for a plugin's companion list."""
+    infos = []
+    for c in companions:
+        ci = CompanionInfo(
+            id=c.id, type=c.type, name=c.name,
+            path=c.path, dev_port=c.dev_port, description=c.description,
+        )
+        if c.type == "plugin":
+            comp_cfg = await _get_or_create_plugin_config(session, c.id)
+            ci.installed = comp_cfg.installed
+            ci.enabled = comp_cfg.enabled
+        infos.append(ci.model_dump())
+    return infos
+
+
+async def _cascade_install_companions(
+    pm: Any, companions: list, session: AsyncSession,
+) -> list[str]:
+    """Install plugin-type companions that aren't already installed."""
+    installed = []
+    for c in companions:
+        if c.type != "plugin":
+            continue
+        comp_info = pm.get_plugin(c.id)
+        if comp_info is None:
+            logger.warning("Companion plugin '%s' not found — skipping", c.id)
+            continue
+        comp_cfg = await _get_or_create_plugin_config(session, c.id)
+        if not comp_cfg.installed:
+            comp_cfg.installed = True
+            comp_cfg.enabled = False
+            installed.append(c.id)
+            logger.info("Cascade-installed companion plugin '%s'", c.id)
+    return installed
+
+
+async def _cascade_enable_companions(
+    pm: Any, companions: list, session: AsyncSession,
+) -> list[str]:
+    """Enable plugin-type companions that are installed but not yet enabled."""
+    enabled = []
+    for c in companions:
+        if c.type != "plugin":
+            continue
+        comp_info = pm.get_plugin(c.id)
+        if comp_info is None:
+            continue
+        comp_cfg = await _get_or_create_plugin_config(session, c.id)
+        if comp_cfg.installed and not comp_cfg.enabled:
+            comp_cfg.enabled = True
+            try:
+                await pm.enable_plugin(c.id, comp_cfg.parameter_values)
+                enabled.append(c.id)
+                logger.info("Cascade-enabled companion plugin '%s'", c.id)
+            except Exception as exc:
+                logger.warning("Failed to cascade-enable '%s': %s", c.id, exc)
+    return enabled
+
+
+async def _cascade_uninstall_companions(
+    pm: Any, companions: list, session: AsyncSession,
+) -> list[str]:
+    """Uninstall plugin-type companions."""
+    uninstalled = []
+    for c in companions:
+        if c.type != "plugin":
+            continue
+        comp_info = pm.get_plugin(c.id)
+        if comp_info is None:
+            continue
+        if comp_info.is_running:
+            await pm.disable_plugin(c.id)
+        comp_cfg = await _get_or_create_plugin_config(session, c.id)
+        if comp_cfg.installed:
+            comp_cfg.installed = False
+            comp_cfg.enabled = False
+            comp_cfg.parameter_values = {}
+            comp_cfg.config_overrides = {}
+            uninstalled.append(c.id)
+            logger.info("Cascade-uninstalled companion plugin '%s'", c.id)
+    return uninstalled
+
+
+async def _cascade_disable_companions(
+    pm: Any, companions: list, session: AsyncSession,
+) -> list[str]:
+    """Disable plugin-type companions."""
+    disabled = []
+    for c in companions:
+        if c.type != "plugin":
+            continue
+        comp_info = pm.get_plugin(c.id)
+        if comp_info is None:
+            continue
+        comp_cfg = await _get_or_create_plugin_config(session, c.id)
+        if comp_cfg.enabled:
+            comp_cfg.enabled = False
+            await pm.disable_plugin(c.id)
+            disabled.append(c.id)
+            logger.info("Cascade-disabled companion plugin '%s'", c.id)
+    return disabled
 
 
 # ─── Routes ──────────────────────────────────────────────────────────
@@ -205,6 +315,9 @@ async def get_plugin_detail(
         required_core_permissions=info.manifest.required_core_permissions,
         event_subscriptions=info.manifest.event_subscriptions,
         dependencies=info.manifest.dependencies,
+        companions=await _build_companion_infos(
+            plugin_manager, info.manifest.companions, session,
+        ),
         config_schema=info.manifest.config_schema,
         config_values=resolved_config,
         notes=db_cfg.notes,
@@ -242,15 +355,31 @@ async def install_plugin(
     db_cfg.parameter_values = param_values
     if notes is not None:
         db_cfg.notes = notes
+    await session.flush()
+
+    # Cascade install to plugin-type companions
+    companions_installed = await _cascade_install_companions(
+        plugin_manager, info.manifest.companions, session,
+    )
     await session.commit()
 
     logger.info("Installed plugin '%s'", plugin_id)
-    return success_response({
+    result: dict[str, Any] = {
         "plugin_id": plugin_id,
         "installed": True,
         "enabled": False,
         "parameter_values": param_values,
-    })
+    }
+    if companions_installed:
+        result["companions_installed"] = companions_installed
+    # Report client-type companions for user info
+    client_companions = [
+        {"id": c.id, "name": c.name, "path": c.path, "dev_port": c.dev_port}
+        for c in info.manifest.companions if c.type == "client"
+    ]
+    if client_companions:
+        result["client_apps"] = client_companions
+    return success_response(result)
 
 
 @router.post("/{plugin_id}/uninstall")
@@ -275,10 +404,19 @@ async def uninstall_plugin(
     db_cfg.enabled = False
     db_cfg.parameter_values = {}
     db_cfg.config_overrides = {}
+    await session.flush()
+
+    # Cascade uninstall to plugin-type companions
+    companions_uninstalled = await _cascade_uninstall_companions(
+        plugin_manager, info.manifest.companions, session,
+    )
     await session.commit()
 
     logger.info("Uninstalled plugin '%s'", plugin_id)
-    return success_response({"plugin_id": plugin_id, "installed": False})
+    result: dict[str, Any] = {"plugin_id": plugin_id, "installed": False}
+    if companions_uninstalled:
+        result["companions_uninstalled"] = companions_uninstalled
+    return success_response(result)
 
 
 @router.post("/{plugin_id}/enable")
@@ -304,7 +442,7 @@ async def enable_plugin_route(
     db_cfg.enabled = True
     if body and body.notes is not None:
         db_cfg.notes = body.notes
-    await session.commit()
+    await session.flush()
 
     # Load and start the plugin at runtime
     try:
@@ -314,8 +452,17 @@ async def enable_plugin_route(
         logger.error("Failed to enable plugin '%s': %s", plugin_id, exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
+    # Cascade enable to plugin-type companions
+    companions_enabled = await _cascade_enable_companions(
+        plugin_manager, info.manifest.companions, session,
+    )
+    await session.commit()
+
     logger.info("Enabled plugin '%s'", plugin_id)
-    return success_response({"plugin_id": plugin_id, "enabled": True})
+    result: dict[str, Any] = {"plugin_id": plugin_id, "enabled": True}
+    if companions_enabled:
+        result["companions_enabled"] = companions_enabled
+    return success_response(result)
 
 
 @router.post("/{plugin_id}/disable")
@@ -335,12 +482,21 @@ async def disable_plugin_route(
     db_cfg.enabled = False
     if body and body.notes is not None:
         db_cfg.notes = body.notes
-    await session.commit()
+    await session.flush()
 
     await plugin_manager.disable_plugin(plugin_id)
 
+    # Cascade disable to plugin-type companions
+    companions_disabled = await _cascade_disable_companions(
+        plugin_manager, info.manifest.companions, session,
+    )
+    await session.commit()
+
     logger.info("Disabled plugin '%s'", plugin_id)
-    return success_response({"plugin_id": plugin_id, "enabled": False})
+    result: dict[str, Any] = {"plugin_id": plugin_id, "enabled": False}
+    if companions_disabled:
+        result["companions_disabled"] = companions_disabled
+    return success_response(result)
 
 
 @router.put("/{plugin_id}/config")

@@ -160,8 +160,18 @@ def _api_post(url: str, body: bytes, success_msg: str) -> None:
             data = json.loads(resp.read())
             print(success_msg)
             if "data" in data:
-                for k, v in data["data"].items():
-                    print(f"  {k}: {v}")
+                payload = data["data"]
+                for k, v in payload.items():
+                    if k in ("companions_installed", "companions_enabled"):
+                        print(f"  {k}: {', '.join(v)}")
+                    elif k == "client_apps":
+                        for app in v:
+                            port = app.get("dev_port", "")
+                            print(f"  companion client: {app.get('name', app['id'])}"
+                                  f" — cd {app.get('path', '')} && npm run dev"
+                                  + (f" (port {port})" if port else ""))
+                    else:
+                        print(f"  {k}: {v}")
     except urllib.error.HTTPError as exc:
         detail = json.loads(exc.read()) if exc.readable() else {}
         print(f"Error ({exc.code}): {detail.get('detail', exc.reason)}", file=sys.stderr)

@@ -53,6 +53,21 @@ class ManifestParameter(BaseModel):
     secret: bool = Field(False, description="Whether to mask this value in UI (e.g. passwords)")
 
 
+class ManifestCompanion(BaseModel):
+    """A companion binding declared in a plugin manifest.
+
+    type='plugin': another server-side plugin — cascades install/enable/disable.
+    type='client': a web UI app — metadata only (path, dev_port, name).
+    """
+
+    id: str = Field(..., description="Companion plugin ID or client identifier")
+    type: str = Field("plugin", description="Companion kind: 'plugin' or 'client'")
+    name: str = Field("", description="Human-readable label")
+    path: str = Field("", description="Relative path to client app (type=client only)")
+    dev_port: int | None = Field(None, description="Dev-server port (type=client only)")
+    description: str = Field("", description="Brief description of the companion")
+
+
 class PluginManifest(BaseModel):
     """
     Parsed and validated plugin manifest.
@@ -87,6 +102,9 @@ class PluginManifest(BaseModel):
 
     # Other plugins this plugin depends on
     dependencies: list[str] = Field(default_factory=list)
+
+    # Companion bindings — other plugins or client apps bundled with this plugin
+    companions: list[ManifestCompanion] = Field(default_factory=list)
 
     # Legacy config_schema kept for backward compatibility; prefer `parameters`
     config_schema: dict[str, Any] = Field(default_factory=dict)

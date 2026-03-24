@@ -19,6 +19,7 @@ from mes.framework.plugin.manager import PluginManager, PluginInfo
 from mes.framework.plugin.manifest import PluginManifest
 from mes.framework.plugin.schemas import (
     AdapterInfo,
+    CompanionInfo,
     ParameterSchema,
     PluginConfigUpdate,
     PluginDetail,
@@ -483,3 +484,253 @@ class TestMESPlugin(MESPlugin):
         )
         errors = manager.validate_parameters(manifest, {"host": "localhost"})
         assert errors == []
+
+
+# ─── Companion Binding Tests ──────────────────────────────────────────
+
+
+class TestManifestCompanion:
+    """Tests for the companion binding manifest field."""
+
+    def test_manifest_with_plugin_companion(self):
+        m = _make_manifest(
+            companions=[
+                {"id": "helper-plugin", "type": "plugin", "name": "Helper"},
+            ],
+        )
+        assert len(m.companions) == 1
+        assert m.companions[0].id == "helper-plugin"
+        assert m.companions[0].type == "plugin"
+
+    def test_manifest_with_client_companion(self):
+        m = _make_manifest(
+            companions=[
+                {
+                    "id": "test-gui",
+                    "type": "client",
+                    "name": "Test GUI",
+                    "path": "clients/test_gui",
+                    "dev_port": 5174,
+                    "description": "Test GUI app",
+                },
+            ],
+        )
+        assert len(m.companions) == 1
+        c = m.companions[0]
+        assert c.type == "client"
+        assert c.path == "clients/test_gui"
+        assert c.dev_port == 5174
+
+    def test_manifest_with_mixed_companions(self):
+        m = _make_manifest(
+            companions=[
+                {"id": "helper-plugin", "type": "plugin"},
+                {"id": "test-gui", "type": "client", "path": "clients/gui"},
+            ],
+        )
+        assert len(m.companions) == 2
+        assert m.companions[0].type == "plugin"
+        assert m.companions[1].type == "client"
+
+    def test_manifest_no_companions_default(self):
+        m = _make_manifest()
+        assert m.companions == []
+
+    def test_manifest_from_yaml_with_companions(self, tmp_path: Path):
+        plugin_dir = tmp_path / "companion_plugin"
+        plugin_dir.mkdir()
+        data = {
+            "id": "main-plugin",
+            "name": "Main Plugin",
+            "version": "1.0.0",
+            "companions": [
+                {"id": "helper", "type": "plugin", "name": "Helper"},
+                {
+                    "id": "gui",
+                    "type": "client",
+                    "name": "GUI",
+                    "path": "clients/gui",
+                    "dev_port": 3000,
+                },
+            ],
+        }
+        with open(plugin_dir / "manifest.yaml", "w") as f:
+            yaml.dump(data, f)
+        m = PluginManifest.from_yaml(plugin_dir / "manifest.yaml")
+        assert len(m.companions) == 2
+        assert m.companions[0].id == "helper"
+        assert m.companions[1].dev_port == 3000
+
+
+class TestCompanionInfoSchema:
+    def test_companion_info_defaults(self):
+        ci = CompanionInfo(id="helper")
+        assert ci.type == "plugin"
+        assert ci.installed is False
+        assert ci.enabled is False
+        assert ci.path == ""
+        assert ci.dev_port is None
+
+    def test_companion_info_client(self):
+        ci = CompanionInfo(
+            id="gui", type="client", name="GUI",
+            path="clients/gui", dev_port=5174,
+        )
+        d = ci.model_dump()
+        assert d["type"] == "client"
+        assert d["dev_port"] == 5174
+
+    def test_plugin_detail_includes_companions(self):
+        d = PluginDetail(
+            id="test-plugin",
+            name="Test",
+            version="1.0.0",
+            is_loaded=True,
+            is_running=False,
+            enabled=True,
+            installed=True,
+            companions=[
+                CompanionInfo(id="helper", type="plugin", installed=True, enabled=True).model_dump(),
+                CompanionInfo(id="gui", type="client", path="clients/gui", dev_port=5174).model_dump(),
+            ],
+        )
+        dump = d.model_dump()
+        assert len(dump["companions"]) == 2
+        assert dump["companions"][0]["id"] == "helper"
+        assert dump["companions"][0]["installed"] is True
+        assert dump["companions"][1]["type"] == "client"
+
+
+class TestCompanionCascadeRoutes:
+    """Integration tests for companion cascade in REST routes."""
+
+    @pytest.mark.asyncio
+    async def test_install_cascades_to_plugin_companion(self):
+        """Installing a plugin with a plugin-type companion installs the companion."""
+        mgr = PluginManager()
+
+        # Main plugin with a companion
+        main_manifest = _make_manifest(
+            id="main-plugin",
+            companions=[{"id": "helper-plugin", "type": "plugin"}],
+        )
+        main_info = PluginInfo(manifest=main_manifest, path=Path("/tmp"))
+        mgr._plugins["main-plugin"] = main_info
+
+        # Companion plugin
+        helper_manifest = _make_manifest(id="helper-plugin")
+        helper_info = PluginInfo(manifest=helper_manifest, path=Path("/tmp"))
+        mgr._plugins["helper-plugin"] = helper_info
+
+        app = _build_test_app(mgr)
+
+        from mes.framework.db import get_db_session
+        from mes.framework.plugin.models import PluginConfig
+
+        # Track DB operations
+        configs: dict[str, PluginConfig] = {}
+
+        mock_session = AsyncMock()
+
+        async def fake_execute(stmt):
+            """Simulate DB queries for PluginConfig."""
+            result = MagicMock()
+            # Return None (no existing config) so _get_or_create creates new rows
+            result.scalar_one_or_none.return_value = None
+            return result
+
+        mock_session.execute = AsyncMock(side_effect=fake_execute)
+
+        _created_rows: list[PluginConfig] = []
+
+        def track_add(row):
+            if isinstance(row, PluginConfig):
+                _created_rows.append(row)
+                configs[row.plugin_id] = row
+
+        mock_session.add = MagicMock(side_effect=track_add)
+        mock_session.flush = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        async def fake_session():
+            yield mock_session
+
+        app.dependency_overrides[get_db_session] = fake_session
+
+        with patch("mes.main.plugin_manager", mgr):
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.post(
+                    "/api/v1/plugins/main-plugin/install",
+                    json={"parameter_values": {}},
+                )
+                assert resp.status_code == 200
+                body = resp.json()
+                assert body["data"]["installed"] is True
+                assert "helper-plugin" in body["data"].get("companions_installed", [])
+
+    @pytest.mark.asyncio
+    async def test_install_reports_client_companions(self):
+        """Installing a plugin with client-type companions reports them."""
+        mgr = PluginManager()
+
+        main_manifest = _make_manifest(
+            id="main-plugin",
+            companions=[{
+                "id": "test-gui",
+                "type": "client",
+                "name": "Test GUI",
+                "path": "clients/test",
+                "dev_port": 5174,
+            }],
+        )
+        main_info = PluginInfo(manifest=main_manifest, path=Path("/tmp"))
+        mgr._plugins["main-plugin"] = main_info
+
+        app = _build_test_app(mgr)
+
+        from mes.framework.db import get_db_session
+
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        async def fake_session():
+            yield mock_session
+
+        app.dependency_overrides[get_db_session] = fake_session
+
+        with patch("mes.main.plugin_manager", mgr):
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.post(
+                    "/api/v1/plugins/main-plugin/install",
+                    json={"parameter_values": {}},
+                )
+                assert resp.status_code == 200
+                body = resp.json()
+                client_apps = body["data"].get("client_apps", [])
+                assert len(client_apps) == 1
+                assert client_apps[0]["id"] == "test-gui"
+                assert client_apps[0]["dev_port"] == 5174
+
+    @pytest.mark.asyncio
+    async def test_sap_simulator_manifest_has_gui_companion(self):
+        """The SAP simulator manifest declares the ERP GUI as a client companion."""
+        manifest_path = (
+            Path(__file__).resolve().parents[2]
+            / "plugins" / "system" / "sap_erp_simulator" / "manifest.yaml"
+        )
+        if not manifest_path.exists():
+            pytest.skip("SAP simulator plugin not present")
+        m = PluginManifest.from_yaml(manifest_path)
+        assert len(m.companions) >= 1
+        gui = next((c for c in m.companions if c.id == "erp-simulator-gui"), None)
+        assert gui is not None
+        assert gui.type == "client"
+        assert gui.path == "clients/erp_simulator"
+        assert gui.dev_port == 5174

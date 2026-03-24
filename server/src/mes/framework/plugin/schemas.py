@@ -47,6 +47,19 @@ class PluginSummary(BaseModel):
     extension_points: list[str] = Field(default_factory=list)
 
 
+class CompanionInfo(BaseModel):
+    """Companion binding returned in plugin detail responses."""
+
+    id: str
+    type: str = "plugin"
+    name: str = ""
+    path: str = ""
+    dev_port: int | None = None
+    description: str = ""
+    installed: bool = False
+    enabled: bool = False
+
+
 class PluginDetail(PluginSummary):
     """Full plugin information for detail responses."""
 
@@ -57,6 +70,7 @@ class PluginDetail(PluginSummary):
     required_core_permissions: list[str] = Field(default_factory=list)
     event_subscriptions: list[str] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
+    companions: list[CompanionInfo] = Field(default_factory=list)
     config_schema: dict[str, Any] = Field(default_factory=dict)
     config_values: dict[str, Any] = Field(default_factory=dict)
     notes: str | None = None
