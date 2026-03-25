@@ -673,6 +673,159 @@ class TestSAPERPSimulatorPlugin:
         assert "erp_inbound" in adapters
         assert "erp_outbound" in adapters
         assert adapters["erp_inbound"] is not None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Simulator Material CRUD
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestSimulatorMaterialCRUD:
+
+    @pytest.fixture
+    def adapter(self):
+        return _make_inbound()
+
+    def test_get_material_found(self, adapter):
+        mat = adapter.get_material("RM-STEEL-1MM")
+        assert mat is not None
+        assert mat["Material"] == "RM-STEEL-1MM"
+
+    def test_get_material_not_found(self, adapter):
+        assert adapter.get_material("NONEXISTENT") is None
+
+    def test_add_and_get_material(self, adapter):
+        sap_rec = {
+            "Material": "TEST-MAT-001",
+            "MaterialName": "Test Material",
+            "MaterialType": "ROH",
+            "BaseUnit": "KG",
+            "MaterialDescription": "A test material",
+            "MaximumStoragePeriod": None,
+            "MaterialGroup": "001",
+            "Plant": "1000",
+        }
+        adapter.add_material(sap_rec)
+        found = adapter.get_material("TEST-MAT-001")
+        assert found is not None
+        assert found["MaterialName"] == "Test Material"
+
+    def test_update_material_existing(self, adapter):
+        result = adapter.update_material("RM-STEEL-1MM", {"MaterialName": "Updated Name"})
+        assert result is not None
+        assert result["MaterialName"] == "Updated Name"
+        # Verify persistence
+        assert adapter.get_material("RM-STEEL-1MM")["MaterialName"] == "Updated Name"
+
+    def test_update_material_not_found(self, adapter):
+        assert adapter.update_material("NONEXISTENT", {"MaterialName": "X"}) is None
+
+    def test_delete_material_existing(self, adapter):
+        initial_count = len(adapter._materials)
+        assert adapter.delete_material("RM-STEEL-1MM") is True
+        assert len(adapter._materials) == initial_count - 1
+        assert adapter.get_material("RM-STEEL-1MM") is None
+
+    def test_delete_material_not_found(self, adapter):
+        initial_count = len(adapter._materials)
+        assert adapter.delete_material("NONEXISTENT") is False
+        assert len(adapter._materials) == initial_count
+
+    @pytest.mark.asyncio
+    async def test_create_then_sync_returns_new_material(self, adapter):
+        await adapter.connect()
+        initial = await adapter.sync_materials()
+        initial_count = len(initial)
+
+        adapter.add_material({
+            "Material": "NEW-MAT-999",
+            "MaterialName": "New Material",
+            "MaterialType": "FERT",
+            "BaseUnit": "EA",
+            "MaterialDescription": "Brand new",
+            "MaximumStoragePeriod": "365",
+            "MaterialGroup": "001",
+            "Plant": "1000",
+        })
+
+        updated = await adapter.sync_materials()
+        assert len(updated) == initial_count + 1
+        new = [m for m in updated if m.code == "NEW-MAT-999"]
+        assert len(new) == 1
+        assert new[0].name == "New Material"
+        assert new[0].shelf_life_days == 365
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Simulator CRUD REST Endpoint Schemas
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestSimulatorCRUDSchemas:
+
+    def test_create_request_valid(self):
+        from mes.adapters.erp.routes import MaterialCreateRequest
+        req = MaterialCreateRequest(
+            code="MAT-001", name="Widget", material_type="ROH",
+            uom="KG", description="Test", shelf_life_days=90,
+        )
+        assert req.code == "MAT-001"
+        assert req.shelf_life_days == 90
+
+    def test_create_request_minimal(self):
+        from mes.adapters.erp.routes import MaterialCreateRequest
+        req = MaterialCreateRequest(
+            code="MAT-001", name="Widget", material_type="ROH", uom="KG",
+        )
+        assert req.description == ""
+        assert req.shelf_life_days is None
+
+    def test_create_request_rejects_empty_code(self):
+        from pydantic import ValidationError
+        from mes.adapters.erp.routes import MaterialCreateRequest
+        with pytest.raises(ValidationError):
+            MaterialCreateRequest(
+                code="", name="Widget", material_type="ROH", uom="KG",
+            )
+
+    def test_update_request_partial(self):
+        from mes.adapters.erp.routes import MaterialUpdateRequest
+        req = MaterialUpdateRequest(name="Updated")
+        assert req.name == "Updated"
+        assert req.material_type is None
+        assert req.uom is None
+
+    def test_options_lists_populated(self):
+        from mes.adapters.erp.routes import _SAP_MATERIAL_TYPES, _SAP_UOM_OPTIONS
+        assert len(_SAP_MATERIAL_TYPES) >= 4
+        assert len(_SAP_UOM_OPTIONS) >= 5
+        codes = [t["code"] for t in _SAP_MATERIAL_TYPES]
+        assert "ROH" in codes
+        assert "FERT" in codes
+        symbols = [u["symbol"] for u in _SAP_UOM_OPTIONS]
+        assert "KG" in symbols
+        assert "EA" in symbols
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Plugin Wrapper (restored)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestSAPERPSimulatorPluginRestored:
+
+    @pytest.mark.asyncio
+    async def test_full_lifecycle(self):
+        from plugins.system.sap_erp_simulator.plugin import SAPERPSimulatorPlugin
+        plugin = SAPERPSimulatorPlugin()
+        await plugin.initialize({"plant": "1000", "company_code": "1000"})
+        await plugin.start()
+        assert await plugin.health_check() is True
+
+        adapters = plugin.get_adapter()
+        assert "erp_inbound" in adapters
+        assert "erp_outbound" in adapters
+        assert adapters["erp_inbound"] is not None
         assert adapters["erp_outbound"] is not None
 
         await plugin.stop()

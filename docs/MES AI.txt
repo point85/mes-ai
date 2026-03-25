@@ -154,7 +154,8 @@ python scripts/seed_uom.py
 For Windows PowerShell, there's no combined script — you start each separately:
 # Terminal 1: MES server
 cd c:\dev\mes_ai\server
-alembic upgrade head (if schema change)
+# python scripts/seed_uom.py (for new data)
+# alembic upgrade head (if schema change)
 $env:MES_AUTH_MODE = "none"
 uvicorn mes.main:app --reload --port 8082
 

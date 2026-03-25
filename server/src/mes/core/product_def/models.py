@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
+from mes.core.uom.models import UnitOfMeasure  # noqa: F401 — needed for relationships
 
 
 class ProductDefinition(BaseModel):
@@ -41,8 +42,11 @@ class ProductDefinition(BaseModel):
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     uom: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="EA",
-        comment="Unit of measure (EA, KG, L, etc.)",
+        String(20),
+        ForeignKey("units_of_measure.symbol"),
+        nullable=False,
+        default="EA",
+        comment="Unit of measure — FK to units_of_measure.symbol",
     )
     product_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="discrete",
@@ -111,7 +115,11 @@ class BOMItem(BaseModel):
     )
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
     uom: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="EA",
+        String(20),
+        ForeignKey("units_of_measure.symbol"),
+        nullable=False,
+        default="EA",
+        comment="Unit of measure — FK to units_of_measure.symbol",
     )
     position: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0,
@@ -224,7 +232,12 @@ class StepParameter(BaseModel):
         String(20), nullable=False, default="numeric",
         comment="Data type: 'numeric', 'string', 'boolean', 'enum'",
     )
-    uom: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    uom: Mapped[str | None] = mapped_column(
+        String(20),
+        ForeignKey("units_of_measure.symbol"),
+        nullable=True,
+        comment="Unit of measure — FK to units_of_measure.symbol",
+    )
     target_value: Mapped[str | None] = mapped_column(
         String(255), nullable=True,
         comment="Target/nominal value as string (parsed based on data_type)",

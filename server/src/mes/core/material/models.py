@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
+from mes.core.uom.models import UnitOfMeasure  # noqa: F401 — needed for relationship
 
 
 class MaterialDefinition(BaseModel):
@@ -44,8 +45,11 @@ class MaterialDefinition(BaseModel):
         comment="Material type: raw, intermediate, finished",
     )
     uom: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="EA",
-        comment="Default unit of measure (e.g. EA, kg, L)",
+        String(20),
+        ForeignKey("units_of_measure.symbol"),
+        nullable=False,
+        default="EA",
+        comment="Default unit of measure — FK to units_of_measure.symbol",
     )
     shelf_life_days: Mapped[int | None] = mapped_column(
         Integer, nullable=True,
@@ -53,6 +57,11 @@ class MaterialDefinition(BaseModel):
     )
 
     # ── Relationships ───────────────────────────────────────────────
+    unit_of_measure: Mapped["UnitOfMeasure"] = relationship(
+        "UnitOfMeasure",
+        foreign_keys=[uom],
+        lazy="selectin",
+    )
     lots: Mapped[list["MaterialLot"]] = relationship(
         "MaterialLot", back_populates="material", cascade="all, delete-orphan",
     )

@@ -23,6 +23,12 @@ Outbound report endpoints (MES → ERP):
 - POST   /api/v1/erp/report/downtime         Report equipment downtime
 - POST   /api/v1/erp/report/quality-result   Report quality test result
 - GET    /api/v1/erp/confirmations            List outbound confirmations (simulator)
+
+Simulator CRUD endpoints (for editing in-memory SAP data):
+- POST   /api/v1/erp/simulator/materials          Create a material
+- PUT    /api/v1/erp/simulator/materials/{code}    Update a material
+- DELETE /api/v1/erp/simulator/materials/{code}    Delete a material
+- GET    /api/v1/erp/simulator/options             Dropdown options (material types, UOMs)
 """
 
 from __future__ import annotations
@@ -360,3 +366,137 @@ async def list_confirmations():
     adapter = _get_erp_outbound()
     confirmations = getattr(adapter, "confirmations", [])
     return list_response(confirmations)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Simulator CRUD — edit in-memory SAP data via the GUI
+# ═══════════════════════════════════════════════════════════════════════════
+
+# SAP material types recognised by the simulator
+_SAP_MATERIAL_TYPES = [
+    {"code": "ROH",  "label": "Raw Material"},
+    {"code": "HALB", "label": "Semi-Finished"},
+    {"code": "FERT", "label": "Finished Product"},
+    {"code": "VERP", "label": "Packaging"},
+]
+
+# UOM symbols available in the simulator
+_SAP_UOM_OPTIONS = [
+    {"symbol": "EA",  "name": "Each"},
+    {"symbol": "KG",  "name": "Kilogram"},
+    {"symbol": "G",   "name": "Gram"},
+    {"symbol": "L",   "name": "Liter"},
+    {"symbol": "M",   "name": "Meter"},
+    {"symbol": "KM",  "name": "Kilometer"},
+    {"symbol": "PC",  "name": "Piece"},
+    {"symbol": "M2",  "name": "Square Meter"},
+    {"symbol": "M3",  "name": "Cubic Meter"},
+]
+
+
+class MaterialCreateRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=40)
+    name: str = Field(..., min_length=1, max_length=120)
+    material_type: str = Field(..., min_length=1)
+    uom: str = Field(..., min_length=1)
+    description: str = Field(default="")
+    shelf_life_days: int | None = None
+
+
+class MaterialUpdateRequest(BaseModel):
+    name: str | None = None
+    material_type: str | None = None
+    uom: str | None = None
+    description: str | None = None
+    shelf_life_days: int | None = Field(default=None)
+
+
+@router.get("/simulator/options", response_model=dict)
+async def simulator_options():
+    """Return dropdown options for material types and UOMs."""
+    return success_response({
+        "material_types": _SAP_MATERIAL_TYPES,
+        "uom_options": _SAP_UOM_OPTIONS,
+    })
+
+
+@router.post("/simulator/materials", response_model=dict)
+async def create_simulator_material(req: MaterialCreateRequest):
+    """Create a new material in the simulator's in-memory store."""
+    adapter = _get_erp_inbound()
+    if not hasattr(adapter, "get_material"):
+        from mes.framework.api.exceptions import MESException
+        raise MESException(
+            message="Running ERP adapter does not support simulator CRUD",
+            status_code=400,
+            error_code="NOT_A_SIMULATOR",
+        )
+    if adapter.get_material(req.code) is not None:
+        from mes.framework.api.exceptions import MESException
+        raise MESException(
+            message=f"Material '{req.code}' already exists",
+            status_code=409,
+            error_code="DUPLICATE_MATERIAL",
+        )
+    sap_record = {
+        "Material": req.code,
+        "MaterialName": req.name,
+        "MaterialType": req.material_type,
+        "BaseUnit": req.uom,
+        "MaterialDescription": req.description,
+        "MaximumStoragePeriod": str(req.shelf_life_days) if req.shelf_life_days else None,
+        "MaterialGroup": "001",
+        "Plant": "1000",
+    }
+    adapter.add_material(sap_record)
+    dto = adapter._transform.to_material(sap_record)
+    return success_response(dto.model_dump(mode="json"))
+
+
+@router.put("/simulator/materials/{code}", response_model=dict)
+async def update_simulator_material(code: str, req: MaterialUpdateRequest):
+    """Update an existing material in the simulator's in-memory store."""
+    adapter = _get_erp_inbound()
+    if not hasattr(adapter, "update_material"):
+        from mes.framework.api.exceptions import MESException
+        raise MESException(
+            message="Running ERP adapter does not support simulator CRUD",
+            status_code=400,
+            error_code="NOT_A_SIMULATOR",
+        )
+    existing = adapter.get_material(code)
+    if existing is None:
+        from mes.framework.api.exceptions import NotFoundException
+        raise NotFoundException(resource="Material", resource_id=code)
+    updates: dict = {}
+    if req.name is not None:
+        updates["MaterialName"] = req.name
+    if req.material_type is not None:
+        updates["MaterialType"] = req.material_type
+    if req.uom is not None:
+        updates["BaseUnit"] = req.uom
+    if req.description is not None:
+        updates["MaterialDescription"] = req.description
+    if req.shelf_life_days is not None:
+        updates["MaximumStoragePeriod"] = str(req.shelf_life_days)
+    updated = adapter.update_material(code, updates)
+    dto = adapter._transform.to_material(updated)
+    return success_response(dto.model_dump(mode="json"))
+
+
+@router.delete("/simulator/materials/{code}", response_model=dict)
+async def delete_simulator_material(code: str):
+    """Delete a material from the simulator's in-memory store."""
+    adapter = _get_erp_inbound()
+    if not hasattr(adapter, "delete_material"):
+        from mes.framework.api.exceptions import MESException
+        raise MESException(
+            message="Running ERP adapter does not support simulator CRUD",
+            status_code=400,
+            error_code="NOT_A_SIMULATOR",
+        )
+    removed = adapter.delete_material(code)
+    if not removed:
+        from mes.framework.api.exceptions import NotFoundException
+        raise NotFoundException(resource="Material", resource_id=code)
+    return success_response({"deleted": True, "code": code})

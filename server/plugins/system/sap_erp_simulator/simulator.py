@@ -149,7 +149,7 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
         self._maybe_fail("sync_work_cells")
         return [self._transform.to_work_cell(wc) for wc in self._work_centers]
 
-    # ── Data mutation helpers (for test setup) ────────────────────
+    # ── Data mutation helpers (for test setup and simulator GUI) ──
 
     def add_production_order(self, sap_order: dict) -> None:
         """Inject an additional SAP-format order into the simulator."""
@@ -158,6 +158,29 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
     def add_material(self, sap_material: dict) -> None:
         """Inject an additional SAP-format material into the simulator."""
         self._materials.append(sap_material)
+
+    def update_material(self, code: str, fields: dict) -> dict | None:
+        """Update an existing SAP-format material by code. Returns updated record or None."""
+        for mat in self._materials:
+            if mat["Material"] == code:
+                mat.update(fields)
+                return mat
+        return None
+
+    def delete_material(self, code: str) -> bool:
+        """Remove a material by code. Returns True if found and removed."""
+        for i, mat in enumerate(self._materials):
+            if mat["Material"] == code:
+                self._materials.pop(i)
+                return True
+        return False
+
+    def get_material(self, code: str) -> dict | None:
+        """Get a single SAP-format material by code."""
+        for mat in self._materials:
+            if mat["Material"] == code:
+                return mat
+        return None
 
     def add_bom(self, product_code: str, sap_bom: dict) -> None:
         """Inject an additional SAP-format BOM for a product."""

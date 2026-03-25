@@ -190,3 +190,58 @@ export async function reportQualityResult(data: {
 export async function getConfirmations(): Promise<ConfirmationRecord[]> {
   return unwrapData(await api.get("/erp/confirmations"));
 }
+
+// ── Simulator Options ─────────────────────────────────────────────────────
+
+export interface MaterialTypeOption {
+  code: string;
+  label: string;
+}
+
+export interface UOMOption {
+  symbol: string;
+  name: string;
+}
+
+export interface SimulatorOptions {
+  material_types: MaterialTypeOption[];
+  uom_options: UOMOption[];
+}
+
+export async function getSimulatorOptions(): Promise<SimulatorOptions> {
+  return unwrapData(await api.get("/erp/simulator/options"));
+}
+
+// ── Simulator Material CRUD ───────────────────────────────────────────────
+
+export interface MaterialCreatePayload {
+  code: string;
+  name: string;
+  material_type: string;
+  uom: string;
+  description: string;
+  shelf_life_days: number | null;
+}
+
+export interface MaterialUpdatePayload {
+  name?: string;
+  material_type?: string;
+  uom?: string;
+  description?: string;
+  shelf_life_days?: number | null;
+}
+
+export async function createMaterial(data: MaterialCreatePayload): Promise<MaterialDefinition> {
+  return unwrapData(await api.post("/erp/simulator/materials", data));
+}
+
+export async function updateMaterial(
+  code: string,
+  data: MaterialUpdatePayload,
+): Promise<MaterialDefinition> {
+  return unwrapData(await api.put(`/erp/simulator/materials/${encodeURIComponent(code)}`, data));
+}
+
+export async function deleteMaterial(code: string): Promise<void> {
+  await api.delete(`/erp/simulator/materials/${encodeURIComponent(code)}`);
+}

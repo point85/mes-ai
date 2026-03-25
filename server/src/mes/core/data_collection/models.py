@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
+from mes.core.uom.models import UnitOfMeasure  # noqa: F401 — needed for FK
 
 
 class DataDefinition(BaseModel):
@@ -52,8 +53,10 @@ class DataDefinition(BaseModel):
         comment="Expected data type: numeric, string, boolean, enum",
     )
     uom: Mapped[str | None] = mapped_column(
-        String(20), nullable=True,
-        comment="Unit of measure for numeric values (e.g. °C, Nm, mm)",
+        String(20),
+        ForeignKey("units_of_measure.symbol"),
+        nullable=True,
+        comment="Unit of measure — FK to units_of_measure.symbol",
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("route_steps.id"),

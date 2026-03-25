@@ -48,6 +48,10 @@ BUILTIN_UNITS: list[tuple[str, str, str, float, float]] = [
     ("°F",  "degree Fahrenheit", "temperature", 5.0 / 9.0,      273.15 - 32.0 * 5.0 / 9.0),
     # Volume
     ("fl_oz", "fluid ounce",    "volume",      2.95735295625e-5, 0.0),
+
+    # ── COUNT / DISCRETE ────────────────────────────────────────────
+    ("EA",  "each",              "count",       1.0,             0.0),
+    ("PC",  "piece",             "count",       1.0,             0.0),
 ]
 
 
