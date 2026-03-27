@@ -25,6 +25,7 @@ export interface MaterialDefinition {
   name: string;
   material_type: string;
   uom: string;
+  revision: string | null;
   description: string;
   shelf_life_days: number | null;
   metadata: Record<string, unknown>;
@@ -224,6 +225,7 @@ export interface MaterialCreatePayload {
   name: string;
   material_type: string;
   uom: string;
+  revision?: string | null;
   description: string;
   shelf_life_days: number | null;
 }
@@ -232,6 +234,7 @@ export interface MaterialUpdatePayload {
   name?: string;
   material_type?: string;
   uom?: string;
+  revision?: string | null;
   description?: string;
   shelf_life_days?: number | null;
 }

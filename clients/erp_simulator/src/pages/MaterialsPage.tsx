@@ -19,6 +19,7 @@ function emptyRow(): MaterialDefinition {
     name: "",
     material_type: "",
     uom: "EA",
+    revision: null,
     description: "",
     shelf_life_days: null,
     metadata: {},
@@ -89,6 +90,7 @@ export default function MaterialsPage() {
         name: newRow.name.trim(),
         material_type: newRow.material_type,
         uom: newRow.uom,
+        revision: newRow.revision,
         description: newRow.description,
         shelf_life_days: newRow.shelf_life_days,
       });
@@ -113,6 +115,7 @@ export default function MaterialsPage() {
         name: editDraft.name,
         material_type: editDraft.material_type,
         uom: editDraft.uom,
+        revision: editDraft.revision,
         description: editDraft.description,
         shelf_life_days: editDraft.shelf_life_days,
       });
@@ -202,7 +205,7 @@ export default function MaterialsPage() {
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              {["Code", "Name", `${erpLabel} Type`, "UoM", "Description", "Shelf Life", "Actions"].map(
+              {["Code", "Name", `${erpLabel} Type`, "UoM", ...(erpType === "oracle" ? ["Rev"] : []), "Description", "Shelf Life", "Actions"].map(
                 (h) => (
                   <th
                     key={h}
@@ -260,6 +263,16 @@ export default function MaterialsPage() {
                     ))}
                   </select>
                 </td>
+                {erpType === "oracle" && (
+                  <td className="px-3 py-2">
+                    <input
+                      className={inputCls}
+                      placeholder="Rev"
+                      value={newRow.revision ?? ""}
+                      onChange={(e) => setNewRow({ ...newRow, revision: e.target.value || null })}
+                    />
+                  </td>
+                )}
                 <td className="px-3 py-2">
                   <input
                     className={inputCls}
@@ -303,7 +316,7 @@ export default function MaterialsPage() {
             {/* ── Data rows ───────────────────────────────────── */}
             {data.length === 0 && !adding ? (
               <tr>
-                <td colSpan={7} className="text-center py-8 text-gray-500">
+                <td colSpan={erpType === "oracle" ? 8 : 7} className="text-center py-8 text-gray-500">
                   Click &apos;Sync Materials&apos; to pull material master from {erpLabel}
                 </td>
               </tr>
@@ -369,13 +382,29 @@ export default function MaterialsPage() {
                       )}
                     </td>
 
+                    {/* Revision (Oracle only) */}
+                    {erpType === "oracle" && (
+                      <td className="px-3 py-2">
+                        {isEditing ? (
+                          <input
+                            className={inputCls}
+                            value={draft.revision ?? ""}
+                            onChange={(e) => setEditDraft({ ...draft, revision: e.target.value || null })}
+                          />
+                        ) : (
+                          row.revision ?? "—"
+                        )}
+                      </td>
+                    )}
+
                     {/* Description */}
                     <td className="px-3 py-2">
                       {isEditing ? (
                         <input
                           className={inputCls}
                           value={draft.description}
-                          onChange={(e) => setEditDraft({ ...draft, description: e.target.value })}
+                          onChange={(e) => setEditDraft({ ...draft, description: e.target.value })
+                          }
                         />
                       ) : (
                         row.description
