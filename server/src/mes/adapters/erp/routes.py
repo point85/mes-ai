@@ -254,6 +254,7 @@ async def sync_materials(
                 name=dto.name,
                 material_type=dto.material_type,
                 uom=dto.uom,
+                revision=dto.revision,
                 description=dto.description,
                 shelf_life_days=dto.shelf_life_days,
             )
@@ -263,6 +264,7 @@ async def sync_materials(
             existing.name = dto.name
             existing.material_type = dto.material_type
             existing.uom = dto.uom
+            existing.revision = dto.revision
             existing.description = dto.description
             existing.shelf_life_days = dto.shelf_life_days
             await session.flush()
@@ -432,6 +434,7 @@ class MaterialCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     material_type: str = Field(..., min_length=1)
     uom: str = Field(..., min_length=1)
+    revision: str | None = None
     description: str = Field(default="")
     shelf_life_days: int | None = None
 
@@ -440,6 +443,7 @@ class MaterialUpdateRequest(BaseModel):
     name: str | None = None
     material_type: str | None = None
     uom: str | None = None
+    revision: str | None = None
     description: str | None = None
     shelf_life_days: int | None = Field(default=None)
 
@@ -481,6 +485,7 @@ async def create_simulator_material(
         "MaterialName": req.name,
         "MaterialType": req.material_type,
         "BaseUnit": req.uom,
+        "MaterialRevisionLevel": req.revision,
         "MaterialDescription": req.description,
         "MaximumStoragePeriod": str(req.shelf_life_days) if req.shelf_life_days else None,
         "MaterialGroup": "001",
@@ -496,6 +501,7 @@ async def create_simulator_material(
         name=dto.name,
         material_type=dto.material_type,
         uom=dto.uom,
+        revision=dto.revision,
         description=dto.description,
         shelf_life_days=dto.shelf_life_days,
     )
@@ -534,6 +540,8 @@ async def update_simulator_material(
         updates["MaterialType"] = req.material_type
     if req.uom is not None:
         updates["BaseUnit"] = req.uom
+    if req.revision is not None:
+        updates["MaterialRevisionLevel"] = req.revision
     if req.description is not None:
         updates["MaterialDescription"] = req.description
     if req.shelf_life_days is not None:
@@ -557,6 +565,8 @@ async def update_simulator_material(
             db_updates["material_type"] = dto.material_type
         if req.uom is not None:
             db_updates["uom"] = req.uom
+        if req.revision is not None:
+            db_updates["revision"] = req.revision
         if req.description is not None:
             db_updates["description"] = req.description
         if req.shelf_life_days is not None:

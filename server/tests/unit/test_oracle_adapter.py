@@ -117,6 +117,7 @@ class TestOracleTransformMaterial:
             "Description": "Copper Wire 2.5mm",
             "ItemType": "STANDARD",
             "PrimaryUOMCode": "M",
+            "RevisionCode": "B",
             "LongDescription": "Copper Wire 2.5mm for electrical assemblies",
             "ShelfLifeDays": 365,
             "ItemClass": "Raw Materials",
@@ -129,6 +130,7 @@ class TestOracleTransformMaterial:
         assert dto.name == "Copper Wire 2.5mm"
         assert dto.material_type == "raw"
         assert dto.uom == "m"
+        assert dto.revision == "B"
         assert dto.shelf_life_days == 365
         assert dto.description == "Copper Wire 2.5mm for electrical assemblies"
 
@@ -141,6 +143,7 @@ class TestOracleTransformMaterial:
         }
         dto = self.tf.to_material(oracle_data)
         assert dto.material_type == "semi"
+        assert dto.revision is None
 
     def test_fallback_description(self):
         oracle_data = {

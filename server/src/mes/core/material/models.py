@@ -55,6 +55,10 @@ class MaterialDefinition(BaseModel):
         default="EA",
         comment="Default unit of measure — FK to units_of_measure.symbol",
     )
+    revision: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default=None,
+        comment="Material revision level (e.g. Oracle RevisionCode). Null if ERP has no revisions.",
+    )
     shelf_life_days: Mapped[int | None] = mapped_column(
         Integer, nullable=True,
         comment="Shelf life in days from receipt. Null means no expiry.",

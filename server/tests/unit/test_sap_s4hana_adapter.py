@@ -130,6 +130,7 @@ class TestSAPTransformMaterial:
         assert dto.name == "Copper Wire 2.5mm"
         assert dto.material_type == "raw"
         assert dto.uom == "m"
+        assert dto.revision is None
         assert dto.shelf_life_days == 365
 
     def test_semi_finished(self):

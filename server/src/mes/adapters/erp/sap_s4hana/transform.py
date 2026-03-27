@@ -81,6 +81,7 @@ class SAPS4HANATransformLayer(ERPTransformLayer):
             uom=normalize_erp_uom(
                 erp_data.get("BaseUnit", erp_data.get("MEINS", "EA")),
             ),
+            revision=erp_data.get("MaterialRevisionLevel"),
             description=erp_data.get("MaterialDescription", erp_data.get("MAKTX", "")),
             shelf_life_days=_safe_int(erp_data.get("MaximumStoragePeriod")),
             metadata={

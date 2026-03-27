@@ -32,6 +32,7 @@ class MaterialCreate(BaseModel):
     description: str | None = None
     material_type: str = Field("raw", description="raw, intermediate, finished, semi, consumable, packaging, spare")
     uom: str = Field("EA", min_length=1, max_length=20)
+    revision: str | None = Field(None, max_length=20, description="Material revision level")
     shelf_life_days: int | None = Field(None, gt=0)
 
     @field_validator("code")
@@ -58,6 +59,7 @@ class MaterialRead(BaseModel):
     description: str | None = None
     material_type: str
     uom: str
+    revision: str | None = None
     shelf_life_days: int | None = None
     is_active: bool
     created_at: datetime
@@ -74,6 +76,7 @@ class MaterialUpdate(BaseModel):
     description: str | None = None
     material_type: str | None = None
     uom: str | None = Field(None, min_length=1, max_length=20)
+    revision: str | None = Field(None, max_length=20)
     shelf_life_days: int | None = Field(None, gt=0)
 
     @field_validator("code")

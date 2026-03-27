@@ -257,6 +257,7 @@ class TestMaterialCreateSchema:
         s = MaterialCreate(name="Widget", code="WDG-001")
         assert s.material_type == "raw"
         assert s.uom == "EA"
+        assert s.revision is None
         assert s.shelf_life_days is None
         assert s.description is None
 

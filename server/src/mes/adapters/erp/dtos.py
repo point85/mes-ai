@@ -39,6 +39,7 @@ class MaterialDefinitionDTO(BaseModel):
     name: str
     material_type: str = "raw"
     uom: str = "EA"
+    revision: str | None = None
     description: str = ""
     shelf_life_days: int | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)

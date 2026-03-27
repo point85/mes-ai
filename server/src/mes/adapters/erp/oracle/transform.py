@@ -73,6 +73,7 @@ class OracleTransformLayer(ERPTransformLayer):
                 erp_data.get("ItemType", "STANDARD"),
             ),
             uom=normalize_erp_uom(erp_data.get("PrimaryUOMCode", "EA")),
+            revision=erp_data.get("RevisionCode"),
             description=erp_data.get("LongDescription", erp_data.get("Description", "")),
             shelf_life_days=_safe_int(erp_data.get("ShelfLifeDays")),
             metadata={
