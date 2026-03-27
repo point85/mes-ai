@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 
 # ── Valid constants ──────────────────────────────────────────────────
 
-MATERIAL_TYPES = {"raw", "intermediate", "finished"}
+MATERIAL_TYPES = {"raw", "intermediate", "finished", "semi", "consumable", "packaging", "spare"}
 MATERIAL_LOT_STATUSES = {"available", "reserved", "consumed", "expired"}
 
 
@@ -30,7 +30,7 @@ class MaterialCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
-    material_type: str = Field("raw", description="raw, intermediate, finished")
+    material_type: str = Field("raw", description="raw, intermediate, finished, semi, consumable, packaging, spare")
     uom: str = Field("EA", min_length=1, max_length=20)
     shelf_life_days: int | None = Field(None, gt=0)
 

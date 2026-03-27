@@ -627,7 +627,11 @@ class TestMaterialConstants:
         assert "raw" in MATERIAL_TYPES
         assert "intermediate" in MATERIAL_TYPES
         assert "finished" in MATERIAL_TYPES
-        assert len(MATERIAL_TYPES) == 3
+        assert "semi" in MATERIAL_TYPES
+        assert "consumable" in MATERIAL_TYPES
+        assert "packaging" in MATERIAL_TYPES
+        assert "spare" in MATERIAL_TYPES
+        assert len(MATERIAL_TYPES) == 7
 
     def test_lot_statuses(self):
         assert "available" in MATERIAL_LOT_STATUSES

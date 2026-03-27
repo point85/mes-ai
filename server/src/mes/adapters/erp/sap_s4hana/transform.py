@@ -77,7 +77,9 @@ class SAPS4HANATransformLayer(ERPTransformLayer):
             material_type=_map_sap_material_type(
                 erp_data.get("MaterialType", erp_data.get("MTART", "ROH")),
             ),
-            uom=erp_data.get("BaseUnit", erp_data.get("MEINS", "EA")),
+            uom=_map_sap_uom(
+                erp_data.get("BaseUnit", erp_data.get("MEINS", "EA")),
+            ),
             description=erp_data.get("MaterialDescription", erp_data.get("MAKTX", "")),
             shelf_life_days=_safe_int(erp_data.get("MaximumStoragePeriod")),
             metadata={
@@ -238,6 +240,27 @@ def _map_sap_material_type(sap_type: str) -> str:
         "ERSA": "spare",       # Spare parts
     }
     return mapping.get(sap_type, "raw")
+
+
+def _map_sap_uom(sap_uom: str) -> str:
+    """Map SAP unit of measure code to MES UOM symbol."""
+    mapping = {
+        "KG": "kg",
+        "G": "g",
+        "M": "m",
+        "KM": "km",
+        "L": "L",
+        "M3": "m\u00b3",
+        "M2": "m\u00b2",
+        "LB": "lb",
+        "OZ": "oz",
+        "FT": "ft",
+        "S": "s",
+        "MIN": "min",
+        "H": "h",
+        "D": "d",
+    }
+    return mapping.get(sap_uom, sap_uom)
 
 
 def _map_sap_product_type(sap_type: str) -> str:

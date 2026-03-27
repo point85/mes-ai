@@ -28,6 +28,10 @@ class MaterialDefinition(BaseModel):
         raw          — purchased raw material from suppliers
         intermediate — produced in-house and consumed downstream
         finished     — final product shipped to customers
+        semi         — semi-finished (SAP HALB)
+        consumable   — operating supplies (SAP HIBE)
+        packaging    — packaging materials (SAP VERP)
+        spare        — spare parts (SAP ERSA)
     """
 
     __tablename__ = "material_definitions"
@@ -42,7 +46,7 @@ class MaterialDefinition(BaseModel):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     material_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="raw",
-        comment="Material type: raw, intermediate, finished",
+        comment="Material type: raw, intermediate, finished, semi, consumable, packaging, spare",
     )
     uom: Mapped[str] = mapped_column(
         String(20),

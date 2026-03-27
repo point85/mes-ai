@@ -231,10 +231,43 @@ async def sync_production_orders(
 @router.post("/sync/materials", response_model=dict)
 async def sync_materials(
     since: datetime | None = Query(None),
+    session: AsyncSession = Depends(get_db_session),
 ):
-    """Pull material master records from the ERP adapter."""
+    """Pull material master records from the ERP adapter and persist to DB."""
+    from sqlalchemy import select
+    from mes.core.material.models import MaterialDefinition
+    from mes.core.material.service import MaterialService
+
     adapter = _get_erp_inbound()
     materials = await adapter.sync_materials(since=since)
+
+    # Upsert each material into the MES database
+    for dto in materials:
+        result = await session.execute(
+            select(MaterialDefinition).where(MaterialDefinition.code == dto.code)
+        )
+        existing = result.scalar_one_or_none()
+        if existing is None:
+            await MaterialService.create_material(
+                session,
+                code=dto.code,
+                name=dto.name,
+                material_type=dto.material_type,
+                uom=dto.uom,
+                description=dto.description,
+                shelf_life_days=dto.shelf_life_days,
+            )
+        else:
+            if not existing.is_active:
+                existing.is_active = True
+            existing.name = dto.name
+            existing.material_type = dto.material_type
+            existing.uom = dto.uom
+            existing.description = dto.description
+            existing.shelf_life_days = dto.shelf_life_days
+            await session.flush()
+    await session.commit()
+
     return list_response([m.model_dump(mode="json") for m in materials])
 
 
@@ -421,8 +454,13 @@ async def simulator_options():
 
 
 @router.post("/simulator/materials", response_model=dict)
-async def create_simulator_material(req: MaterialCreateRequest):
-    """Create a new material in the simulator's in-memory store."""
+async def create_simulator_material(
+    req: MaterialCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Create a new material in the simulator's in-memory store and persist to DB."""
+    from mes.core.material.service import MaterialService
+
     adapter = _get_erp_inbound()
     if not hasattr(adapter, "get_material"):
         from mes.framework.api.exceptions import MESException
@@ -450,12 +488,33 @@ async def create_simulator_material(req: MaterialCreateRequest):
     }
     adapter.add_material(sap_record)
     dto = adapter._transform.to_material(sap_record)
+
+    # Persist to MES database
+    await MaterialService.create_material(
+        session,
+        code=dto.code,
+        name=dto.name,
+        material_type=dto.material_type,
+        uom=dto.uom,
+        description=dto.description,
+        shelf_life_days=dto.shelf_life_days,
+    )
+    await session.commit()
+
     return success_response(dto.model_dump(mode="json"))
 
 
 @router.put("/simulator/materials/{code}", response_model=dict)
-async def update_simulator_material(code: str, req: MaterialUpdateRequest):
-    """Update an existing material in the simulator's in-memory store."""
+async def update_simulator_material(
+    code: str,
+    req: MaterialUpdateRequest,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Update an existing material in the simulator's in-memory store and DB."""
+    from sqlalchemy import select
+    from mes.core.material.models import MaterialDefinition
+    from mes.core.material.service import MaterialService
+
     adapter = _get_erp_inbound()
     if not hasattr(adapter, "update_material"):
         from mes.framework.api.exceptions import MESException
@@ -481,12 +540,43 @@ async def update_simulator_material(code: str, req: MaterialUpdateRequest):
         updates["MaximumStoragePeriod"] = str(req.shelf_life_days)
     updated = adapter.update_material(code, updates)
     dto = adapter._transform.to_material(updated)
+
+    # Persist to MES database
+    result = await session.execute(
+        select(MaterialDefinition).where(
+            MaterialDefinition.code == code,
+            MaterialDefinition.is_active.is_(True),
+        )
+    )
+    db_material = result.scalar_one_or_none()
+    if db_material is not None:
+        db_updates: dict[str, Any] = {}
+        if req.name is not None:
+            db_updates["name"] = req.name
+        if req.material_type is not None:
+            db_updates["material_type"] = dto.material_type
+        if req.uom is not None:
+            db_updates["uom"] = req.uom
+        if req.description is not None:
+            db_updates["description"] = req.description
+        if req.shelf_life_days is not None:
+            db_updates["shelf_life_days"] = req.shelf_life_days
+        await MaterialService.update_material(session, db_material.id, **db_updates)
+        await session.commit()
+
     return success_response(dto.model_dump(mode="json"))
 
 
 @router.delete("/simulator/materials/{code}", response_model=dict)
-async def delete_simulator_material(code: str):
-    """Delete a material from the simulator's in-memory store."""
+async def delete_simulator_material(
+    code: str,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Delete a material from the simulator's in-memory store and soft-delete from DB."""
+    from sqlalchemy import select
+    from mes.core.material.models import MaterialDefinition
+    from mes.core.material.service import MaterialService
+
     adapter = _get_erp_inbound()
     if not hasattr(adapter, "delete_material"):
         from mes.framework.api.exceptions import MESException
@@ -499,4 +589,17 @@ async def delete_simulator_material(code: str):
     if not removed:
         from mes.framework.api.exceptions import NotFoundException
         raise NotFoundException(resource="Material", resource_id=code)
+
+    # Soft-delete from MES database
+    result = await session.execute(
+        select(MaterialDefinition).where(
+            MaterialDefinition.code == code,
+            MaterialDefinition.is_active.is_(True),
+        )
+    )
+    db_material = result.scalar_one_or_none()
+    if db_material is not None:
+        await MaterialService.delete_material(session, db_material.id)
+        await session.commit()
+
     return success_response({"deleted": True, "code": code})
