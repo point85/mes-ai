@@ -2,6 +2,7 @@
 UOM: Pydantic schemas for the Unit of Measure REST API.
 
 Create / Read / Update schemas for UnitOfMeasure, plus a ConversionRequest/Result pair.
+Rate UoMs (uom_type="rate") reference a numerator and denominator UoM by symbol.
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ─── UnitOfMeasure CRUD ──────────────────────────────────────────────
@@ -24,6 +25,12 @@ class UoMCreate(BaseModel):
     uom_type: str = Field(..., min_length=1, max_length=50)
     multiplier: float = Field(1.0, gt=0, description="Must be > 0")
     offset: float = Field(0.0)
+    numerator_uom_symbol: str | None = Field(
+        None, description="For rate UoMs: numerator unit symbol (e.g. EA in EA/h)",
+    )
+    denominator_uom_symbol: str | None = Field(
+        None, description="For rate UoMs: denominator unit symbol (e.g. h in EA/h)",
+    )
 
     @field_validator("symbol")
     @classmethod
@@ -31,6 +38,18 @@ class UoMCreate(BaseModel):
         if " " in v:
             raise ValueError("symbol must not contain spaces")
         return v
+
+    @model_validator(mode="after")
+    def rate_requires_both_components(self) -> UoMCreate:
+        num = self.numerator_uom_symbol
+        den = self.denominator_uom_symbol
+        if self.uom_type == "rate":
+            if not num or not den:
+                raise ValueError("Rate UoMs require both numerator_uom_symbol and denominator_uom_symbol")
+        else:
+            if num or den:
+                raise ValueError("numerator_uom_symbol and denominator_uom_symbol are only valid for rate UoMs (uom_type='rate')")
+        return self
 
 
 class UoMRead(BaseModel):
@@ -45,6 +64,10 @@ class UoMRead(BaseModel):
     offset: float
     is_builtin: bool
     is_active: bool
+    numerator_uom_id: UUID | None = None
+    denominator_uom_id: UUID | None = None
+    numerator_uom_symbol: str | None = None
+    denominator_uom_symbol: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -60,6 +83,12 @@ class UoMUpdate(BaseModel):
     uom_type: str | None = Field(None, min_length=1, max_length=50)
     multiplier: float | None = Field(None, gt=0)
     offset: float | None = None
+    numerator_uom_symbol: str | None = Field(
+        None, description="For rate UoMs: numerator unit symbol",
+    )
+    denominator_uom_symbol: str | None = Field(
+        None, description="For rate UoMs: denominator unit symbol",
+    )
 
     @field_validator("symbol")
     @classmethod

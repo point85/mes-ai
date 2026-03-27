@@ -2,27 +2,48 @@
  * UoM Create / Edit dialog — modal form with Zod validation.
  */
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { useCreateUoM, useUpdateUoM } from "../../hooks/useUoM";
+import { useCreateUoM, useUpdateUoM, useUoMs } from "../../hooks/useUoM";
 import type { UoM } from "../../types";
 
-const uomSchema = z.object({
-  symbol: z
-    .string()
-    .min(1, "Symbol is required")
-    .max(20)
-    .refine((s) => !s.includes(" "), "Symbol must not contain spaces"),
-  name: z.string().min(1, "Name is required").max(100),
-  description: z.string().nullable().optional(),
-  uom_type: z.string().min(1, "Type is required").max(50),
-  multiplier: z.coerce.number().positive("Must be > 0"),
-  offset: z.coerce.number(),
-});
+const uomSchema = z
+  .object({
+    symbol: z
+      .string()
+      .min(1, "Symbol is required")
+      .max(20)
+      .refine((s) => !s.includes(" "), "Symbol must not contain spaces"),
+    name: z.string().min(1, "Name is required").max(100),
+    description: z.string().nullable().optional(),
+    uom_type: z.string().min(1, "Type is required").max(50),
+    multiplier: z.coerce.number().positive("Must be > 0"),
+    offset: z.coerce.number(),
+    numerator_uom_symbol: z.string().nullable().optional(),
+    denominator_uom_symbol: z.string().nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.uom_type === "rate") {
+      if (!data.numerator_uom_symbol) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Required for rate UoMs",
+          path: ["numerator_uom_symbol"],
+        });
+      }
+      if (!data.denominator_uom_symbol) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Required for rate UoMs",
+          path: ["denominator_uom_symbol"],
+        });
+      }
+    }
+  });
 
 type UoMFormData = z.infer<typeof uomSchema>;
 
@@ -35,11 +56,19 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
   const isEdit = !!uom;
   const createMut = useCreateUoM();
   const updateMut = useUpdateUoM();
+  const { data: allUoMs } = useUoMs();
+
+  // Non-rate UoMs available for numerator/denominator selection
+  const baseUoMs = useMemo(
+    () => (allUoMs?.data ?? []).filter((u) => u.uom_type !== "rate"),
+    [allUoMs],
+  );
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<UoMFormData>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,8 +80,13 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
       uom_type: "",
       multiplier: 1,
       offset: 0,
+      numerator_uom_symbol: null,
+      denominator_uom_symbol: null,
     },
   });
+
+  const watchedType = watch("uom_type");
+  const isRate = watchedType === "rate";
 
   useEffect(() => {
     if (uom) {
@@ -63,16 +97,23 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
         uom_type: uom.uom_type,
         multiplier: uom.multiplier,
         offset: uom.offset,
+        numerator_uom_symbol: uom.numerator_uom_symbol ?? null,
+        denominator_uom_symbol: uom.denominator_uom_symbol ?? null,
       });
     }
   }, [uom, reset]);
 
   const onSubmit = async (data: UoMFormData) => {
     try {
+      const payload = {
+        ...data,
+        numerator_uom_symbol: isRate ? data.numerator_uom_symbol : null,
+        denominator_uom_symbol: isRate ? data.denominator_uom_symbol : null,
+      };
       if (isEdit) {
-        await updateMut.mutateAsync({ id: uom!.id, ...data });
+        await updateMut.mutateAsync({ id: uom!.id, ...payload });
       } else {
-        await createMut.mutateAsync(data);
+        await createMut.mutateAsync(payload);
       }
       onClose();
     } catch {
@@ -186,6 +227,54 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
                 )}
               </div>
             </div>
+
+            {/* Rate UoM: Numerator / Denominator */}
+            {isRate && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Numerator
+                  </label>
+                  <select
+                    {...register("numerator_uom_symbol")}
+                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">Select unit…</option>
+                    {baseUoMs.map((u) => (
+                      <option key={u.symbol} value={u.symbol}>
+                        {u.symbol} — {u.name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.numerator_uom_symbol && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {errors.numerator_uom_symbol.message}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Denominator
+                  </label>
+                  <select
+                    {...register("denominator_uom_symbol")}
+                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">Select unit…</option>
+                    {baseUoMs.map((u) => (
+                      <option key={u.symbol} value={u.symbol}>
+                        {u.symbol} — {u.name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.denominator_uom_symbol && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {errors.denominator_uom_symbol.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Description */}
             <div>

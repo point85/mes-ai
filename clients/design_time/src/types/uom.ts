@@ -12,6 +12,10 @@ export interface UoM {
   offset: number;
   is_builtin: boolean;
   is_active: boolean;
+  numerator_uom_id: string | null;
+  denominator_uom_id: string | null;
+  numerator_uom_symbol: string | null;
+  denominator_uom_symbol: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -23,6 +27,8 @@ export interface UoMCreate {
   uom_type: string;
   multiplier: number;
   offset: number;
+  numerator_uom_symbol?: string | null;
+  denominator_uom_symbol?: string | null;
 }
 
 export interface UoMUpdate {
@@ -32,6 +38,8 @@ export interface UoMUpdate {
   uom_type?: string;
   multiplier?: number;
   offset?: number;
+  numerator_uom_symbol?: string | null;
+  denominator_uom_symbol?: string | null;
 }
 
 export interface ConversionRequest {

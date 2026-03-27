@@ -34,7 +34,7 @@ from mes.core.uom.exceptions import (
     DuplicateSymbolException,
     IncompatibleUoMTypeException,
 )
-from mes.core.uom.seed import BUILTIN_UNITS, get_builtin_unit_dicts
+from mes.core.uom.seed import BUILTIN_UNITS, BUILTIN_RATE_UNITS, get_builtin_unit_dicts, get_builtin_rate_unit_dicts
 from mes.core.uom.service import UoMService
 
 
@@ -47,7 +47,8 @@ def _make_uom(**overrides) -> types.SimpleNamespace:
 
     Uses SimpleNamespace instead of a real SQLAlchemy model to avoid
     requiring a database session.  The service's convert() method only
-    reads .symbol, .uom_type, .multiplier, .offset so this is sufficient.
+    reads .symbol, .uom_type, .multiplier, .offset, .is_rate,
+    .numerator_uom, .denominator_uom so this is sufficient.
     """
     defaults = {
         "id": uuid.uuid4(),
@@ -58,11 +59,36 @@ def _make_uom(**overrides) -> types.SimpleNamespace:
         "offset": 0.0,
         "is_builtin": True,
         "is_active": True,
+        "is_rate": False,
+        "numerator_uom_id": None,
+        "denominator_uom_id": None,
+        "numerator_uom": None,
+        "denominator_uom": None,
+        "numerator_uom_symbol": None,
+        "denominator_uom_symbol": None,
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
     }
     defaults.update(overrides)
     return types.SimpleNamespace(**defaults)
+
+
+def _make_rate_uom(symbol: str, name: str, numerator, denominator) -> types.SimpleNamespace:
+    """Create a rate UoM-like object from two base UoMs."""
+    return _make_uom(
+        symbol=symbol,
+        name=name,
+        uom_type="rate",
+        multiplier=1.0,
+        offset=0.0,
+        is_rate=True,
+        numerator_uom_id=numerator.id,
+        denominator_uom_id=denominator.id,
+        numerator_uom=numerator,
+        denominator_uom=denominator,
+        numerator_uom_symbol=numerator.symbol,
+        denominator_uom_symbol=denominator.symbol,
+    )
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -553,3 +579,221 @@ class TestRoundTrip:
         there = UoMService.convert(value, can, case)
         back = UoMService.convert(there, case, can)
         assert back == pytest.approx(value, rel=1e-12)
+
+
+# ═════════════════════════════════════════════════════════════════════
+# RATE UOM SCHEMA TESTS
+# ═════════════════════════════════════════════════════════════════════
+
+
+class TestRateUoMSchemas:
+    """Validation tests for rate UoM schema constraints."""
+
+    def test_create_rate_requires_both_symbols(self):
+        with pytest.raises(ValidationError, match="numerator_uom_symbol"):
+            UoMCreate(symbol="EA/h", name="each per hour", uom_type="rate")
+
+    def test_create_rate_requires_denominator(self):
+        with pytest.raises(ValidationError, match="denominator_uom_symbol"):
+            UoMCreate(
+                symbol="EA/h", name="each per hour", uom_type="rate",
+                numerator_uom_symbol="EA",
+            )
+
+    def test_create_rate_requires_numerator(self):
+        with pytest.raises(ValidationError, match="numerator_uom_symbol"):
+            UoMCreate(
+                symbol="EA/h", name="each per hour", uom_type="rate",
+                denominator_uom_symbol="h",
+            )
+
+    def test_create_rate_valid(self):
+        s = UoMCreate(
+            symbol="EA/h", name="each per hour", uom_type="rate",
+            numerator_uom_symbol="EA", denominator_uom_symbol="h",
+        )
+        assert s.numerator_uom_symbol == "EA"
+        assert s.denominator_uom_symbol == "h"
+
+    def test_non_rate_rejects_numerator(self):
+        with pytest.raises(ValidationError, match="only valid for rate"):
+            UoMCreate(
+                symbol="kg", name="kilogram", uom_type="mass",
+                numerator_uom_symbol="EA",
+            )
+
+    def test_non_rate_rejects_denominator(self):
+        with pytest.raises(ValidationError, match="only valid for rate"):
+            UoMCreate(
+                symbol="kg", name="kilogram", uom_type="mass",
+                denominator_uom_symbol="h",
+            )
+
+    def test_read_includes_rate_fields(self):
+        now = datetime.now(timezone.utc)
+        uid = uuid.uuid4()
+        read = UoMRead(
+            id=uid, symbol="EA/h", name="each per hour", uom_type="rate",
+            multiplier=1.0, offset=0.0, is_builtin=True, is_active=True,
+            numerator_uom_id=uuid.uuid4(), denominator_uom_id=uuid.uuid4(),
+            numerator_uom_symbol="EA", denominator_uom_symbol="h",
+            created_at=now, updated_at=now,
+        )
+        assert read.numerator_uom_symbol == "EA"
+        assert read.denominator_uom_symbol == "h"
+
+    def test_update_rate_fields(self):
+        s = UoMUpdate(numerator_uom_symbol="PC", denominator_uom_symbol="min")
+        assert s.numerator_uom_symbol == "PC"
+        assert s.denominator_uom_symbol == "min"
+
+
+# ═════════════════════════════════════════════════════════════════════
+# RATE UOM CONVERSION TESTS
+# ═════════════════════════════════════════════════════════════════════
+
+
+class TestRateConversion:
+    """Test rate-to-rate conversion via the static convert() method."""
+
+    @staticmethod
+    def _ea():
+        return _make_uom(symbol="EA", uom_type="count", multiplier=1.0, offset=0.0)
+
+    @staticmethod
+    def _pc():
+        return _make_uom(symbol="PC", uom_type="count", multiplier=1.0, offset=0.0)
+
+    @staticmethod
+    def _kg():
+        return _make_uom(symbol="kg", uom_type="mass", multiplier=1.0, offset=0.0)
+
+    @staticmethod
+    def _g():
+        return _make_uom(symbol="g", uom_type="mass", multiplier=0.001, offset=0.0)
+
+    @staticmethod
+    def _h():
+        return _make_uom(symbol="h", uom_type="time", multiplier=3600.0, offset=0.0)
+
+    @staticmethod
+    def _min():
+        return _make_uom(symbol="min", uom_type="time", multiplier=60.0, offset=0.0)
+
+    @staticmethod
+    def _s():
+        return _make_uom(symbol="s", uom_type="time", multiplier=1.0, offset=0.0)
+
+    def test_ea_per_hour_to_ea_per_min(self):
+        """10 EA/h = 10/60 EA/min ≈ 0.1667."""
+        ea_h = _make_rate_uom("EA/h", "each per hour", self._ea(), self._h())
+        ea_min = _make_rate_uom("EA/min", "each per minute", self._ea(), self._min())
+        result = UoMService.convert(10.0, ea_h, ea_min)
+        assert result == pytest.approx(10.0 / 60.0)
+
+    def test_ea_per_min_to_ea_per_hour(self):
+        """5 EA/min = 300 EA/h."""
+        ea_h = _make_rate_uom("EA/h", "each per hour", self._ea(), self._h())
+        ea_min = _make_rate_uom("EA/min", "each per minute", self._ea(), self._min())
+        result = UoMService.convert(5.0, ea_min, ea_h)
+        assert result == pytest.approx(300.0)
+
+    def test_kg_per_hour_to_g_per_min(self):
+        """10 kg/h = 10000 g / 60 min ≈ 166.667 g/min."""
+        kg_h = _make_rate_uom("kg/h", "kg per hour", self._kg(), self._h())
+        g_min = _make_rate_uom("g/min", "grams per min", self._g(), self._min())
+        result = UoMService.convert(10.0, kg_h, g_min)
+        assert result == pytest.approx(10000.0 / 60.0, rel=1e-9)
+
+    def test_g_per_min_to_kg_per_hour(self):
+        """166.667 g/min ≈ 10 kg/h."""
+        kg_h = _make_rate_uom("kg/h", "kg per hour", self._kg(), self._h())
+        g_min = _make_rate_uom("g/min", "grams per min", self._g(), self._min())
+        result = UoMService.convert(10000.0 / 60.0, g_min, kg_h)
+        assert result == pytest.approx(10.0, rel=1e-9)
+
+    def test_same_rate_identity(self):
+        """Converting a rate to itself returns the same value."""
+        ea_h = _make_rate_uom("EA/h", "each per hour", self._ea(), self._h())
+        assert UoMService.convert(42.0, ea_h, ea_h) == 42.0
+
+    def test_rate_incompatible_numerator_types(self):
+        """EA/h → kg/h should fail: numerator types don't match."""
+        ea_h = _make_rate_uom("EA/h", "each per hour", self._ea(), self._h())
+        kg_h = _make_rate_uom("kg/h", "kg per hour", self._kg(), self._h())
+        with pytest.raises(IncompatibleUoMTypeException):
+            UoMService.convert(1.0, ea_h, kg_h)
+
+    def test_rate_incompatible_with_simple(self):
+        """Cannot convert a rate type to a simple type."""
+        ea_h = _make_rate_uom("EA/h", "each per hour", self._ea(), self._h())
+        with pytest.raises(IncompatibleUoMTypeException):
+            UoMService.convert(1.0, ea_h, self._kg())
+
+    def test_ea_per_hour_to_ea_per_second(self):
+        """3600 EA/h = 1 EA/s."""
+        ea_h = _make_rate_uom("EA/h", "each per hour", self._ea(), self._h())
+        ea_s = _make_rate_uom("EA/s", "each per second", self._ea(), self._s())
+        result = UoMService.convert(3600.0, ea_h, ea_s)
+        assert result == pytest.approx(1.0)
+
+    @pytest.mark.parametrize("value", [0.5, 1.0, 60.0, 1000.0])
+    def test_rate_round_trip(self, value):
+        """EA/h → EA/min → EA/h returns the original value."""
+        ea_h = _make_rate_uom("EA/h", "each per hour", self._ea(), self._h())
+        ea_min = _make_rate_uom("EA/min", "each per minute", self._ea(), self._min())
+        there = UoMService.convert(value, ea_h, ea_min)
+        back = UoMService.convert(there, ea_min, ea_h)
+        assert back == pytest.approx(value, rel=1e-12)
+
+    @pytest.mark.parametrize("value", [1.0, 10.0, 100.0])
+    def test_kg_rate_round_trip(self, value):
+        """kg/h → g/min → kg/h returns the original value."""
+        kg_h = _make_rate_uom("kg/h", "kg per hour", self._kg(), self._h())
+        g_min = _make_rate_uom("g/min", "grams per minute", self._g(), self._min())
+        there = UoMService.convert(value, kg_h, g_min)
+        back = UoMService.convert(there, g_min, kg_h)
+        assert back == pytest.approx(value, rel=1e-9)
+
+
+# ═════════════════════════════════════════════════════════════════════
+# RATE UOM SEED DATA TESTS
+# ═════════════════════════════════════════════════════════════════════
+
+
+class TestRateSeedData:
+    """Verify the built-in rate seed data is consistent."""
+
+    def test_rate_units_not_empty(self):
+        assert len(BUILTIN_RATE_UNITS) > 0
+
+    def test_rate_symbols_unique(self):
+        symbols = [u[0] for u in BUILTIN_RATE_UNITS]
+        assert len(symbols) == len(set(symbols))
+
+    def test_rate_symbols_dont_collide_with_base(self):
+        base_symbols = {u[0] for u in BUILTIN_UNITS}
+        for sym, _, _, _ in BUILTIN_RATE_UNITS:
+            assert sym not in base_symbols, f"Rate symbol {sym} collides with base unit"
+
+    def test_rate_numerators_exist_in_base(self):
+        base_symbols = {u[0] for u in BUILTIN_UNITS}
+        for sym, _, num, _ in BUILTIN_RATE_UNITS:
+            assert num in base_symbols, f"Rate {sym}: numerator {num} not in base units"
+
+    def test_rate_denominators_exist_in_base(self):
+        base_symbols = {u[0] for u in BUILTIN_UNITS}
+        for sym, _, _, den in BUILTIN_RATE_UNITS:
+            assert den in base_symbols, f"Rate {sym}: denominator {den} not in base units"
+
+    def test_get_builtin_rate_unit_dicts(self):
+        # Build a fake symbol->id map for all referenced base symbols
+        base_symbols = {u[0] for u in BUILTIN_UNITS}
+        symbol_to_id = {s: uuid.uuid4() for s in base_symbols}
+        dicts = get_builtin_rate_unit_dicts(symbol_to_id)
+        assert len(dicts) == len(BUILTIN_RATE_UNITS)
+        for d in dicts:
+            assert d["uom_type"] == "rate"
+            assert d["is_builtin"] is True
+            assert d["numerator_uom_id"] is not None
+            assert d["denominator_uom_id"] is not None

@@ -6,6 +6,9 @@ Provides CRUD operations and unit conversion.
 Conversion formula (affine):
     base_value  = value * from_unit.multiplier + from_unit.offset
     result      = (base_value - to_unit.offset) / to_unit.multiplier
+
+Rate UoMs (uom_type="rate") convert by independently converting the
+numerator and denominator components.
 """
 
 from __future__ import annotations
@@ -75,6 +78,23 @@ class UoMService:
             raise NotFoundException(resource="UnitOfMeasure", resource_id=symbol)
         return uom
 
+    # ─── Rate UoM helpers ────────────────────────────────────────────
+
+    @staticmethod
+    async def _resolve_rate_components(
+        session: AsyncSession,
+        kwargs: dict[str, Any],
+    ) -> None:
+        """Pop numerator/denominator symbol keys and set corresponding ID keys."""
+        numerator_symbol = kwargs.pop("numerator_uom_symbol", None)
+        denominator_symbol = kwargs.pop("denominator_uom_symbol", None)
+        if numerator_symbol:
+            num_uom = await UoMService.get_by_symbol(session, numerator_symbol)
+            kwargs["numerator_uom_id"] = num_uom.id
+        if denominator_symbol:
+            den_uom = await UoMService.get_by_symbol(session, denominator_symbol)
+            kwargs["denominator_uom_id"] = den_uom.id
+
     # ─── Mutations ───────────────────────────────────────────────────
 
     @staticmethod
@@ -85,6 +105,8 @@ class UoMService:
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateSymbolException(kwargs["symbol"])
+
+        await UoMService._resolve_rate_components(session, kwargs)
 
         uom = UnitOfMeasure(**kwargs)
         session.add(uom)
@@ -115,6 +137,8 @@ class UoMService:
             if existing.scalar_one_or_none() is not None:
                 raise DuplicateSymbolException(new_symbol)
 
+        await UoMService._resolve_rate_components(session, kwargs)
+
         for key, value in kwargs.items():
             if value is not None:
                 setattr(uom, key, value)
@@ -140,6 +164,16 @@ class UoMService:
     # ─── Conversion ──────────────────────────────────────────────────
 
     @staticmethod
+    def _convert_affine(
+        value: float,
+        from_uom: UnitOfMeasure,
+        to_uom: UnitOfMeasure,
+    ) -> float:
+        """Simple affine conversion between two non-rate units of the same type."""
+        base_value = value * from_uom.multiplier + from_uom.offset
+        return (base_value - to_uom.offset) / to_uom.multiplier
+
+    @staticmethod
     def convert(
         value: float,
         from_uom: UnitOfMeasure,
@@ -148,9 +182,9 @@ class UoMService:
         """
         Convert *value* from one unit to another (must share the same uom_type).
 
-        Affine formula:
-            base_value = value * from.multiplier + from.offset
-            result     = (base_value - to.offset) / to.multiplier
+        For rate UoMs the numerator and denominator are converted independently:
+            result = value * (num_factor / den_factor)
+        where each factor is an affine conversion of the respective component.
         """
         if from_uom.uom_type != to_uom.uom_type:
             raise IncompatibleUoMTypeException(
@@ -163,8 +197,34 @@ class UoMService:
         if from_uom.symbol == to_uom.symbol:
             return value
 
-        base_value = value * from_uom.multiplier + from_uom.offset
-        return (base_value - to_uom.offset) / to_uom.multiplier
+        # Rate-to-rate: convert numerator and denominator independently
+        if from_uom.is_rate and to_uom.is_rate:
+            num_from = from_uom.numerator_uom
+            num_to = to_uom.numerator_uom
+            den_from = from_uom.denominator_uom
+            den_to = to_uom.denominator_uom
+
+            if num_from.uom_type != num_to.uom_type:
+                raise IncompatibleUoMTypeException(
+                    from_symbol=num_from.symbol,
+                    from_type=num_from.uom_type,
+                    to_symbol=num_to.symbol,
+                    to_type=num_to.uom_type,
+                )
+            if den_from.uom_type != den_to.uom_type:
+                raise IncompatibleUoMTypeException(
+                    from_symbol=den_from.symbol,
+                    from_type=den_from.uom_type,
+                    to_symbol=den_to.symbol,
+                    to_type=den_to.uom_type,
+                )
+
+            num_factor = UoMService._convert_affine(1.0, num_from, num_to)
+            den_factor = UoMService._convert_affine(1.0, den_from, den_to)
+            return value * num_factor / den_factor
+
+        # Standard affine conversion
+        return UoMService._convert_affine(value, from_uom, to_uom)
 
     @staticmethod
     async def convert_by_symbol(

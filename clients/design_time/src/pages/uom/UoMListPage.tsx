@@ -101,6 +101,9 @@ export default function UoMListPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Type
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Rate
+                </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Multiplier
                 </th>
@@ -131,6 +134,11 @@ export default function UoMListPage() {
                     <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
                       {uom.uom_type}
                     </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-sm font-mono text-gray-700">
+                    {uom.numerator_uom_symbol && uom.denominator_uom_symbol
+                      ? `${uom.numerator_uom_symbol} / ${uom.denominator_uom_symbol}`
+                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-right font-mono text-gray-700">
                     {uom.multiplier}
@@ -168,7 +176,7 @@ export default function UoMListPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
                     No units found.
                   </td>
                 </tr>

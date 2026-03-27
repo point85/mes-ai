@@ -4,6 +4,7 @@ UOM: Built-in seed data for out-of-the-box units of measure.
 SI fundamentals:  kg, s, m, K
 Additional SI:    g; min, h, d; km; °C; L, m³
 US imperial:      lb, oz; ft; °F; fl_oz
+Rate:             EA/h, EA/min, kg/h, L/h, PC/h
 
 The conversion model uses an affine formula relative to each type's base unit:
     base_value = value * multiplier + offset
@@ -11,9 +12,14 @@ The conversion model uses an affine formula relative to each type's base unit:
 Temperature examples:
     °C → K : K = C * 1.0 + 273.15
     °F → K : K = F * (5/9) + 255.372222…
+
+Rate UoMs are composite: numerator UoM / denominator UoM.
+Conversion between rate UoMs independently converts each component.
 """
 
 from __future__ import annotations
+
+from uuid import UUID
 
 # Each entry: (symbol, name, uom_type, multiplier, offset)
 BUILTIN_UNITS: list[tuple[str, str, str, float, float]] = [
@@ -54,6 +60,15 @@ BUILTIN_UNITS: list[tuple[str, str, str, float, float]] = [
     ("PC",  "piece",             "count",       1.0,             0.0),
 ]
 
+# Each entry: (symbol, name, numerator_symbol, denominator_symbol)
+BUILTIN_RATE_UNITS: list[tuple[str, str, str, str]] = [
+    ("EA/h",   "each per hour",      "EA", "h"),
+    ("EA/min", "each per minute",    "EA", "min"),
+    ("kg/h",   "kilograms per hour", "kg", "h"),
+    ("L/h",    "liters per hour",    "L",  "h"),
+    ("PC/h",   "pieces per hour",    "PC", "h"),
+]
+
 
 def get_builtin_unit_dicts() -> list[dict]:
     """
@@ -70,4 +85,26 @@ def get_builtin_unit_dicts() -> list[dict]:
             "is_builtin": True,
         }
         for symbol, name, uom_type, multiplier, offset in BUILTIN_UNITS
+    ]
+
+
+def get_builtin_rate_unit_dicts(symbol_to_id: dict[str, UUID]) -> list[dict]:
+    """
+    Return the built-in rate units as a list of dicts.
+
+    *symbol_to_id* must map base-unit symbols to their database UUIDs
+    (populated after base units are flushed).
+    """
+    return [
+        {
+            "symbol": symbol,
+            "name": name,
+            "uom_type": "rate",
+            "multiplier": 1.0,
+            "offset": 0.0,
+            "numerator_uom_id": symbol_to_id[num_sym],
+            "denominator_uom_id": symbol_to_id[den_sym],
+            "is_builtin": True,
+        }
+        for symbol, name, num_sym, den_sym in BUILTIN_RATE_UNITS
     ]
