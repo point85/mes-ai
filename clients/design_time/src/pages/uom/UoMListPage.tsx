@@ -81,8 +81,20 @@ export default function UoMListPage() {
         <p className="text-sm text-gray-500">Loading units…</p>
       )}
       {error && (
-        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-          Failed to load units. Is the server running?
+        <div className="rounded-md bg-red-50 p-4 text-sm text-red-700 space-y-1">
+          <p className="font-semibold">Failed to load units of measure</p>
+          <p className="text-xs text-red-600 font-mono break-all">
+            {(() => {
+              const e = error as { response?: { status?: number; data?: { error?: { code?: string; message?: string; details?: Record<string, unknown> } } }; message?: string };
+              if (e.response) {
+                const { status, data } = e.response;
+                const errObj = data?.error;
+                return `${status} — ${errObj?.code ?? "UNKNOWN"}: ${errObj?.message ?? "No message"}`
+                  + (errObj?.details ? ` (${JSON.stringify(errObj.details)})` : "");
+              }
+              return e.message ?? String(error);
+            })()}
+          </p>
         </div>
       )}
 

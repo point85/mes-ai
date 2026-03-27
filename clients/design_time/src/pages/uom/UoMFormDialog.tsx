@@ -186,11 +186,20 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
               <label className="block text-sm font-medium text-gray-700">
                 Type
               </label>
-              <input
+              <select
                 {...register("uom_type")}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                placeholder="mass, time, length, count, …"
-              />
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">Select type…</option>
+                <option value="mass">Mass</option>
+                <option value="time">Time</option>
+                <option value="length">Length</option>
+                <option value="volume">Volume</option>
+                <option value="temperature">Temperature</option>
+                <option value="count">Count</option>
+                <option value="rate">Rate</option>
+                <option value="custom">Custom</option>
+              </select>
               {errors.uom_type && (
                 <p className="mt-1 text-xs text-red-600">{errors.uom_type.message}</p>
               )}
