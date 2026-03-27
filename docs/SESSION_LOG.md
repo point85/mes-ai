@@ -1681,3 +1681,62 @@ Standalone React+Vite application at `clients/erp_simulator/` (port 5174, separa
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S022 — 2026-03-24
+
+**Phase**: P5 — Client Implementations (continued)
+**Objective**: ERP Simulator GUI fixes, DB persistence, UOM normalization
+
+### What Happened
+
+#### 1. VS Code Agent File Fixes
+Fixed 9 errors in `.github/copilot/` agent files — removed deprecated `github_repo` tool references from Ask.agent.md, Plan.agent.md, Explore.agent.md.
+
+#### 2. Material Type Display Fix (ERP Simulator GUI)
+- `clients/erp_simulator/src/pages/MaterialsPage.tsx` — renamed "Type" column to "SAP Type", now displays `metadata.sap_material_type` (SAP codes like ROH/HALB/FERT/VERP). Removed redundant column that duplicated SAP type. Table reduced from 8 to 7 columns.
+
+#### 3. MATERIAL_TYPES Expansion (3 → 7)
+- `server/src/mes/core/material/schemas.py` — expanded `MATERIAL_TYPES` to `{raw, intermediate, finished, semi, consumable, packaging, spare}`
+- `server/src/mes/core/material/models.py` — updated docstring/column comment with new SAP-mapped types
+- `server/tests/unit/test_material.py` — updated type count assertion (7) and added new type checks
+
+#### 4. DB Persistence for ERP Simulator CRUD + Sync
+- `server/src/mes/adapters/erp/routes.py`:
+  - `POST /sync/materials` — upserts materials to DB (creates new, updates existing, reactivates soft-deleted)
+  - `POST /simulator/materials` — calls `MaterialService.create_material()` + `session.commit()`
+  - `PUT /simulator/materials/{code}` — looks up DB record, calls `MaterialService.update_material()`
+  - `DELETE /simulator/materials/{code}` — looks up DB record, calls `MaterialService.delete_material()` (soft-delete)
+
+#### 5. Shared ERP-Agnostic UOM Normalization
+Created `server/src/mes/adapters/erp/uom_mapping.py` — maps uppercase ERP codes to MES UOM symbols:
+- KG→kg, G→g, M→m, KM→km, L→L, FT→ft, LB→lb, etc.
+- EA→EA, PC→PC (pass-through for count units)
+- Case-insensitive lookup; unknown codes pass through unchanged
+
+Applied `normalize_erp_uom()` to ALL UOM fields in both transforms:
+- `server/src/mes/adapters/erp/sap_s4hana/transform.py` — `to_material`, `to_production_order`, `to_bom` items
+- `server/src/mes/adapters/erp/oracle/transform.py` — `to_material`, `to_production_order`, `to_bom` items
+
+Updated test assertions in:
+- `server/tests/unit/test_sap_s4hana_adapter.py` — "KG"→"kg", "M"→"m"
+- `server/tests/unit/test_sap_erp_simulator.py` — "KG"→"kg"
+- `server/tests/unit/test_oracle_adapter.py` — "KG"→"kg", "M"→"m"
+
+#### Decisions
+- **D040**: MATERIAL_TYPES expanded from 3 to 7 (SAP type diversity)
+- **D041**: Shared ERP-agnostic UOM normalization utility
+- **D042**: ERP Simulator GUI CRUD persists to database
+
+#### Test Results
+- **1063 tests passing**, no regressions
+
+### Where We Stopped
+- All ERP Simulator GUI fixes complete
+- UOM normalization applied to all SAP and Oracle transform UOM fields
+- DB persistence working for material CRUD via simulator
+- **1063 unit tests passing**
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---

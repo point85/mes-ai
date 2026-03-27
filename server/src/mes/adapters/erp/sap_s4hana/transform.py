@@ -33,6 +33,7 @@ from mes.adapters.erp.dtos import (
     WorkCellDTO,
 )
 from mes.adapters.erp.interfaces import ERPTransformLayer
+from mes.adapters.erp.uom_mapping import normalize_erp_uom
 
 
 class SAPS4HANATransformLayer(ERPTransformLayer):
@@ -58,7 +59,7 @@ class SAPS4HANATransformLayer(ERPTransformLayer):
                 erp_data.get("MfgOrderPlannedEndDate", erp_data.get("GLTRP")),
             ),
             priority=_map_sap_priority(erp_data.get("MfgOrderPriority", "2")),
-            uom=erp_data.get("ProductionUnit", erp_data.get("GMEIN", "EA")),
+            uom=normalize_erp_uom(erp_data.get("ProductionUnit", erp_data.get("GMEIN", "EA"))),
             bom_id=erp_data.get("BillOfMaterial", erp_data.get("STLNR")),
             routing_id=erp_data.get("ProductionRouting", erp_data.get("PLNNR")),
             metadata={
@@ -77,7 +78,7 @@ class SAPS4HANATransformLayer(ERPTransformLayer):
             material_type=_map_sap_material_type(
                 erp_data.get("MaterialType", erp_data.get("MTART", "ROH")),
             ),
-            uom=_map_sap_uom(
+            uom=normalize_erp_uom(
                 erp_data.get("BaseUnit", erp_data.get("MEINS", "EA")),
             ),
             description=erp_data.get("MaterialDescription", erp_data.get("MAKTX", "")),
@@ -112,7 +113,7 @@ class SAPS4HANATransformLayer(ERPTransformLayer):
             items.append(BOMItemDTO(
                 material_code=sap_item.get("BillOfMaterialComponent", sap_item.get("IDNRK", "")),
                 quantity=float(sap_item.get("BillOfMaterialItemQuantity", sap_item.get("MENGE", 1))),
-                uom=sap_item.get("BillOfMaterialItemUnit", sap_item.get("MEINS", "EA")),
+                uom=normalize_erp_uom(sap_item.get("BillOfMaterialItemUnit", sap_item.get("MEINS", "EA"))),
                 sequence=int(sap_item.get("BillOfMaterialItemNumber", idx)),
             ))
         return BillOfMaterialDTO(
@@ -240,27 +241,6 @@ def _map_sap_material_type(sap_type: str) -> str:
         "ERSA": "spare",       # Spare parts
     }
     return mapping.get(sap_type, "raw")
-
-
-def _map_sap_uom(sap_uom: str) -> str:
-    """Map SAP unit of measure code to MES UOM symbol."""
-    mapping = {
-        "KG": "kg",
-        "G": "g",
-        "M": "m",
-        "KM": "km",
-        "L": "L",
-        "M3": "m\u00b3",
-        "M2": "m\u00b2",
-        "LB": "lb",
-        "OZ": "oz",
-        "FT": "ft",
-        "S": "s",
-        "MIN": "min",
-        "H": "h",
-        "D": "d",
-    }
-    return mapping.get(sap_uom, sap_uom)
 
 
 def _map_sap_product_type(sap_type: str) -> str:

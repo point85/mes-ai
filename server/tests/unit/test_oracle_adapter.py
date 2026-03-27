@@ -91,7 +91,7 @@ class TestOracleTransformProductionOrder:
         assert dto.erp_reference == "WO-200001"
         assert dto.product_code == "RAW-STEEL-50"
         assert dto.quantity_ordered == 500
-        assert dto.uom == "KG"
+        assert dto.uom == "kg"
         assert dto.planned_start is None
         assert dto.planned_end is None
 
@@ -128,7 +128,7 @@ class TestOracleTransformMaterial:
         assert dto.code == "RM-COPPER-WIRE"
         assert dto.name == "Copper Wire 2.5mm"
         assert dto.material_type == "raw"
-        assert dto.uom == "M"
+        assert dto.uom == "m"
         assert dto.shelf_life_days == 365
         assert dto.description == "Copper Wire 2.5mm for electrical assemblies"
 

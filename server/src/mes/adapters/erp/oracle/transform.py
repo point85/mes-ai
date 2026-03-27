@@ -31,6 +31,7 @@ from mes.adapters.erp.dtos import (
     WorkCellDTO,
 )
 from mes.adapters.erp.interfaces import ERPTransformLayer
+from mes.adapters.erp.uom_mapping import normalize_erp_uom
 
 
 class OracleTransformLayer(ERPTransformLayer):
@@ -52,7 +53,7 @@ class OracleTransformLayer(ERPTransformLayer):
             planned_start=_parse_oracle_datetime(erp_data.get("PlannedStartDate")),
             planned_end=_parse_oracle_datetime(erp_data.get("PlannedCompletionDate")),
             priority=_map_oracle_priority(erp_data.get("WorkOrderPriority")),
-            uom=erp_data.get("UOMCode", "EA"),
+            uom=normalize_erp_uom(erp_data.get("UOMCode", "EA")),
             bom_id=erp_data.get("StructureName"),
             routing_id=erp_data.get("RoutingName"),
             metadata={
@@ -71,7 +72,7 @@ class OracleTransformLayer(ERPTransformLayer):
             material_type=_map_oracle_item_type(
                 erp_data.get("ItemType", "STANDARD"),
             ),
-            uom=erp_data.get("PrimaryUOMCode", "EA"),
+            uom=normalize_erp_uom(erp_data.get("PrimaryUOMCode", "EA")),
             description=erp_data.get("LongDescription", erp_data.get("Description", "")),
             shelf_life_days=_safe_int(erp_data.get("ShelfLifeDays")),
             metadata={
@@ -105,7 +106,7 @@ class OracleTransformLayer(ERPTransformLayer):
             items.append(BOMItemDTO(
                 material_code=component.get("ComponentItemNumber", component.get("ComponentItem", "")),
                 quantity=float(component.get("ComponentQuantity", component.get("Quantity", 1))),
-                uom=component.get("UOMCode", "EA"),
+                uom=normalize_erp_uom(component.get("UOMCode", "EA")),
                 sequence=int(component.get("ComponentSequenceNumber", idx)),
             ))
         return BillOfMaterialDTO(

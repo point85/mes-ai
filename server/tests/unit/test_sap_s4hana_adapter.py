@@ -92,7 +92,7 @@ class TestSAPTransformProductionOrder:
         assert dto.erp_reference == "000009999999"
         assert dto.product_code == "RAW-STEEL-50"
         assert dto.quantity_ordered == 500
-        assert dto.uom == "KG"
+        assert dto.uom == "kg"
         assert dto.planned_start is None
         assert dto.planned_end is None
 
@@ -129,7 +129,7 @@ class TestSAPTransformMaterial:
         assert dto.code == "RM-COPPER-WIRE"
         assert dto.name == "Copper Wire 2.5mm"
         assert dto.material_type == "raw"
-        assert dto.uom == "M"
+        assert dto.uom == "m"
         assert dto.shelf_life_days == 365
 
     def test_semi_finished(self):

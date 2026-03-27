@@ -145,7 +145,7 @@ class TestSAPSimulatorMaterials:
         steel = next(m for m in materials if m.code == "RM-STEEL-1MM")
         assert steel.name == "Carbon Steel Sheet 1 mm"
         assert steel.material_type == "raw"
-        assert steel.uom == "KG"
+        assert steel.uom == "kg"
 
     @pytest.mark.asyncio
     async def test_semi_finished_mapping(self, adapter):

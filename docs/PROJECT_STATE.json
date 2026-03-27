@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-03-22",
-  "lastSessionId": "S020",
+  "lastUpdated": "2026-03-24",
+  "lastSessionId": "S022",
 
   "phases": [
     {
@@ -162,7 +162,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters + SAP ERP Simulator). P5 DT-CLIENT editors complete. Plugin system redesigned: two-directory structure (system/user), full lifecycle (available→installed→enabled/disabled→uninstalled), manifest parameters (required/optional/secret), REST API with install/uninstall/enable/disable endpoints, CLI commands, DT-CLIENT UI with Available/Installed tabs and parameter forms. S020: Unified adapter-plugin architecture — AdapterFactory removed, BaseAdapter removed, all adapters are now plugins managed by PluginManager. 7 adapter plugin wrappers created. S021: SAP ERP Simulator plugin (55 tests). ERP Simulator GUI client (React+Vite, port 5174) with dashboard, 6 inbound sync pages, 6 outbound report pages, confirmations viewer. 13 new ERP REST API endpoints. 1038 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters + SAP ERP Simulator). P5 DT-CLIENT editors complete. Plugin system redesigned: two-directory structure (system/user), full lifecycle (available→installed→enabled/disabled→uninstalled), manifest parameters (required/optional/secret), REST API with install/uninstall/enable/disable endpoints, CLI commands, DT-CLIENT UI with Available/Installed tabs and parameter forms. S020: Unified adapter-plugin architecture. S021: SAP ERP Simulator plugin (55 tests). ERP Simulator GUI client. 13 new ERP REST API endpoints. S022: ERP Simulator GUI improvements — material type display fix (SAP Type column), MATERIAL_TYPES expanded to 7, DB persistence for simulator CRUD/sync, shared ERP-agnostic UOM normalization utility (uom_mapping.py), applied to all SAP+Oracle transform UOM fields. 1063 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -199,6 +199,7 @@
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },
       "AUTH":          { "name": "Authentication & Authorization", "phase": "P3", "status": "implemented" },
       "UOM":           { "name": "Units of Measure",               "phase": "P3", "status": "implemented" },
+      "UOM-MAPPING":   { "name": "ERP UOM Normalization Utility",  "phase": "P4", "status": "implemented" },
       "SESSION-META":  { "name": "AI Session Metadata",            "phase": "P3", "status": "planned" }
     }
   },
@@ -431,6 +432,24 @@
       "date": "2026-03-22",
       "decision": "ERP Simulator GUI: standalone React+Vite client at clients/erp_simulator/ (port 5174, separate from DT-CLIENT on 5173). Dashboard with adapter health check, 6 inbound sync pages (orders, materials, products, BOMs, routings, work centers), 6 outbound report pages (completion, consumption, scrap, labor, downtime, quality), confirmations viewer. 13 new REST API endpoints added to server/src/mes/adapters/erp/routes.py.",
       "rationale": "GUI provides visual interface for manually triggering and inspecting ERP integration operations. Separate app avoids coupling with DT-CLIENT. New REST endpoints expose adapter operations (sync/report) that were previously only available programmatically via plugin manager."
+    },
+    {
+      "id": "D040",
+      "date": "2026-03-24",
+      "decision": "MATERIAL_TYPES expanded from 3 to 7: raw, intermediate, finished, semi, consumable, packaging, spare. SAP type mapping: ROH→raw, HALB→semi, FERT→finished, VERP→packaging, HIBE→consumable, ERSA→spare, UNBW→intermediate.",
+      "rationale": "Original 3 types insufficient for SAP material type diversity. Manufacturing needs distinct categories for packaging, consumables, and spare parts to support material management and costing."
+    },
+    {
+      "id": "D041",
+      "date": "2026-03-24",
+      "decision": "Shared ERP-agnostic UOM normalization utility at adapters/erp/uom_mapping.py. Maps uppercase ERP codes (KG, G, M, L, EA, PC, etc.) to MES UOM symbols (kg, g, m, L, EA, PC). Case-insensitive lookup with pass-through for unknown codes. Applied to all UOM fields in SAP and Oracle transforms (materials, production orders, BOM items).",
+      "rationale": "SAP uses uppercase UOM codes (KG, M) but MES DB stores lowercase (kg, m) per units_of_measure FK constraint. Different ERPs may use different casing. Shared utility avoids per-ERP UOM mapping duplication and ensures all transforms produce DB-compatible UOM values."
+    },
+    {
+      "id": "D042",
+      "date": "2026-03-24",
+      "decision": "ERP Simulator GUI material CRUD now persists to database. Sync endpoint upserts (create/update/reactivate). Create/update/delete endpoints call MaterialService. Delete is soft-delete via MaterialService.delete_material().",
+      "rationale": "Simulator materials only existed in memory. Sync, create, update, and delete must persist to DB so materials appear in DT-CLIENT and other modules that query material_definitions table."
     }
   ],
 
