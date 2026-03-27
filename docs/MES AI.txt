@@ -169,10 +169,11 @@ cd c:\dev\mes_ai\clients\erp_simulator
 npm install
 npm run dev
 
+Then open http://localhost:5174 — click Dashboard → "Check Health" → both adapters should show green.
+
 # Terminal 4: DT-CLIENT
 cd c:\dev\mes_ai\clients\design_time
 npm run dev
 
 
 
-Then open http://localhost:5174 — click Dashboard → "Check Health" → both adapters should show green.

@@ -196,7 +196,7 @@ export default function MaterialsPage() {
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              {["Code", "Name", "Type", "UoM", "Description", "Shelf Life", "SAP Type", "Actions"].map(
+              {["Code", "Name", "SAP Type", "UoM", "Description", "Shelf Life", "Actions"].map(
                 (h) => (
                   <th
                     key={h}
@@ -276,7 +276,6 @@ export default function MaterialsPage() {
                     }
                   />
                 </td>
-                <td className="px-3 py-2 text-gray-400">—</td>
                 <td className="px-3 py-2 whitespace-nowrap space-x-1">
                   <button
                     className={`${btnCls} bg-green-600 text-white hover:bg-green-700`}
@@ -298,7 +297,7 @@ export default function MaterialsPage() {
             {/* ── Data rows ───────────────────────────────────── */}
             {data.length === 0 && !adding ? (
               <tr>
-                <td colSpan={8} className="text-center py-8 text-gray-500">
+                <td colSpan={7} className="text-center py-8 text-gray-500">
                   Click &apos;Sync Materials&apos; to pull material master from SAP
                 </td>
               </tr>
@@ -326,12 +325,12 @@ export default function MaterialsPage() {
                       )}
                     </td>
 
-                    {/* Type dropdown */}
+                    {/* SAP Type dropdown */}
                     <td className="px-3 py-2">
                       {isEditing ? (
                         <select
                           className={selectCls}
-                          value={draft.material_type}
+                          value={String(draft.metadata?.sap_material_type ?? draft.material_type)}
                           onChange={(e) => setEditDraft({ ...draft, material_type: e.target.value })}
                         >
                           {materialTypes.map((t) => (
@@ -341,7 +340,7 @@ export default function MaterialsPage() {
                           ))}
                         </select>
                       ) : (
-                        row.material_type
+                        String(row.metadata?.sap_material_type ?? row.material_type)
                       )}
                     </td>
 
@@ -394,11 +393,6 @@ export default function MaterialsPage() {
                       ) : (
                         row.shelf_life_days != null ? String(row.shelf_life_days) : "—"
                       )}
-                    </td>
-
-                    {/* SAP type (read-only) */}
-                    <td className="px-3 py-2 text-gray-500">
-                      {String(row.metadata?.sap_material_type ?? "")}
                     </td>
 
                     {/* Actions */}
