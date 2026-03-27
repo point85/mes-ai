@@ -1,16 +1,16 @@
 """
-SAP ERP Simulator: inbound and outbound adapter implementations.
+Oracle Cloud ERP Simulator: inbound and outbound adapter implementations.
 
 Unlike the generic MockERP adapter (which uses MES-native field names), this
-simulator stores data in **SAP OData V4 format** and runs every record through
-the real ``SAPS4HANATransformLayer`` before returning canonical DTOs.
+simulator stores data in **Oracle REST API format** and runs every record through
+the real ``OracleTransformLayer`` before returning canonical DTOs.
 
-Outbound reports are transformed into SAP format (using the same transform
-layer) and validated against the in-memory order book before returning an
-SAP-style confirmation document number.
+Outbound reports are transformed into Oracle format (using the same transform
+layer) and validated against the in-memory work order book before returning an
+Oracle-style transaction number.
 
-This exercises the full SAP data pipeline end-to-end without a live SAP
-system.
+This exercises the full Oracle data pipeline end-to-end without a live Oracle
+Cloud instance.
 """
 
 from __future__ import annotations
@@ -33,55 +33,52 @@ from mes.adapters.erp.dtos import (
     WorkCellDTO,
 )
 from mes.adapters.erp.interfaces import ERPInboundAdapter, ERPOutboundAdapter
-from mes.adapters.erp.sap_s4hana.transform import SAPS4HANATransformLayer
+from mes.adapters.erp.oracle.transform import OracleTransformLayer
 
-from .sap_data import (
-    SAP_BOMS,
-    SAP_MATERIALS,
-    SAP_PRODUCTION_ORDERS,
-    SAP_PRODUCTS,
-    SAP_ROUTINGS,
-    SAP_WORK_CENTERS,
+from .oracle_data import (
+    ORACLE_BOMS,
+    ORACLE_MATERIALS,
+    ORACLE_PRODUCTS,
+    ORACLE_ROUTINGS,
+    ORACLE_WORK_CENTERS,
+    ORACLE_WORK_ORDERS,
 )
 
-logger = logging.getLogger("mes.plugins.sap_erp_simulator")
+logger = logging.getLogger("mes.plugins.oracle_erp_simulator")
 
 
-class SAPSimulatorInboundAdapter(ERPInboundAdapter):
+class OracleSimulatorInboundAdapter(ERPInboundAdapter):
     """
-    Simulated SAP S/4HANA inbound adapter.
+    Simulated Oracle Cloud ERP inbound adapter.
 
-    Holds SAP-format records in memory and transforms them through
-    ``SAPS4HANATransformLayer`` — exactly as the real adapter would after
-    fetching OData V4 JSON from SAP.
-
-    Supports ``since`` for incremental sync: production orders whose
-    ``MfgOrderPlannedStartDate`` is after ``since`` are returned.
+    Holds Oracle-format records in memory and transforms them through
+    ``OracleTransformLayer`` — exactly as the real adapter would after
+    fetching REST JSON from Oracle Fusion.
     """
 
-    erp_type: str = "sap"
+    erp_type: str = "oracle"
 
     def __init__(
         self,
-        plant: str = "1000",
-        company_code: str = "1000",
+        organization_code: str = "ORG_MAIN",
+        business_unit: str = "BU_MANUFACTURING",
         latency_ms: int = 0,
         failure_rate: float = 0.0,
     ) -> None:
-        self._plant = plant
-        self._company_code = company_code
+        self._organization_code = organization_code
+        self._business_unit = business_unit
         self._latency_ms = max(0, latency_ms)
         self._failure_rate = max(0.0, min(1.0, failure_rate))
         self._connected = False
-        self._transform = SAPS4HANATransformLayer()
+        self._transform = OracleTransformLayer()
 
         # Deep-copy mutable data so each simulator instance is independent
-        self._materials: list[dict] = copy.deepcopy(SAP_MATERIALS)
-        self._products: list[dict] = copy.deepcopy(SAP_PRODUCTS)
-        self._orders: list[dict] = copy.deepcopy(SAP_PRODUCTION_ORDERS)
-        self._boms: dict[str, list[dict]] = copy.deepcopy(SAP_BOMS)
-        self._routings: dict[str, list[dict]] = copy.deepcopy(SAP_ROUTINGS)
-        self._work_centers: list[dict] = copy.deepcopy(SAP_WORK_CENTERS)
+        self._materials: list[dict] = copy.deepcopy(ORACLE_MATERIALS)
+        self._products: list[dict] = copy.deepcopy(ORACLE_PRODUCTS)
+        self._orders: list[dict] = copy.deepcopy(ORACLE_WORK_ORDERS)
+        self._boms: dict[str, list[dict]] = copy.deepcopy(ORACLE_BOMS)
+        self._routings: dict[str, list[dict]] = copy.deepcopy(ORACLE_ROUTINGS)
+        self._work_centers: list[dict] = copy.deepcopy(ORACLE_WORK_CENTERS)
 
     # ── Lifecycle ─────────────────────────────────────────────────
 
@@ -89,15 +86,15 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
         await self._simulate_latency()
         self._connected = True
         logger.info(
-            "SAPSimulatorInbound connected (plant=%s, company=%s, "
-            "%d materials, %d orders, %d routings)",
-            self._plant, self._company_code,
+            "OracleSimulatorInbound connected (org=%s, bu=%s, "
+            "%d materials, %d work orders, %d routings)",
+            self._organization_code, self._business_unit,
             len(self._materials), len(self._orders), len(self._routings),
         )
 
     async def disconnect(self) -> None:
         self._connected = False
-        logger.info("SAPSimulatorInbound disconnected")
+        logger.info("OracleSimulatorInbound disconnected")
 
     async def health_check(self) -> bool:
         return self._connected
@@ -115,7 +112,7 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
             since_iso = since.isoformat()
             orders = [
                 o for o in orders
-                if (o.get("MfgOrderPlannedStartDate") or "") >= since_iso
+                if (o.get("PlannedStartDate") or "") >= since_iso
             ]
 
         return [self._transform.to_production_order(o) for o in orders]
@@ -137,56 +134,56 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
     async def sync_boms(self, product_id: str) -> list[BillOfMaterialDTO]:
         await self._simulate_latency()
         self._maybe_fail("sync_boms")
-        sap_boms = self._boms.get(product_id, [])
-        return [self._transform.to_bom(b) for b in sap_boms]
+        oracle_boms = self._boms.get(product_id, [])
+        return [self._transform.to_bom(b) for b in oracle_boms]
 
     async def sync_routings(self, product_id: str) -> list[ProcessRouteDTO]:
         await self._simulate_latency()
         self._maybe_fail("sync_routings")
-        sap_routes = self._routings.get(product_id, [])
-        return [self._transform.to_routing(r) for r in sap_routes]
+        oracle_routes = self._routings.get(product_id, [])
+        return [self._transform.to_routing(r) for r in oracle_routes]
 
     async def sync_work_cells(self) -> list[WorkCellDTO]:
         await self._simulate_latency()
         self._maybe_fail("sync_work_cells")
         return [self._transform.to_work_cell(wc) for wc in self._work_centers]
 
-    # ── Data mutation helpers (for test setup and simulator GUI) ──
+    # ── Data mutation helpers (for simulator GUI CRUD) ────────────
 
-    def add_production_order(self, sap_order: dict) -> None:
-        """Inject an additional SAP-format order into the simulator."""
-        self._orders.append(sap_order)
+    def get_material(self, code: str) -> dict | None:
+        """Get a single Oracle-format material by item number."""
+        for mat in self._materials:
+            if mat["ItemNumber"] == code:
+                return mat
+        return None
 
-    def add_material(self, sap_material: dict) -> None:
-        """Inject an additional SAP-format material into the simulator."""
-        self._materials.append(sap_material)
+    def add_material(self, oracle_material: dict) -> None:
+        """Inject an additional Oracle-format material into the simulator."""
+        self._materials.append(oracle_material)
 
     def update_material(self, code: str, fields: dict) -> dict | None:
-        """Update an existing SAP-format material by code. Returns updated record or None."""
+        """Update an existing Oracle-format material by code. Returns updated record or None."""
         for mat in self._materials:
-            if mat["Material"] == code:
+            if mat["ItemNumber"] == code:
                 mat.update(fields)
                 return mat
         return None
 
     def delete_material(self, code: str) -> bool:
-        """Remove a material by code. Returns True if found and removed."""
+        """Remove a material by item number. Returns True if found and removed."""
         for i, mat in enumerate(self._materials):
-            if mat["Material"] == code:
+            if mat["ItemNumber"] == code:
                 self._materials.pop(i)
                 return True
         return False
 
-    def get_material(self, code: str) -> dict | None:
-        """Get a single SAP-format material by code."""
-        for mat in self._materials:
-            if mat["Material"] == code:
-                return mat
-        return None
+    def add_production_order(self, oracle_order: dict) -> None:
+        """Inject an additional Oracle-format work order into the simulator."""
+        self._orders.append(oracle_order)
 
-    def add_bom(self, product_code: str, sap_bom: dict) -> None:
-        """Inject an additional SAP-format BOM for a product."""
-        self._boms.setdefault(product_code, []).append(sap_bom)
+    def add_bom(self, product_code: str, oracle_bom: dict) -> None:
+        """Inject an additional Oracle-format BOM for a product."""
+        self._boms.setdefault(product_code, []).append(oracle_bom)
 
     # ── Vendor-specific helpers for routes ────────────────────────
 
@@ -201,17 +198,18 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
         description: str = "",
         shelf_life_days: int | None = None,
     ) -> dict:
-        """Build a SAP-format material dict from canonical fields."""
+        """Build an Oracle-format material dict from canonical fields."""
         return {
-            "Material": code,
-            "MaterialName": name,
-            "MaterialType": material_type,
-            "BaseUnit": uom,
-            "MaterialRevisionLevel": revision,
-            "MaterialDescription": description,
-            "MaximumStoragePeriod": str(shelf_life_days) if shelf_life_days else None,
-            "MaterialGroup": "001",
-            "Plant": self._plant,
+            "ItemNumber": code,
+            "Description": name,
+            "ItemType": material_type,
+            "PrimaryUOMCode": uom,
+            "RevisionCode": revision,
+            "LongDescription": description,
+            "ShelfLifeDays": shelf_life_days,
+            "ItemClass": "Raw Material",
+            "OrganizationCode": self._organization_code,
+            "InventoryItemId": 100000 + len(self._materials) + 1,
         }
 
     def build_material_updates(
@@ -224,30 +222,31 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
         description: str | None = None,
         shelf_life_days: int | None = None,
     ) -> dict:
-        """Build a SAP-format update dict from optional canonical fields."""
+        """Build an Oracle-format update dict from optional canonical fields."""
         updates: dict = {}
         if name is not None:
-            updates["MaterialName"] = name
+            updates["Description"] = name
         if material_type is not None:
-            updates["MaterialType"] = material_type
+            updates["ItemType"] = material_type
         if uom is not None:
-            updates["BaseUnit"] = uom
+            updates["PrimaryUOMCode"] = uom
         if revision is not None:
-            updates["MaterialRevisionLevel"] = revision
+            updates["RevisionCode"] = revision
         if description is not None:
-            updates["MaterialDescription"] = description
+            updates["LongDescription"] = description
         if shelf_life_days is not None:
-            updates["MaximumStoragePeriod"] = str(shelf_life_days)
+            updates["ShelfLifeDays"] = shelf_life_days
         return updates
 
     @staticmethod
     def material_type_options() -> list[dict[str, str]]:
-        """Return SAP-specific material type codes for UI dropdowns."""
+        """Return Oracle-specific material type codes for UI dropdowns."""
         return [
-            {"code": "ROH", "label": "Raw Material"},
-            {"code": "HALB", "label": "Semi-Finished"},
-            {"code": "FERT", "label": "Finished Product"},
-            {"code": "VERP", "label": "Packaging"},
+            {"code": "STANDARD", "label": "Standard (Raw Material)"},
+            {"code": "SUBASSEMBLY", "label": "Subassembly"},
+            {"code": "FINISHED_GOOD", "label": "Finished Good"},
+            {"code": "PURCHASED", "label": "Purchased"},
+            {"code": "EXPENSE", "label": "Expense / Consumable"},
         ]
 
     # ── Internal helpers ──────────────────────────────────────────
@@ -260,50 +259,45 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
         if self._failure_rate > 0 and random.random() < self._failure_rate:  # noqa: S311
             from mes.adapters.erp.exceptions import ERPSyncError
             raise ERPSyncError(
-                message=f"Simulated SAP OData error on {operation} "
-                        f"(CX_SY_OPEN_SQL_DB / HTTP 503)",
+                message=f"Simulated Oracle REST API error on {operation} "
+                        f"(HTTP 503 / Service Unavailable)",
             )
 
 
-class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
+class OracleSimulatorOutboundAdapter(ERPOutboundAdapter):
     """
-    Simulated SAP S/4HANA outbound adapter.
+    Simulated Oracle Cloud ERP outbound adapter.
 
-    Accepts MES outbound reports, transforms them into SAP format via
-    ``SAPS4HANATransformLayer``, validates against the in-memory order book,
-    and returns SAP-style confirmation document numbers.
-
-    SAP document number patterns:
-    - Production order confirmations:  49XXXXXXXX  (10-digit)
-    - Material documents (261 mvmt):   49XXXXXXXX
-    - Quality notifications:           200XXXXXXX
+    Accepts MES outbound reports, transforms them into Oracle format via
+    ``OracleTransformLayer``, validates against the in-memory work order book,
+    and returns Oracle-style transaction numbers.
     """
 
     def __init__(
         self,
-        plant: str = "1000",
-        company_code: str = "1000",
+        organization_code: str = "ORG_MAIN",
+        business_unit: str = "BU_MANUFACTURING",
         latency_ms: int = 0,
         failure_rate: float = 0.0,
     ) -> None:
-        self._plant = plant
-        self._company_code = company_code
+        self._organization_code = organization_code
+        self._business_unit = business_unit
         self._latency_ms = max(0, latency_ms)
         self._failure_rate = max(0.0, min(1.0, failure_rate))
         self._connected = False
-        self._transform = SAPS4HANATransformLayer()
+        self._transform = OracleTransformLayer()
 
-        # Counters for SAP document number series
-        self._confirmation_seq = 4900000000
-        self._matdoc_seq = 4900000000
-        self._qm_seq = 2000000000
+        # Counters for Oracle transaction number series
+        self._completion_seq = 3000000
+        self._material_txn_seq = 3100000
+        self._quality_seq = 3200000
 
-        # Known orders for validation (populated from inbound data)
+        # Known work orders for validation
         self._known_orders: set[str] = {
-            o["ManufacturingOrder"] for o in SAP_PRODUCTION_ORDERS
+            o["WorkOrderNumber"] for o in ORACLE_WORK_ORDERS
         }
 
-        # Stored confirmations for test inspection
+        # Stored confirmations for inspection
         self._confirmations: list[dict[str, Any]] = []
 
     @property
@@ -317,13 +311,13 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         await self._simulate_latency()
         self._connected = True
         logger.info(
-            "SAPSimulatorOutbound connected (plant=%s, %d known orders)",
-            self._plant, len(self._known_orders),
+            "OracleSimulatorOutbound connected (org=%s, %d known work orders)",
+            self._organization_code, len(self._known_orders),
         )
 
     async def disconnect(self) -> None:
         self._connected = False
-        logger.info("SAPSimulatorOutbound disconnected")
+        logger.info("OracleSimulatorOutbound disconnected")
 
     async def health_check(self) -> bool:
         return self._connected
@@ -337,13 +331,7 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         qty_reject: int,
         step_id: str | None = None,
     ) -> ERPConfirmation:
-        """
-        Post a production order confirmation to SAP.
-
-        Transforms the report through SAPS4HANATransformLayer.from_completion()
-        to validate SAP payload structure, then returns a SAP confirmation
-        document number (49-series).
-        """
+        """Post a work order completion transaction."""
         await self._simulate_latency()
         self._maybe_fail("report_completion")
 
@@ -355,28 +343,28 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
             step_id=step_id,
             completed_at=datetime.now(timezone.utc),
         )
-        sap_payload = self._transform.from_completion(report)
+        oracle_payload = self._transform.from_completion(report)
 
-        self._confirmation_seq += 1
-        doc_number = str(self._confirmation_seq)
+        self._completion_seq += 1
+        txn_number = str(self._completion_seq)
 
         record = {
-            "type": "confirmation",
-            "sap_document": doc_number,
-            "sap_payload": sap_payload,
+            "type": "wip_completion",
+            "erp_document": txn_number,
+            "erp_payload": oracle_payload,
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
         self._confirmations.append(record)
 
         logger.info(
-            "SAP confirmation %s posted for order %s (yield=%d, scrap=%d)",
-            doc_number, order_id, qty_good, qty_reject,
+            "Oracle completion txn %s posted for work order %s (yield=%d, reject=%d)",
+            txn_number, order_id, qty_good, qty_reject,
         )
         return ERPConfirmation(
             success=True,
-            erp_doc_number=doc_number,
-            message=f"SAP confirmation {doc_number} posted",
+            erp_doc_number=txn_number,
+            message=f"Oracle completion transaction {txn_number} posted",
         )
 
     async def report_consumption(
@@ -384,39 +372,34 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         order_id: str,
         materials: list[MaterialConsumptionDTO],
     ) -> ERPConfirmation:
-        """
-        Post a goods movement (261 — issue to production order) to SAP.
-
-        Transforms the report through SAPS4HANATransformLayer.from_consumption()
-        to validate the GoodsMovementItems structure.
-        """
+        """Post a material issue transaction (WIP_ISSUE)."""
         await self._simulate_latency()
         self._maybe_fail("report_consumption")
 
         from mes.adapters.erp.dtos import ConsumptionReport
         report = ConsumptionReport(erp_reference=order_id, materials=materials)
-        sap_payload = self._transform.from_consumption(report)
+        oracle_payload = self._transform.from_consumption(report)
 
-        self._matdoc_seq += 1
-        doc_number = str(self._matdoc_seq)
+        self._material_txn_seq += 1
+        txn_number = str(self._material_txn_seq)
 
         record = {
-            "type": "goods_movement_261",
-            "sap_document": doc_number,
-            "sap_payload": sap_payload,
+            "type": "wip_material_issue",
+            "erp_document": txn_number,
+            "erp_payload": oracle_payload,
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
         self._confirmations.append(record)
 
         logger.info(
-            "SAP material document %s posted for order %s (%d line items)",
-            doc_number, order_id, len(materials),
+            "Oracle material txn %s posted for work order %s (%d line items)",
+            txn_number, order_id, len(materials),
         )
         return ERPConfirmation(
             success=True,
-            erp_doc_number=doc_number,
-            message=f"SAP material document {doc_number} posted (mvmt 261)",
+            erp_doc_number=txn_number,
+            message=f"Oracle material transaction {txn_number} posted (WIP_ISSUE)",
         )
 
     async def report_scrap(
@@ -425,21 +408,21 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         qty_scrapped: int,
         reason_code: str,
     ) -> ERPConfirmation:
-        """Post a scrap confirmation (SAP movement type 531)."""
+        """Post a scrap transaction."""
         await self._simulate_latency()
         self._maybe_fail("report_scrap")
 
-        self._confirmation_seq += 1
-        doc_number = str(self._confirmation_seq)
+        self._material_txn_seq += 1
+        txn_number = str(self._material_txn_seq)
 
         record = {
-            "type": "scrap_531",
-            "sap_document": doc_number,
-            "sap_payload": {
-                "OrderID": order_id,
-                "ConfirmationScrapQuantity": str(qty_scrapped),
-                "ScrapReasonCode": reason_code,
-                "GoodsMovementType": "531",
+            "type": "wip_scrap",
+            "erp_document": txn_number,
+            "erp_payload": {
+                "WorkOrderNumber": order_id,
+                "ScrapQuantity": str(qty_scrapped),
+                "ReasonCode": reason_code,
+                "TransactionType": "WIP_SCRAP",
             },
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
@@ -447,13 +430,13 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         self._confirmations.append(record)
 
         logger.info(
-            "SAP scrap document %s posted for order %s (qty=%d, reason=%s)",
-            doc_number, order_id, qty_scrapped, reason_code,
+            "Oracle scrap txn %s posted for work order %s (qty=%d, reason=%s)",
+            txn_number, order_id, qty_scrapped, reason_code,
         )
         return ERPConfirmation(
             success=True,
-            erp_doc_number=doc_number,
-            message=f"SAP scrap confirmation {doc_number} posted (mvmt 531)",
+            erp_doc_number=txn_number,
+            message=f"Oracle scrap transaction {txn_number} posted",
         )
 
     async def report_labor(
@@ -462,21 +445,22 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         operator_id: str,
         duration_minutes: float,
     ) -> ERPConfirmation:
-        """Post a time/labor confirmation to SAP (CATS timesheet)."""
+        """Post a labor/resource transaction."""
         await self._simulate_latency()
         self._maybe_fail("report_labor")
 
-        self._confirmation_seq += 1
-        doc_number = str(self._confirmation_seq)
+        self._completion_seq += 1
+        txn_number = str(self._completion_seq)
 
         record = {
-            "type": "time_confirmation",
-            "sap_document": doc_number,
-            "sap_payload": {
-                "OrderID": order_id,
-                "PersonnelNumber": operator_id,
-                "ActualActivityDuration": str(duration_minutes),
-                "ActivityUnit": "MIN",
+            "type": "resource_transaction",
+            "erp_document": txn_number,
+            "erp_payload": {
+                "WorkOrderNumber": order_id,
+                "ResourceCode": operator_id,
+                "ResourceUsage": str(duration_minutes),
+                "UOMCode": "MIN",
+                "TransactionType": "RESOURCE_CHARGE",
             },
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
@@ -484,13 +468,13 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         self._confirmations.append(record)
 
         logger.info(
-            "SAP time confirmation %s posted for order %s (operator=%s, %s min)",
-            doc_number, order_id, operator_id, duration_minutes,
+            "Oracle resource txn %s posted for work order %s (resource=%s, %s min)",
+            txn_number, order_id, operator_id, duration_minutes,
         )
         return ERPConfirmation(
             success=True,
-            erp_doc_number=doc_number,
-            message=f"SAP time confirmation {doc_number} posted",
+            erp_doc_number=txn_number,
+            message=f"Oracle resource transaction {txn_number} posted",
         )
 
     async def report_downtime(
@@ -500,23 +484,23 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         reason_code: str,
         started_at: datetime,
     ) -> ERPConfirmation:
-        """Post a PM notification for equipment downtime to SAP."""
+        """Post an equipment downtime event (maintenance work order)."""
         await self._simulate_latency()
         self._maybe_fail("report_downtime")
 
-        self._confirmation_seq += 1
-        doc_number = str(self._confirmation_seq)
+        self._completion_seq += 1
+        txn_number = str(self._completion_seq)
 
         record = {
-            "type": "pm_notification",
-            "sap_document": doc_number,
-            "sap_payload": {
-                "TechnicalObject": equipment_id,
-                "NotificationType": "M2",
-                "BreakdownDuration": str(duration_minutes),
-                "BreakdownDurationUnit": "MIN",
-                "DamageCode": reason_code,
-                "MalfunctionStartDate": started_at.strftime("%Y-%m-%dT%H:%M:%S"),
+            "type": "maintenance_event",
+            "erp_document": txn_number,
+            "erp_payload": {
+                "AssetNumber": equipment_id,
+                "DowntimeDuration": str(duration_minutes),
+                "DurationUOM": "MIN",
+                "FailureCode": reason_code,
+                "FailureDate": started_at.strftime("%Y-%m-%dT%H:%M:%S"),
+                "TransactionType": "MAINTENANCE_EVENT",
             },
             "equipment_id": equipment_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
@@ -524,13 +508,13 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         self._confirmations.append(record)
 
         logger.info(
-            "SAP PM notification %s posted for equipment %s (%s min, reason=%s)",
-            doc_number, equipment_id, duration_minutes, reason_code,
+            "Oracle maintenance event %s posted for asset %s (%s min, reason=%s)",
+            txn_number, equipment_id, duration_minutes, reason_code,
         )
         return ERPConfirmation(
             success=True,
-            erp_doc_number=doc_number,
-            message=f"SAP PM notification {doc_number} posted",
+            erp_doc_number=txn_number,
+            message=f"Oracle maintenance event {txn_number} posted",
         )
 
     async def report_quality_result(
@@ -540,21 +524,22 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         result: str,
         details: dict[str, Any],
     ) -> ERPConfirmation:
-        """Post a QM results-recording to SAP."""
+        """Post a quality inspection result."""
         await self._simulate_latency()
         self._maybe_fail("report_quality_result")
 
-        self._qm_seq += 1
-        doc_number = str(self._qm_seq)
+        self._quality_seq += 1
+        txn_number = str(self._quality_seq)
 
         record = {
-            "type": "qm_results_recording",
-            "sap_document": doc_number,
-            "sap_payload": {
-                "InspectionLot": order_id,
-                "InspectionCharacteristic": test_id,
+            "type": "quality_result",
+            "erp_document": txn_number,
+            "erp_payload": {
+                "WorkOrderNumber": order_id,
+                "InspectionPlanCode": test_id,
                 "InspectionResult": result,
-                "InspectionResultDetails": details,
+                "InspectionDetails": details,
+                "TransactionType": "QUALITY_RESULT",
             },
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
@@ -562,13 +547,13 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         self._confirmations.append(record)
 
         logger.info(
-            "SAP QM result %s posted for order %s (test=%s, result=%s)",
-            doc_number, order_id, test_id, result,
+            "Oracle quality result %s posted for work order %s (test=%s, result=%s)",
+            txn_number, order_id, test_id, result,
         )
         return ERPConfirmation(
             success=True,
-            erp_doc_number=doc_number,
-            message=f"SAP QM results recording {doc_number} posted",
+            erp_doc_number=txn_number,
+            message=f"Oracle quality result {txn_number} posted",
         )
 
     # ── Internal helpers ──────────────────────────────────────────
@@ -581,6 +566,6 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
         if self._failure_rate > 0 and random.random() < self._failure_rate:  # noqa: S311
             from mes.adapters.erp.exceptions import ERPOutboundError
             raise ERPOutboundError(
-                message=f"Simulated SAP OData error on {operation} "
-                        f"(CX_SY_OPEN_SQL_DB / HTTP 503)",
+                message=f"Simulated Oracle REST API error on {operation} "
+                        f"(HTTP 503 / Service Unavailable)",
             )

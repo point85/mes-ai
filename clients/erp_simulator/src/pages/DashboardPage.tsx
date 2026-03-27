@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { getERPHealth, type ERPHealth } from "../api/erp";
 import StatusBadge from "../components/StatusBadge";
+import { useERPType } from "../hooks/useERPType";
 
 export default function DashboardPage() {
   const [health, setHealth] = useState<ERPHealth | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { erpType, erpLabel } = useERPType();
 
   const checkHealth = async () => {
     setLoading(true);
@@ -24,7 +26,7 @@ export default function DashboardPage() {
       <div>
         <h2 className="text-lg font-semibold text-gray-800">ERP Simulator Dashboard</h2>
         <p className="text-sm text-gray-600 mt-1">
-          Monitor adapter health and connectivity to the SAP ERP Simulator plugin.
+          Monitor adapter health and connectivity to the {erpLabel} ERP Simulator plugin.
         </p>
       </div>
 
@@ -93,12 +95,12 @@ export default function DashboardPage() {
           <div>
             <h4 className="font-medium text-gray-700 mb-1">Outbound (MES → ERP)</h4>
             <ul className="list-disc list-inside space-y-0.5">
-              <li>Production Completion (MIGO 101)</li>
-              <li>Material Consumption (MIGO 261)</li>
-              <li>Scrap Report (MIGO 531)</li>
-              <li>Labor (CATS Time)</li>
-              <li>Downtime (PM Notification)</li>
-              <li>Quality Results (QM Recording)</li>
+              <li>Production Completion{erpType === "sap" ? " (MIGO 101)" : ""}</li>
+              <li>Material Consumption{erpType === "sap" ? " (MIGO 261)" : " (WIP Issue)"}</li>
+              <li>Scrap Report{erpType === "sap" ? " (MIGO 531)" : ""}</li>
+              <li>Labor{erpType === "sap" ? " (CATS Time)" : " (Resource Charge)"}</li>
+              <li>Downtime{erpType === "sap" ? " (PM Notification)" : " (Maintenance Event)"}</li>
+              <li>Quality Results{erpType === "sap" ? " (QM Recording)" : " (Inspection Result)"}</li>
             </ul>
           </div>
         </div>

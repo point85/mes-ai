@@ -24,11 +24,11 @@ Outbound report endpoints (MES → ERP):
 - POST   /api/v1/erp/report/quality-result   Report quality test result
 - GET    /api/v1/erp/confirmations            List outbound confirmations (simulator)
 
-Simulator CRUD endpoints (for editing in-memory SAP data):
+Simulator CRUD endpoints (for editing in-memory ERP data):
 - POST   /api/v1/erp/simulator/materials          Create a material
 - PUT    /api/v1/erp/simulator/materials/{code}    Update a material
 - DELETE /api/v1/erp/simulator/materials/{code}    Delete a material
-- GET    /api/v1/erp/simulator/options             Dropdown options (material types, UOMs)
+- GET    /api/v1/erp/simulator/options             Dropdown options (material types, UOMs, ERP type)
 """
 
 from __future__ import annotations
@@ -395,8 +395,8 @@ async def list_confirmations():
     """
     List outbound confirmations stored by the running ERP outbound adapter.
 
-    This is primarily useful with the SAP ERP simulator, which stores all
-    confirmations in memory for inspection.
+    This is useful with ERP simulator plugins (SAP or Oracle), which store
+    all confirmations in memory for inspection.
     """
     adapter = _get_erp_outbound()
     confirmations = getattr(adapter, "confirmations", [])
@@ -404,19 +404,11 @@ async def list_confirmations():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Simulator CRUD — edit in-memory SAP data via the GUI
+# Simulator CRUD — edit in-memory ERP data via the GUI
 # ═══════════════════════════════════════════════════════════════════════════
 
-# SAP material types recognised by the simulator
-_SAP_MATERIAL_TYPES = [
-    {"code": "ROH",  "label": "Raw Material"},
-    {"code": "HALB", "label": "Semi-Finished"},
-    {"code": "FERT", "label": "Finished Product"},
-    {"code": "VERP", "label": "Packaging"},
-]
-
-# UOM symbols available in the simulator
-_SAP_UOM_OPTIONS = [
+# UOM symbols available in the simulator (shared across all ERP types)
+_SIMULATOR_UOM_OPTIONS = [
     {"symbol": "EA",  "name": "Each"},
     {"symbol": "KG",  "name": "Kilogram"},
     {"symbol": "G",   "name": "Gram"},
@@ -450,10 +442,17 @@ class MaterialUpdateRequest(BaseModel):
 
 @router.get("/simulator/options", response_model=dict)
 async def simulator_options():
-    """Return dropdown options for material types and UOMs."""
+    """Return dropdown options for material types and UOMs, plus ERP type."""
+    adapter = _get_erp_inbound()
+    erp_type = getattr(adapter, "erp_type", "unknown")
+    if hasattr(adapter, "material_type_options"):
+        material_types = adapter.material_type_options()
+    else:
+        material_types = []
     return success_response({
-        "material_types": _SAP_MATERIAL_TYPES,
-        "uom_options": _SAP_UOM_OPTIONS,
+        "erp_type": erp_type,
+        "material_types": material_types,
+        "uom_options": _SIMULATOR_UOM_OPTIONS,
     })
 
 
@@ -480,19 +479,17 @@ async def create_simulator_material(
             status_code=409,
             error_code="DUPLICATE_MATERIAL",
         )
-    sap_record = {
-        "Material": req.code,
-        "MaterialName": req.name,
-        "MaterialType": req.material_type,
-        "BaseUnit": req.uom,
-        "MaterialRevisionLevel": req.revision,
-        "MaterialDescription": req.description,
-        "MaximumStoragePeriod": str(req.shelf_life_days) if req.shelf_life_days else None,
-        "MaterialGroup": "001",
-        "Plant": "1000",
-    }
-    adapter.add_material(sap_record)
-    dto = adapter._transform.to_material(sap_record)
+    erp_record = adapter.build_material_record(
+        code=req.code,
+        name=req.name,
+        material_type=req.material_type,
+        uom=req.uom,
+        revision=req.revision,
+        description=req.description,
+        shelf_life_days=req.shelf_life_days,
+    )
+    adapter.add_material(erp_record)
+    dto = adapter._transform.to_material(erp_record)
 
     # Persist to MES database
     await MaterialService.create_material(
@@ -533,19 +530,14 @@ async def update_simulator_material(
     if existing is None:
         from mes.framework.api.exceptions import NotFoundException
         raise NotFoundException(resource="Material", resource_id=code)
-    updates: dict = {}
-    if req.name is not None:
-        updates["MaterialName"] = req.name
-    if req.material_type is not None:
-        updates["MaterialType"] = req.material_type
-    if req.uom is not None:
-        updates["BaseUnit"] = req.uom
-    if req.revision is not None:
-        updates["MaterialRevisionLevel"] = req.revision
-    if req.description is not None:
-        updates["MaterialDescription"] = req.description
-    if req.shelf_life_days is not None:
-        updates["MaximumStoragePeriod"] = str(req.shelf_life_days)
+    updates = adapter.build_material_updates(
+        name=req.name,
+        material_type=req.material_type,
+        uom=req.uom,
+        revision=req.revision,
+        description=req.description,
+        shelf_life_days=req.shelf_life_days,
+    )
     updated = adapter.update_material(code, updates)
     dto = adapter._transform.to_material(updated)
 

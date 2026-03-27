@@ -9,6 +9,7 @@ import {
   type MaterialTypeOption,
   type UOMOption,
 } from "../api/erp";
+import { useERPType } from "../hooks/useERPType";
 
 /* ── Blank row template ──────────────────────────────────────────── */
 
@@ -16,7 +17,7 @@ function emptyRow(): MaterialDefinition {
   return {
     code: "",
     name: "",
-    material_type: "ROH",
+    material_type: "",
     uom: "EA",
     description: "",
     shelf_life_days: null,
@@ -31,6 +32,7 @@ export default function MaterialsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null); // code being saved
+  const { erpType, erpLabel } = useERPType();
 
   // Inline editing state
   const [editCode, setEditCode] = useState<string | null>(null);
@@ -51,6 +53,10 @@ export default function MaterialsPage() {
       .then((opts) => {
         setMaterialTypes(opts.material_types);
         setUomOptions(opts.uom_options);
+        // Set default type for new rows from first option
+        if (opts.material_types.length > 0) {
+          setNewRow((r) => ({ ...r, material_type: opts.material_types[0].code }));
+        }
       })
       .catch(() => {});
   }, []);
@@ -196,7 +202,7 @@ export default function MaterialsPage() {
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              {["Code", "Name", "SAP Type", "UoM", "Description", "Shelf Life", "Actions"].map(
+              {["Code", "Name", `${erpLabel} Type`, "UoM", "Description", "Shelf Life", "Actions"].map(
                 (h) => (
                   <th
                     key={h}
@@ -298,7 +304,7 @@ export default function MaterialsPage() {
             {data.length === 0 && !adding ? (
               <tr>
                 <td colSpan={7} className="text-center py-8 text-gray-500">
-                  Click &apos;Sync Materials&apos; to pull material master from SAP
+                  Click &apos;Sync Materials&apos; to pull material master from {erpLabel}
                 </td>
               </tr>
             ) : (
@@ -325,12 +331,12 @@ export default function MaterialsPage() {
                       )}
                     </td>
 
-                    {/* SAP Type dropdown */}
+                    {/* ERP Type dropdown */}
                     <td className="px-3 py-2">
                       {isEditing ? (
                         <select
                           className={selectCls}
-                          value={String(draft.metadata?.sap_material_type ?? draft.material_type)}
+                          value={String(draft.metadata?.sap_material_type ?? draft.metadata?.oracle_item_type ?? draft.material_type)}
                           onChange={(e) => setEditDraft({ ...draft, material_type: e.target.value })}
                         >
                           {materialTypes.map((t) => (
@@ -340,7 +346,7 @@ export default function MaterialsPage() {
                           ))}
                         </select>
                       ) : (
-                        String(row.metadata?.sap_material_type ?? row.material_type)
+                        String(draft.metadata?.sap_material_type ?? draft.metadata?.oracle_item_type ?? row.material_type)
                       )}
                     </td>
 

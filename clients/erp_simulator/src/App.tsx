@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Layout, { type TabId } from "./components/Layout";
+import { ERPProvider } from "./hooks/useERPType";
 import DashboardPage from "./pages/DashboardPage";
 import OrdersPage from "./pages/OrdersPage";
 import MaterialsPage from "./pages/MaterialsPage";
@@ -37,8 +38,10 @@ export default function App() {
   const Page = pages[activeTab];
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab}>
-      <Page />
-    </Layout>
+    <ERPProvider>
+      <Layout activeTab={activeTab} onTabChange={setActiveTab}>
+        <Page />
+      </Layout>
+    </ERPProvider>
   );
 }

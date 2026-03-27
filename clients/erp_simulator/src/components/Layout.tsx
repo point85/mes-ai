@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { useERPType } from "../hooks/useERPType";
 
 const tabs = [
   { id: "dashboard", label: "Dashboard" },
@@ -28,6 +29,9 @@ interface LayoutProps {
 
 export default function Layout({ activeTab, onTabChange, children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { erpType, erpLabel } = useERPType();
+
+  const badgeColor = erpType === "oracle" ? "bg-red-600" : "bg-blue-500";
 
   const inboundTabs = tabs.filter((t) =>
     ["dashboard", "orders", "materials", "products", "boms", "routings", "work-centers"].includes(t.id)
@@ -45,8 +49,8 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
         } bg-gray-900 text-gray-300 flex flex-col transition-all duration-200`}
       >
         <div className="px-4 py-4 flex items-center gap-2 border-b border-gray-700">
-          <div className="w-7 h-7 bg-blue-500 rounded flex items-center justify-center text-white text-xs font-bold">
-            SAP
+          <div className={`w-7 h-7 ${badgeColor} rounded flex items-center justify-center text-white text-xs font-bold`}>
+            {erpLabel.slice(0, 3)}
           </div>
           <span className="text-sm font-semibold text-white whitespace-nowrap">
             ERP Simulator

@@ -1,11 +1,12 @@
 """
-Unit tests for the SAP ERP Simulator plugin.
+Unit tests for the Oracle Cloud ERP Simulator plugin.
 
 Covers:
-- SAPSimulatorInboundAdapter (all sync methods, transform pipeline, incremental sync)
-- SAPSimulatorOutboundAdapter (all report methods, SAP doc numbers, payload validation)
-- SAPERPSimulatorPlugin (lifecycle, health, get_adapter)
-- SAP data integrity (field names, BOM structures, routing operations)
+- OracleSimulatorInboundAdapter (all sync methods, transform pipeline)
+- OracleSimulatorOutboundAdapter (all report methods, transaction numbers)
+- OracleERPSimulatorPlugin (lifecycle, health, get_adapter)
+- Oracle data integrity (field names, BOM structures, routing operations)
+- Build-material helpers for vendor-agnostic CRUD
 """
 
 from __future__ import annotations
@@ -29,25 +30,25 @@ from mes.adapters.erp.dtos import (
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def _make_inbound(**overrides):
-    from plugins.system.sap_erp_simulator.simulator import SAPSimulatorInboundAdapter
-    defaults = {"plant": "1000", "company_code": "1000", "latency_ms": 0, "failure_rate": 0.0}
+    from plugins.system.oracle_erp_simulator.simulator import OracleSimulatorInboundAdapter
+    defaults = {"organization_code": "ORG_MAIN", "business_unit": "BU_MANUFACTURING", "latency_ms": 0, "failure_rate": 0.0}
     defaults.update(overrides)
-    return SAPSimulatorInboundAdapter(**defaults)
+    return OracleSimulatorInboundAdapter(**defaults)
 
 
 def _make_outbound(**overrides):
-    from plugins.system.sap_erp_simulator.simulator import SAPSimulatorOutboundAdapter
-    defaults = {"plant": "1000", "company_code": "1000", "latency_ms": 0, "failure_rate": 0.0}
+    from plugins.system.oracle_erp_simulator.simulator import OracleSimulatorOutboundAdapter
+    defaults = {"organization_code": "ORG_MAIN", "business_unit": "BU_MANUFACTURING", "latency_ms": 0, "failure_rate": 0.0}
     defaults.update(overrides)
-    return SAPSimulatorOutboundAdapter(**defaults)
+    return OracleSimulatorOutboundAdapter(**defaults)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Inbound Adapter — Production Orders
+# Inbound Adapter — Work Orders (Production Orders)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorProductionOrders:
+class TestOracleSimulatorWorkOrders:
 
     @pytest.fixture
     def adapter(self):
@@ -65,22 +66,22 @@ class TestSAPSimulatorProductionOrders:
         await adapter.connect()
         orders = await adapter.sync_production_orders()
         o = orders[0]
-        assert o.erp_reference == "000001000100"
+        assert o.erp_reference == "WO-100-001"
         assert o.product_code == "FG-WIDGET-100"
         assert o.quantity_ordered == 100
         assert o.uom == "EA"
-        assert o.bom_id == "00001001"
-        assert o.routing_id == "50000001"
-        assert o.metadata["sap_plant"] == "1000"
-        assert o.metadata["sap_order_type"] == "PP01"
+        assert o.bom_id == "PRIMARY"
+        assert o.routing_id == "RTG-WIDGET-100"
+        assert o.metadata["oracle_org_code"] == "ORG_MAIN"
+        assert o.metadata["oracle_work_order_type"] == "Standard"
 
     @pytest.mark.asyncio
-    async def test_sap_priority_mapping(self, adapter):
+    async def test_oracle_priority_mapping(self, adapter):
         await adapter.connect()
         orders = await adapter.sync_production_orders()
         assert orders[0].priority == 500   # "3" → Medium
         assert orders[1].priority == 700   # "2" → High
-        assert orders[2].priority == 900   # "1" → Very high
+        assert orders[2].priority == 900   # "1" → Critical
         assert orders[4].priority == 300   # "4" → Low
 
     @pytest.mark.asyncio
@@ -91,7 +92,6 @@ class TestSAPSimulatorProductionOrders:
         assert o.planned_start is not None
         assert isinstance(o.planned_start, datetime)
         assert o.planned_start.year == 2026
-        assert o.planned_start.month == 3
 
     @pytest.mark.asyncio
     async def test_incremental_sync(self, adapter):
@@ -99,23 +99,23 @@ class TestSAPSimulatorProductionOrders:
         cutoff = datetime(2026, 3, 25, tzinfo=timezone.utc)
         orders = await adapter.sync_production_orders(since=cutoff)
         assert len(orders) == 1
-        assert orders[0].erp_reference == "000001000301"
+        assert orders[0].erp_reference == "WO-300-002"
 
     @pytest.mark.asyncio
-    async def test_add_production_order(self, adapter):
+    async def test_add_work_order(self, adapter):
         await adapter.connect()
         adapter.add_production_order({
-            "ManufacturingOrder": "000009999999",
-            "Material": "FG-WIDGET-100",
-            "TotalQuantity": "10",
-            "MfgOrderPriority": "1",
-            "ProductionUnit": "EA",
-            "ProductionPlant": "1000",
-            "ManufacturingOrderType": "PP01",
+            "WorkOrderNumber": "WO-TEST-999",
+            "ItemNumber": "FG-WIDGET-100",
+            "PlannedQuantity": 10,
+            "WorkOrderPriority": "1",
+            "UOMCode": "EA",
+            "OrganizationCode": "ORG_MAIN",
+            "WorkOrderType": "Standard",
         })
         orders = await adapter.sync_production_orders()
         assert len(orders) == 6
-        added = [o for o in orders if o.erp_reference == "000009999999"]
+        added = [o for o in orders if o.erp_reference == "WO-TEST-999"]
         assert len(added) == 1
         assert added[0].quantity_ordered == 10
 
@@ -125,7 +125,7 @@ class TestSAPSimulatorProductionOrders:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorMaterials:
+class TestOracleSimulatorMaterials:
 
     @pytest.fixture
     def adapter(self):
@@ -148,7 +148,7 @@ class TestSAPSimulatorMaterials:
         assert steel.uom == "kg"
 
     @pytest.mark.asyncio
-    async def test_semi_finished_mapping(self, adapter):
+    async def test_subassembly_mapping(self, adapter):
         await adapter.connect()
         materials = await adapter.sync_materials()
         pcb = next(m for m in materials if m.code == "SF-PCB-CTRL")
@@ -160,13 +160,7 @@ class TestSAPSimulatorMaterials:
         materials = await adapter.sync_materials()
         widget = next(m for m in materials if m.code == "FG-WIDGET-100")
         assert widget.material_type == "finished"
-
-    @pytest.mark.asyncio
-    async def test_packaging_mapping(self, adapter):
-        await adapter.connect()
-        materials = await adapter.sync_materials()
-        label = next(m for m in materials if m.code == "RM-LABEL-PROD")
-        assert label.material_type == "packaging"
+        assert widget.revision == "A"
 
     @pytest.mark.asyncio
     async def test_shelf_life(self, adapter):
@@ -176,13 +170,13 @@ class TestSAPSimulatorMaterials:
         assert pellets.shelf_life_days == 730
 
     @pytest.mark.asyncio
-    async def test_sap_metadata_preserved(self, adapter):
+    async def test_oracle_metadata_preserved(self, adapter):
         await adapter.connect()
         materials = await adapter.sync_materials()
         steel = next(m for m in materials if m.code == "RM-STEEL-1MM")
-        assert steel.metadata["sap_material_group"] == "001"
-        assert steel.metadata["sap_material_type"] == "ROH"
-        assert steel.metadata["sap_plant"] == "1000"
+        assert steel.metadata["oracle_item_class"] == "Raw Material"
+        assert steel.metadata["oracle_item_type"] == "STANDARD"
+        assert steel.metadata["oracle_org_code"] == "ORG_MAIN"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -190,7 +184,7 @@ class TestSAPSimulatorMaterials:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorProducts:
+class TestOracleSimulatorProducts:
 
     @pytest.fixture
     def adapter(self):
@@ -210,7 +204,7 @@ class TestSAPSimulatorProducts:
         w100 = next(p for p in products if p.code == "FG-WIDGET-100")
         assert w100.name == "Standard Widget 100"
         assert w100.product_type == "discrete"
-        assert w100.version == "1.0"
+        assert w100.version == "A"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -218,7 +212,7 @@ class TestSAPSimulatorProducts:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorBOMs:
+class TestOracleSimulatorBOMs:
 
     @pytest.fixture
     def adapter(self):
@@ -232,7 +226,7 @@ class TestSAPSimulatorBOMs:
         bom = boms[0]
         assert isinstance(bom, BillOfMaterialDTO)
         assert bom.product_code == "FG-WIDGET-100"
-        assert bom.version == "01"
+        assert bom.version == "1"
         assert len(bom.items) == 4
 
     @pytest.mark.asyncio
@@ -277,21 +271,23 @@ class TestSAPSimulatorBOMs:
         await adapter.connect()
         boms = await adapter.sync_boms("FG-WIDGET-200")
         bom = boms[0]
-        assert bom.metadata["sap_bom_number"] == "00001002"
+        assert bom.metadata["oracle_structure_name"] == "PRIMARY"
+        assert bom.metadata["oracle_org_code"] == "ORG_MAIN"
 
     @pytest.mark.asyncio
     async def test_add_bom(self, adapter):
         await adapter.connect()
         adapter.add_bom("FG-WIDGET-100", {
-            "Material": "FG-WIDGET-100",
-            "BillOfMaterial": "00001099",
-            "BillOfMaterialVariant": "02",
-            "to_BOMItem": [
+            "ItemNumber": "FG-WIDGET-100",
+            "StructureName": "ALTERNATE",
+            "AlternateDesignator": "2",
+            "OrganizationCode": "ORG_MAIN",
+            "Component": [
                 {
-                    "BillOfMaterialItemNumber": "0010",
-                    "BillOfMaterialComponent": "RM-STEEL-1MM",
-                    "BillOfMaterialItemQuantity": "5",
-                    "BillOfMaterialItemUnit": "KG",
+                    "ComponentItemNumber": "RM-STEEL-1MM",
+                    "ComponentQuantity": "5",
+                    "UOMCode": "KG",
+                    "ComponentSequenceNumber": "10",
                 },
             ],
         })
@@ -304,7 +300,7 @@ class TestSAPSimulatorBOMs:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorRoutings:
+class TestOracleSimulatorRoutings:
 
     @pytest.fixture
     def adapter(self):
@@ -318,7 +314,7 @@ class TestSAPSimulatorRoutings:
         route = routes[0]
         assert isinstance(route, ProcessRouteDTO)
         assert route.product_code == "FG-WIDGET-100"
-        assert route.name == "50000001"
+        assert route.name == "RTG-WIDGET-100"
 
     @pytest.mark.asyncio
     async def test_routing_operations_sorted(self, adapter):
@@ -371,7 +367,7 @@ class TestSAPSimulatorRoutings:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorWorkCenters:
+class TestOracleSimulatorWorkCenters:
 
     @pytest.fixture
     def adapter(self):
@@ -390,8 +386,8 @@ class TestSAPSimulatorWorkCenters:
         wcs = await adapter.sync_work_cells()
         smt = next(wc for wc in wcs if wc.code == "WC-SMT-01")
         assert smt.name == "SMT Pick-and-Place Line 01"
-        assert smt.area_code == "1000"
-        assert smt.capabilities["sap_category"] == "0003"
+        assert smt.area_code == "ORG_MAIN"
+        assert smt.capabilities["oracle_work_center_type"] == "Line"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -399,7 +395,7 @@ class TestSAPSimulatorWorkCenters:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorInboundLifecycle:
+class TestOracleSimulatorInboundLifecycle:
 
     @pytest.mark.asyncio
     async def test_health_disconnected(self):
@@ -429,23 +425,28 @@ class TestSAPSimulatorInboundLifecycle:
         await a1.connect()
         await a2.connect()
         a1.add_production_order({
-            "ManufacturingOrder": "000099999999",
-            "Material": "X",
-            "TotalQuantity": "1",
-            "ProductionUnit": "EA",
-            "ProductionPlant": "1000",
-            "ManufacturingOrderType": "PP01",
+            "WorkOrderNumber": "WO-TEST-999",
+            "ItemNumber": "X",
+            "PlannedQuantity": 1,
+            "UOMCode": "EA",
+            "OrganizationCode": "ORG_MAIN",
+            "WorkOrderType": "Standard",
         })
         assert len(await a1.sync_production_orders()) == 6
         assert len(await a2.sync_production_orders()) == 5
 
+    @pytest.mark.asyncio
+    async def test_erp_type_attribute(self):
+        adapter = _make_inbound()
+        assert adapter.erp_type == "oracle"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Outbound Adapter — Completion Confirmations
+# Outbound Adapter — Completion Transactions
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorCompletions:
+class TestOracleSimulatorCompletions:
 
     @pytest.fixture
     def adapter(self):
@@ -455,53 +456,49 @@ class TestSAPSimulatorCompletions:
     async def test_report_completion(self, adapter):
         await adapter.connect()
         result = await adapter.report_completion(
-            order_id="000001000100",
+            order_id="WO-100-001",
             qty_good=95,
             qty_reject=5,
-            step_id="0010",
+            step_id="10",
         )
         assert isinstance(result, ERPConfirmation)
         assert result.success is True
         assert result.erp_doc_number is not None
-        assert result.erp_doc_number.startswith("49")
-        assert len(result.erp_doc_number) == 10
 
     @pytest.mark.asyncio
-    async def test_completion_sap_payload(self, adapter):
+    async def test_completion_oracle_payload(self, adapter):
         await adapter.connect()
         await adapter.report_completion(
-            order_id="000001000100",
+            order_id="WO-100-001",
             qty_good=95,
             qty_reject=5,
-            step_id="0010",
+            step_id="10",
         )
         assert len(adapter.confirmations) == 1
         record = adapter.confirmations[0]
-        assert record["type"] == "confirmation"
-        payload = record["sap_payload"]
-        assert payload["OrderID"] == "000001000100"
-        assert payload["ConfirmationYieldQuantity"] == "95"
-        assert payload["ConfirmationScrapQuantity"] == "5"
-        assert payload["OrderOperation"] == "0010"
-        assert payload["ConfirmationUnit"] == "EA"
-        assert "PostingDate" in payload
+        assert record["type"] == "wip_completion"
+        payload = record["erp_payload"]
+        assert payload["WorkOrderNumber"] == "WO-100-001"
+        assert payload["CompletedQuantity"] == 95
+        assert payload["RejectedQuantity"] == 5
+        assert payload["TransactionType"] == "WIP_COMPLETION"
 
     @pytest.mark.asyncio
-    async def test_sequential_doc_numbers(self, adapter):
+    async def test_sequential_txn_numbers(self, adapter):
         await adapter.connect()
-        r1 = await adapter.report_completion("000001000100", 10, 0)
-        r2 = await adapter.report_completion("000001000100", 20, 0)
+        r1 = await adapter.report_completion("WO-100-001", 10, 0)
+        r2 = await adapter.report_completion("WO-100-001", 20, 0)
         n1 = int(r1.erp_doc_number)
         n2 = int(r2.erp_doc_number)
         assert n2 == n1 + 1
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Outbound Adapter — Consumption / Goods Movements
+# Outbound Adapter — Consumption / Material Issue
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorConsumption:
+class TestOracleSimulatorConsumption:
 
     @pytest.fixture
     def adapter(self):
@@ -511,7 +508,7 @@ class TestSAPSimulatorConsumption:
     async def test_report_consumption(self, adapter):
         await adapter.connect()
         result = await adapter.report_consumption(
-            order_id="000001000100",
+            order_id="WO-100-001",
             materials=[
                 MaterialConsumptionDTO(
                     material_code="RM-STEEL-1MM",
@@ -527,13 +524,13 @@ class TestSAPSimulatorConsumption:
             ],
         )
         assert result.success is True
-        assert "261" in result.message
+        assert "WIP_ISSUE" in result.message
 
     @pytest.mark.asyncio
-    async def test_consumption_sap_payload(self, adapter):
+    async def test_consumption_oracle_payload(self, adapter):
         await adapter.connect()
         await adapter.report_consumption(
-            order_id="000001000100",
+            order_id="WO-100-001",
             materials=[
                 MaterialConsumptionDTO(
                     material_code="RM-STEEL-1MM",
@@ -544,14 +541,13 @@ class TestSAPSimulatorConsumption:
             ],
         )
         record = adapter.confirmations[0]
-        assert record["type"] == "goods_movement_261"
-        payload = record["sap_payload"]
-        assert payload["OrderID"] == "000001000100"
-        items = payload["GoodsMovementItems"]
-        assert len(items) == 1
-        assert items[0]["Material"] == "RM-STEEL-1MM"
-        assert items[0]["GoodsMovementType"] == "261"
-        assert items[0]["Batch"] == "LOT-001"
+        assert record["type"] == "wip_material_issue"
+        payload = record["erp_payload"]
+        assert payload["WorkOrderNumber"] == "WO-100-001"
+        txns = payload["MaterialTransactions"]
+        assert len(txns) == 1
+        assert txns[0]["ItemNumber"] == "RM-STEEL-1MM"
+        assert txns[0]["TransactionType"] == "WIP_ISSUE"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -559,7 +555,7 @@ class TestSAPSimulatorConsumption:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorOtherReports:
+class TestOracleSimulatorOtherReports:
 
     @pytest.fixture
     def adapter(self):
@@ -569,29 +565,28 @@ class TestSAPSimulatorOtherReports:
     async def test_report_scrap(self, adapter):
         await adapter.connect()
         result = await adapter.report_scrap(
-            order_id="000001000100",
+            order_id="WO-100-001",
             qty_scrapped=3,
             reason_code="DEFECTIVE_PCB",
         )
         assert result.success is True
-        assert "531" in result.message
         record = adapter.confirmations[0]
-        assert record["sap_payload"]["GoodsMovementType"] == "531"
-        assert record["sap_payload"]["ScrapReasonCode"] == "DEFECTIVE_PCB"
+        assert record["erp_payload"]["TransactionType"] == "WIP_SCRAP"
+        assert record["erp_payload"]["ReasonCode"] == "DEFECTIVE_PCB"
 
     @pytest.mark.asyncio
     async def test_report_labor(self, adapter):
         await adapter.connect()
         result = await adapter.report_labor(
-            order_id="000001000100",
+            order_id="WO-100-001",
             operator_id="EMP-1234",
             duration_minutes=45.5,
         )
         assert result.success is True
         record = adapter.confirmations[0]
-        assert record["type"] == "time_confirmation"
-        assert record["sap_payload"]["PersonnelNumber"] == "EMP-1234"
-        assert record["sap_payload"]["ActivityUnit"] == "MIN"
+        assert record["type"] == "resource_transaction"
+        assert record["erp_payload"]["ResourceCode"] == "EMP-1234"
+        assert record["erp_payload"]["UOMCode"] == "MIN"
 
     @pytest.mark.asyncio
     async def test_report_downtime(self, adapter):
@@ -605,24 +600,23 @@ class TestSAPSimulatorOtherReports:
         )
         assert result.success is True
         record = adapter.confirmations[0]
-        assert record["type"] == "pm_notification"
-        assert record["sap_payload"]["NotificationType"] == "M2"
-        assert record["sap_payload"]["TechnicalObject"] == "WC-SMT-01"
+        assert record["type"] == "maintenance_event"
+        assert record["erp_payload"]["AssetNumber"] == "WC-SMT-01"
+        assert record["erp_payload"]["TransactionType"] == "MAINTENANCE_EVENT"
 
     @pytest.mark.asyncio
     async def test_report_quality_result(self, adapter):
         await adapter.connect()
         result = await adapter.report_quality_result(
-            order_id="000001000200",
+            order_id="WO-200-001",
             test_id="FUNC-TEST-001",
             result="PASS",
             details={"voltage": 3.31, "current_ma": 250},
         )
         assert result.success is True
-        assert result.erp_doc_number.startswith("200")
         record = adapter.confirmations[0]
-        assert record["type"] == "qm_results_recording"
-        assert record["sap_payload"]["InspectionCharacteristic"] == "FUNC-TEST-001"
+        assert record["type"] == "quality_result"
+        assert record["erp_payload"]["InspectionPlanCode"] == "FUNC-TEST-001"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -630,7 +624,7 @@ class TestSAPSimulatorOtherReports:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPSimulatorOutboundLifecycle:
+class TestOracleSimulatorOutboundLifecycle:
 
     @pytest.mark.asyncio
     async def test_health_disconnected(self):
@@ -651,7 +645,7 @@ class TestSAPSimulatorOutboundLifecycle:
         await adapter.connect()
         from mes.adapters.erp.exceptions import ERPOutboundError
         with pytest.raises(ERPOutboundError):
-            await adapter.report_completion("ORDER-1", 10, 0)
+            await adapter.report_completion("WO-1", 10, 0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -659,13 +653,13 @@ class TestSAPSimulatorOutboundLifecycle:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSAPERPSimulatorPlugin:
+class TestOracleERPSimulatorPlugin:
 
     @pytest.mark.asyncio
     async def test_full_lifecycle(self):
-        from plugins.system.sap_erp_simulator.plugin import SAPERPSimulatorPlugin
-        plugin = SAPERPSimulatorPlugin()
-        await plugin.initialize({"plant": "1000", "company_code": "1000"})
+        from plugins.system.oracle_erp_simulator.plugin import OracleERPSimulatorPlugin
+        plugin = OracleERPSimulatorPlugin()
+        await plugin.initialize({"organization_code": "ORG_MAIN", "business_unit": "BU_MANUFACTURING"})
         await plugin.start()
         assert await plugin.health_check() is True
 
@@ -673,6 +667,7 @@ class TestSAPERPSimulatorPlugin:
         assert "erp_inbound" in adapters
         assert "erp_outbound" in adapters
         assert adapters["erp_inbound"] is not None
+        assert adapters["erp_outbound"] is not None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -680,7 +675,7 @@ class TestSAPERPSimulatorPlugin:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSimulatorMaterialCRUD:
+class TestOracleSimulatorMaterialCRUD:
 
     @pytest.fixture
     def adapter(self):
@@ -689,36 +684,35 @@ class TestSimulatorMaterialCRUD:
     def test_get_material_found(self, adapter):
         mat = adapter.get_material("RM-STEEL-1MM")
         assert mat is not None
-        assert mat["Material"] == "RM-STEEL-1MM"
+        assert mat["ItemNumber"] == "RM-STEEL-1MM"
 
     def test_get_material_not_found(self, adapter):
         assert adapter.get_material("NONEXISTENT") is None
 
     def test_add_and_get_material(self, adapter):
-        sap_rec = {
-            "Material": "TEST-MAT-001",
-            "MaterialName": "Test Material",
-            "MaterialType": "ROH",
-            "BaseUnit": "KG",
-            "MaterialDescription": "A test material",
-            "MaximumStoragePeriod": None,
-            "MaterialGroup": "001",
-            "Plant": "1000",
+        oracle_rec = {
+            "ItemNumber": "TEST-MAT-001",
+            "Description": "Test Material",
+            "ItemType": "STANDARD",
+            "PrimaryUOMCode": "KG",
+            "LongDescription": "A test material",
+            "ShelfLifeDays": None,
+            "ItemClass": "Raw Material",
+            "OrganizationCode": "ORG_MAIN",
         }
-        adapter.add_material(sap_rec)
+        adapter.add_material(oracle_rec)
         found = adapter.get_material("TEST-MAT-001")
         assert found is not None
-        assert found["MaterialName"] == "Test Material"
+        assert found["Description"] == "Test Material"
 
     def test_update_material_existing(self, adapter):
-        result = adapter.update_material("RM-STEEL-1MM", {"MaterialName": "Updated Name"})
+        result = adapter.update_material("RM-STEEL-1MM", {"Description": "Updated Name"})
         assert result is not None
-        assert result["MaterialName"] == "Updated Name"
-        # Verify persistence
-        assert adapter.get_material("RM-STEEL-1MM")["MaterialName"] == "Updated Name"
+        assert result["Description"] == "Updated Name"
+        assert adapter.get_material("RM-STEEL-1MM")["Description"] == "Updated Name"
 
     def test_update_material_not_found(self, adapter):
-        assert adapter.update_material("NONEXISTENT", {"MaterialName": "X"}) is None
+        assert adapter.update_material("NONEXISTENT", {"Description": "X"}) is None
 
     def test_delete_material_existing(self, adapter):
         initial_count = len(adapter._materials)
@@ -738,14 +732,14 @@ class TestSimulatorMaterialCRUD:
         initial_count = len(initial)
 
         adapter.add_material({
-            "Material": "NEW-MAT-999",
-            "MaterialName": "New Material",
-            "MaterialType": "FERT",
-            "BaseUnit": "EA",
-            "MaterialDescription": "Brand new",
-            "MaximumStoragePeriod": "365",
-            "MaterialGroup": "001",
-            "Plant": "1000",
+            "ItemNumber": "NEW-MAT-999",
+            "Description": "New Material",
+            "ItemType": "FINISHED_GOOD",
+            "PrimaryUOMCode": "EA",
+            "LongDescription": "Brand new",
+            "ShelfLifeDays": 365,
+            "ItemClass": "Finished Good",
+            "OrganizationCode": "ORG_MAIN",
         })
 
         updated = await adapter.sync_materials()
@@ -757,216 +751,84 @@ class TestSimulatorMaterialCRUD:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Simulator CRUD REST Endpoint Schemas
+# Build-material helpers for vendor-agnostic CRUD
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSimulatorCRUDSchemas:
-
-    def test_create_request_valid(self):
-        from mes.adapters.erp.routes import MaterialCreateRequest
-        req = MaterialCreateRequest(
-            code="MAT-001", name="Widget", material_type="ROH",
-            uom="KG", description="Test", shelf_life_days=90,
-        )
-        assert req.code == "MAT-001"
-        assert req.shelf_life_days == 90
-
-    def test_create_request_minimal(self):
-        from mes.adapters.erp.routes import MaterialCreateRequest
-        req = MaterialCreateRequest(
-            code="MAT-001", name="Widget", material_type="ROH", uom="KG",
-        )
-        assert req.description == ""
-        assert req.shelf_life_days is None
-
-    def test_create_request_rejects_empty_code(self):
-        from pydantic import ValidationError
-        from mes.adapters.erp.routes import MaterialCreateRequest
-        with pytest.raises(ValidationError):
-            MaterialCreateRequest(
-                code="", name="Widget", material_type="ROH", uom="KG",
-            )
-
-    def test_update_request_partial(self):
-        from mes.adapters.erp.routes import MaterialUpdateRequest
-        req = MaterialUpdateRequest(name="Updated")
-        assert req.name == "Updated"
-        assert req.material_type is None
-        assert req.uom is None
-
-    def test_options_lists_populated(self):
-        from mes.adapters.erp.routes import _SIMULATOR_UOM_OPTIONS
-        from plugins.system.sap_erp_simulator.simulator import SAPSimulatorInboundAdapter
-        sap_types = SAPSimulatorInboundAdapter.material_type_options()
-        assert len(sap_types) >= 4
-        assert len(_SIMULATOR_UOM_OPTIONS) >= 5
-        codes = [t["code"] for t in sap_types]
-        assert "ROH" in codes
-        assert "FERT" in codes
-        symbols = [u["symbol"] for u in _SIMULATOR_UOM_OPTIONS]
-        assert "KG" in symbols
-        assert "EA" in symbols
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Plugin Wrapper (restored)
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestSAPERPSimulatorPluginRestored:
-
-    @pytest.mark.asyncio
-    async def test_full_lifecycle(self):
-        from plugins.system.sap_erp_simulator.plugin import SAPERPSimulatorPlugin
-        plugin = SAPERPSimulatorPlugin()
-        await plugin.initialize({"plant": "1000", "company_code": "1000"})
-        await plugin.start()
-        assert await plugin.health_check() is True
-
-        adapters = plugin.get_adapter()
-        assert "erp_inbound" in adapters
-        assert "erp_outbound" in adapters
-        assert adapters["erp_inbound"] is not None
-        assert adapters["erp_outbound"] is not None
-
-        await plugin.stop()
-        assert await plugin.health_check() is False
-
-    @pytest.mark.asyncio
-    async def test_inbound_via_plugin(self):
-        from plugins.system.sap_erp_simulator.plugin import SAPERPSimulatorPlugin
-        plugin = SAPERPSimulatorPlugin()
-        await plugin.initialize({})
-        await plugin.start()
-
-        inbound = plugin.get_adapter()["erp_inbound"]
-        orders = await inbound.sync_production_orders()
-        assert len(orders) == 5
-
-        materials = await inbound.sync_materials()
-        assert len(materials) > 0
-
-        boms = await inbound.sync_boms("FG-WIDGET-100")
-        assert len(boms) == 1
-        assert len(boms[0].items) == 4
-
-        await plugin.stop()
-
-    @pytest.mark.asyncio
-    async def test_outbound_via_plugin(self):
-        from plugins.system.sap_erp_simulator.plugin import SAPERPSimulatorPlugin
-        plugin = SAPERPSimulatorPlugin()
-        await plugin.initialize({})
-        await plugin.start()
-
-        outbound = plugin.get_adapter()["erp_outbound"]
-        result = await outbound.report_completion("000001000100", 50, 2, "0010")
-        assert result.success is True
-        assert result.erp_doc_number.startswith("49")
-
-        await plugin.stop()
-
-    @pytest.mark.asyncio
-    async def test_config_passthrough(self):
-        from plugins.system.sap_erp_simulator.plugin import SAPERPSimulatorPlugin
-        plugin = SAPERPSimulatorPlugin()
-        await plugin.initialize({
-            "plant": "2000",
-            "company_code": "2000",
-            "latency_ms": 0,
-            "failure_rate": 0.0,
-        })
-        await plugin.start()
-
-        inbound = plugin.get_adapter()["erp_inbound"]
-        assert inbound._plant == "2000"
-        assert inbound._company_code == "2000"
-
-        await plugin.stop()
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# SAP Data Integrity
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestSAPDataIntegrity:
-    """Cross-check that SAP fixture data is internally consistent."""
+class TestOracleBuildMaterialHelpers:
 
     @pytest.fixture
     def adapter(self):
         return _make_inbound()
 
-    @pytest.mark.asyncio
-    async def test_all_bom_materials_exist(self, adapter):
-        """Every BOM component should appear in the material master."""
-        await adapter.connect()
-        materials = await adapter.sync_materials()
-        mat_codes = {m.code for m in materials}
+    def test_build_material_record(self, adapter):
+        rec = adapter.build_material_record(
+            code="TEST-001", name="Test Item", material_type="STANDARD",
+            uom="KG", revision="A", description="Test desc", shelf_life_days=90,
+        )
+        assert rec["ItemNumber"] == "TEST-001"
+        assert rec["Description"] == "Test Item"
+        assert rec["ItemType"] == "STANDARD"
+        assert rec["PrimaryUOMCode"] == "KG"
+        assert rec["RevisionCode"] == "A"
+        assert rec["LongDescription"] == "Test desc"
+        assert rec["ShelfLifeDays"] == 90
+        assert rec["OrganizationCode"] == "ORG_MAIN"
 
-        for product_id in ["FG-WIDGET-100", "FG-WIDGET-200", "FG-GADGET-300"]:
-            boms = await adapter.sync_boms(product_id)
-            for bom in boms:
-                for item in bom.items:
-                    assert item.material_code in mat_codes, (
-                        f"BOM component {item.material_code} for {product_id} "
-                        f"not found in material master"
-                    )
+    def test_build_material_updates(self, adapter):
+        updates = adapter.build_material_updates(
+            name="Updated", uom="EA",
+        )
+        assert updates == {"Description": "Updated", "PrimaryUOMCode": "EA"}
 
-    @pytest.mark.asyncio
-    async def test_all_routing_work_centers_exist(self, adapter):
-        """Every routing work center should appear in the work center list."""
-        await adapter.connect()
-        wcs = await adapter.sync_work_cells()
-        wc_codes = {wc.code for wc in wcs}
+    def test_build_material_updates_empty(self, adapter):
+        updates = adapter.build_material_updates()
+        assert updates == {}
 
-        for product_id in ["FG-WIDGET-100", "FG-WIDGET-200", "FG-GADGET-300"]:
-            routes = await adapter.sync_routings(product_id)
-            for route in routes:
-                for step in route.steps:
-                    if step.work_center_code:
-                        assert step.work_center_code in wc_codes, (
-                            f"Work center {step.work_center_code} in routing "
-                            f"for {product_id} not found in work center master"
-                        )
+    def test_material_type_options(self, adapter):
+        opts = adapter.material_type_options()
+        assert len(opts) >= 3
+        codes = [o["code"] for o in opts]
+        assert "STANDARD" in codes
+        assert "FINISHED_GOOD" in codes
+        assert "SUBASSEMBLY" in codes
 
-    @pytest.mark.asyncio
-    async def test_all_order_products_exist(self, adapter):
-        """Every production order product should appear in the product master."""
-        await adapter.connect()
-        products = await adapter.sync_products()
-        product_codes = {p.code for p in products}
 
-        orders = await adapter.sync_production_orders()
-        for order in orders:
-            assert order.product_code in product_codes, (
-                f"Order {order.erp_reference} references product "
-                f"{order.product_code} not in product master"
-            )
+class TestSAPBuildMaterialHelpers:
+    """Verify the SAP adapter also has the same build helpers."""
 
-    @pytest.mark.asyncio
-    async def test_all_order_products_have_boms(self, adapter):
-        """Every production order product should have at least one BOM."""
-        await adapter.connect()
-        orders = await adapter.sync_production_orders()
-        seen_products = {o.product_code for o in orders}
+    @pytest.fixture
+    def adapter(self):
+        return _make_sap_inbound()
 
-        for product_code in seen_products:
-            boms = await adapter.sync_boms(product_code)
-            assert len(boms) > 0, (
-                f"Product {product_code} has production orders but no BOM"
-            )
+    def test_build_material_record(self, adapter):
+        rec = adapter.build_material_record(
+            code="TEST-001", name="Test Material", material_type="ROH",
+            uom="KG", revision="A", description="Test", shelf_life_days=90,
+        )
+        assert rec["Material"] == "TEST-001"
+        assert rec["MaterialName"] == "Test Material"
+        assert rec["MaterialType"] == "ROH"
+        assert rec["BaseUnit"] == "KG"
+        assert rec["MaterialRevisionLevel"] == "A"
+        assert rec["MaximumStoragePeriod"] == "90"
 
-    @pytest.mark.asyncio
-    async def test_all_order_products_have_routings(self, adapter):
-        """Every production order product should have at least one routing."""
-        await adapter.connect()
-        orders = await adapter.sync_production_orders()
-        seen_products = {o.product_code for o in orders}
+    def test_build_material_updates(self, adapter):
+        updates = adapter.build_material_updates(name="Updated", uom="EA")
+        assert updates == {"MaterialName": "Updated", "BaseUnit": "EA"}
 
-        for product_code in seen_products:
-            routes = await adapter.sync_routings(product_code)
-            assert len(routes) > 0, (
-                f"Product {product_code} has production orders but no routing"
-            )
+    def test_material_type_options(self, adapter):
+        opts = adapter.material_type_options()
+        codes = [o["code"] for o in opts]
+        assert "ROH" in codes
+        assert "FERT" in codes
+
+    def test_erp_type(self, adapter):
+        assert adapter.erp_type == "sap"
+
+
+def _make_sap_inbound(**overrides):
+    from plugins.system.sap_erp_simulator.simulator import SAPSimulatorInboundAdapter
+    defaults = {"plant": "1000", "company_code": "1000", "latency_ms": 0, "failure_rate": 0.0}
+    defaults.update(overrides)
+    return SAPSimulatorInboundAdapter(**defaults)

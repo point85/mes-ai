@@ -85,10 +85,14 @@ export interface ERPConfirmation {
 
 export interface ConfirmationRecord {
   type: string;
-  sap_document: string;
   order_id: string;
   posted_at: string;
-  sap_payload: Record<string, unknown>;
+  // Vendor-agnostic fields (Oracle uses erp_document/erp_payload)
+  sap_document?: string;
+  sap_payload?: Record<string, unknown>;
+  erp_document?: string;
+  erp_payload?: Record<string, unknown>;
+  equipment_id?: string;
 }
 
 // ── Envelope unwrap helper ────────────────────────────────────────────────
@@ -204,6 +208,7 @@ export interface UOMOption {
 }
 
 export interface SimulatorOptions {
+  erp_type: "sap" | "oracle" | string;
   material_types: MaterialTypeOption[];
   uom_options: UOMOption[];
 }

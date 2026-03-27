@@ -1,0 +1,51 @@
+id: oracle-erp-simulator
+name: Oracle Cloud ERP Simulator
+version: "1.0.0"
+description: >
+  Realistic Oracle Cloud ERP (Fusion) simulator for development and integration
+  testing.  Generates Oracle-authentic REST API messages using real Oracle field
+  names (WorkOrderNumber, ItemNumber, OrganizationCode, etc.) and transforms
+  them through the OracleTransformLayer.  Inbound: inventory items, item
+  structures (BOMs), work orders, routings, work centers.  Outbound: accepts
+  completion transactions, material issue transactions, and returns Oracle-style
+  transaction numbers.
+author: MES AI Contributors
+comment: >
+  Use this plugin when developing or testing the MES against Oracle Cloud ERP
+  without a live Oracle Fusion instance.  Unlike generic mock plugins, this
+  simulator produces data in native Oracle REST format and exercises the full
+  OracleTransformLayer pipeline.
+category: erp
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: organization_code
+    type: string
+    description: Oracle Inventory Organization Code
+    required: false
+    default: "ORG_MAIN"
+  - name: business_unit
+    type: string
+    description: Oracle Business Unit name
+    required: false
+    default: "BU_MANUFACTURING"
+  - name: latency_ms
+    type: integer
+    description: Simulated REST API latency in milliseconds per call
+    required: false
+    default: 0
+  - name: failure_rate
+    type: number
+    description: Probability of simulated Oracle REST API errors (0.0 to 1.0)
+    required: false
+    default: 0.0
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: erp_inbound
+    name: oracle_erp_simulator_inbound
+  - type: erp_outbound
+    name: oracle_erp_simulator_outbound
