@@ -163,6 +163,10 @@ Terminal 2 — Install the SAP simulator plugin (one-time):
 cd c:\dev\mes_ai\server
 python -m mes.cli --server http://localhost:8082 plugin install sap-erp-simulator
 python -m mes.cli --server http://localhost:8082 plugin enable sap-erp-simulator
+python -m mes.cli --server http://localhost:8082 plugin disable sap-erp-simulator
+
+python -m mes.cli --server http://localhost:8082 plugin install oracle-erp-simulator
+python -m mes.cli --server http://localhost:8082 plugin enable oracle-erp-simulator
 
 Terminal 3 — ERP Simulator GUI:
 cd c:\dev\mes_ai\clients\erp_simulator
