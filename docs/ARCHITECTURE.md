@@ -395,7 +395,8 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **Area** | `id`, `name`, `code`, `description`, `site_id` | → Site, → ProductionLines |
 | **ProductionLine** | `id`, `name`, `code`, `description`, `area_id` | → Area, → WorkCells |
 | **WorkCell** | `id`, `name`, `code`, `description`, `line_id`, `wc_type` (manual/automated) | → ProductionLine, → Equipment |
-| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `status` (up/down/idle), `capabilities` (JSON) | → WorkCell, → RouteSteps (M:N) |
+| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `status` (up/down/idle), `capabilities` (JSON) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials |
+| **EquipmentMaterial** | `id`, `equipment_id`, `material_id`, `design_speed`, `design_speed_uom` (FK → UoM rate symbol), `reject_uom` (FK → UoM symbol), `target_oee` (0–100%) | → Equipment, → MaterialDefinition, → UnitOfMeasure (×2) |
 
 #### Product Definition (PROD-DEF)
 
@@ -2016,6 +2017,11 @@ activates a new state model, the system:
 | `GET` | `/api/v1/equipment/{equip_id}` | Get equipment by ID |
 | `PUT` | `/api/v1/equipment/{equip_id}` | Update equipment |
 | `PATCH` | `/api/v1/equipment/{equip_id}/status` | Update equipment status |
+| `GET` | `/api/v1/equipment/{equip_id}/materials` | List material setups for equipment |
+| `POST` | `/api/v1/equipment/{equip_id}/materials` | Create material setup for equipment |
+| `GET` | `/api/v1/equipment-materials/{em_id}` | Get equipment-material setup by ID |
+| `PUT` | `/api/v1/equipment-materials/{em_id}` | Update equipment-material setup |
+| `DELETE` | `/api/v1/equipment-materials/{em_id}` | Soft-delete equipment-material setup |
 
 #### Product Definition (PROD-DEF)
 

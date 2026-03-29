@@ -19,6 +19,9 @@ import type {
   Equipment,
   EquipmentCreate,
   EquipmentUpdate,
+  EquipmentMaterial,
+  EquipmentMaterialCreate,
+  EquipmentMaterialUpdate,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -199,4 +202,42 @@ export async function updateEquipmentStatus(
     { status, reason },
   );
   return data.data;
+}
+
+// ─── Equipment–Material Setups ─────────────────────────────────────
+
+export async function fetchEquipmentMaterials(
+  equipId: string,
+): Promise<ApiListResponse<EquipmentMaterial>> {
+  const { data } = await api.get<ApiListResponse<EquipmentMaterial>>(
+    `/equipment/${equipId}/materials`,
+    { params: { limit: "200" } },
+  );
+  return data;
+}
+
+export async function createEquipmentMaterial(
+  equipId: string,
+  body: EquipmentMaterialCreate,
+): Promise<EquipmentMaterial> {
+  const { data } = await api.post<ApiResponse<EquipmentMaterial>>(
+    `/equipment/${equipId}/materials`,
+    body,
+  );
+  return data.data;
+}
+
+export async function updateEquipmentMaterial(
+  emId: string,
+  body: EquipmentMaterialUpdate,
+): Promise<EquipmentMaterial> {
+  const { data } = await api.put<ApiResponse<EquipmentMaterial>>(
+    `/equipment-materials/${emId}`,
+    body,
+  );
+  return data.data;
+}
+
+export async function deleteEquipmentMaterial(emId: string): Promise<void> {
+  await api.delete(`/equipment-materials/${emId}`);
 }

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey, String, Text, JSON
+from sqlalchemy import Float, ForeignKey, String, Text, JSON, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -165,6 +165,70 @@ class Equipment(BaseModel):
     work_cell: Mapped["WorkCell"] = relationship(
         "WorkCell", back_populates="equipment",
     )
+    material_setups: Mapped[list["EquipmentMaterial"]] = relationship(
+        "EquipmentMaterial", back_populates="equipment", cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Equipment id={self.id} code={self.code} status={self.status}>"
+
+
+class EquipmentMaterial(BaseModel):
+    """
+    Many-to-many junction between Equipment and MaterialDefinition.
+
+    Stores production-setup data at the intersection:
+    - design_speed: nameplate speed for good-output material (e.g. 120 EA/h)
+    - design_speed_uom: FK to a rate UoM symbol (must be uom_type='rate')
+    - reject_uom: FK to a UoM symbol used for rejected / scrap material
+    - target_oee: target OEE percentage (0–100) for this equipment-material pair
+    """
+
+    __tablename__ = "equipment_materials"
+    __table_args__ = (
+        UniqueConstraint("equipment_id", "material_id", name="uq_equip_material"),
+    )
+
+    equipment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False, index=True,
+    )
+    material_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("material_definitions.id"), nullable=False, index=True,
+    )
+    design_speed: Mapped[float] = mapped_column(
+        Float, nullable=False,
+        comment="Nameplate design speed for good produced material",
+    )
+    design_speed_uom: Mapped[str] = mapped_column(
+        String(20), ForeignKey("units_of_measure.symbol"), nullable=False,
+        comment="Rate UoM for design speed (e.g. EA/h)",
+    )
+    reject_uom: Mapped[str] = mapped_column(
+        String(20), ForeignKey("units_of_measure.symbol"), nullable=False,
+        comment="UoM for rejected / scrap material (e.g. EA, kg)",
+    )
+    target_oee: Mapped[float] = mapped_column(
+        Float, nullable=False,
+        comment="Target OEE percentage (0–100)",
+    )
+
+    # Relationships
+    equipment: Mapped["Equipment"] = relationship(
+        "Equipment", back_populates="material_setups",
+    )
+    material: Mapped["MaterialDefinition"] = relationship(
+        "MaterialDefinition", back_populates="equipment_setups",
+    )
+    design_speed_unit: Mapped["UnitOfMeasure"] = relationship(
+        "UnitOfMeasure", foreign_keys=[design_speed_uom], lazy="selectin",
+    )
+    reject_unit: Mapped["UnitOfMeasure"] = relationship(
+        "UnitOfMeasure", foreign_keys=[reject_uom], lazy="selectin",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<EquipmentMaterial id={self.id} "
+            f"equip={self.equipment_id} mat={self.material_id} "
+            f"speed={self.design_speed} oee={self.target_oee}%>"
+        )

@@ -204,3 +204,42 @@ class EquipmentStatusUpdate(BaseModel):
 
     status: str = Field(..., pattern=r"^(up|down|idle)$")
     reason: str | None = Field(None, description="Reason for status change")
+
+
+# ─── Equipment–Material Setup ────────────────────────────────────────
+
+
+class EquipmentMaterialCreate(BaseModel):
+    """Schema for creating an equipment-material setup."""
+
+    material_id: UUID
+    design_speed: float = Field(..., gt=0, description="Nameplate design speed (> 0)")
+    design_speed_uom: str = Field(..., min_length=1, max_length=20, description="Rate UoM symbol (e.g. EA/h)")
+    reject_uom: str = Field(..., min_length=1, max_length=20, description="UoM symbol for rejects (e.g. EA)")
+    target_oee: float = Field(..., ge=0.0, le=100.0, description="Target OEE percentage (0–100)")
+
+
+class EquipmentMaterialRead(BaseModel):
+    """Schema for returning equipment-material setup data."""
+
+    id: UUID
+    equipment_id: UUID
+    material_id: UUID
+    design_speed: float
+    design_speed_uom: str
+    reject_uom: str
+    target_oee: float
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EquipmentMaterialUpdate(BaseModel):
+    """Schema for updating an equipment-material setup. All fields optional."""
+
+    design_speed: float | None = Field(None, gt=0)
+    design_speed_uom: str | None = Field(None, min_length=1, max_length=20)
+    reject_uom: str | None = Field(None, min_length=1, max_length=20)
+    target_oee: float | None = Field(None, ge=0.0, le=100.0)

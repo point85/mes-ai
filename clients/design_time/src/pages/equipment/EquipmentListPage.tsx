@@ -4,8 +4,8 @@
  */
 
 import { useState, useMemo } from "react";
-import { useParams, useLocation } from "react-router-dom";
-import { PlusIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
+import { PlusIcon, PencilSquareIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import {
   useWorkCell,
   useLine,
@@ -36,6 +36,7 @@ interface LocationState {
 export default function EquipmentListPage() {
   const { wcId } = useParams<{ wcId: string }>();
   const { state } = useLocation();
+  const navigate = useNavigate();
   const locState = (state ?? {}) as LocationState;
 
   const [editingEquip, setEditingEquip] = useState<Equipment | null>(null);
@@ -153,6 +154,13 @@ export default function EquipmentListPage() {
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => navigate(`/equipment/${eq.id}/materials`)}
+                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                        title="Material Setups"
+                      >
+                        <Cog6ToothIcon className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => setEditingEquip(eq)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"

@@ -21,7 +21,7 @@ from mes.framework.events import event_bus
 
 from .events import equipment_created, equipment_status_changed, site_created
 from .exceptions import DuplicateCodeException
-from .models import Area, Equipment, ProductionLine, Site, WorkCell
+from .models import Area, Equipment, EquipmentMaterial, ProductionLine, Site, WorkCell
 
 logger = logging.getLogger("mes.physical_model")
 
@@ -408,3 +408,87 @@ class PhysicalModelService:
             )
 
         return equip
+
+    # ─── Equipment–Material Setup operations ─────────────────────────
+
+    @staticmethod
+    async def list_equipment_materials(
+        session: AsyncSession,
+        equip_id: UUID,
+        params: PaginationParams,
+    ) -> tuple[Sequence[EquipmentMaterial], str | None, bool]:
+        """List active equipment-material setups for a given equipment."""
+        await PhysicalModelService.get_equipment(session, equip_id)
+        stmt = select(EquipmentMaterial).where(
+            EquipmentMaterial.equipment_id == equip_id,
+            EquipmentMaterial.is_active.is_(True),
+        )
+        return await paginate_query(session, stmt, EquipmentMaterial, params)
+
+    @staticmethod
+    async def get_equipment_material(
+        session: AsyncSession, em_id: UUID,
+    ) -> EquipmentMaterial:
+        """Get an equipment-material setup by ID."""
+        stmt = select(EquipmentMaterial).where(
+            EquipmentMaterial.id == em_id, EquipmentMaterial.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        em = result.scalar_one_or_none()
+        if em is None:
+            raise NotFoundException(
+                resource="EquipmentMaterial", resource_id=str(em_id),
+            )
+        return em
+
+    @staticmethod
+    async def create_equipment_material(
+        session: AsyncSession, equip_id: UUID, **kwargs: Any,
+    ) -> EquipmentMaterial:
+        """Create a new equipment-material setup."""
+        await PhysicalModelService.get_equipment(session, equip_id)
+
+        # Enforce unique (equipment_id, material_id) among active records
+        existing = await session.execute(
+            select(EquipmentMaterial).where(
+                EquipmentMaterial.equipment_id == equip_id,
+                EquipmentMaterial.material_id == kwargs["material_id"],
+                EquipmentMaterial.is_active.is_(True),
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise DuplicateCodeException(
+                "EquipmentMaterial",
+                f"equipment={equip_id}, material={kwargs['material_id']}",
+            )
+
+        em = EquipmentMaterial(equipment_id=equip_id, **kwargs)
+        session.add(em)
+        await session.flush()
+        logger.info(
+            "Created equipment-material setup %s (equip=%s, mat=%s)",
+            em.id, equip_id, kwargs["material_id"],
+        )
+        return em
+
+    @staticmethod
+    async def update_equipment_material(
+        session: AsyncSession, em_id: UUID, **kwargs: Any,
+    ) -> EquipmentMaterial:
+        """Update an equipment-material setup's fields."""
+        em = await PhysicalModelService.get_equipment_material(session, em_id)
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(em, key, value)
+        await session.flush()
+        return em
+
+    @staticmethod
+    async def delete_equipment_material(
+        session: AsyncSession, em_id: UUID,
+    ) -> None:
+        """Soft-delete an equipment-material setup."""
+        em = await PhysicalModelService.get_equipment_material(session, em_id)
+        em.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted equipment-material setup %s", em_id)

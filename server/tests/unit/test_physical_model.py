@@ -25,15 +25,23 @@ from mes.core.physical_model.exceptions import DuplicateCodeException
 from mes.core.physical_model.models import (
     Area,
     Equipment,
+    EquipmentMaterial,
     ProductionLine,
     Site,
     WorkCell,
 )
+# EquipmentMaterial references MaterialDefinition and UnitOfMeasure via
+# string-based relationships — import their modules so SQLAlchemy can resolve them.
+import mes.core.material.models  # noqa: F401
+import mes.core.uom.models  # noqa: F401
 from mes.core.physical_model.schemas import (
     AreaCreate,
     AreaRead,
     AreaUpdate,
     EquipmentCreate,
+    EquipmentMaterialCreate,
+    EquipmentMaterialRead,
+    EquipmentMaterialUpdate,
     EquipmentRead,
     EquipmentStatusUpdate,
     EquipmentUpdate,
@@ -79,7 +87,7 @@ class TestPhysicalModels:
 
     def test_all_models_inherit_base_columns(self):
         """All physical model entities must have id, created_at, updated_at, is_active."""
-        for model_cls in [Site, Area, ProductionLine, WorkCell, Equipment]:
+        for model_cls in [Site, Area, ProductionLine, WorkCell, Equipment, EquipmentMaterial]:
             mapper = model_cls.__mapper__
             col_names = {c.key for c in mapper.columns}
             assert "id" in col_names, f"{model_cls.__name__} missing 'id'"
@@ -271,3 +279,181 @@ class TestPhysicalModelExceptions:
         for entity in ["Site", "Area", "ProductionLine", "WorkCell", "Equipment"]:
             exc = DuplicateCodeException(entity, "CODE-1")
             assert entity in str(exc)
+
+
+# ─── EquipmentMaterial model tests ───────────────────────────────────
+
+
+class TestEquipmentMaterialModel:
+    """Test the EquipmentMaterial junction model definition."""
+
+    def test_tablename(self):
+        assert EquipmentMaterial.__tablename__ == "equipment_materials"
+
+    def test_inherits_base_columns(self):
+        mapper = EquipmentMaterial.__mapper__
+        col_names = {c.key for c in mapper.columns}
+        for col in ("id", "created_at", "updated_at", "is_active"):
+            assert col in col_names, f"Missing base column '{col}'"
+
+    def test_has_junction_columns(self):
+        mapper = EquipmentMaterial.__mapper__
+        col_names = {c.key for c in mapper.columns}
+        for col in (
+            "equipment_id", "material_id",
+            "design_speed", "design_speed_uom",
+            "reject_uom", "target_oee",
+        ):
+            assert col in col_names, f"Missing column '{col}'"
+
+    def test_has_unique_constraint(self):
+        """Should have a unique constraint on (equipment_id, material_id)."""
+        table = EquipmentMaterial.__table__
+        uc_names = [c.name for c in table.constraints if hasattr(c, "columns") and len(c.columns) > 1]
+        assert "uq_equip_material" in uc_names
+
+    def test_repr(self):
+        em = EquipmentMaterial(
+            equipment_id=uuid.uuid4(),
+            material_id=uuid.uuid4(),
+            design_speed=120.0,
+            design_speed_uom="EA/h",
+            reject_uom="EA",
+            target_oee=85.0,
+        )
+        r = repr(em)
+        assert "EquipmentMaterial" in r
+        assert "120.0" in r
+        assert "85.0%" in r
+
+
+# ─── EquipmentMaterial schema tests ──────────────────────────────────
+
+
+class TestEquipmentMaterialSchemas:
+    """Test Pydantic schemas for equipment material setups."""
+
+    def test_create_valid(self):
+        schema = EquipmentMaterialCreate(
+            material_id=uuid.uuid4(),
+            design_speed=120.5,
+            design_speed_uom="EA/h",
+            reject_uom="EA",
+            target_oee=85.0,
+        )
+        assert schema.design_speed == 120.5
+        assert schema.design_speed_uom == "EA/h"
+        assert schema.reject_uom == "EA"
+        assert schema.target_oee == 85.0
+
+    def test_create_zero_speed_rejected(self):
+        with pytest.raises(Exception):
+            EquipmentMaterialCreate(
+                material_id=uuid.uuid4(),
+                design_speed=0,
+                design_speed_uom="EA/h",
+                reject_uom="EA",
+                target_oee=85.0,
+            )
+
+    def test_create_negative_speed_rejected(self):
+        with pytest.raises(Exception):
+            EquipmentMaterialCreate(
+                material_id=uuid.uuid4(),
+                design_speed=-10,
+                design_speed_uom="EA/h",
+                reject_uom="EA",
+                target_oee=85.0,
+            )
+
+    def test_create_oee_below_zero_rejected(self):
+        with pytest.raises(Exception):
+            EquipmentMaterialCreate(
+                material_id=uuid.uuid4(),
+                design_speed=100,
+                design_speed_uom="EA/h",
+                reject_uom="EA",
+                target_oee=-1,
+            )
+
+    def test_create_oee_above_100_rejected(self):
+        with pytest.raises(Exception):
+            EquipmentMaterialCreate(
+                material_id=uuid.uuid4(),
+                design_speed=100,
+                design_speed_uom="EA/h",
+                reject_uom="EA",
+                target_oee=101,
+            )
+
+    def test_create_oee_boundary_zero(self):
+        schema = EquipmentMaterialCreate(
+            material_id=uuid.uuid4(),
+            design_speed=50,
+            design_speed_uom="EA/h",
+            reject_uom="EA",
+            target_oee=0.0,
+        )
+        assert schema.target_oee == 0.0
+
+    def test_create_oee_boundary_hundred(self):
+        schema = EquipmentMaterialCreate(
+            material_id=uuid.uuid4(),
+            design_speed=50,
+            design_speed_uom="EA/h",
+            reject_uom="EA",
+            target_oee=100.0,
+        )
+        assert schema.target_oee == 100.0
+
+    def test_create_empty_uom_rejected(self):
+        with pytest.raises(Exception):
+            EquipmentMaterialCreate(
+                material_id=uuid.uuid4(),
+                design_speed=100,
+                design_speed_uom="",
+                reject_uom="EA",
+                target_oee=85.0,
+            )
+
+    def test_read_from_attributes(self):
+        now = datetime.now(timezone.utc)
+        uid = uuid.uuid4()
+        equip_id = uuid.uuid4()
+        mat_id = uuid.uuid4()
+        schema = EquipmentMaterialRead(
+            id=uid,
+            equipment_id=equip_id,
+            material_id=mat_id,
+            design_speed=200.0,
+            design_speed_uom="kg/h",
+            reject_uom="kg",
+            target_oee=90.0,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.id == uid
+        assert schema.equipment_id == equip_id
+        assert schema.material_id == mat_id
+        assert schema.design_speed == 200.0
+
+    def test_update_all_optional(self):
+        schema = EquipmentMaterialUpdate()
+        assert schema.design_speed is None
+        assert schema.design_speed_uom is None
+        assert schema.reject_uom is None
+        assert schema.target_oee is None
+
+    def test_update_partial(self):
+        schema = EquipmentMaterialUpdate(target_oee=92.5)
+        assert schema.target_oee == 92.5
+        assert schema.design_speed is None
+
+    def test_update_oee_validation(self):
+        with pytest.raises(Exception):
+            EquipmentMaterialUpdate(target_oee=150)
+
+    def test_update_speed_validation(self):
+        with pytest.raises(Exception):
+            EquipmentMaterialUpdate(design_speed=-5)

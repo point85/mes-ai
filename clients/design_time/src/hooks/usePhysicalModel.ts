@@ -25,8 +25,12 @@ import {
   createEquipment,
   updateEquipment,
   updateEquipmentStatus,
+  fetchEquipmentMaterials,
+  createEquipmentMaterial,
+  updateEquipmentMaterial,
+  deleteEquipmentMaterial,
 } from "../api/physicalModel";
-import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCellCreate, WorkCellUpdate, EquipmentCreate, EquipmentUpdate } from "../types";
+import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCellCreate, WorkCellUpdate, EquipmentCreate, EquipmentUpdate, EquipmentMaterialCreate, EquipmentMaterialUpdate } from "../types";
 
 const KEYS = {
   sites: ["sites"] as const,
@@ -38,6 +42,7 @@ const KEYS = {
   workCells: (lineId: string) => ["workCells", lineId] as const,
   workCellDetail: (id: string) => ["workCell", id] as const,
   equipment: (wcId: string) => ["equipment", wcId] as const,
+  equipmentMaterials: (equipId: string) => ["equipmentMaterials", equipId] as const,
 };
 
 // ─── Sites ────────────────────────────────────────────────────────────
@@ -226,5 +231,41 @@ export function useUpdateEquipmentStatus() {
       reason?: string;
     }) => updateEquipmentStatus(id, status, reason),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["equipment"] }),
+  });
+}
+
+// ─── Equipment–Material Setups ─────────────────────────────────────
+
+export function useEquipmentMaterials(equipId: string) {
+  return useQuery({
+    queryKey: KEYS.equipmentMaterials(equipId),
+    queryFn: () => fetchEquipmentMaterials(equipId),
+    enabled: !!equipId,
+  });
+}
+
+export function useCreateEquipmentMaterial() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ equipId, ...body }: EquipmentMaterialCreate & { equipId: string }) =>
+      createEquipmentMaterial(equipId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipmentMaterials"] }),
+  });
+}
+
+export function useUpdateEquipmentMaterial() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: EquipmentMaterialUpdate & { id: string }) =>
+      updateEquipmentMaterial(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipmentMaterials"] }),
+  });
+}
+
+export function useDeleteEquipmentMaterial() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteEquipmentMaterial(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipmentMaterials"] }),
   });
 }

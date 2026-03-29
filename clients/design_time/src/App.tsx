@@ -11,7 +11,7 @@ import { SiteListPage } from "./pages/sites";
 import { AreaListPage } from "./pages/areas";
 import { LineListPage } from "./pages/lines";
 import { WorkCellListPage } from "./pages/work-cells";
-import { EquipmentListPage } from "./pages/equipment";
+import { EquipmentListPage, EquipmentMaterialPage } from "./pages/equipment";
 import { ProductListPage } from "./pages/products";
 import { MaterialListPage } from "./pages/materials";
 import { DataDefListPage } from "./pages/data-collection";
@@ -45,6 +45,7 @@ export default function App() {
             <Route path="/areas/:areaId/lines" element={<LineListPage />} />
             <Route path="/lines/:lineId/work-cells" element={<WorkCellListPage />} />
             <Route path="/work-cells/:wcId/equipment" element={<EquipmentListPage />} />
+            <Route path="/equipment/:equipId/materials" element={<EquipmentMaterialPage />} />
             {/* Products & Materials */}
             <Route path="/products" element={<ProductListPage />} />
             <Route path="/materials" element={<MaterialListPage />} />

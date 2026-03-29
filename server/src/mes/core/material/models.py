@@ -73,6 +73,9 @@ class MaterialDefinition(BaseModel):
     lots: Mapped[list["MaterialLot"]] = relationship(
         "MaterialLot", back_populates="material", cascade="all, delete-orphan",
     )
+    equipment_setups: Mapped[list["EquipmentMaterial"]] = relationship(
+        "EquipmentMaterial", back_populates="material",
+    )
 
     def __repr__(self) -> str:
         return (

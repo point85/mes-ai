@@ -143,3 +143,33 @@ export interface EquipmentUpdate {
   equipment_type?: string | null;
   capabilities?: Record<string, unknown> | null;
 }
+
+// ─── Equipment–Material Setup ────────────────────────────────────────
+
+export interface EquipmentMaterial {
+  id: string;
+  equipment_id: string;
+  material_id: string;
+  design_speed: number;
+  design_speed_uom: string;
+  reject_uom: string;
+  target_oee: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EquipmentMaterialCreate {
+  material_id: string;
+  design_speed: number;
+  design_speed_uom: string;
+  reject_uom: string;
+  target_oee: number;
+}
+
+export interface EquipmentMaterialUpdate {
+  design_speed?: number;
+  design_speed_uom?: string;
+  reject_uom?: string;
+  target_oee?: number;
+}

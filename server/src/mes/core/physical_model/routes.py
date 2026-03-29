@@ -28,6 +28,9 @@ from .schemas import (
     AreaRead,
     AreaUpdate,
     EquipmentCreate,
+    EquipmentMaterialCreate,
+    EquipmentMaterialRead,
+    EquipmentMaterialUpdate,
     EquipmentRead,
     EquipmentStatusUpdate,
     EquipmentUpdate,
@@ -356,3 +359,73 @@ async def update_equipment_status(
     )
     await session.commit()
     return success_response(EquipmentRead.model_validate(equip).model_dump())
+
+
+# ─── Equipment–Material Setups ───────────────────────────────────────
+
+
+@router.get("/equipment/{equip_id}/materials")
+async def list_equipment_materials(
+    equip_id: UUID,
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """List material setups for a piece of equipment."""
+    items, cursor, has_more = await svc.list_equipment_materials(session, equip_id, params)
+    return list_response(
+        [EquipmentMaterialRead.model_validate(em).model_dump() for em in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
+
+
+@router.post("/equipment/{equip_id}/materials", status_code=201)
+async def create_equipment_material(
+    equip_id: UUID,
+    body: EquipmentMaterialCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.create")),
+):
+    """Create a material setup for a piece of equipment."""
+    em = await svc.create_equipment_material(session, equip_id, **body.model_dump())
+    await session.commit()
+    return success_response(EquipmentMaterialRead.model_validate(em).model_dump())
+
+
+@router.get("/equipment-materials/{em_id}")
+async def get_equipment_material(
+    em_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """Get an equipment-material setup by ID."""
+    em = await svc.get_equipment_material(session, em_id)
+    return success_response(EquipmentMaterialRead.model_validate(em).model_dump())
+
+
+@router.put("/equipment-materials/{em_id}")
+async def update_equipment_material(
+    em_id: UUID,
+    body: EquipmentMaterialUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """Update an equipment-material setup."""
+    em = await svc.update_equipment_material(
+        session, em_id, **body.model_dump(exclude_unset=True)
+    )
+    await session.commit()
+    return success_response(EquipmentMaterialRead.model_validate(em).model_dump())
+
+
+@router.delete("/equipment-materials/{em_id}", status_code=204)
+async def delete_equipment_material(
+    em_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.delete")),
+):
+    """Soft-delete an equipment-material setup."""
+    await svc.delete_equipment_material(session, em_id)
+    await session.commit()
