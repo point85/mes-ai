@@ -1,0 +1,6 @@
+{
+  "include": ["server/src", "server/tests"],
+  "extraPaths": ["server/src", "server/plugins"],
+  "exclude": ["**/__pycache__", ".venv", "**/node_modules", "**/.*"],
+  "strict": ["server/src"]
+}

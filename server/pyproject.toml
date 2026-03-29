@@ -72,6 +72,6 @@ target-version = "py312"
 
 [tool.pyright]
 include = ["src", "tests"]
-extraPaths = ["src"]
+extraPaths = ["src", "plugins"]
 exclude = ["**/__pycache__", ".venv", "**/node_modules", "**/.*"]
 strict = ["src"]

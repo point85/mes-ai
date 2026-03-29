@@ -169,6 +169,7 @@ class EquipmentCreate(BaseModel):
     equipment_type: str | None = Field(None, max_length=100)
     status: str = Field("idle", pattern=r"^(up|down|idle)$")
     capabilities: dict[str, Any] | None = None
+    state_model_id: str | None = Field(None, max_length=50, description="State machine model ID (e.g. 'packml'). Null = 100% available.")
 
 
 class EquipmentRead(BaseModel):
@@ -182,6 +183,7 @@ class EquipmentRead(BaseModel):
     equipment_type: str | None = None
     status: str
     capabilities: dict[str, Any] | None = None
+    state_model_id: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -197,6 +199,7 @@ class EquipmentUpdate(BaseModel):
     description: str | None = None
     equipment_type: str | None = None
     capabilities: dict[str, Any] | None = None
+    state_model_id: str | None = None
 
 
 class EquipmentStatusUpdate(BaseModel):

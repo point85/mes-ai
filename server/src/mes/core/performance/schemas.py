@@ -1,13 +1,14 @@
 """
 PERF-ANALYSIS: Pydantic schemas for the Performance Analysis REST API.
 
-Create / Read / Update schemas for EquipmentStateLog, ProductionCounter,
-plus OEE result schema.
+Create / Read / Update schemas for EquipmentStateModel, EquipmentStateLog,
+ProductionCounter, plus OEE result schema.
 """
 
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -29,6 +30,79 @@ OEE_BUCKETS = {
     "downtime_unplanned",
     "excluded",
 }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Equipment State Model (state machine definition)
+# ═══════════════════════════════════════════════════════════════════
+
+
+class StateDefinitionSchema(BaseModel):
+    """Single state in a state model."""
+
+    name: str = Field(..., min_length=1, max_length=50)
+    display_name: str | None = None
+    dispatch_category: str
+    oee_bucket: str
+
+    @field_validator("dispatch_category")
+    @classmethod
+    def validate_dispatch_category(cls, v: str) -> str:
+        if v not in DISPATCH_CATEGORIES:
+            raise ValueError(f"dispatch_category must be one of {DISPATCH_CATEGORIES}")
+        return v
+
+    @field_validator("oee_bucket")
+    @classmethod
+    def validate_oee_bucket(cls, v: str) -> str:
+        if v not in OEE_BUCKETS:
+            raise ValueError(f"oee_bucket must be one of {OEE_BUCKETS}")
+        return v
+
+
+class TransitionDefinitionSchema(BaseModel):
+    """Valid transition between two states."""
+
+    from_state: str = Field(..., min_length=1, max_length=50)
+    to_state: str = Field(..., min_length=1, max_length=50)
+    trigger: str | None = None
+
+
+class EquipmentStateModelRead(BaseModel):
+    """Schema for returning a state model definition."""
+
+    id: UUID
+    model_id: str
+    name: str
+    description: str | None = None
+    initial_state: str
+    states: list[dict[str, Any]]
+    transitions: list[dict[str, Any]]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EquipmentTransitionRequest(BaseModel):
+    """Schema for requesting a state transition on equipment."""
+
+    new_state: str = Field(..., min_length=1, max_length=50)
+    reason_code: str | None = None
+    notes: str | None = None
+
+
+class EquipmentCurrentStateRead(BaseModel):
+    """Schema for returning the current state of equipment (or default if no model)."""
+
+    equipment_id: UUID
+    state_model: str
+    state: str
+    dispatch_category: str
+    oee_bucket: str
+    started_at: datetime | None = None
+    valid_transitions: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # ═══════════════════════════════════════════════════════════════════

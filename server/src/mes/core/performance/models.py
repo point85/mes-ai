@@ -2,7 +2,8 @@
 PERF-ANALYSIS: SQLAlchemy models for performance analysis.
 
 Entities:
-- EquipmentStateLog:  Time-series record of equipment state transitions
+- EquipmentStateModel: State machine definition (e.g. PackML, SEMI E10)
+- EquipmentStateLog:   Time-series record of equipment state transitions
 - ProductionCounter:   Shift-level production counts for OEE calculation
 """
 
@@ -11,11 +12,55 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mes.framework.db import BaseModel
+
+
+class EquipmentStateModel(BaseModel):
+    """
+    A state machine definition that can be assigned to equipment.
+
+    Registered by availability plugins (e.g. PackML, SEMI E10).
+    When no state model is assigned, equipment is assumed to be
+    100% available and running normally.
+
+    states JSON schema:
+        [{"name": "Execute", "display_name": "Executing",
+          "dispatch_category": "busy", "oee_bucket": "uptime_value_add"}, ...]
+
+    transitions JSON schema:
+        [{"from_state": "Idle", "to_state": "Starting", "trigger": "start"}, ...]
+    """
+
+    __tablename__ = "equipment_state_models"
+
+    model_id: Mapped[str] = mapped_column(
+        String(50), unique=True, nullable=False, index=True,
+        comment="Plugin identifier, e.g. 'packml', 'semi_e10'",
+    )
+    name: Mapped[str] = mapped_column(
+        String(255), nullable=False,
+        comment="Human-friendly name, e.g. 'PackML (ISA-TR88)'",
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    initial_state: Mapped[str] = mapped_column(
+        String(50), nullable=False,
+        comment="Name of the initial/default state",
+    )
+    states: Mapped[list] = mapped_column(
+        JSON, nullable=False,
+        comment="Array of state definitions with canonical mappings",
+    )
+    transitions: Mapped[list] = mapped_column(
+        JSON, nullable=False,
+        comment="Array of valid state transitions",
+    )
+
+    def __repr__(self) -> str:
+        return f"<EquipmentStateModel id={self.id} model_id={self.model_id}>"
 
 
 class EquipmentStateLog(BaseModel):

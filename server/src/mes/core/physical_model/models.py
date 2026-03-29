@@ -160,6 +160,10 @@ class Equipment(BaseModel):
         JSON, nullable=True,
         comment="Freeform JSON describing equipment capabilities for dispatch matching",
     )
+    state_model_id: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, index=True,
+        comment="State machine model ID (e.g. 'packml', 'semi_e10'). Null = 100% available.",
+    )
 
     # Relationships
     work_cell: Mapped["WorkCell"] = relationship(

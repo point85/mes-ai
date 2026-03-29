@@ -1,0 +1,16 @@
+id: packml-availability
+name: PackML Equipment State Model
+version: "1.0.0"
+description: >
+  ISA-TR88 / PackML state model for equipment availability tracking.
+  Defines 17 standard states (Stopped, Idle, Starting, Execute, etc.)
+  with canonical OEE bucket and dispatch-category mappings.
+category: performance
+origin: system
+min_mes_version: "0.1.0"
+
+parameters: []
+
+extension_points:
+  - type: equipment_state_model
+    name: packml

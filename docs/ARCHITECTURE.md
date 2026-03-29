@@ -395,7 +395,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **Area** | `id`, `name`, `code`, `description`, `site_id` | → Site, → ProductionLines |
 | **ProductionLine** | `id`, `name`, `code`, `description`, `area_id` | → Area, → WorkCells |
 | **WorkCell** | `id`, `name`, `code`, `description`, `line_id`, `wc_type` (manual/automated) | → ProductionLine, → Equipment |
-| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `status` (up/down/idle), `capabilities` (JSON) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials |
+| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `status` (up/down/idle), `capabilities` (JSON), `state_model_id` (nullable, refs EquipmentStateModel.model_id) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials |
 | **EquipmentMaterial** | `id`, `equipment_id`, `material_id`, `design_speed`, `design_speed_uom` (FK → UoM rate symbol), `reject_uom` (FK → UoM symbol), `target_oee` (0–100%) | → Equipment, → MaterialDefinition, → UnitOfMeasure (×2) |
 
 #### Product Definition (PROD-DEF)
@@ -476,6 +476,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 
 | Entity | Fields | Relations |
 |---|---|---|
+| **EquipmentStateModel** | `id`, `model_id` (unique, e.g. "packml"), `name`, `description`, `initial_state`, `states` (JSON — canonical dispatch + OEE mappings), `transitions` (JSON — valid from→to pairs) | Registered by availability plugins |
 | **EquipmentStateLog** | `id`, `equipment_id`, `state_model`, `state`, `sub_state` (nullable), `dispatch_category` (available/busy/unavailable_planned/unavailable_unplanned), `oee_bucket`, `started_at`, `ended_at`, `reason_code`, `notes` | → Equipment |
 | **ProductionCounter** | `id`, `equipment_id`, `order_id`, `shift_date`, `good_count`, `reject_count`, `rework_count`, `ideal_cycle_time_sec`, `actual_run_time_sec` | → Equipment, → ProductionOrder |
 
@@ -2112,6 +2113,10 @@ activates a new state model, the system:
 
 | Method | Path | Description |
 |---|---|---|
+| `GET` | `/api/v1/performance/state-models` | List registered equipment state models |
+| `GET` | `/api/v1/performance/state-models/{model_id}` | Get state model definition by plugin ID |
+| `GET` | `/api/v1/performance/equipment/{equip_id}/current-state` | Current state + valid transitions |
+| `POST` | `/api/v1/performance/equipment/{equip_id}/transition` | Trigger a state transition |
 | `GET` | `/api/v1/performance/oee` | Calculate OEE (query params: equipment, time range) |
 | `GET` | `/api/v1/performance/equipment-states` | Query equipment state history |
 | `POST` | `/api/v1/performance/equipment-states` | Record equipment state change |

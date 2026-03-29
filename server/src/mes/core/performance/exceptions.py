@@ -35,3 +35,13 @@ class NoCounterDataException(MESException):
                 "period": period,
             },
         )
+
+
+class InvalidStateTransitionException(MESException):
+    """Raised when a state transition is not allowed by the state model."""
+
+    status_code = 409
+    error_code = "INVALID_STATE_TRANSITION"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message=message)

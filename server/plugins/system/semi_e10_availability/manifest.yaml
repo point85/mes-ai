@@ -1,0 +1,17 @@
+id: semi-e10-availability
+name: SEMI E10 Equipment State Model
+version: "1.0.0"
+description: >
+  SEMI E10-0304 equipment state model for availability tracking.
+  Defines six high-level states (Productive, Standby, Engineering,
+  Scheduled Downtime, Unscheduled Downtime, Non-Scheduled) with
+  canonical OEE bucket and dispatch-category mappings.
+category: performance
+origin: system
+min_mes_version: "0.1.0"
+
+parameters: []
+
+extension_points:
+  - type: equipment_state_model
+    name: semi_e10
