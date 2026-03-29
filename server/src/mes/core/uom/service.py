@@ -19,6 +19,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mes.framework.api.exceptions import NotFoundException
 from mes.framework.api.pagination import PaginationParams, paginate_query
@@ -47,7 +48,14 @@ class UoMService:
         uom_type: str | None = None,
     ) -> tuple[Sequence[UnitOfMeasure], str | None, bool]:
         """List active units, optionally filtered by type, with pagination."""
-        stmt = select(UnitOfMeasure).where(UnitOfMeasure.is_active.is_(True))
+        stmt = (
+            select(UnitOfMeasure)
+            .where(UnitOfMeasure.is_active.is_(True))
+            .options(
+                selectinload(UnitOfMeasure.numerator_uom),
+                selectinload(UnitOfMeasure.denominator_uom),
+            )
+        )
         if uom_type is not None:
             stmt = stmt.where(UnitOfMeasure.uom_type == uom_type)
         return await paginate_query(session, stmt, UnitOfMeasure, params)
@@ -55,9 +63,16 @@ class UoMService:
     @staticmethod
     async def get_uom(session: AsyncSession, uom_id: UUID) -> UnitOfMeasure:
         """Get a unit by ID. Raises NotFoundException if missing or inactive."""
-        stmt = select(UnitOfMeasure).where(
-            UnitOfMeasure.id == uom_id,
-            UnitOfMeasure.is_active.is_(True),
+        stmt = (
+            select(UnitOfMeasure)
+            .where(
+                UnitOfMeasure.id == uom_id,
+                UnitOfMeasure.is_active.is_(True),
+            )
+            .options(
+                selectinload(UnitOfMeasure.numerator_uom),
+                selectinload(UnitOfMeasure.denominator_uom),
+            )
         )
         result = await session.execute(stmt)
         uom = result.scalar_one_or_none()
@@ -68,9 +83,16 @@ class UoMService:
     @staticmethod
     async def get_by_symbol(session: AsyncSession, symbol: str) -> UnitOfMeasure:
         """Get a unit by symbol. Raises NotFoundException if missing."""
-        stmt = select(UnitOfMeasure).where(
-            UnitOfMeasure.symbol == symbol,
-            UnitOfMeasure.is_active.is_(True),
+        stmt = (
+            select(UnitOfMeasure)
+            .where(
+                UnitOfMeasure.symbol == symbol,
+                UnitOfMeasure.is_active.is_(True),
+            )
+            .options(
+                selectinload(UnitOfMeasure.numerator_uom),
+                selectinload(UnitOfMeasure.denominator_uom),
+            )
         )
         result = await session.execute(stmt)
         uom = result.scalar_one_or_none()
@@ -112,6 +134,10 @@ class UoMService:
         session.add(uom)
         await session.flush()
 
+        # Eagerly load rate relationships so Pydantic can read them synchronously
+        if uom.numerator_uom_id is not None:
+            await session.refresh(uom, attribute_names=["numerator_uom", "denominator_uom"])
+
         await event_bus.publish(
             uom_created(str(uom.id), uom.symbol, uom.uom_type)
         )
@@ -143,6 +169,10 @@ class UoMService:
             if value is not None:
                 setattr(uom, key, value)
         await session.flush()
+
+        # Eagerly load rate relationships so Pydantic can read them synchronously
+        if uom.numerator_uom_id is not None:
+            await session.refresh(uom, attribute_names=["numerator_uom", "denominator_uom"])
 
         await event_bus.publish(uom_updated(str(uom.id), uom.symbol))
         logger.info("Updated UoM %s (%s)", uom.id, uom.symbol)
