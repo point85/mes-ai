@@ -1,0 +1,34 @@
+id: availability-simulator
+name: Equipment Availability Simulator
+version: "1.0.0"
+description: >
+  Interactive GUI for driving equipment state transitions using registered
+  state models (PackML, SEMI E10, or custom).  Browse the physical hierarchy,
+  view current equipment states, trigger transitions, and review state-change
+  history — all through a companion React client.
+author: MES AI Contributors
+comment: >
+  This plugin does not add new server-side routes.  It provides a companion
+  React client that calls the existing Performance Analysis and Physical Model
+  REST APIs to visualise and drive equipment state machines.
+category: performance
+origin: system
+min_mes_version: "0.1.0"
+
+parameters: []
+permissions: []
+required_core_permissions: []
+
+extension_points: []
+event_subscriptions: []
+dependencies: []
+
+companions:
+  - id: availability-simulator-gui
+    type: client
+    name: Equipment Availability Simulator
+    path: clients/availability_simulator
+    dev_port: 5175
+    description: >
+      React GUI for browsing equipment, viewing state models, triggering
+      state transitions, and reviewing state-change history.
