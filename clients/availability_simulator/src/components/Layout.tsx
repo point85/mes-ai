@@ -3,8 +3,7 @@ import type { ReactNode } from "react";
 
 const tabs = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "equipment", label: "Equipment Browser" },
-  { id: "transition", label: "Transition Control" },
+  { id: "equipment", label: "Equipment" },
   { id: "history", label: "State History" },
   { id: "models", label: "State Models" },
 ] as const;

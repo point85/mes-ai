@@ -159,7 +159,7 @@ cd c:\dev\mes_ai\server
 $env:MES_AUTH_MODE = "none"
 uvicorn mes.main:app --reload --port 8082
 
-Terminal 2 — Install the SAP simulator plugin (one-time):
+Terminal 2 — Register plugins (one time) and enable/disable
 cd c:\dev\mes_ai\server
 python -m mes.cli --server http://localhost:8082 plugin install sap-erp-simulator
 python -m mes.cli --server http://localhost:8082 plugin enable sap-erp-simulator
@@ -167,6 +167,12 @@ python -m mes.cli --server http://localhost:8082 plugin disable sap-erp-simulato
 
 python -m mes.cli --server http://localhost:8082 plugin install oracle-erp-simulator
 python -m mes.cli --server http://localhost:8082 plugin enable oracle-erp-simulator
+
+python -m mes.cli --server http://localhost:8082 plugin install packml-availability
+python -m mes.cli --server http://localhost:8082 plugin enable packml-availability
+
+python -m mes.cli --server http://localhost:8082 plugin install semi-e10-availability
+python -m mes.cli --server http://localhost:8082 plugin enable semi-e10-availability
 
 Terminal 3 — ERP Simulator GUI:
 cd c:\dev\mes_ai\clients\erp_simulator
@@ -178,6 +184,13 @@ Then open http://localhost:5174 — click Dashboard → "Check Health" → both 
 # Terminal 4: DT-CLIENT
 cd c:\dev\mes_ai\clients\design_time
 npm run dev
+
+# Terminal 5: Equipment availability simulator
+cd clients/availability_simulator
+npm install
+npm run dev
+serves on http://localhost:5175
+
 
 
 

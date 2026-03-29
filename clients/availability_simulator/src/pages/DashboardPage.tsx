@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "../api/client";
+import axios from "axios";
 import { fetchStateModels } from "../api/endpoints";
 import type { StateModel } from "../types";
 
@@ -13,7 +13,7 @@ export default function DashboardPage() {
 
     async function load() {
       try {
-        const res = await api.get("/health");
+        const res = await axios.get("/health");
         if (!cancelled) setHealth(res.status === 200 ? "ok" : "error");
       } catch {
         if (!cancelled) setHealth("error");
