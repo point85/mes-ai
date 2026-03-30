@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 4 In Progress** — unified adapter-plugin architecture (D037), 983 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, 1093 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -284,7 +284,16 @@ mes_ai/
 │   │   │   ├── opcua_equipment/      # OPC-UA equipment adapter plugin
 │   │   │   │   ├── manifest.yaml
 │   │   │   │   └── plugin.py
-│   │   │   └── mqtt_equipment/       # MQTT equipment adapter plugin
+│   │   │   ├── mqtt_equipment/       # MQTT equipment adapter plugin
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── packml_availability/  # PackML state model plugin
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── semi_e10_availability/ # SEMI E10 state model plugin
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   └── availability_simulator/ # Availability simulator companion plugin
 │   │   │       ├── manifest.yaml
 │   │   │       └── plugin.py
 │   │   └── user/                      # End-user plugins (copied here)
@@ -299,6 +308,8 @@ mes_ai/
 │   ├── runtime_gui/                   # RT-GUI (React)
 │   ├── runtime_headless/              # RT-HEADLESS (Python)
 │   ├── design_time/                   # DT-CLIENT (React)
+│   ├── erp_simulator/                 # ERP Simulator GUI (React)
+│   ├── availability_simulator/        # Availability Simulator GUI (React)
 │   └── test_client/                   # TEST-CLIENT (Python TUI)
 │
 ├── docker/
@@ -379,7 +390,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 
 ┌──────────────────── Performance ─────────────────────────────┐
 │                                                               │
-│  EquipmentStateLog ──▶ Equipment (up/down/idle/maint)        │
+│  EquipmentStateLog ──▶ Equipment (state machine state)      │
 │  ProductionCounter ──▶ Equipment + ProductionOrder           │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
@@ -395,7 +406,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **Area** | `id`, `name`, `code`, `description`, `site_id` | → Site, → ProductionLines |
 | **ProductionLine** | `id`, `name`, `code`, `description`, `area_id` | → Area, → WorkCells |
 | **WorkCell** | `id`, `name`, `code`, `description`, `line_id`, `wc_type` (manual/automated) | → ProductionLine, → Equipment |
-| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `status` (up/down/idle), `capabilities` (JSON), `state_model_id` (nullable, refs EquipmentStateModel.model_id) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials |
+| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `capabilities` (JSON), `state_model_id` (nullable, refs EquipmentStateModel.model_id — null = 100% available) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials |
 | **EquipmentMaterial** | `id`, `equipment_id`, `material_id`, `design_speed`, `design_speed_uom` (FK → UoM rate symbol), `reject_uom` (FK → UoM symbol), `target_oee` (0–100%) | → Equipment, → MaterialDefinition, → UnitOfMeasure (×2) |
 
 #### Product Definition (PROD-DEF)
@@ -1555,27 +1566,27 @@ Scheduled Downtime → {Setup, PM, Changeover, Cleaning, Calibration}.
 | **Dispatch integration** | Map Execute+Idle→available | Map Productive+Standby→available | ✅ Native (Available) | Map Running+Idle→available | Same as PackML |
 | **ERP downtime reporting** | Map to planned/unplanned | ✅ Native categories | ❌ Insufficient | Partial | Same as PackML |
 
-#### 5.7.4 Current Architecture State (Ad-Hoc Model)
+#### 5.7.4 Previous Ad-Hoc Model (Removed)
 
-The current `EquipmentStateLog.state` field uses 5 ad-hoc values:
+> **Decision D040 — Remove equipment status field:** The original `Equipment.status`
+> field (up/down/idle) was a simplified S95 operational status that conflated equipment
+> availability with state machine state. It has been **removed**. Equipment availability
+> is now determined exclusively by the assigned state machine model via `state_model_id`.
+> If no state model is assigned (`state_model_id = null`), the equipment is assumed
+> **100% available** — no state tracking, no downtime classification. The DISPATCH engine
+> and OEE calculator read from `EquipmentStateLog.dispatch_category` only.
 
-| Current State | Approximate SEMI E10 Equivalent | Approximate PackML Equivalent |
-|---|---|---|
-| `running` | Productive | Execute |
-| `idle` | Standby | Idle |
-| `down_planned` | Scheduled Downtime | Stopped (maintenance mode) |
-| `down_unplanned` | Unscheduled Downtime | Aborted |
-| `maintenance` | Scheduled Downtime | Stopped (maintenance mode) |
-
-This ad-hoc model is essentially a simplified SEMI E10 without the standard's naming or the
-Engineering / Non-Scheduled distinctions. It lacks formal transition rules, sub-state
-support, and a defined OEE mapping.
+The previous `EquipmentStateLog.state` ad-hoc values (running, idle, down_planned,
+down_unplanned, maintenance) have been replaced by the pluggable state models below.
 
 #### 5.7.5 Pluggable State Machine Architecture (Decision D025)
 
 Rather than choosing a single standard, the MES supports **all three viable models as
-plugins**. The end user selects which equipment state model to use at deployment time. Only one
-state model plugin is active at a time (system-wide).
+plugins**. Each piece of equipment declares which state model it uses via the `state_model_id`
+field (nullable FK to `EquipmentStateModel.model_id`). Different equipment in the same plant
+can use different models — e.g. packaging lines on PackML, semiconductor tools on SEMI E10.
+If `state_model_id` is null, the equipment has **no state machine** and is assumed to be
+**100% available** for OEE and dispatching purposes.
 
 ##### Design Principle: Canonical Dispatch Categories
 
@@ -1603,7 +1614,9 @@ class DispatchCategory(str, Enum):
 **Dispatch rule (invariant):** The DISPATCH engine **only** routes WIP to equipment whose
 current state maps to `AVAILABLE`. Equipment in `BUSY`, `UNAVAILABLE_PLANNED`, or
 `UNAVAILABLE_UNPLANNED` is **never** a dispatch candidate. This rule is enforced in core, not
-in the plugin.
+in the plugin. **If no state model is assigned** (i.e. `state_model_id` is null and no
+`EquipmentStateLog` exists), the equipment is treated as `AVAILABLE` (100% availability
+assumption).
 
 ```
   Get eligible equipment at next step(s)     ← from ROUTE-ENGINE
@@ -1627,7 +1640,8 @@ from typing import Sequence
 class EquipmentStateModelPlugin(ABC):
     """Base class for equipment state model plugins.
     
-    Exactly one state model plugin is active system-wide.
+    Multiple state model plugins can be active simultaneously.
+    Each equipment declares its model via Equipment.state_model_id.
     Registered via extension_points: [{type: equipment_state_model}].
     """
 
@@ -1756,6 +1770,13 @@ extension_points:
 **Transition states** (`Starting`, `Completing`, `Resetting`, `Holding`, `Unholding`,
 `Suspending`, `Unsuspending`, `Stopping`, `Aborting`, `Clearing`) map to `BUSY` because the
 equipment is occupied during the transition — it cannot accept new WIP.
+
+**Hold vs. Suspend distinction (OEE impact):**
+- **Hold/Held** → **Downtime (unplanned)**: An *internal* fault or condition requires operator
+  intervention. The equipment cannot continue on its own. This is an unplanned availability loss.
+- **Suspend/Suspended** → **Downtime (planned)**: An *external* condition (upstream starve,
+  downstream block) caused the pause. The equipment itself is healthy — it will resume when the
+  external condition clears. This is a planned availability loss.
 
 ##### Plugin 2: SEMI E10 State Model
 
@@ -2017,7 +2038,6 @@ activates a new state model, the system:
 | `POST` | `/api/v1/work-cells/{wc_id}/equipment` | Create equipment in a work cell |
 | `GET` | `/api/v1/equipment/{equip_id}` | Get equipment by ID |
 | `PUT` | `/api/v1/equipment/{equip_id}` | Update equipment |
-| `PATCH` | `/api/v1/equipment/{equip_id}/status` | Update equipment status |
 | `GET` | `/api/v1/equipment/{equip_id}/materials` | List material setups for equipment |
 | `POST` | `/api/v1/equipment/{equip_id}/materials` | Create material setup for equipment |
 | `GET` | `/api/v1/equipment-materials/{em_id}` | Get equipment-material setup by ID |
