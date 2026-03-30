@@ -5,6 +5,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchEquipmentStates,
+  fetchStateModels,
   recordStateChange,
   fetchCounters,
   createOrUpdateCounter,
@@ -13,6 +14,7 @@ import {
 import type { StateChangeRequest, CounterCreateUpdate } from "../types";
 
 const KEYS = {
+  stateModels: ["stateModels"] as const,
   states: ["equipmentStates"] as const,
   stateList: (equipmentId?: string) =>
     ["equipmentStates", "list", equipmentId] as const,
@@ -22,6 +24,15 @@ const KEYS = {
   oee: (equipmentId: string, start: string, end: string) =>
     ["oee", equipmentId, start, end] as const,
 };
+
+// ─── State Models ─────────────────────────────────────────────────────
+
+export function useStateModels() {
+  return useQuery({
+    queryKey: KEYS.stateModels,
+    queryFn: fetchStateModels,
+  });
+}
 
 // ─── Equipment State Logs ─────────────────────────────────────────────
 

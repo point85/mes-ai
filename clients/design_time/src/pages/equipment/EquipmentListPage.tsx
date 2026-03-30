@@ -128,6 +128,7 @@ export default function EquipmentListPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">State Model</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">Active</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
               </tr>
@@ -144,6 +145,9 @@ export default function EquipmentListPage() {
                     >
                       {eq.status}
                     </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-sm text-gray-500">
+                    {eq.state_model_id ?? "—"}
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     {eq.is_active ? (
@@ -174,7 +178,7 @@ export default function EquipmentListPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
                     No equipment found.
                   </td>
                 </tr>

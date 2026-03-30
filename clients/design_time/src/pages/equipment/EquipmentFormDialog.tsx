@@ -9,6 +9,7 @@ import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useCreateEquipment, useUpdateEquipment } from "../../hooks/usePhysicalModel";
+import { useStateModels } from "../../hooks/usePerformance";
 import type { Equipment } from "../../types";
 
 const equipSchema = z.object({
@@ -21,6 +22,7 @@ const equipSchema = z.object({
   description: z.string().nullable().optional(),
   equipment_type: z.string().nullable().optional(),
   status: z.string().min(1, "Status is required"),
+  state_model_id: z.string().nullable().optional(),
   capabilities_json: z.string().optional(),
 });
 
@@ -36,6 +38,7 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
   const isEdit = !!equipment;
   const createMut = useCreateEquipment();
   const updateMut = useUpdateEquipment();
+  const { data: stateModels } = useStateModels();
 
   const {
     register,
@@ -51,6 +54,7 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
       description: "",
       equipment_type: "",
       status: "idle",
+      state_model_id: "",
       capabilities_json: "",
     },
   });
@@ -63,6 +67,7 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
         description: equipment.description ?? "",
         equipment_type: equipment.equipment_type ?? "",
         status: equipment.status,
+        state_model_id: equipment.state_model_id ?? "",
         capabilities_json: equipment.capabilities
           ? JSON.stringify(equipment.capabilities, null, 2)
           : "",
@@ -88,6 +93,7 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
       equipment_type: data.equipment_type || null,
       ...(isEdit ? {} : { status: data.status }),
       capabilities,
+      state_model_id: data.state_model_id || null,
     };
 
     try {
@@ -181,6 +187,26 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
                   <p className="mt-1 text-xs text-red-600">{errors.status.message}</p>
                 )}
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                State Model <span className="text-gray-400">(optional)</span>
+              </label>
+              <select
+                {...register("state_model_id")}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">None (100% available)</option>
+                {(stateModels ?? []).map((m) => (
+                  <option key={m.model_id} value={m.model_id}>
+                    {m.name} ({m.model_id})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Assigns a state machine (e.g. PackML, SEMI E10) for availability tracking.
+              </p>
             </div>
 
             <div>

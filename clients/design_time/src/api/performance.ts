@@ -5,6 +5,7 @@
 import api from "./client";
 import type {
   EquipmentStateLog,
+  EquipmentStateModel,
   StateChangeRequest,
   ProductionCounter,
   CounterCreateUpdate,
@@ -12,6 +13,15 @@ import type {
   ApiResponse,
   ApiListResponse,
 } from "../types";
+
+// ─── State Models ─────────────────────────────────────────────────────
+
+export async function fetchStateModels(): Promise<EquipmentStateModel[]> {
+  const { data } = await api.get<ApiResponse<EquipmentStateModel[]>>(
+    "/performance/state-models",
+  );
+  return data.data;
+}
 
 // ─── OEE ──────────────────────────────────────────────────────────────
 

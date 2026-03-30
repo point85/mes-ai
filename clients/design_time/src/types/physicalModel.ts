@@ -122,6 +122,7 @@ export interface Equipment {
   equipment_type: string | null;
   status: string;
   capabilities: Record<string, unknown> | null;
+  state_model_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -134,6 +135,7 @@ export interface EquipmentCreate {
   equipment_type?: string | null;
   status?: string;
   capabilities?: Record<string, unknown> | null;
+  state_model_id?: string | null;
 }
 
 export interface EquipmentUpdate {
@@ -142,6 +144,7 @@ export interface EquipmentUpdate {
   description?: string | null;
   equipment_type?: string | null;
   capabilities?: Record<string, unknown> | null;
+  state_model_id?: string | null;
 }
 
 // ─── Equipment–Material Setup ────────────────────────────────────────

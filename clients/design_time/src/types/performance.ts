@@ -73,3 +73,18 @@ export interface OEEResult {
   oee: number;
   details: Record<string, unknown> | null;
 }
+
+// ─── Equipment State Model ────────────────────────────────────────────
+
+export interface EquipmentStateModel {
+  id: string;
+  model_id: string;
+  name: string;
+  description: string | null;
+  initial_state: string;
+  states: Record<string, unknown>[];
+  transitions: Record<string, unknown>[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
