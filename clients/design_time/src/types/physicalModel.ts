@@ -120,7 +120,6 @@ export interface Equipment {
   description: string | null;
   work_cell_id: string;
   equipment_type: string | null;
-  status: string;
   capabilities: Record<string, unknown> | null;
   state_model_id: string | null;
   is_active: boolean;
@@ -133,7 +132,6 @@ export interface EquipmentCreate {
   code: string;
   description?: string | null;
   equipment_type?: string | null;
-  status?: string;
   capabilities?: Record<string, unknown> | null;
   state_model_id?: string | null;
 }

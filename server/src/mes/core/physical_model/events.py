@@ -7,25 +7,6 @@ Events emitted when physical-model entities are created, updated, or change stat
 from mes.framework.events import MESEvent
 
 
-def equipment_status_changed(
-    equipment_id: str,
-    old_status: str,
-    new_status: str,
-    reason: str | None = None,
-) -> MESEvent:
-    """Create an event for equipment status change."""
-    return MESEvent(
-        event_type="equipment.state.changed",
-        source="physical_model",
-        payload={
-            "equipment_id": equipment_id,
-            "old_status": old_status,
-            "new_status": new_status,
-            "reason": reason,
-        },
-    )
-
-
 def site_created(site_id: str, code: str) -> MESEvent:
     """Create an event for new site creation."""
     return MESEvent(

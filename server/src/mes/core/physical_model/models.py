@@ -152,10 +152,6 @@ class Equipment(BaseModel):
         String(100), nullable=True,
         comment="Free-form equipment type classification",
     )
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="idle",
-        comment="Operational status: 'up', 'down', 'idle'",
-    )
     capabilities: Mapped[dict | None] = mapped_column(
         JSON, nullable=True,
         comment="Freeform JSON describing equipment capabilities for dispatch matching",
@@ -174,7 +170,7 @@ class Equipment(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Equipment id={self.id} code={self.code} status={self.status}>"
+        return f"<Equipment id={self.id} code={self.code}>"
 
 
 class EquipmentMaterial(BaseModel):

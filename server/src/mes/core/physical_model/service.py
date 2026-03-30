@@ -19,7 +19,7 @@ from mes.framework.api.exceptions import NotFoundException
 from mes.framework.api.pagination import PaginationParams, paginate_query
 from mes.framework.events import event_bus
 
-from .events import equipment_created, equipment_status_changed, site_created
+from .events import equipment_created, site_created
 from .exceptions import DuplicateCodeException
 from .models import Area, Equipment, EquipmentMaterial, ProductionLine, Site, WorkCell
 
@@ -378,35 +378,6 @@ class PhysicalModelService:
             if value is not None:
                 setattr(equip, key, value)
         await session.flush()
-        return equip
-
-    @staticmethod
-    async def update_equipment_status(
-        session: AsyncSession,
-        equip_id: UUID,
-        new_status: str,
-        reason: str | None = None,
-    ) -> Equipment:
-        """
-        Update equipment operational status and emit state-change event.
-        This is the PATCH /equipment/{id}/status endpoint handler.
-        """
-        equip = await PhysicalModelService.get_equipment(session, equip_id)
-        old_status = equip.status
-        equip.status = new_status
-        await session.flush()
-
-        if old_status != new_status:
-            await event_bus.publish(
-                equipment_status_changed(
-                    str(equip.id), old_status, new_status, reason
-                )
-            )
-            logger.info(
-                "Equipment %s status changed: %s → %s (reason=%s)",
-                equip.id, old_status, new_status, reason,
-            )
-
         return equip
 
     # ─── Equipment–Material Setup operations ─────────────────────────

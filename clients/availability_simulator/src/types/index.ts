@@ -41,7 +41,6 @@ export interface Equipment {
   code: string;
   work_cell_id: string;
   equipment_type?: string | null;
-  status: string;
   state_model_id?: string | null;
   is_active: boolean;
   created_at: string;

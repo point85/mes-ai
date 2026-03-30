@@ -18,7 +18,6 @@ import pytest
 
 from mes.core.physical_model.events import (
     equipment_created,
-    equipment_status_changed,
     site_created,
 )
 from mes.core.physical_model.exceptions import DuplicateCodeException
@@ -43,7 +42,6 @@ from mes.core.physical_model.schemas import (
     EquipmentMaterialRead,
     EquipmentMaterialUpdate,
     EquipmentRead,
-    EquipmentStatusUpdate,
     EquipmentUpdate,
     ProductionLineCreate,
     ProductionLineRead,
@@ -193,9 +191,8 @@ class TestWorkCellSchemas:
 
 
 class TestEquipmentSchemas:
-    def test_equipment_create_default_status(self):
+    def test_equipment_create_defaults(self):
         schema = EquipmentCreate(name="CNC Mill", code="EQ-001")
-        assert schema.status == "idle"
         assert schema.capabilities is None
 
     def test_equipment_create_with_capabilities(self):
@@ -206,19 +203,6 @@ class TestEquipmentSchemas:
         )
         assert schema.capabilities["max_rpm"] == 12000
 
-    def test_equipment_create_invalid_status(self):
-        with pytest.raises(Exception):
-            EquipmentCreate(name="Test", code="EQ-T", status="broken")
-
-    def test_equipment_status_update_valid(self):
-        update = EquipmentStatusUpdate(status="down", reason="Maintenance")
-        assert update.status == "down"
-        assert update.reason == "Maintenance"
-
-    def test_equipment_status_update_invalid(self):
-        with pytest.raises(Exception):
-            EquipmentStatusUpdate(status="exploded")
-
     def test_equipment_read_full(self):
         now = datetime.now(timezone.utc)
         schema = EquipmentRead(
@@ -226,7 +210,6 @@ class TestEquipmentSchemas:
             name="Mill",
             code="ML-01",
             work_cell_id=uuid.uuid4(),
-            status="up",
             is_active=True,
             created_at=now,
             updated_at=now,
@@ -241,15 +224,6 @@ class TestEquipmentSchemas:
 
 
 class TestPhysicalModelEvents:
-    def test_equipment_status_changed_event(self):
-        event = equipment_status_changed("eq-123", "idle", "up", reason="Startup")
-        assert event.event_type == "equipment.state.changed"
-        assert event.source == "physical_model"
-        assert event.payload["equipment_id"] == "eq-123"
-        assert event.payload["old_status"] == "idle"
-        assert event.payload["new_status"] == "up"
-        assert event.payload["reason"] == "Startup"
-
     def test_site_created_event(self):
         event = site_created("site-abc", "PLANT-01")
         assert event.event_type == "physical_model.site.created"

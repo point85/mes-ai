@@ -182,11 +182,11 @@ class DispatchService:
             state_result = await session.execute(state_stmt)
             current_state = state_result.scalar_one_or_none()
 
-            # If no state log exists, check equipment status field as fallback
+            # If no state log exists, assume available (no state model = 100% availability)
             dispatch_cat = None
             if current_state is not None:
                 dispatch_cat = current_state.dispatch_category
-            elif equip.status in ("idle", "up"):
+            else:
                 dispatch_cat = "available"
 
             if dispatch_cat != "available":

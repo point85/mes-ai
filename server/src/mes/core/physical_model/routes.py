@@ -32,7 +32,6 @@ from .schemas import (
     EquipmentMaterialRead,
     EquipmentMaterialUpdate,
     EquipmentRead,
-    EquipmentStatusUpdate,
     EquipmentUpdate,
     ProductionLineCreate,
     ProductionLineRead,
@@ -345,20 +344,6 @@ async def update_equipment(
     await session.commit()
     return success_response(EquipmentRead.model_validate(equip).model_dump())
 
-
-@router.patch("/equipment/{equip_id}/status")
-async def update_equipment_status(
-    equip_id: UUID,
-    body: EquipmentStatusUpdate,
-    session: AsyncSession = Depends(get_db_session),
-    _user: User = Depends(require_permission("physical_model.update")),
-):
-    """Update equipment operational status (up/down/idle)."""
-    equip = await svc.update_equipment_status(
-        session, equip_id, body.status, body.reason
-    )
-    await session.commit()
-    return success_response(EquipmentRead.model_validate(equip).model_dump())
 
 
 # ─── Equipment–Material Setups ───────────────────────────────────────

@@ -192,17 +192,6 @@ export async function updateEquipment(
   return data.data;
 }
 
-export async function updateEquipmentStatus(
-  equipId: string,
-  status: string,
-  reason?: string,
-): Promise<Equipment> {
-  const { data } = await api.patch<ApiResponse<Equipment>>(
-    `/equipment/${equipId}/status`,
-    { status, reason },
-  );
-  return data.data;
-}
 
 // ─── Equipment–Material Setups ─────────────────────────────────────
 

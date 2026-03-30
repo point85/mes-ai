@@ -17,12 +17,6 @@ import { Breadcrumb } from "../../components/layout";
 import type { Equipment } from "../../types";
 import EquipmentFormDialog from "./EquipmentFormDialog";
 
-const STATUS_BADGE: Record<string, string> = {
-  up: "bg-green-50 text-green-700",
-  down: "bg-red-50 text-red-700",
-  idle: "bg-yellow-50 text-yellow-700",
-};
-
 interface LocationState {
   siteName?: string;
   siteId?: string;
@@ -127,7 +121,6 @@ export default function EquipmentListPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Code</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">State Model</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">Active</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
@@ -139,15 +132,8 @@ export default function EquipmentListPage() {
                   <td className="px-4 py-2.5 text-sm font-mono font-medium text-gray-900">{eq.code}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-700">{eq.name}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-500">{eq.equipment_type ?? "—"}</td>
-                  <td className="px-4 py-2.5">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[eq.status] ?? "bg-gray-100 text-gray-700"}`}
-                    >
-                      {eq.status}
-                    </span>
-                  </td>
                   <td className="px-4 py-2.5 text-sm text-gray-500">
-                    {eq.state_model_id ?? "—"}
+                    {eq.state_model_id ?? <span className="text-gray-400 italic">none</span>}
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     {eq.is_active ? (
@@ -178,7 +164,7 @@ export default function EquipmentListPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
                     No equipment found.
                   </td>
                 </tr>

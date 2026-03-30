@@ -144,7 +144,6 @@ export default function EquipmentPage() {
     { key: "code", header: "Code" },
     { key: "name", header: "Name" },
     { key: "equipment_type", header: "Type", render: (r) => r.equipment_type ?? "—" },
-    { key: "status", header: "Status" },
     {
       key: "state_model_id",
       header: "State Model",

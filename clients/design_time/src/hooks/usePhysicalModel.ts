@@ -24,7 +24,6 @@ import {
   fetchEquipment,
   createEquipment,
   updateEquipment,
-  updateEquipmentStatus,
   fetchEquipmentMaterials,
   createEquipmentMaterial,
   updateEquipmentMaterial,
@@ -218,21 +217,6 @@ export function useUpdateEquipment() {
   });
 }
 
-export function useUpdateEquipmentStatus() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      id,
-      status,
-      reason,
-    }: {
-      id: string;
-      status: string;
-      reason?: string;
-    }) => updateEquipmentStatus(id, status, reason),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipment"] }),
-  });
-}
 
 // ─── Equipment–Material Setups ─────────────────────────────────────
 
