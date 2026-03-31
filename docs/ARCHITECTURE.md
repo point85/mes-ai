@@ -712,6 +712,7 @@ Every migration file follows a strict naming pattern for AI predictability:
 0013_wip_track_add_unit_hold_reason.py
 0014_qual_mgmt_rename_nc_type_to_nc_category.py
 0025_multi_add_audit_columns_to_all_entities.py
+0026_perf_analysis_add_reasons_table.py
 ```
 
 **Revision chain:** Each migration's `revision` ID is a short hash (Alembic default). The `down_revision` links to the previous migration, forming a linear chain. When branches occur (concurrent agent work), they are resolved with `alembic merge` before merging to `main`.
@@ -1953,6 +1954,78 @@ activates a new state model, the system:
 4. Opens new log records using the new model's initial state
 5. Historical log records retain their original `state_model` value — queries filter by model
 
+##### Reason Codes & Manual Transitions
+
+Equipment state transitions normally originate from PLC signals via equipment adapters
+(OPC-UA, MQTT, etc.). However, operators also need to **manually** transition equipment
+— for example, logging a planned changeover, recording an unplanned breakdown, or noting a
+material shortage. The **Reason** entity bridges operator intent to OEE classification.
+
+**Hierarchical Reason Codes**
+
+Reasons follow a 4-character code hierarchy. The code is free-form but conventionally
+numeric, with levels implied by position:
+
+```
+1000  Electrical                  (downtime_unplanned)
+├─ 1010  AC Motors                (downtime_unplanned)
+│  └─ 1011  High temperature      (downtime_unplanned)
+│  └─ 1012  Bearing failure        (downtime_unplanned)
+├─ 1020  DC Drives                (downtime_unplanned)
+2000  Planned Maintenance         (downtime_planned)
+├─ 2010  Preventive               (downtime_planned)
+├─ 2020  Changeover               (downtime_planned)
+3000  Process                     (uptime_non_value)
+├─ 3010  Warm-up                  (uptime_non_value)
+├─ 3020  Cleaning                 (downtime_planned)
+```
+
+Each reason carries an `oee_bucket` that classifies the time for OEE calculation.
+Child reasons inherit the parent's context but may override the bucket (e.g., cleaning
+during a process halt may be `downtime_planned` while the parent category is
+`uptime_non_value`).
+
+**Reason → OEE Bucket → Dispatch Category Mapping**
+
+When an operator triggers a manual transition, the reason's `oee_bucket` is mapped
+to a canonical `dispatch_category` so DISPATCH and OEE consumers work without change:
+
+| Reason `oee_bucket` | → `dispatch_category` | Equipment Available? |
+|---|---|---|
+| `downtime_planned` | `unavailable_planned` | ❌ |
+| `downtime_unplanned` | `unavailable_unplanned` | ❌ |
+| `uptime_non_value` | `available` | ✅ |
+| `uptime_value_add` | `busy` | ❌ (already producing) |
+| `excluded` | `unavailable_planned` | ❌ |
+
+**Manual Transition Flow**
+
+```
+Operator selects reason in DT-CLIENT
+    ──POST /equipment/{id}/manual-transition──►  routes.py
+    ──look up Reason by reason_id──►  ReasonService.get_reason()
+    ──map oee_bucket → dispatch_category──►  oee_to_dispatch dict
+    ──record state change──►  EquipmentStateService.record_state_change(
+                                state_model="manual",
+                                state=reason.name,
+                                dispatch_category=mapped,
+                                oee_bucket=reason.oee_bucket,
+                                reason_code=reason.code)
+    ──persist──►  EquipmentStateLog row + equipment.state.changed event
+```
+
+The `state_model` is set to `"manual"` so that log analysis can distinguish
+operator-initiated transitions from PLC-driven ones.
+
+**DT-CLIENT Reason Codes Page**
+
+The design-time client provides a dedicated **Reason Codes** page accessible from the
+dashboard card grid. It renders the hierarchy as an indented tree table with columns:
+Code, Name, Description, OEE Bucket (colour-coded badge). Each row has
+add-child / edit / delete actions. A modal dialog handles create and edit
+with fields: code (4-char, immutable after create), name, description, OEE bucket
+(dropdown), and parent (dropdown of existing reasons).
+
 ##### Summary: How Each Consumer Uses the State Model
 
 | Consumer | What It Reads | Plugin-Aware? |
@@ -1963,6 +2036,7 @@ activates a new state model, the system:
 | **Equipment Adapter** | `EquipmentStateModelPlugin.validate_transition()` | ✅ Yes — validates PLC signals |
 | **RT-GUI / Dashboards** | `EquipmentStateLog.state` + plugin `get_states()` for display names/colors | ✅ Yes — renders plugin states |
 | **DT-CLIENT** | Plugin `get_states()` + `get_transitions()` for state model visualization | ✅ Yes — shows state diagram |
+| **DT-CLIENT** | `Reason` hierarchy via `/reasons` CRUD | ❌ No — standalone reason tree |
 
 ## 6. REST API
 
@@ -4962,6 +5036,12 @@ The DT-CLIENT landing page provides a configuration completeness overview:
 │  ┌────────────────┐      ┌─────────────────┐            │
 │  │ Materials:  45  │      │ Tests:       28  │            │
 │  │ ⚠ 3 no UOM     │      │ ⚠ 5 no limits   │            │
+│  └────────────────┘      └─────────────────┘            │
+│                                                          │
+│  Reason Codes             Plugins                        │
+│  ┌────────────────┐      ┌─────────────────┐            │
+│  │ Reasons:   18  │      │ Installed:    4  │            │
+│  │ Top-level:  3  │      │ Active:       3  │            │
 │  └────────────────┘      └─────────────────┘            │
 │                                                          │
 │  ⚠ Configuration Warnings:                              │
