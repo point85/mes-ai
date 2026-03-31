@@ -7,6 +7,7 @@ import type {
   EquipmentStateLog,
   ListResponse,
   ProductionLine,
+  Reason,
   Site,
   StateModel,
   WorkCell,
@@ -78,5 +79,12 @@ export async function fetchStateHistory(
   const res = await api.get<ListResponse<EquipmentStateLog>>("/performance/equipment-states", {
     params: { equipment_id: equipId, limit },
   });
+  return res.data.data;
+}
+
+// ── Reasons ──────────────────────────────────────────────────────
+
+export async function fetchReasons(): Promise<Reason[]> {
+  const res = await api.get<ApiResponse<Reason[]>>("/performance/reasons");
   return res.data.data;
 }

@@ -7,6 +7,7 @@ import {
   fetchEquipmentInWorkCell,
   fetchCurrentState,
   fetchStateModels,
+  fetchReasons,
   transitionEquipment,
 } from "../api/endpoints";
 import DataTable, { type Column } from "../components/DataTable";
@@ -20,6 +21,7 @@ import type {
   EquipmentCurrentState,
   StateModel,
   TransitionDefinition,
+  Reason,
 } from "../types";
 
 interface Selection {
@@ -47,11 +49,13 @@ export default function EquipmentPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [reasons, setReasons] = useState<Reason[]>([]);
 
-  // Load sites + state models on mount
+  // Load sites + state models + reasons on mount
   useEffect(() => {
     fetchSites().then(setSites).catch(() => {});
     fetchStateModels().then(setModels).catch(() => {});
+    fetchReasons().then(setReasons).catch(() => {});
   }, []);
 
   // Load areas when site changes
@@ -128,6 +132,7 @@ export default function EquipmentPage() {
       setLastResult(
         `Transitioned to "${log.state}" at ${new Date(log.started_at).toLocaleTimeString()}`,
       );
+      setReasonCode("");
       const st = await fetchCurrentState(selectedEquip.id);
       setCurrent(st);
     } catch (err: unknown) {
@@ -139,6 +144,33 @@ export default function EquipmentPage() {
   }
 
   const fullModel = models.find((m) => m.model_id === current?.state_model);
+
+  // Build a lookup: target state name → oee_bucket from the state model
+  const targetOeeBuckets: Record<string, string> = {};
+  if (fullModel) {
+    for (const s of fullModel.states) {
+      targetOeeBuckets[s.name] = s.oee_bucket;
+    }
+  }
+
+  // Set of OEE buckets reachable via valid transitions from current state
+  const reachableBuckets = new Set(
+    (current?.valid_transitions ?? [])
+      .map((t) => targetOeeBuckets[t.to_state])
+      .filter(Boolean),
+  );
+
+  // Filter reasons to only those whose oee_bucket matches a reachable target state
+  const compatibleReasons = reasons.filter((r) => reachableBuckets.has(r.oee_bucket));
+
+  // When a reason is selected, determine which transitions are compatible
+  const selectedReason = reasons.find((r) => r.code === reasonCode);
+
+  function isTransitionCompatible(t: TransitionDefinition): boolean {
+    if (!selectedReason) return true; // no reason selected → all transitions available
+    const targetBucket = targetOeeBuckets[t.to_state];
+    return targetBucket === selectedReason.oee_bucket;
+  }
 
   const equipColumns: Column<Equipment>[] = [
     { key: "code", header: "Code" },
@@ -258,12 +290,23 @@ export default function EquipmentPage() {
           <div className="flex gap-3">
             <label className="flex flex-col text-xs font-medium text-gray-600 flex-1">
               Reason Code (optional)
-              <input
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm"
+              <select
+                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm bg-white"
                 value={reasonCode}
                 onChange={(e) => setReasonCode(e.target.value)}
-                placeholder="e.g. PM_SCHEDULED"
-              />
+              >
+                <option value="">— none —</option>
+                {compatibleReasons.map((r) => (
+                  <option key={r.id} value={r.code}>
+                    {r.code} — {r.name} ({r.oee_bucket})
+                  </option>
+                ))}
+              </select>
+              {compatibleReasons.length === 0 && reasons.length > 0 && (
+                <span className="text-xs text-amber-600 mt-0.5">
+                  No reasons match the reachable states
+                </span>
+              )}
             </label>
             <label className="flex flex-col text-xs font-medium text-gray-600 flex-1">
               Notes (optional)
@@ -284,12 +327,22 @@ export default function EquipmentPage() {
             <div className="flex flex-wrap gap-2">
               {current.valid_transitions.map((t) => {
                 const targetDef = fullModel?.states.find((s) => s.name === t.to_state);
+                const compatible = isTransitionCompatible(t);
                 return (
                   <button
                     key={`${t.from_state}-${t.to_state}`}
-                    className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
+                    className={`px-3 py-1.5 rounded border text-sm flex items-center gap-2 ${
+                      compatible
+                        ? "hover:bg-gray-50 disabled:opacity-50"
+                        : "opacity-40 cursor-not-allowed"
+                    }`}
                     onClick={() => doTransition(t)}
-                    disabled={busy}
+                    disabled={busy || !compatible}
+                    title={
+                      compatible
+                        ? undefined
+                        : `Reason "${selectedReason?.name}" (${selectedReason?.oee_bucket}) ≠ target "${t.to_state}" (${targetOeeBuckets[t.to_state]})`
+                    }
                   >
                     <span className="font-medium">{t.to_state}</span>
                     {t.trigger && (

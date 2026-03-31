@@ -97,6 +97,16 @@ export interface EquipmentStateLog {
   ended_at?: string | null;
 }
 
+export interface Reason {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  oee_bucket: string;
+  parent_id?: string | null;
+  is_active: boolean;
+}
+
 /** Standard MES API envelope. */
 export interface ApiResponse<T> {
   data: T;

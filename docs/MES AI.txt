@@ -186,7 +186,7 @@ cd c:\dev\mes_ai\clients\design_time
 npm run dev
 
 # Terminal 5: Equipment availability simulator
-cd clients/availability_simulator
+cd c:\dev\mes_ai\clients\availability_simulator
 npm install
 npm run dev
 serves on http://localhost:5175
