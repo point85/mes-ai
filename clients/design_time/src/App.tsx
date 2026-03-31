@@ -21,6 +21,7 @@ import { PerformancePage } from "./pages/performance";
 import { GenealogyViewerPage } from "./pages/genealogy";
 import { DispatchPage } from "./pages/dispatch";
 import { PluginListPage, PluginDetailPage } from "./pages/plugins";
+import { ReasonListPage } from "./pages/reasons";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="/quality-tests" element={<QualityTestListPage />} />
             <Route path="/non-conformances" element={<NCListPage />} />
             <Route path="/performance" element={<PerformancePage />} />
+            <Route path="/reasons" element={<ReasonListPage />} />
             <Route path="/genealogy" element={<GenealogyViewerPage />} />
             <Route path="/dispatch" element={<DispatchPage />} />
             {/* Plugin Management */}

@@ -54,6 +54,12 @@ const cards = [
       "Track equipment state changes, production counters, and OEE metrics.",
   },
   {
+    title: "Reason Codes",
+    to: "/reasons",
+    description:
+      "Define hierarchical loss and downtime reason codes for OEE availability tracking.",
+  },
+  {
     title: "Genealogy / Traceability",
     to: "/genealogy",
     description:

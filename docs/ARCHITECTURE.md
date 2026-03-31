@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, 1236 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, 1261 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -490,6 +490,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **EquipmentStateModel** | `id`, `model_id` (unique, e.g. "packml"), `name`, `description`, `initial_state`, `states` (JSON — canonical dispatch + OEE mappings), `transitions` (JSON — valid from→to pairs) | Registered by availability plugins |
 | **EquipmentStateLog** | `id`, `equipment_id`, `state_model`, `state`, `sub_state` (nullable), `dispatch_category` (available/busy/unavailable_planned/unavailable_unplanned), `oee_bucket`, `started_at`, `ended_at`, `reason_code`, `notes` | → Equipment |
 | **ProductionCounter** | `id`, `equipment_id`, `order_id`, `shift_date`, `good_count`, `reject_count`, `rework_count`, `ideal_cycle_time_sec`, `actual_run_time_sec` | → Equipment, → ProductionOrder |
+| **Reason** | `id`, `code` (4-char, unique), `name`, `description`, `oee_bucket`, `parent_id` (self FK, nullable) | Self-referential hierarchy; used by manual-transition endpoint |
 
 #### Genealogy (GENEALOGY)
 
@@ -2137,6 +2138,12 @@ activates a new state model, the system:
 | `GET` | `/api/v1/performance/state-models/{model_id}` | Get state model definition by plugin ID |
 | `GET` | `/api/v1/performance/equipment/{equip_id}/current-state` | Current state + valid transitions |
 | `POST` | `/api/v1/performance/equipment/{equip_id}/transition` | Trigger a state transition |
+| `POST` | `/api/v1/performance/equipment/{equip_id}/manual-transition` | Manual transition with a reason code |
+| `GET` | `/api/v1/performance/reasons` | List all reason codes |
+| `POST` | `/api/v1/performance/reasons` | Create a reason code |
+| `GET` | `/api/v1/performance/reasons/{reason_id}` | Get a reason code |
+| `PUT` | `/api/v1/performance/reasons/{reason_id}` | Update a reason code |
+| `DELETE` | `/api/v1/performance/reasons/{reason_id}` | Soft-delete a reason code |
 | `GET` | `/api/v1/performance/oee` | Calculate OEE (query params: equipment, time range) |
 | `GET` | `/api/v1/performance/equipment-states` | Query equipment state history |
 | `POST` | `/api/v1/performance/equipment-states` | Record equipment state change |
