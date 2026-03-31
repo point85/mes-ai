@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, 1093 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, 1236 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -3626,6 +3626,13 @@ parameters:
     type: string
     description: Tag name to read for equipment state
     required: false
+  - name: state_model_id
+    type: string
+    description: >
+      State model for transitions driven by state_tag changes
+      (e.g. "packml", "semi_e10"). Integer values are mapped via
+      OPC 40083 PackML enum by default. Requires state_tag.
+    required: false
   - name: security_mode
     type: string
     description: "Security mode: none, sign, or sign_and_encrypt"
@@ -3691,9 +3698,41 @@ POST /api/v1/plugins/opcua-equipment/install
   "parameter_values": {
     "endpoint_url": "opc.tcp://plc-01.factory.com:4840",
     "equipment_id": "OVEN-001",
-    "state_tag": "ns=2;s=MachineState"
+    "state_tag": "ns=2;s=MachineState",
+    "state_model_id": "packml"
   }
 }
+```
+
+##### OPC 40083 State-Change Wiring
+
+When `state_tag` and `state_model_id` are both configured, the OPC-UA plugin
+subscribes to OPC-UA data-change notifications on the tag at `start()` and
+feeds each value change into `EquipmentStateEngine.transition_equipment()`.
+
+1. **Integer values** — mapped via `PACKML_INT_TO_STATE` (OPC 40083 §6):
+
+| Int | State | Int | State | Int | State |
+|-----|-------|-----|-------|-----|-------|
+| 0 | Undefined | 6 | Execute | 12 | Unholding |
+| 1 | Clearing | 7 | Stopping | 13 | Suspending |
+| 2 | Stopped | 8 | Aborting | 14 | Unsuspending |
+| 3 | Starting | 9 | Aborted | 15 | Resetting |
+| 4 | Idle | 10 | Holding | 16 | Completing |
+| 5 | Suspended | 11 | Held | 17 | Complete |
+
+2. **String values** — forwarded to the engine as-is (for PLCs that publish
+   state names instead of integers).
+3. **Duplicate suppression** — consecutive identical states are ignored.
+4. **Error isolation** — engine exceptions are logged but never crash the
+   OPC-UA subscription.
+
+Data flow:
+```
+PLC CurrentState tag  ──OPC-UA subscription──►  _SubHandler.datachange_notification()
+    ──TagValue callback──►  OPCUAEquipmentPlugin._on_state_change()
+    ──int→name lookup──►  EquipmentStateEngine.transition_equipment(session, equip_id, state)
+    ──validates & persists──►  EquipmentStateLog row + equipment.state.changed event
 ```
 
 #### 9.3.4 Mock Equipment Adapter

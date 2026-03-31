@@ -2,6 +2,7 @@
 PERF-ANALYSIS: SQLAlchemy models for performance analysis.
 
 Entities:
+- Reason:              Hierarchical loss/downtime reason codes
 - EquipmentStateModel: State machine definition (e.g. PackML, SEMI E10)
 - EquipmentStateLog:   Time-series record of equipment state transitions
 - ProductionCounter:   Shift-level production counts for OEE calculation
@@ -17,6 +18,46 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mes.framework.db import BaseModel
+
+
+class Reason(BaseModel):
+    """
+    Hierarchical loss / downtime reason code.
+
+    Reasons are organised in a tree (parent_id FK to self).  Each reason
+    carries a short 4-character code and an OEE loss bucket so that manual
+    state transitions automatically classify time for OEE calculation.
+
+    Example hierarchy:
+        1000 Electrical          (downtime_unplanned)
+        ├─ 1010 AC Motors        (downtime_unplanned)
+        │  └─ 1011 High temp     (downtime_unplanned)
+        └─ 1020 DC Drives        (downtime_unplanned)
+    """
+
+    __tablename__ = "reasons"
+
+    code: Mapped[str] = mapped_column(
+        String(4), unique=True, nullable=False, index=True,
+        comment="4-character reason code, e.g. '1000'",
+    )
+    name: Mapped[str] = mapped_column(
+        String(255), nullable=False,
+        comment="Short descriptive name",
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    oee_bucket: Mapped[str] = mapped_column(
+        String(30), nullable=False,
+        comment="OEE loss bucket: downtime_planned, downtime_unplanned, uptime_non_value, etc.",
+    )
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("reasons.id"),
+        nullable=True, index=True,
+        comment="Parent reason for hierarchical grouping (null = top-level)",
+    )
+
+    def __repr__(self) -> str:
+        return f"<Reason id={self.id} code={self.code} name={self.name}>"
 
 
 class EquipmentStateModel(BaseModel):

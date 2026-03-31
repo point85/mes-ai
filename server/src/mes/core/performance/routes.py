@@ -2,15 +2,21 @@
 PERF-ANALYSIS: REST API routes for performance analysis.
 
 Endpoints:
-- GET  /api/v1/performance/state-models                        List registered state models
-- GET  /api/v1/performance/state-models/{model_id}             Get state model by ID
-- GET  /api/v1/performance/equipment/{equip_id}/current-state  Current state + valid transitions
-- POST /api/v1/performance/equipment/{equip_id}/transition     Trigger a state transition
-- GET  /api/v1/performance/oee                                 Calculate OEE for equipment + time range
-- GET  /api/v1/performance/equipment-states                    Query equipment state history
-- POST /api/v1/performance/equipment-states                    Record equipment state change
-- GET  /api/v1/performance/counters                            Query production counters
-- POST /api/v1/performance/counters                            Record/update production counter
+- GET    /api/v1/performance/reasons                            List all reasons
+- POST   /api/v1/performance/reasons                            Create a reason
+- GET    /api/v1/performance/reasons/{reason_id}                Get a reason
+- PUT    /api/v1/performance/reasons/{reason_id}                Update a reason
+- DELETE /api/v1/performance/reasons/{reason_id}                Delete a reason
+- GET    /api/v1/performance/state-models                       List registered state models
+- GET    /api/v1/performance/state-models/{model_id}            Get state model by ID
+- GET    /api/v1/performance/equipment/{equip_id}/current-state Current state + valid transitions
+- POST   /api/v1/performance/equipment/{equip_id}/transition    Trigger a state transition
+- POST   /api/v1/performance/equipment/{equip_id}/manual-transition  Manual transition with reason
+- GET    /api/v1/performance/oee                                Calculate OEE for equipment + time range
+- GET    /api/v1/performance/equipment-states                   Query equipment state history
+- POST   /api/v1/performance/equipment-states                   Record equipment state change
+- GET    /api/v1/performance/counters                           Query production counters
+- POST   /api/v1/performance/counters                           Record/update production counter
 """
 
 from __future__ import annotations
@@ -39,13 +45,83 @@ from .schemas import (
     EquipmentStateLogRead,
     EquipmentStateModelRead,
     EquipmentTransitionRequest,
+    ManualTransitionRequest,
     OEEResult,
     ProductionCounterRead,
+    ReasonCreate,
+    ReasonRead,
+    ReasonUpdate,
     StateChangeRequest,
 )
-from .service import EquipmentStateService, OEEService, ProductionCounterService
+from .service import EquipmentStateService, OEEService, ProductionCounterService, ReasonService
 
 router = APIRouter(prefix="/api/v1/performance", tags=["Performance Analysis"])
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Reason Codes (hierarchical loss reasons)
+# ═══════════════════════════════════════════════════════════════════
+
+
+@router.get("/reasons")
+async def list_reasons(
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.read")),
+):
+    """List all active reason codes (flat list; client assembles tree)."""
+    reasons = await ReasonService.list_reasons(session)
+    return success_response(
+        [ReasonRead.model_validate(r).model_dump() for r in reasons],
+    )
+
+
+@router.post("/reasons", status_code=201)
+async def create_reason(
+    body: ReasonCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """Create a new reason code."""
+    reason = await ReasonService.create_reason(session, **body.model_dump())
+    await session.commit()
+    return success_response(ReasonRead.model_validate(reason).model_dump())
+
+
+@router.get("/reasons/{reason_id}")
+async def get_reason(
+    reason_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.read")),
+):
+    """Get a single reason code by ID."""
+    reason = await ReasonService.get_reason(session, reason_id)
+    return success_response(ReasonRead.model_validate(reason).model_dump())
+
+
+@router.put("/reasons/{reason_id}")
+async def update_reason(
+    reason_id: UUID,
+    body: ReasonUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """Update an existing reason code."""
+    reason = await ReasonService.update_reason(
+        session, reason_id, **body.model_dump(exclude_unset=True),
+    )
+    await session.commit()
+    return success_response(ReasonRead.model_validate(reason).model_dump())
+
+
+@router.delete("/reasons/{reason_id}", status_code=204)
+async def delete_reason(
+    reason_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """Soft-delete a reason code."""
+    await ReasonService.delete_reason(session, reason_id)
+    await session.commit()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -151,6 +227,50 @@ async def transition_equipment(
         equipment_id=equip_id,
         new_state=body.new_state,
         reason_code=body.reason_code,
+        notes=body.notes,
+    )
+    await session.commit()
+    return success_response(EquipmentStateLogRead.model_validate(log).model_dump())
+
+
+@router.post("/equipment/{equip_id}/manual-transition", status_code=201)
+async def manual_transition_equipment(
+    equip_id: UUID,
+    body: ManualTransitionRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """
+    Manually transition equipment using a reason code.
+
+    The reason's OEE bucket determines the availability classification.
+    A state-change record is created with a synthetic state name derived
+    from the reason code and the canonical OEE bucket mapping.
+    """
+    from datetime import timezone as tz
+
+    reason = await ReasonService.get_reason(session, body.reason_id)
+
+    # Map the oee_bucket to a dispatch category
+    oee_to_dispatch = {
+        "downtime_planned": "unavailable_planned",
+        "downtime_unplanned": "unavailable_unplanned",
+        "uptime_non_value": "available",
+        "uptime_value_add": "busy",
+        "excluded": "unavailable_planned",
+    }
+    dispatch_category = oee_to_dispatch.get(reason.oee_bucket, "available")
+
+    log = await EquipmentStateService.record_state_change(
+        session,
+        equipment_id=equip_id,
+        state_model="manual",
+        state=reason.name,
+        sub_state=None,
+        dispatch_category=dispatch_category,
+        oee_bucket=reason.oee_bucket,
+        started_at=datetime.now(tz.utc),
+        reason_code=reason.code,
         notes=body.notes,
     )
     await session.commit()

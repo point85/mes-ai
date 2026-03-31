@@ -21,9 +21,87 @@ from mes.framework.api.pagination import PaginationParams, paginate_query
 from mes.framework.events import event_bus
 
 from .events import equipment_state_changed, oee_calculated
-from .models import EquipmentStateLog, ProductionCounter
+from .models import EquipmentStateLog, ProductionCounter, Reason
 
 logger = logging.getLogger("mes.performance")
+
+
+class ReasonService:
+    """Service class for hierarchical reason code management."""
+
+    @staticmethod
+    async def create_reason(
+        session: AsyncSession, **kwargs: Any,
+    ) -> Reason:
+        """Create a new reason code."""
+        reason = Reason(**kwargs)
+        session.add(reason)
+        await session.flush()
+        logger.info("Reason created: code=%s name=%s", reason.code, reason.name)
+        return reason
+
+    @staticmethod
+    async def list_reasons(
+        session: AsyncSession,
+    ) -> Sequence[Reason]:
+        """Return all active reasons (flat list; client builds the tree)."""
+        stmt = (
+            select(Reason)
+            .where(Reason.is_active.is_(True))
+            .order_by(Reason.code)
+        )
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def get_reason(
+        session: AsyncSession, reason_id: UUID,
+    ) -> Reason:
+        """Get a single reason by ID."""
+        stmt = select(Reason).where(
+            Reason.id == reason_id,
+            Reason.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        reason = result.scalar_one_or_none()
+        if reason is None:
+            raise NotFoundException(resource="Reason", resource_id=str(reason_id))
+        return reason
+
+    @staticmethod
+    async def update_reason(
+        session: AsyncSession, reason_id: UUID, **kwargs: Any,
+    ) -> Reason:
+        """Update an existing reason."""
+        stmt = select(Reason).where(
+            Reason.id == reason_id,
+            Reason.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        reason = result.scalar_one_or_none()
+        if reason is None:
+            raise NotFoundException(resource="Reason", resource_id=str(reason_id))
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(reason, key, value)
+        await session.flush()
+        return reason
+
+    @staticmethod
+    async def delete_reason(
+        session: AsyncSession, reason_id: UUID,
+    ) -> None:
+        """Soft-delete a reason."""
+        stmt = select(Reason).where(
+            Reason.id == reason_id,
+            Reason.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        reason = result.scalar_one_or_none()
+        if reason is None:
+            raise NotFoundException(resource="Reason", resource_id=str(reason_id))
+        reason.is_active = False
+        await session.flush()
 
 
 class EquipmentStateService:

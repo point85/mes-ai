@@ -75,3 +75,7 @@ include = ["src", "tests"]
 extraPaths = ["src", "plugins"]
 exclude = ["**/__pycache__", ".venv", "**/node_modules", "**/.*"]
 strict = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+pythonpath = ["src", "."]

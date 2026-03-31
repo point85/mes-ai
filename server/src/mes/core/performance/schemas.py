@@ -1,8 +1,8 @@
 """
 PERF-ANALYSIS: Pydantic schemas for the Performance Analysis REST API.
 
-Create / Read / Update schemas for EquipmentStateModel, EquipmentStateLog,
-ProductionCounter, plus OEE result schema.
+Create / Read / Update schemas for Reason, EquipmentStateModel,
+EquipmentStateLog, ProductionCounter, plus OEE result schema.
 """
 
 from __future__ import annotations
@@ -30,6 +30,60 @@ OEE_BUCKETS = {
     "downtime_unplanned",
     "excluded",
 }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Reason (hierarchical loss reason codes)
+# ═══════════════════════════════════════════════════════════════════
+
+
+class ReasonCreate(BaseModel):
+    """Schema for creating a new reason."""
+
+    code: str = Field(..., min_length=4, max_length=4, description="4-character reason code")
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    oee_bucket: str = Field(..., description="OEE loss bucket for this reason")
+    parent_id: UUID | None = Field(None, description="Parent reason ID (null = top-level)")
+
+    @field_validator("oee_bucket")
+    @classmethod
+    def validate_oee_bucket(cls, v: str) -> str:
+        if v not in OEE_BUCKETS:
+            raise ValueError(f"oee_bucket must be one of {OEE_BUCKETS}")
+        return v
+
+
+class ReasonUpdate(BaseModel):
+    """Schema for updating an existing reason."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = None
+    oee_bucket: str | None = None
+    parent_id: UUID | None = None
+
+    @field_validator("oee_bucket")
+    @classmethod
+    def validate_oee_bucket(cls, v: str | None) -> str | None:
+        if v is not None and v not in OEE_BUCKETS:
+            raise ValueError(f"oee_bucket must be one of {OEE_BUCKETS}")
+        return v
+
+
+class ReasonRead(BaseModel):
+    """Schema for reading a reason."""
+
+    id: UUID
+    code: str
+    name: str
+    description: str | None = None
+    oee_bucket: str
+    parent_id: UUID | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -90,6 +144,13 @@ class EquipmentTransitionRequest(BaseModel):
 
     new_state: str = Field(..., min_length=1, max_length=50)
     reason_code: str | None = None
+    notes: str | None = None
+
+
+class ManualTransitionRequest(BaseModel):
+    """Schema for a manual (operator-initiated) state transition with a reason."""
+
+    reason_id: UUID = Field(..., description="Reason code UUID to apply")
     notes: str | None = None
 
 

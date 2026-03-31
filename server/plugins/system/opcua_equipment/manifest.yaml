@@ -31,6 +31,13 @@ parameters:
     type: string
     description: Tag name to read for equipment state (e.g. ns=2;s=MachineState)
     required: false
+  - name: state_model_id
+    type: string
+    description: >
+      State model to use for transitions driven by state_tag changes
+      (e.g. "packml", "semi_e10"). Integer values are mapped via
+      OPC 40083 PackML enum by default. Requires state_tag.
+    required: false
   - name: security_mode
     type: string
     description: "Security mode: none, sign, or sign_and_encrypt"

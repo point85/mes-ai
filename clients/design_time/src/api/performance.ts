@@ -10,9 +10,33 @@ import type {
   ProductionCounter,
   CounterCreateUpdate,
   OEEResult,
+  Reason,
+  ReasonCreate,
+  ReasonUpdate,
   ApiResponse,
   ApiListResponse,
 } from "../types";
+
+// ─── Reasons ──────────────────────────────────────────────────────────
+
+export async function fetchReasons(): Promise<Reason[]> {
+  const { data } = await api.get<ApiResponse<Reason[]>>("/performance/reasons");
+  return data.data;
+}
+
+export async function createReason(body: ReasonCreate): Promise<Reason> {
+  const { data } = await api.post<ApiResponse<Reason>>("/performance/reasons", body);
+  return data.data;
+}
+
+export async function updateReason(id: string, body: ReasonUpdate): Promise<Reason> {
+  const { data } = await api.put<ApiResponse<Reason>>(`/performance/reasons/${id}`, body);
+  return data.data;
+}
+
+export async function deleteReason(id: string): Promise<void> {
+  await api.delete(`/performance/reasons/${id}`);
+}
 
 // ─── State Models ─────────────────────────────────────────────────────
 

@@ -10,10 +10,15 @@ import {
   fetchCounters,
   createOrUpdateCounter,
   calculateOEE,
+  fetchReasons,
+  createReason,
+  updateReason,
+  deleteReason,
 } from "../api/performance";
-import type { StateChangeRequest, CounterCreateUpdate } from "../types";
+import type { StateChangeRequest, CounterCreateUpdate, ReasonCreate, ReasonUpdate } from "../types";
 
 const KEYS = {
+  reasons: ["reasons"] as const,
   stateModels: ["stateModels"] as const,
   states: ["equipmentStates"] as const,
   stateList: (equipmentId?: string) =>
@@ -24,6 +29,39 @@ const KEYS = {
   oee: (equipmentId: string, start: string, end: string) =>
     ["oee", equipmentId, start, end] as const,
 };
+
+// ─── Reasons ──────────────────────────────────────────────────────────
+
+export function useReasons() {
+  return useQuery({
+    queryKey: KEYS.reasons,
+    queryFn: fetchReasons,
+  });
+}
+
+export function useCreateReason() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ReasonCreate) => createReason(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.reasons }),
+  });
+}
+
+export function useUpdateReason() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: ReasonUpdate & { id: string }) => updateReason(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.reasons }),
+  });
+}
+
+export function useDeleteReason() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteReason(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.reasons }),
+  });
+}
 
 // ─── State Models ─────────────────────────────────────────────────────
 

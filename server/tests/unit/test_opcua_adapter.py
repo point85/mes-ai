@@ -686,3 +686,193 @@ class TestEquipmentStateMapping:
         assert _STATE_OEE_MAP["setup"] == "uptime_non_value"
         assert _STATE_OEE_MAP["error"] == "downtime_unplanned"
         assert _STATE_OEE_MAP["stopped"] == "downtime_planned"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# OPC 40083 Integer → State Name Mapping
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestPackMLIntToState:
+    def test_all_17_states_mapped(self):
+        from plugins.system.opcua_equipment.plugin import PACKML_INT_TO_STATE
+
+        assert len(PACKML_INT_TO_STATE) == 18  # 0-17 inclusive
+        assert PACKML_INT_TO_STATE[0] == "Undefined"
+        assert PACKML_INT_TO_STATE[2] == "Stopped"
+        assert PACKML_INT_TO_STATE[4] == "Idle"
+        assert PACKML_INT_TO_STATE[6] == "Execute"
+        assert PACKML_INT_TO_STATE[17] == "Complete"
+
+    def test_state_names_match_packml_plugin(self):
+        """Ensure integer mapping state names match the registered PackML model."""
+        from plugins.system.opcua_equipment.plugin import PACKML_INT_TO_STATE
+        from plugins.system.packml_availability.plugin import STATES
+
+        registered = {s["name"] for s in STATES}
+        mapped = {v for v in PACKML_INT_TO_STATE.values() if v != "Undefined"}
+        assert mapped == registered
+
+
+# ═══════════════════════════════════════════════════════════════════
+# OPCUAEquipmentPlugin — State Callback Wiring
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestOPCUAPluginStateCallback:
+    """Tests for the OPC-UA plugin state-change subscription and callback."""
+
+    @pytest.fixture()
+    def plugin(self):
+        from plugins.system.opcua_equipment.plugin import OPCUAEquipmentPlugin
+
+        p = OPCUAEquipmentPlugin()
+        p._adapter = AsyncMock()
+        p._config = {
+            "equipment_id": "00000000-0000-0000-0000-000000000001",
+            "state_tag": "ns=2;s=MachineState",
+            "state_model_id": "packml",
+        }
+        return p
+
+    @pytest.mark.asyncio
+    async def test_start_subscribes_when_configured(self, plugin):
+        await plugin.start()
+
+        plugin._adapter.connect.assert_awaited_once()
+        plugin._adapter.subscribe_tag.assert_awaited_once()
+        call_args = plugin._adapter.subscribe_tag.call_args
+        assert call_args[0][0] == "ns=2;s=MachineState"
+
+    @pytest.mark.asyncio
+    async def test_start_no_subscribe_without_state_tag(self):
+        from plugins.system.opcua_equipment.plugin import OPCUAEquipmentPlugin
+
+        p = OPCUAEquipmentPlugin()
+        p._adapter = AsyncMock()
+        p._config = {"equipment_id": "eq-1"}
+        await p.start()
+
+        plugin = p
+        plugin._adapter.connect.assert_awaited_once()
+        plugin._adapter.subscribe_tag.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_stop_unsubscribes(self, plugin):
+        await plugin.start()
+        handle = plugin._subscription_handle
+
+        await plugin.stop()
+
+        plugin._adapter.unsubscribe.assert_awaited_once_with(handle)
+        plugin._adapter.disconnect.assert_awaited_once()
+        assert plugin._subscription_handle is None
+
+    @pytest.mark.asyncio
+    async def test_callback_integer_value(self, plugin):
+        """Integer 6 (Execute) triggers a transition."""
+        tag_value = TagValue(tag_name="ns=2;s=State", value=6, quality="good")
+
+        mock_session = AsyncMock()
+        mock_session_ctx = AsyncMock()
+        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "mes.framework.db.async_session_factory",
+            return_value=mock_session_ctx,
+        ), patch(
+            "mes.core.performance.engine.EquipmentStateEngine",
+        ) as MockEngine:
+            MockEngine.transition_equipment = AsyncMock()
+            await plugin._on_state_change(tag_value)
+
+        MockEngine.transition_equipment.assert_awaited_once()
+        call_kwargs = MockEngine.transition_equipment.call_args
+        assert call_kwargs.kwargs["new_state"] == "Execute"
+        assert call_kwargs.kwargs["state_model_id"] == "packml"
+        assert plugin._last_state == "Execute"
+
+    @pytest.mark.asyncio
+    async def test_callback_string_value(self, plugin):
+        """String state names pass through without mapping."""
+        tag_value = TagValue(tag_name="ns=2;s=State", value="Idle", quality="good")
+
+        mock_session = AsyncMock()
+        mock_session_ctx = AsyncMock()
+        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "mes.framework.db.async_session_factory",
+            return_value=mock_session_ctx,
+        ), patch(
+            "mes.core.performance.engine.EquipmentStateEngine",
+        ) as MockEngine:
+            MockEngine.transition_equipment = AsyncMock()
+            await plugin._on_state_change(tag_value)
+
+        MockEngine.transition_equipment.assert_awaited_once()
+        assert MockEngine.transition_equipment.call_args.kwargs["new_state"] == "Idle"
+
+    @pytest.mark.asyncio
+    async def test_callback_skips_duplicate(self, plugin):
+        """Duplicate state values are suppressed."""
+        plugin._last_state = "Execute"
+        tag_value = TagValue(tag_name="ns=2;s=State", value=6, quality="good")
+
+        with patch(
+            "mes.framework.db.async_session_factory",
+        ) as mock_factory:
+            await plugin._on_state_change(tag_value)
+
+        mock_factory.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_callback_unknown_integer_logged(self, plugin, caplog):
+        """An unmapped integer logs a warning and does nothing."""
+        tag_value = TagValue(tag_name="ns=2;s=State", value=99, quality="good")
+
+        with patch(
+            "mes.framework.db.async_session_factory",
+        ) as mock_factory:
+            await plugin._on_state_change(tag_value)
+
+        mock_factory.assert_not_called()
+        assert "Unknown PackML integer state 99" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_callback_unexpected_type_logged(self, plugin, caplog):
+        """Non-int/str values log a warning and are ignored."""
+        tag_value = TagValue(tag_name="ns=2;s=State", value=3.14, quality="good")
+
+        with patch(
+            "mes.framework.db.async_session_factory",
+        ) as mock_factory:
+            await plugin._on_state_change(tag_value)
+
+        mock_factory.assert_not_called()
+        assert "Unexpected state value type" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_callback_engine_exception_logged(self, plugin, caplog):
+        """Engine exceptions are caught and logged, not re-raised."""
+        tag_value = TagValue(tag_name="ns=2;s=State", value=4, quality="good")
+
+        mock_session = AsyncMock()
+        mock_session_ctx = AsyncMock()
+        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "mes.framework.db.async_session_factory",
+            return_value=mock_session_ctx,
+        ), patch(
+            "mes.core.performance.engine.EquipmentStateEngine",
+        ) as MockEngine:
+            MockEngine.transition_equipment = AsyncMock(
+                side_effect=RuntimeError("DB down"),
+            )
+            await plugin._on_state_change(tag_value)
+
+        assert "Failed to record state transition" in caplog.text

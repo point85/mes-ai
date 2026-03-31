@@ -2,6 +2,35 @@
  * Performance Analysis: TypeScript types mirroring server Pydantic schemas.
  */
 
+// ─── Reason (hierarchical loss codes) ─────────────────────────────────
+
+export interface Reason {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  oee_bucket: string;
+  parent_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReasonCreate {
+  code: string;
+  name: string;
+  description?: string | null;
+  oee_bucket: string;
+  parent_id?: string | null;
+}
+
+export interface ReasonUpdate {
+  name?: string;
+  description?: string | null;
+  oee_bucket?: string;
+  parent_id?: string | null;
+}
+
 // ─── Equipment State Log ──────────────────────────────────────────────
 
 export interface EquipmentStateLog {
