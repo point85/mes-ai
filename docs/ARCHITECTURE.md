@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, 1261 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, 1293 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -293,6 +293,12 @@ mes_ai/
 │   │   │   ├── semi_e10_availability/ # SEMI E10 state model plugin
 │   │   │   │   ├── manifest.yaml
 │   │   │   │   └── plugin.py
+│   │   │   ├── packml_opcua_counters/ # PackML OPC-UA production counter collector (OPC 30050)
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── mqtt_counters/         # MQTT production counter collector
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
 │   │   │   └── availability_simulator/ # Availability simulator companion plugin
 │   │   │       ├── manifest.yaml
 │   │   │       └── plugin.py
@@ -489,7 +495,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 |---|---|---|
 | **EquipmentStateModel** | `id`, `model_id` (unique, e.g. "packml"), `name`, `description`, `initial_state`, `states` (JSON — canonical dispatch + OEE mappings), `transitions` (JSON — valid from→to pairs) | Registered by availability plugins |
 | **EquipmentStateLog** | `id`, `equipment_id`, `state_model`, `state`, `sub_state` (nullable), `dispatch_category` (available/busy/unavailable_planned/unavailable_unplanned), `oee_bucket`, `started_at`, `ended_at`, `reason_code`, `notes` | → Equipment |
-| **ProductionCounter** | `id`, `equipment_id`, `order_id`, `shift_date`, `good_count`, `reject_count`, `rework_count`, `ideal_cycle_time_sec`, `actual_run_time_sec` | → Equipment, → ProductionOrder |
+| **ProductionCounter** | `id`, `equipment_id`, `order_id`, `shift_date`, `good_count`, `reject_count`, `rework_count`, `ideal_cycle_time_sec`, `actual_run_time_sec` | → Equipment, → ProductionOrder. Incremented atomically via `ProductionCounterService.increment_counter()` by counter-collection plugins (PackML OPC-UA, MQTT) or the REST `POST /counters/increment` endpoint. |
 | **Reason** | `id`, `code` (4-char, unique), `name`, `description`, `oee_bucket`, `parent_id` (self FK, nullable) | Self-referential hierarchy; used by manual-transition endpoint |
 
 #### Genealogy (GENEALOGY)
@@ -2223,6 +2229,7 @@ with fields: code (4-char, immutable after create), name, description, OEE bucke
 | `POST` | `/api/v1/performance/equipment-states` | Record equipment state change |
 | `GET` | `/api/v1/performance/counters` | Query production counters |
 | `POST` | `/api/v1/performance/counters` | Record/update production counter |
+| `POST` | `/api/v1/performance/counters/increment` | Atomically increment counters (delta-based) |
 
 #### Auth (AUTH)
 
@@ -2815,6 +2822,8 @@ class MESEvent:
 | `production.order.started` | PROD-ORDER | `{order_id}` |
 | `production.order.completed` | PROD-ORDER | `{order_id, quantity_completed}` |
 | `equipment.state.changed` | PHYS-MODEL | `{equipment_id, old_state, new_state, reason}` |
+| `production.counter.updated` | PERF-ANALYSIS | `{equipment_id, good_delta, reject_delta, rework_delta, source_plugin}` |
+| `performance.oee.calculated` | PERF-ANALYSIS | `{equipment_id, oee}` |
 | `quality.test.passed` | QUAL-MGMT | `{test_id, unit_id, result_id}` |
 | `quality.test.failed` | QUAL-MGMT | `{test_id, unit_id, result_id}` |
 | `quality.nc.created` | QUAL-MGMT | `{nc_id, unit_id, nc_type}` |
@@ -3869,6 +3878,134 @@ class FileDropTestAdapter(TestEquipmentAdapter):
 ```
 
 **Mock implementation:** Generates random test results within configurable pass/fail distributions and measurement ranges.
+
+### 9.5 Production Counter Data Collection
+
+Production counters track good, rejected, and rework quantities per equipment per shift for OEE Performance and Quality calculations. The counter data collection framework provides a delta-based increment service and two reference plugin implementations.
+
+#### 9.5.1 Architecture
+
+```
+Equipment (PLC / Edge Device)
+    │
+    ├── OPC-UA PackTags (OPC 30050)             ──► packml_opcua_counters plugin
+    │   Admin.ProdProcessedCount[n]                    │
+    │   Admin.ProdDefectiveCount[n]                    │
+    │                                                  │
+    └── MQTT topic                               ──► mqtt_counters plugin
+        mes/equipment/{equipment_id}/counters          │
+        {"good_delta": 10, "reject_delta": 1}          │
+                                                       ▼
+                               ProductionCounterService.increment_counter()
+                                       │
+                                       ├── Atomic upsert (equipment + shift_date + order)
+                                       ├── Emits: production.counter.updated event
+                                       └── Writes: production_counters table
+```
+
+#### 9.5.2 Core Service
+
+`ProductionCounterService.increment_counter()` is the single entry point for all counter updates. It:
+
+1. Looks up (or creates) a `ProductionCounter` row keyed by `(equipment_id, shift_date, order_id)`
+2. Atomically adds the delta values (`good_delta`, `reject_delta`, `rework_delta`)
+3. Publishes a `production.counter.updated` event with the deltas and source plugin identifier
+4. Returns the updated counter row
+
+The REST endpoint `POST /api/v1/performance/counters/increment` accepts a `CounterIncrementRequest` (equipment_id, good_delta, reject_delta, rework_delta, source) for manual or external integration use.
+
+#### 9.5.3 PackML OPC-UA PackTags Plugin (`packml-opcua-counters`)
+
+| Property | Value |
+|---|---|
+| **Plugin ID** | `packml-opcua-counters` |
+| **Category** | `performance` |
+| **Extension Point** | `data_processor` |
+| **Protocol** | OPC-UA (asyncua library) |
+| **Standard** | OPC 30050 — PackML PackTags |
+| **Library** | `pip install mes-ai[opcua]` |
+
+**OPC 30050 PackTags used:**
+
+| PackTag | Type | Description |
+|---|---|---|
+| `Admin.ProdProcessedCount[n]` | UInt32 | Cumulative good units produced (per material index) |
+| `Admin.ProdDefectiveCount[n]` | UInt32 | Cumulative defective/rejected units |
+| `Admin.CurMachSpeed` | Float | Current machine speed (for future Performance OEE) |
+| `Admin.MachDesignSpeed` | Float | Design speed (for future Performance OEE) |
+
+**Delta detection:** The plugin stores the last-known absolute counter value for each equipment. When a data change notification arrives, it computes `delta = new_value - last_value` and calls `increment_counter()` only when the delta is positive. This handles:
+- Counter resets (new value < old value → re-baseline, no negative delta)
+- No-change notifications (delta = 0 → skip)
+- First read (no baseline → store value, no increment)
+
+**Equipment discovery:** At startup the plugin queries all active equipment with an `opcua_endpoint` in their `capabilities` JSON field. Expected capability keys:
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `opcua_endpoint` | string | *(required)* | `opc.tcp://10.0.0.1:4840` |
+| `opcua_namespace` | int | `2` | OPC-UA namespace index |
+| `opcua_good_node` | string | `Admin.ProdProcessedCount` | Override good count node path |
+| `opcua_reject_node` | string | `Admin.ProdDefectiveCount` | Override reject count node path |
+
+**Parameters** (configured via plugin install):
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `poll_interval_sec` | int | `5` | Fallback polling interval when subscriptions fail |
+| `subscription_interval_ms` | int | `1000` | OPC-UA publishing/sampling interval |
+
+#### 9.5.4 MQTT Counter Plugin (`mqtt-counters`)
+
+| Property | Value |
+|---|---|
+| **Plugin ID** | `mqtt-counters` |
+| **Category** | `performance` |
+| **Extension Point** | `data_processor` |
+| **Protocol** | MQTT v3.1.1 / v5 (aiomqtt library) |
+| **Library** | `pip install mes-ai[mqtt]` |
+
+**Topic layout:**
+```
+mes/equipment/{equipment_id}/counters
+```
+
+The `equipment_id` (UUID) is extracted from the topic path. The `+` wildcard in the subscription pattern matches any equipment.
+
+**Expected JSON payload:**
+```json
+{
+    "good_delta": 10,
+    "reject_delta": 1,
+    "rework_delta": 0,
+    "order_id": "optional-uuid-string"
+}
+```
+
+All delta fields must be ≥ 0. Messages with all-zero deltas are ignored. Invalid JSON or non-object payloads are logged and skipped.
+
+**Parameters** (configured via plugin install):
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `broker_host` | string | `localhost` | MQTT broker hostname |
+| `broker_port` | int | `1883` | MQTT broker port |
+| `topic_pattern` | string | `mes/equipment/+/counters` | Subscription topic pattern |
+| `username` | string | *(empty)* | Broker authentication username |
+| `password` | string | *(empty)* | Broker authentication password |
+| `qos` | int | `1` | MQTT QoS level (0, 1, or 2) |
+
+#### 9.5.5 Adding Custom Counter Plugins
+
+End users can implement additional counter collection plugins for other protocols (e.g., Modbus, REST polling, file drop) by:
+
+1. Creating a plugin directory under `plugins/user/`
+2. Declaring `extension_points: [{type: data_processor}]` in `manifest.yaml`
+3. Implementing `MESPlugin.start()` to begin data collection
+4. Calling `ProductionCounterService.increment_counter()` with appropriate deltas
+5. Implementing `MESPlugin.stop()` to clean up connections/tasks
+
+The `packml_opcua_counters` and `mqtt_counters` plugins serve as reference implementations.
 
 ## 10. Dispatching Engine (DISPATCH)
 
