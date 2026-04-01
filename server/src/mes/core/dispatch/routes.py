@@ -2,10 +2,12 @@
 DISPATCH: REST API routes for the dispatching engine.
 
 Endpoints:
-- POST /api/v1/dispatch/evaluate              Evaluate dispatch for a unit/lot
-- POST /api/v1/dispatch/execute               Execute a dispatch decision
-- GET  /api/v1/dispatch/strategies             List available dispatch strategies
-- GET  /api/v1/dispatch/queue/{work_cell_id} Get dispatch queue for a work cell
+- POST /api/v1/dispatch/evaluate                  Evaluate dispatch for a unit/lot
+- POST /api/v1/dispatch/execute                    Execute a dispatch decision
+- POST /api/v1/dispatch/auto                       Auto-evaluate and dispatch
+- GET  /api/v1/dispatch/strategies                 List available dispatch strategies
+- GET  /api/v1/dispatch/queue/{work_cell_id}       Get dispatch queue for a work cell
+- GET  /api/v1/dispatch/equipment/{equipment_id}/status  Equipment dispatch status
 """
 
 from __future__ import annotations
@@ -87,3 +89,34 @@ async def get_queue(
     return success_response(
         [item.model_dump() for item in queue],
     )
+
+
+@router.post("/auto")
+async def auto_dispatch(
+    body: DispatchEvaluateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("dispatch.execute")),
+):
+    """Evaluate and automatically dispatch a unit/lot to the best equipment.
+
+    Uses 'shortest_queue' strategy. Returns the dispatch result or blocked status.
+    Triggered by lot completion (OPC-UA, MQTT, operator).
+    """
+    result = await DispatchService.auto_dispatch(
+        session,
+        unit_id=body.unit_id,
+        lot_id=body.lot_id,
+    )
+    await session.commit()
+    return success_response(result.model_dump())
+
+
+@router.get("/equipment/{equipment_id}/status")
+async def get_equipment_dispatch_status(
+    equipment_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("dispatch.read")),
+):
+    """Get dispatch-level status for a single equipment (availability, queue depth, starved/at-capacity)."""
+    status = await DispatchService.get_equipment_status(session, equipment_id)
+    return success_response(status.model_dump())

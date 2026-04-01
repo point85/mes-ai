@@ -27,6 +27,7 @@ class UnitCreate(BaseModel):
     serial_number: str = Field(..., min_length=1, max_length=200)
     order_id: UUID
     product_id: UUID
+    material_id: UUID | None = Field(None, description="Output material for dispatch capability matching")
 
 
 class UnitRead(BaseModel):
@@ -36,6 +37,7 @@ class UnitRead(BaseModel):
     serial_number: str
     order_id: UUID
     product_id: UUID
+    material_id: UUID | None = None
     current_step_id: UUID | None = None
     current_equipment_id: UUID | None = None
     status: str
@@ -61,6 +63,7 @@ class LotCreate(BaseModel):
     order_id: UUID
     product_id: UUID
     quantity: int = Field(..., gt=0)
+    material_id: UUID | None = Field(None, description="Output material for dispatch capability matching")
 
 
 class LotRead(BaseModel):
@@ -71,6 +74,7 @@ class LotRead(BaseModel):
     order_id: UUID
     product_id: UUID
     quantity: int
+    material_id: UUID | None = None
     current_step_id: UUID | None = None
     current_equipment_id: UUID | None = None
     status: str

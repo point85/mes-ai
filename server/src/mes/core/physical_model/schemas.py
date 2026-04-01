@@ -169,6 +169,7 @@ class EquipmentCreate(BaseModel):
     equipment_type: str | None = Field(None, max_length=100)
     capabilities: dict[str, Any] | None = None
     state_model_id: str | None = Field(None, max_length=50, description="State machine model ID (e.g. 'packml'). Null = 100% available.")
+    max_queue_depth: int | None = Field(None, ge=1, description="Max WIP items in input queue. Null = unlimited.")
 
 
 class EquipmentRead(BaseModel):
@@ -182,6 +183,7 @@ class EquipmentRead(BaseModel):
     equipment_type: str | None = None
     capabilities: dict[str, Any] | None = None
     state_model_id: str | None = None
+    max_queue_depth: int | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -198,6 +200,7 @@ class EquipmentUpdate(BaseModel):
     equipment_type: str | None = None
     capabilities: dict[str, Any] | None = None
     state_model_id: str | None = None
+    max_queue_depth: int | None = Field(None, ge=1, description="Max WIP items in input queue. Null = unlimited.")
 
 
 # ─── Equipment–Material Setup ────────────────────────────────────────

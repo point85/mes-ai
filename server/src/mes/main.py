@@ -29,6 +29,7 @@ from mes.core.quality.routes import router as quality_router
 from mes.core.performance.routes import router as performance_router
 from mes.core.genealogy.routes import router as genealogy_router
 from mes.core.dispatch.routes import router as dispatch_router
+import mes.core.dispatch.handlers  # registers @event_handler decorators  # noqa: F401
 
 # Integration adapter routers (P4)
 from mes.adapters.erp.routes import router as erp_queue_router

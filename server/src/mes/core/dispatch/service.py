@@ -4,8 +4,15 @@ DISPATCH: Business logic service for the dispatching engine.
 Implements dispatch evaluation with pluggable strategies and
 dispatch execution.
 
-Dispatch invariant: WIP is NEVER dispatched to equipment where
-dispatch_category != 'available'. This is enforced in core, not in plugins.
+Dispatch invariants (enforced in core, not plugins):
+1. Equipment must have dispatch_category == 'available' (or no state model)
+2. Equipment must be set up for the material (EquipmentMaterial row exists)
+   — skipped if unit/lot has no material_id or equipment has no material setups
+3. Equipment input queue must not be at max_queue_depth
+   — skipped if max_queue_depth is null (unlimited)
+
+When no eligible equipment is found, the lot/unit is BLOCKED.
+When an available equipment's input queue is empty, the equipment is STARVED.
 """
 
 from __future__ import annotations
@@ -15,18 +22,23 @@ from datetime import datetime, timezone
 from typing import Sequence
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.framework.api.exceptions import NotFoundException
 from mes.framework.events import event_bus
 
-from mes.core.physical_model.models import Equipment, WorkCell
+from mes.core.physical_model.models import Equipment, EquipmentMaterial, WorkCell
 from mes.core.product_def.models import RouteStep
 from mes.core.wip.models import Unit, Lot
 from mes.core.performance.models import EquipmentStateLog
 
-from .events import dispatch_evaluated, dispatch_executed
+from .events import (
+    dispatch_evaluated,
+    dispatch_executed,
+    dispatch_blocked,
+    equipment_starved,
+)
 from .exceptions import (
     InvalidDispatchTargetException,
     NoEligibleEquipmentException,
@@ -38,6 +50,7 @@ from .schemas import (
     DispatchExecuteResponse,
     DispatchQueueItem,
     DispatchStrategyInfo,
+    EquipmentDispatchStatus,
     DISPATCH_STRATEGIES,
 )
 
@@ -82,11 +95,14 @@ class DispatchService:
         Flow:
         1. Resolve the current step and route
         2. Find eligible equipment at the next step(s)
-        3. Filter: only equipment with dispatch_category == 'available'
-        4. Apply strategy to rank options
-        5. Return ranked options with recommendation
+        3. Filter: availability (dispatch_category == 'available')
+        4. Filter: capability (EquipmentMaterial for the lot's material)
+        5. Filter: capacity (queue_depth < max_queue_depth)
+        6. Apply strategy to rank options
+        7. Return ranked options with recommendation (or blocked=True)
         """
         # ── Resolve unit or lot ─────────────────────────────────────
+        material_id: UUID | None = None
         if unit_id is not None:
             result = await session.execute(
                 select(Unit).where(Unit.id == unit_id)
@@ -96,6 +112,7 @@ class DispatchService:
                 raise NotFoundException(resource="Unit", resource_id=str(unit_id))
             current_step_id = wip.current_step_id
             identifier = wip.serial_number
+            material_id = wip.material_id
         elif lot_id is not None:
             result = await session.execute(
                 select(Lot).where(Lot.id == lot_id)
@@ -105,6 +122,7 @@ class DispatchService:
                 raise NotFoundException(resource="Lot", resource_id=str(lot_id))
             current_step_id = wip.current_step_id
             identifier = wip.lot_number
+            material_id = wip.material_id
         else:
             raise NotFoundException(resource="Unit/Lot", resource_id="none")
 
@@ -145,7 +163,6 @@ class DispatchService:
         target_step = next_steps[0]
 
         # ── Find eligible equipment at the target step ──────────────
-        # Equipment at the work cell linked to the step
         if target_step.work_cell_id is None:
             return DispatchEvaluateResponse(
                 unit_id=unit_id,
@@ -165,50 +182,38 @@ class DispatchService:
         equip_result = await session.execute(equip_stmt)
         equip_rows = equip_result.all()
 
-        # ── Filter by dispatch_category == 'available' ──────────────
-        # Check the latest state log for each equipment
+        # ── Filter by availability, capability, capacity ────────────
         options: list[DispatchOption] = []
+        blocked_reasons: list[str] = []
+
         for equip, wc in equip_rows:
-            # Get current dispatch category from state log
-            state_stmt = (
-                select(EquipmentStateLog)
-                .where(
-                    EquipmentStateLog.equipment_id == equip.id,
-                    EquipmentStateLog.ended_at.is_(None),
-                )
-                .order_by(EquipmentStateLog.started_at.desc())
-                .limit(1)
-            )
-            state_result = await session.execute(state_stmt)
-            current_state = state_result.scalar_one_or_none()
-
-            # If no state log exists, assume available (no state model = 100% availability)
-            dispatch_cat = None
-            if current_state is not None:
-                dispatch_cat = current_state.dispatch_category
-            else:
-                dispatch_cat = "available"
-
+            # 1. AVAILABILITY: check dispatch_category
+            dispatch_cat = await _get_dispatch_category(session, equip.id)
             if dispatch_cat != "available":
+                blocked_reasons.append(
+                    f"{equip.code}: unavailable ({dispatch_cat})"
+                )
                 continue
 
-            # Count items currently queued at this equipment
-            unit_count_result = await session.execute(
-                select(func.count()).select_from(Unit).where(
-                    Unit.current_equipment_id == equip.id,
-                    Unit.status.in_(("queued", "in_process")),
+            # 2. CAPABILITY: check EquipmentMaterial for the lot's material
+            if material_id is not None:
+                has_setup = await _has_material_setup(
+                    session, equip.id, material_id,
                 )
-            )
-            lot_count_result = await session.execute(
-                select(func.count()).select_from(Lot).where(
-                    Lot.current_equipment_id == equip.id,
-                    Lot.status.in_(("queued", "in_process")),
+                if not has_setup:
+                    blocked_reasons.append(
+                        f"{equip.code}: not set up for material"
+                    )
+                    continue
+
+            # 3. CAPACITY: check queue depth vs max_queue_depth
+            queue_depth = await _get_queue_depth(session, equip.id)
+
+            if equip.max_queue_depth is not None and queue_depth >= equip.max_queue_depth:
+                blocked_reasons.append(
+                    f"{equip.code}: queue full ({queue_depth}/{equip.max_queue_depth})"
                 )
-            )
-            queue_depth = (
-                unit_count_result.scalar_one()
-                + lot_count_result.scalar_one()
-            )
+                continue
 
             options.append(DispatchOption(
                 equipment_id=equip.id,
@@ -219,20 +224,30 @@ class DispatchService:
                 step_id=target_step.id,
                 step_name=target_step.name,
                 queue_depth=queue_depth,
+                max_queue_depth=equip.max_queue_depth,
             ))
 
         if not options:
-            # Emit event for monitoring
-            await event_bus.publish(dispatch_evaluated(
+            # BLOCKED — no eligible equipment
+            reason = "; ".join(blocked_reasons) if blocked_reasons else "no equipment at step"
+            await event_bus.publish(dispatch_blocked(
                 unit_id=str(unit_id) if unit_id else None,
-                strategy=strategy,
-                recommendation=None,
+                lot_id=str(lot_id) if lot_id else None,
+                reason=reason,
             ))
+            logger.warning(
+                "Dispatch blocked: %s %s — %s",
+                "unit" if unit_id else "lot",
+                unit_id or lot_id,
+                reason,
+            )
             return DispatchEvaluateResponse(
                 unit_id=unit_id,
                 lot_id=lot_id,
                 strategy=strategy,
                 options=[],
+                blocked=True,
+                blocked_reason=reason,
             )
 
         # ── Apply strategy ──────────────────────────────────────────
@@ -242,6 +257,7 @@ class DispatchService:
 
         await event_bus.publish(dispatch_evaluated(
             unit_id=str(unit_id) if unit_id else None,
+            lot_id=str(lot_id) if lot_id else None,
             strategy=strategy,
             recommendation=str(recommended.equipment_id) if recommended else None,
         ))
@@ -265,8 +281,13 @@ class DispatchService:
         """
         Execute a dispatch decision: move the unit/lot to the destination.
 
-        Validates that the destination equipment is available, then updates
-        the unit/lot's current_step_id and current_equipment_id.
+        Validates:
+        - Equipment exists and is active
+        - Equipment is in 'available' dispatch category
+        - Equipment has capacity (queue not full)
+        - Equipment can process the material (if material_id set)
+
+        Then updates unit/lot current_step_id and current_equipment_id.
         """
         # ── Validate equipment exists ───────────────────────────────
         equip_result = await session.execute(
@@ -278,6 +299,26 @@ class DispatchService:
                 resource="Equipment", resource_id=str(destination_equipment_id),
             )
 
+        # ── Validate availability ───────────────────────────────────
+        dispatch_cat = await _get_dispatch_category(session, equip.id)
+        if dispatch_cat != "available":
+            raise InvalidDispatchTargetException(
+                equip.code,
+                f"dispatch_category is '{dispatch_cat}', must be 'available'",
+            )
+
+        # ── Validate capacity ───────────────────────────────────────
+        if equip.max_queue_depth is not None:
+            queue_depth = await _get_queue_depth(session, equip.id)
+            if queue_depth >= equip.max_queue_depth:
+                raise InvalidDispatchTargetException(
+                    equip.code,
+                    f"queue full ({queue_depth}/{equip.max_queue_depth})",
+                )
+
+        # ── Validate material capability ────────────────────────────
+        material_id: UUID | None = None
+
         # ── Update the unit or lot ──────────────────────────────────
         now = datetime.now(timezone.utc)
 
@@ -288,6 +329,7 @@ class DispatchService:
             unit = result.scalar_one_or_none()
             if unit is None:
                 raise NotFoundException(resource="Unit", resource_id=str(unit_id))
+            material_id = unit.material_id
             unit.current_step_id = destination_step_id
             unit.current_equipment_id = destination_equipment_id
 
@@ -298,15 +340,27 @@ class DispatchService:
             lot_obj = result.scalar_one_or_none()
             if lot_obj is None:
                 raise NotFoundException(resource="Lot", resource_id=str(lot_id))
+            material_id = lot_obj.material_id
             lot_obj.current_step_id = destination_step_id
             lot_obj.current_equipment_id = destination_equipment_id
+
+        # Validate material setup (after resolving WIP to get material_id)
+        if material_id is not None:
+            has_setup = await _has_material_setup(session, equip.id, material_id)
+            if not has_setup:
+                raise InvalidDispatchTargetException(
+                    equip.code,
+                    f"not set up for material {material_id}",
+                )
 
         await session.flush()
 
         # Emit event
         await event_bus.publish(dispatch_executed(
             unit_id=str(unit_id) if unit_id else None,
+            lot_id=str(lot_id) if lot_id else None,
             destination_step_id=str(destination_step_id),
+            destination_equipment_id=str(destination_equipment_id),
         ))
 
         logger.info(
@@ -378,6 +432,151 @@ class DispatchService:
             ))
 
         return queue
+
+    @staticmethod
+    async def get_equipment_status(
+        session: AsyncSession,
+        equipment_id: UUID,
+    ) -> EquipmentDispatchStatus:
+        """
+        Get the dispatch-level status of a single equipment.
+
+        Returns availability state, queue depth, and starved/at-capacity flags.
+        """
+        equip_result = await session.execute(
+            select(Equipment).where(Equipment.id == equipment_id)
+        )
+        equip = equip_result.scalar_one_or_none()
+        if equip is None:
+            raise NotFoundException(resource="Equipment", resource_id=str(equipment_id))
+
+        dispatch_cat = await _get_dispatch_category(session, equip.id)
+        queue_depth = await _get_queue_depth(session, equip.id)
+
+        is_starved = dispatch_cat == "available" and queue_depth == 0
+        is_at_capacity = (
+            equip.max_queue_depth is not None and queue_depth >= equip.max_queue_depth
+        )
+
+        if is_starved:
+            await event_bus.publish(equipment_starved(str(equip.id)))
+
+        return EquipmentDispatchStatus(
+            equipment_id=equip.id,
+            equipment_code=equip.code,
+            equipment_name=equip.name,
+            dispatch_category=dispatch_cat,
+            queue_depth=queue_depth,
+            max_queue_depth=equip.max_queue_depth,
+            is_starved=is_starved,
+            is_at_capacity=is_at_capacity,
+        )
+
+    @staticmethod
+    async def auto_dispatch(
+        session: AsyncSession,
+        unit_id: UUID | None = None,
+        lot_id: UUID | None = None,
+    ) -> DispatchEvaluateResponse | DispatchExecuteResponse:
+        """
+        Evaluate and automatically execute dispatch for a unit or lot.
+
+        Uses 'shortest_queue' strategy. If a destination is found, executes the
+        dispatch. If blocked (no eligible equipment), returns the blocked
+        evaluation response without error.
+
+        This is the handler for lot/unit completion triggers (OPC-UA, MQTT, manual).
+        """
+        eval_result = await DispatchService.evaluate(
+            session,
+            unit_id=unit_id,
+            lot_id=lot_id,
+            strategy="shortest_queue",
+        )
+
+        if eval_result.blocked or eval_result.recommended is None:
+            return eval_result
+
+        recommended = eval_result.recommended
+        exec_result = await DispatchService.execute(
+            session,
+            unit_id=unit_id,
+            lot_id=lot_id,
+            destination_equipment_id=recommended.equipment_id,
+            destination_step_id=recommended.step_id,
+        )
+
+        return exec_result
+
+
+# ── Helper functions ─────────────────────────────────────────────────
+
+async def _get_dispatch_category(session: AsyncSession, equipment_id: UUID) -> str:
+    """Get the current dispatch_category for an equipment from its latest state log."""
+    state_stmt = (
+        select(EquipmentStateLog.dispatch_category)
+        .where(
+            EquipmentStateLog.equipment_id == equipment_id,
+            EquipmentStateLog.ended_at.is_(None),
+        )
+        .order_by(EquipmentStateLog.started_at.desc())
+        .limit(1)
+    )
+    state_result = await session.execute(state_stmt)
+    row = state_result.scalar_one_or_none()
+    # No state log → no state model → assume available
+    return row if row is not None else "available"
+
+
+async def _get_queue_depth(session: AsyncSession, equipment_id: UUID) -> int:
+    """Count the number of WIP items (units + lots) queued or in-process at an equipment."""
+    unit_count_result = await session.execute(
+        select(func.count()).select_from(Unit).where(
+            Unit.current_equipment_id == equipment_id,
+            Unit.status.in_(("queued", "in_process")),
+        )
+    )
+    lot_count_result = await session.execute(
+        select(func.count()).select_from(Lot).where(
+            Lot.current_equipment_id == equipment_id,
+            Lot.status.in_(("queued", "in_process")),
+        )
+    )
+    return unit_count_result.scalar_one() + lot_count_result.scalar_one()
+
+
+async def _has_material_setup(
+    session: AsyncSession, equipment_id: UUID, material_id: UUID,
+) -> bool:
+    """
+    Check if an equipment has been set up to process a specific material.
+
+    Returns True if:
+    - Equipment has no material setups at all (universally capable)
+    - Equipment has an EquipmentMaterial row for this material
+
+    Returns False if equipment has material setups but not for this material.
+    """
+    # Check if equipment has ANY material setups
+    any_setup_stmt = select(
+        exists().where(EquipmentMaterial.equipment_id == equipment_id)
+    )
+    any_result = await session.execute(any_setup_stmt)
+    has_any = any_result.scalar_one()
+
+    if not has_any:
+        # No material setups → universally capable
+        return True
+
+    # Check if specific material is configured
+    specific_stmt = select(
+        exists().where(
+            EquipmentMaterial.equipment_id == equipment_id,
+            EquipmentMaterial.material_id == material_id,
+        )
+    )
+    specific_result = await session.execute(specific_stmt)
+    return specific_result.scalar_one()
 
 
 # ── Strategy implementations ─────────────────────────────────────────

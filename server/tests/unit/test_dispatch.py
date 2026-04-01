@@ -3,11 +3,14 @@ Unit tests for DISPATCH (Dispatching Engine) module.
 
 Covers:
 - Schema validation for dispatch requests, responses, strategies, queue
-- Event factory functions
-- Exception construction
+- Event factory functions (including blocked, starved)
+- Exception construction (including capacity, material capability)
 - Strategy logic (_apply_strategy)
 - Service / route imports
 - Constants validation
+- EquipmentDispatchStatus schema
+- Blocked/starved response fields
+- Handler registration
 """
 
 from __future__ import annotations
@@ -19,11 +22,15 @@ import pytest
 from pydantic import ValidationError
 
 from mes.core.dispatch.events import (
+    dispatch_blocked,
     dispatch_evaluated,
     dispatch_executed,
+    equipment_starved,
 )
 from mes.core.dispatch.exceptions import (
+    EquipmentAtCapacityException,
     InvalidDispatchTargetException,
+    MaterialCapabilityException,
     NoEligibleEquipmentException,
     NoRouteForDispatchException,
 )
@@ -36,6 +43,7 @@ from mes.core.dispatch.schemas import (
     DispatchOption,
     DispatchQueueItem,
     DispatchStrategyInfo,
+    EquipmentDispatchStatus,
 )
 from mes.core.dispatch.service import (
     STRATEGY_DESCRIPTIONS,
@@ -350,6 +358,8 @@ class TestServiceAndRouteImports:
         assert hasattr(DispatchService, "evaluate")
         assert hasattr(DispatchService, "execute")
         assert hasattr(DispatchService, "get_queue")
+        assert hasattr(DispatchService, "auto_dispatch")
+        assert hasattr(DispatchService, "get_equipment_status")
 
     def test_router_paths(self):
         from mes.core.dispatch.routes import router
@@ -358,3 +368,232 @@ class TestServiceAndRouteImports:
         assert "/api/v1/dispatch/execute" in paths
         assert "/api/v1/dispatch/strategies" in paths
         assert "/api/v1/dispatch/queue/{work_cell_id}" in paths
+        assert "/api/v1/dispatch/auto" in paths
+        assert "/api/v1/dispatch/equipment/{equipment_id}/status" in paths
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Schema Tests — EquipmentDispatchStatus
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestEquipmentDispatchStatus:
+    def test_construction(self):
+        status = EquipmentDispatchStatus(
+            equipment_id=uuid.uuid4(),
+            equipment_code="EQ-001",
+            equipment_name="CNC Mill",
+            dispatch_category="available",
+            queue_depth=3,
+            max_queue_depth=5,
+        )
+        assert status.equipment_code == "EQ-001"
+        assert status.dispatch_category == "available"
+        assert status.queue_depth == 3
+        assert status.max_queue_depth == 5
+        assert status.is_starved is False
+        assert status.is_at_capacity is False
+
+    def test_starved(self):
+        status = EquipmentDispatchStatus(
+            equipment_id=uuid.uuid4(),
+            equipment_code="EQ-001",
+            equipment_name="Mill",
+            dispatch_category="available",
+            queue_depth=0,
+            is_starved=True,
+        )
+        assert status.is_starved is True
+
+    def test_at_capacity(self):
+        status = EquipmentDispatchStatus(
+            equipment_id=uuid.uuid4(),
+            equipment_code="EQ-001",
+            equipment_name="Mill",
+            dispatch_category="available",
+            queue_depth=5,
+            max_queue_depth=5,
+            is_at_capacity=True,
+        )
+        assert status.is_at_capacity is True
+
+    def test_unlimited_queue(self):
+        status = EquipmentDispatchStatus(
+            equipment_id=uuid.uuid4(),
+            equipment_code="EQ-001",
+            equipment_name="Mill",
+            dispatch_category="available",
+            queue_depth=100,
+            max_queue_depth=None,
+        )
+        assert status.max_queue_depth is None
+        assert status.is_at_capacity is False
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Schema Tests — Blocked Response
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestBlockedResponse:
+    def test_blocked_evaluate_response(self):
+        resp = DispatchEvaluateResponse(
+            lot_id=uuid.uuid4(),
+            strategy="shortest_queue",
+            options=[],
+            blocked=True,
+            blocked_reason="EQ-001: queue full (5/5); EQ-002: unavailable (busy)",
+        )
+        assert resp.blocked is True
+        assert "queue full" in resp.blocked_reason
+        assert resp.options == []
+        assert resp.recommended is None
+
+    def test_not_blocked_by_default(self):
+        resp = DispatchEvaluateResponse(
+            unit_id=uuid.uuid4(),
+            strategy="first_available",
+        )
+        assert resp.blocked is False
+        assert resp.blocked_reason is None
+
+    def test_blocked_no_reason(self):
+        resp = DispatchEvaluateResponse(
+            lot_id=uuid.uuid4(),
+            strategy="first_available",
+            blocked=True,
+        )
+        assert resp.blocked is True
+        assert resp.blocked_reason is None
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Schema Tests — DispatchOption with max_queue_depth
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestDispatchOptionCapacity:
+    def test_max_queue_depth_included(self):
+        opt = DispatchOption(
+            equipment_id=uuid.uuid4(),
+            equipment_code="EQ-001",
+            equipment_name="Mill",
+            work_cell_id=uuid.uuid4(),
+            work_cell_code="WC-1",
+            step_id=uuid.uuid4(),
+            queue_depth=2,
+            max_queue_depth=5,
+        )
+        assert opt.max_queue_depth == 5
+        assert opt.queue_depth == 2
+
+    def test_max_queue_depth_none_unlimited(self):
+        opt = DispatchOption(
+            equipment_id=uuid.uuid4(),
+            equipment_code="EQ-001",
+            equipment_name="Mill",
+            work_cell_id=uuid.uuid4(),
+            work_cell_code="WC-1",
+            step_id=uuid.uuid4(),
+        )
+        assert opt.max_queue_depth is None
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Event Tests — Blocked / Starved
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestBlockedStarvedEvents:
+    def test_dispatch_blocked_lot(self):
+        ev = dispatch_blocked(lot_id="lot-1", reason="queue full")
+        assert ev.event_type == "dispatch.blocked"
+        assert ev.source == "dispatch"
+        assert ev.payload["lot_id"] == "lot-1"
+        assert ev.payload["unit_id"] is None
+        assert ev.payload["reason"] == "queue full"
+
+    def test_dispatch_blocked_unit(self):
+        ev = dispatch_blocked(unit_id="u-1", reason="not set up for material")
+        assert ev.payload["unit_id"] == "u-1"
+        assert ev.payload["lot_id"] is None
+
+    def test_dispatch_blocked_no_reason(self):
+        ev = dispatch_blocked()
+        assert ev.payload["reason"] == ""
+
+    def test_equipment_starved(self):
+        ev = equipment_starved("eq-1")
+        assert ev.event_type == "dispatch.equipment.starved"
+        assert ev.source == "dispatch"
+        assert ev.payload["equipment_id"] == "eq-1"
+
+    def test_dispatch_evaluated_with_lot_id(self):
+        ev = dispatch_evaluated("u-1", "shortest_queue", "eq-1", lot_id="lot-1")
+        assert ev.payload["lot_id"] == "lot-1"
+        assert ev.payload["unit_id"] == "u-1"
+
+    def test_dispatch_executed_with_lot_id(self):
+        ev = dispatch_executed(
+            "u-1", "step-1", lot_id="lot-1", destination_equipment_id="eq-1",
+        )
+        assert ev.payload["lot_id"] == "lot-1"
+        assert ev.payload["destination_equipment_id"] == "eq-1"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Exception Tests — Capacity / Material Capability
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestCapacityExceptions:
+    def test_equipment_at_capacity(self):
+        exc = EquipmentAtCapacityException("step-1")
+        assert exc.status_code == 422
+        assert exc.error_code == "EQUIPMENT_AT_CAPACITY"
+        assert exc.details["step_id"] == "step-1"
+        assert "capacity" in str(exc).lower()
+
+    def test_equipment_at_capacity_no_step(self):
+        exc = EquipmentAtCapacityException()
+        assert exc.details["step_id"] is None
+
+    def test_material_capability_exception(self):
+        exc = MaterialCapabilityException("mat-1", "step-1")
+        assert exc.status_code == 422
+        assert exc.error_code == "MATERIAL_CAPABILITY_MISMATCH"
+        assert exc.details["material_id"] == "mat-1"
+        assert exc.details["step_id"] == "step-1"
+        assert "mat-1" in str(exc)
+
+    def test_material_capability_no_step(self):
+        exc = MaterialCapabilityException("mat-2")
+        assert exc.details["step_id"] is None
+
+    def test_no_eligible_equipment_with_reason(self):
+        exc = NoEligibleEquipmentException("step-1", reason="all queues full")
+        assert exc.details["reason"] == "all queues full"
+        assert "all queues full" in str(exc)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Handler Registration Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestHandlerRegistration:
+    def test_handlers_module_importable(self):
+        import mes.core.dispatch.handlers  # noqa: F401
+
+    def test_event_handlers_registered(self):
+        from mes.framework.events.decorators import get_registered_handlers
+        handlers = get_registered_handlers()
+        event_types = [h[0] for h in handlers]
+        assert "wip.lot.completed" in event_types
+        assert "wip.unit.completed" in event_types
+
+    def test_handler_functions_exist(self):
+        from mes.core.dispatch.handlers import on_lot_completed, on_unit_completed
+        import inspect
+        assert inspect.iscoroutinefunction(on_lot_completed)
+        assert inspect.iscoroutinefunction(on_unit_completed)

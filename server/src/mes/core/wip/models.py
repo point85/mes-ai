@@ -46,6 +46,11 @@ class Unit(BaseModel):
         UUID(as_uuid=True), ForeignKey("product_definitions.id"),
         nullable=False, index=True,
     )
+    material_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("material_definitions.id"),
+        nullable=True, index=True,
+        comment="Output material produced by this unit. Used for dispatch capability matching.",
+    )
     current_step_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("route_steps.id"),
         nullable=True, index=True,
@@ -67,6 +72,9 @@ class Unit(BaseModel):
     )
     product: Mapped["ProductDefinition"] = relationship(  # noqa: F821
         "ProductDefinition", foreign_keys=[product_id],
+    )
+    material: Mapped["MaterialDefinition | None"] = relationship(  # noqa: F821
+        "MaterialDefinition", foreign_keys=[material_id],
     )
     history: Mapped[list["UnitHistory"]] = relationship(
         "UnitHistory", back_populates="unit", cascade="all, delete-orphan",
@@ -97,6 +105,11 @@ class Lot(BaseModel):
         UUID(as_uuid=True), ForeignKey("product_definitions.id"),
         nullable=False, index=True,
     )
+    material_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("material_definitions.id"),
+        nullable=True, index=True,
+        comment="Output material produced by this lot. Used for dispatch capability matching.",
+    )
     quantity: Mapped[int] = mapped_column(
         Integer, nullable=False,
         comment="Total quantity in this lot",
@@ -120,6 +133,9 @@ class Lot(BaseModel):
     )
     product: Mapped["ProductDefinition"] = relationship(  # noqa: F821
         "ProductDefinition", foreign_keys=[product_id],
+    )
+    material: Mapped["MaterialDefinition | None"] = relationship(  # noqa: F821
+        "MaterialDefinition", foreign_keys=[material_id],
     )
     history: Mapped[list["LotHistory"]] = relationship(
         "LotHistory", back_populates="lot", cascade="all, delete-orphan",

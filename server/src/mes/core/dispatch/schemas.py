@@ -54,6 +54,7 @@ class DispatchOption(BaseModel):
     step_id: UUID
     step_name: str | None = None
     queue_depth: int = 0
+    max_queue_depth: int | None = None
     score: float = 0.0
     reason: str | None = None
 
@@ -66,6 +67,8 @@ class DispatchEvaluateResponse(BaseModel):
     strategy: str
     options: list[DispatchOption] = []
     recommended: DispatchOption | None = None
+    blocked: bool = False
+    blocked_reason: str | None = None
 
 
 class DispatchExecuteRequest(BaseModel):
@@ -106,3 +109,16 @@ class DispatchQueueItem(BaseModel):
     current_step_id: UUID | None = None
     status: str
     equipment_id: UUID | None = None
+
+
+class EquipmentDispatchStatus(BaseModel):
+    """Dispatch-level status for a single equipment."""
+
+    equipment_id: UUID
+    equipment_code: str
+    equipment_name: str
+    dispatch_category: str
+    queue_depth: int
+    max_queue_depth: int | None = None
+    is_starved: bool = False
+    is_at_capacity: bool = False

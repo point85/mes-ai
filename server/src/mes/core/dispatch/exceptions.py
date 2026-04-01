@@ -11,10 +11,13 @@ class NoEligibleEquipmentException(MESException):
     status_code = 422
     error_code = "NO_ELIGIBLE_EQUIPMENT"
 
-    def __init__(self, step_id: str | None = None) -> None:
+    def __init__(self, step_id: str | None = None, reason: str = "") -> None:
+        details: dict = {"step_id": step_id}
+        if reason:
+            details["reason"] = reason
         super().__init__(
-            message="No eligible equipment available for dispatch",
-            details={"step_id": step_id},
+            message=f"No eligible equipment available for dispatch{': ' + reason if reason else ''}",
+            details=details,
         )
 
 
@@ -44,4 +47,30 @@ class NoRouteForDispatchException(MESException):
         super().__init__(
             message=f"No route assigned for dispatch evaluation: '{identifier}'",
             details={"identifier": identifier},
+        )
+
+
+class EquipmentAtCapacityException(MESException):
+    """Raised when all candidate equipment queues are full."""
+
+    status_code = 422
+    error_code = "EQUIPMENT_AT_CAPACITY"
+
+    def __init__(self, step_id: str | None = None) -> None:
+        super().__init__(
+            message="All candidate equipment queues are at maximum capacity",
+            details={"step_id": step_id},
+        )
+
+
+class MaterialCapabilityException(MESException):
+    """Raised when no equipment is set up to process the required material."""
+
+    status_code = 422
+    error_code = "MATERIAL_CAPABILITY_MISMATCH"
+
+    def __init__(self, material_id: str, step_id: str | None = None) -> None:
+        super().__init__(
+            message=f"No equipment is set up to process material '{material_id}'",
+            details={"material_id": material_id, "step_id": step_id},
         )

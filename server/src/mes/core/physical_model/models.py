@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Float, ForeignKey, String, Text, JSON, UniqueConstraint
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, JSON, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -159,6 +159,10 @@ class Equipment(BaseModel):
     state_model_id: Mapped[str | None] = mapped_column(
         String(50), nullable=True, index=True,
         comment="State machine model ID (e.g. 'packml', 'semi_e10'). Null = 100% available.",
+    )
+    max_queue_depth: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None,
+        comment="Max WIP items (units + lots) allowed in input queue. Null = unlimited.",
     )
 
     # Relationships
