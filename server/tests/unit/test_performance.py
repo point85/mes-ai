@@ -685,3 +685,384 @@ class TestMQTTCountersPayloadParsing:
         from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
         result = MQTTCountersPlugin._parse_payload(bytearray(b"{}"))
         assert result == {}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# OEE Calculation Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _mock_state_log(oee_bucket: str, duration_sec: float, period_end: datetime):
+    """Create a mock state log with a given bucket and duration."""
+    ended_at = period_end
+    started_at = ended_at - __import__("datetime").timedelta(seconds=duration_sec)
+    return types.SimpleNamespace(
+        oee_bucket=oee_bucket,
+        started_at=started_at,
+        ended_at=ended_at,
+    )
+
+
+def _mock_counter_row(
+    total_good=0,
+    total_reject=0,
+    total_rework=0,
+    avg_cycle_time=None,
+):
+    """Create a mock row from the counter aggregate query."""
+    return types.SimpleNamespace(
+        total_good=total_good,
+        total_reject=total_reject,
+        total_rework=total_rework,
+        avg_cycle_time=avg_cycle_time,
+    )
+
+
+def _mock_equipment_material(design_speed: float, denominator_multiplier: float = 3600.0):
+    """Create a mock EquipmentMaterial with a rate UoM."""
+    denominator_uom = types.SimpleNamespace(multiplier=denominator_multiplier)
+    rate_uom = types.SimpleNamespace(denominator_uom=denominator_uom)
+    return types.SimpleNamespace(
+        design_speed=design_speed,
+        design_speed_unit=rate_uom,
+    )
+
+
+class TestOEECalculation:
+    """Test OEEService.calculate_oee with mocked async sessions."""
+
+    @pytest.mark.asyncio
+    async def test_standard_oee(self):
+        """OEE with realistic Availability/Performance/Quality losses."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from mes.core.performance.service import OEEService
+
+        eid = uuid.uuid4()
+        period_end = datetime(2026, 3, 1, 8, 0, tzinfo=timezone.utc)
+        period_start = datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc)
+
+        # 6h uptime value-add, 1h uptime non-value, 0.5h planned downtime, 0.5h unplanned
+        logs = [
+            _mock_state_log("uptime_value_add", 21600, period_end),   # 6h = 21600s
+            _mock_state_log("uptime_non_value", 3600, period_end),    # 1h = 3600s
+            _mock_state_log("downtime_planned", 1800, period_end),    # 0.5h
+            _mock_state_log("downtime_unplanned", 1800, period_end),  # 0.5h
+        ]
+
+        mock_logs_result = MagicMock()
+        mock_logs_result.scalars.return_value.all.return_value = logs
+
+        # 900 good, 50 reject, 20 rework = 970 total
+        mock_counter_result = MagicMock()
+        mock_counter_result.one.return_value = _mock_counter_row(900, 50, 20)
+
+        # EquipmentMaterial: 120 EA/h → 30 sec/unit
+        em = _mock_equipment_material(120.0, 3600.0)
+        mock_em_result = MagicMock()
+        mock_em_result.scalar_one_or_none.return_value = em
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            side_effect=[mock_logs_result, mock_counter_result, mock_em_result],
+        )
+
+        with patch("mes.core.performance.service.event_bus.publish", new_callable=AsyncMock):
+            result = await OEEService.calculate_oee(
+                mock_session, eid, period_start, period_end,
+            )
+
+        # Availability = 25200 / (25200 + 3600) = 0.875
+        assert result["availability"] == round(25200 / 28800, 4)
+        # Performance = (30 * 970) / 25200 = 1.1547... capped to 1.0
+        assert result["performance"] == 1.0
+        # Quality = 900 / 970
+        assert result["quality"] == round(900 / 970, 4)
+        # OEE = availability * performance * quality (from exact values, then rounded)
+        expected_oee = round((25200 / 28800) * 1.0 * (900 / 970), 4)
+        assert result["oee"] == expected_oee
+        # Six big losses present
+        assert result["six_big_losses"]["planned_downtime_sec"] == 1800.0
+        assert result["six_big_losses"]["unplanned_downtime_sec"] == 1800.0
+        assert result["six_big_losses"]["quality_loss_count"] == 70
+
+    @pytest.mark.asyncio
+    async def test_perfect_oee(self):
+        """100% OEE: no downtime, running at exactly design speed, all good."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from mes.core.performance.service import OEEService
+
+        eid = uuid.uuid4()
+        period_end = datetime(2026, 3, 1, 8, 0, tzinfo=timezone.utc)
+        period_start = datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc)
+
+        # 8h of value-add uptime, no downtime
+        logs = [_mock_state_log("uptime_value_add", 28800, period_end)]
+
+        mock_logs_result = MagicMock()
+        mock_logs_result.scalars.return_value.all.return_value = logs
+
+        # At 120 EA/h for 8h → 960 pieces, all good
+        mock_counter_result = MagicMock()
+        mock_counter_result.one.return_value = _mock_counter_row(960, 0, 0)
+
+        # 120 EA/h → 30 sec/unit; 30 * 960 = 28800 = run_time exactly
+        em = _mock_equipment_material(120.0, 3600.0)
+        mock_em_result = MagicMock()
+        mock_em_result.scalar_one_or_none.return_value = em
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            side_effect=[mock_logs_result, mock_counter_result, mock_em_result],
+        )
+
+        with patch("mes.core.performance.service.event_bus.publish", new_callable=AsyncMock):
+            result = await OEEService.calculate_oee(
+                mock_session, eid, period_start, period_end,
+            )
+
+        assert result["availability"] == 1.0
+        assert result["performance"] == 1.0
+        assert result["quality"] == 1.0
+        assert result["oee"] == 1.0
+        assert result["six_big_losses"]["speed_loss_sec"] == 0
+
+    @pytest.mark.asyncio
+    async def test_zero_data(self):
+        """No state logs and no counters → all zeros."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from mes.core.performance.service import OEEService
+
+        eid = uuid.uuid4()
+        period_end = datetime(2026, 3, 1, 8, 0, tzinfo=timezone.utc)
+        period_start = datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc)
+
+        mock_logs_result = MagicMock()
+        mock_logs_result.scalars.return_value.all.return_value = []
+
+        mock_counter_result = MagicMock()
+        mock_counter_result.one.return_value = _mock_counter_row()
+
+        mock_em_result = MagicMock()
+        mock_em_result.scalar_one_or_none.return_value = None
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            side_effect=[mock_logs_result, mock_counter_result, mock_em_result],
+        )
+
+        with patch("mes.core.performance.service.event_bus.publish", new_callable=AsyncMock):
+            result = await OEEService.calculate_oee(
+                mock_session, eid, period_start, period_end,
+            )
+
+        assert result["availability"] == 0.0
+        assert result["performance"] == 0.0
+        assert result["quality"] == 0.0
+        assert result["oee"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_performance_from_counter_fallback(self):
+        """When no EquipmentMaterial exists, falls back to counter ideal_cycle_time_sec."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from mes.core.performance.service import OEEService
+
+        eid = uuid.uuid4()
+        period_end = datetime(2026, 3, 1, 8, 0, tzinfo=timezone.utc)
+        period_start = datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc)
+
+        # 8h uptime
+        logs = [_mock_state_log("uptime_value_add", 28800, period_end)]
+
+        mock_logs_result = MagicMock()
+        mock_logs_result.scalars.return_value.all.return_value = logs
+
+        # 800 good, counter has avg ideal_cycle_time_sec = 30
+        mock_counter_result = MagicMock()
+        mock_counter_result.one.return_value = _mock_counter_row(800, 0, 0, avg_cycle_time=30.0)
+
+        # No EquipmentMaterial
+        mock_em_result = MagicMock()
+        mock_em_result.scalar_one_or_none.return_value = None
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            side_effect=[mock_logs_result, mock_counter_result, mock_em_result],
+        )
+
+        with patch("mes.core.performance.service.event_bus.publish", new_callable=AsyncMock):
+            result = await OEEService.calculate_oee(
+                mock_session, eid, period_start, period_end,
+            )
+
+        assert result["availability"] == 1.0
+        # Performance = (30 * 800) / 28800 = 0.8333
+        expected_perf = round((30.0 * 800) / 28800, 4)
+        assert result["performance"] == expected_perf
+        assert result["quality"] == 1.0
+        assert result["details"]["ideal_cycle_time_sec"] == 30.0
+
+    @pytest.mark.asyncio
+    async def test_six_big_losses_breakdown(self):
+        """Verify six big losses are properly populated."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from mes.core.performance.service import OEEService
+
+        eid = uuid.uuid4()
+        period_end = datetime(2026, 3, 1, 8, 0, tzinfo=timezone.utc)
+        period_start = datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc)
+
+        # 5h value-add, 1h non-value, 1h planned, 0.5h unplanned, 0.5h excluded
+        logs = [
+            _mock_state_log("uptime_value_add", 18000, period_end),
+            _mock_state_log("uptime_non_value", 3600, period_end),
+            _mock_state_log("downtime_planned", 3600, period_end),
+            _mock_state_log("downtime_unplanned", 1800, period_end),
+            _mock_state_log("excluded", 1800, period_end),
+        ]
+
+        mock_logs_result = MagicMock()
+        mock_logs_result.scalars.return_value.all.return_value = logs
+
+        # 600 good, 30 reject, 10 rework
+        mock_counter_result = MagicMock()
+        mock_counter_result.one.return_value = _mock_counter_row(600, 30, 10)
+
+        em = _mock_equipment_material(120.0, 3600.0)
+        mock_em_result = MagicMock()
+        mock_em_result.scalar_one_or_none.return_value = em
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            side_effect=[mock_logs_result, mock_counter_result, mock_em_result],
+        )
+
+        with patch("mes.core.performance.service.event_bus.publish", new_callable=AsyncMock):
+            result = await OEEService.calculate_oee(
+                mock_session, eid, period_start, period_end,
+            )
+
+        losses = result["six_big_losses"]
+        assert losses["planned_downtime_sec"] == 3600.0
+        assert losses["unplanned_downtime_sec"] == 1800.0
+        assert losses["quality_loss_count"] == 40
+
+        # Speed loss = run_time - (ideal_cycle * total_count) = 21600 - (30 * 640) = 2400
+        assert losses["speed_loss_sec"] == 2400.0
+
+        # Excluded time should be in details, not in planned production time
+        assert result["details"]["excluded_time_sec"] == 1800.0
+        # Planned Production Time = 21600 + 3600 + 1800 = 27000 (excludes "excluded")
+        assert result["details"]["planned_production_time_sec"] == 27000.0
+
+    @pytest.mark.asyncio
+    async def test_design_speed_minutes_denominator(self):
+        """Test design speed with minutes as denominator (e.g. EA/min)."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from mes.core.performance.service import OEEService
+
+        eid = uuid.uuid4()
+        period_end = datetime(2026, 3, 1, 1, 0, tzinfo=timezone.utc)
+        period_start = datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc)
+
+        # 1h = 3600s uptime
+        logs = [_mock_state_log("uptime_value_add", 3600, period_end)]
+
+        mock_logs_result = MagicMock()
+        mock_logs_result.scalars.return_value.all.return_value = logs
+
+        # 120 good pieces
+        mock_counter_result = MagicMock()
+        mock_counter_result.one.return_value = _mock_counter_row(120, 0, 0)
+
+        # 2 EA/min → denominator min has multiplier=60 → 60/2 = 30 sec/unit
+        # 30 * 120 / 3600 = 1.0
+        em = _mock_equipment_material(2.0, 60.0)
+        mock_em_result = MagicMock()
+        mock_em_result.scalar_one_or_none.return_value = em
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            side_effect=[mock_logs_result, mock_counter_result, mock_em_result],
+        )
+
+        with patch("mes.core.performance.service.event_bus.publish", new_callable=AsyncMock):
+            result = await OEEService.calculate_oee(
+                mock_session, eid, period_start, period_end,
+            )
+
+        assert result["performance"] == 1.0
+
+    @pytest.mark.asyncio
+    async def test_oee_event_emitted(self):
+        """Verify the oee_calculated event is published."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from mes.core.performance.service import OEEService
+
+        eid = uuid.uuid4()
+        period_end = datetime(2026, 3, 1, 8, 0, tzinfo=timezone.utc)
+        period_start = datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc)
+
+        logs = [_mock_state_log("uptime_value_add", 28800, period_end)]
+
+        mock_logs_result = MagicMock()
+        mock_logs_result.scalars.return_value.all.return_value = logs
+
+        mock_counter_result = MagicMock()
+        mock_counter_result.one.return_value = _mock_counter_row(960, 0, 0)
+
+        em = _mock_equipment_material(120.0, 3600.0)
+        mock_em_result = MagicMock()
+        mock_em_result.scalar_one_or_none.return_value = em
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            side_effect=[mock_logs_result, mock_counter_result, mock_em_result],
+        )
+
+        with patch(
+            "mes.core.performance.service.event_bus.publish",
+            new_callable=AsyncMock,
+        ) as mock_publish:
+            result = await OEEService.calculate_oee(
+                mock_session, eid, period_start, period_end,
+            )
+            mock_publish.assert_awaited_once()
+            event = mock_publish.call_args[0][0]
+            assert event.event_type == "performance.oee.calculated"
+            assert event.payload["oee"] == result["oee"]
+
+
+class TestOEEResultSchemaWithSixBigLosses:
+    """Validate the updated OEEResult schema includes six_big_losses."""
+
+    def test_oee_result_with_losses(self):
+        result = OEEResult(
+            equipment_id=uuid.uuid4(),
+            period_start=datetime.now(timezone.utc),
+            period_end=datetime.now(timezone.utc),
+            availability=0.875,
+            performance=0.95,
+            quality=0.93,
+            oee=0.773,
+            details={"run_time_sec": 25200},
+            six_big_losses={
+                "planned_downtime_sec": 1800,
+                "unplanned_downtime_sec": 1800,
+                "speed_loss_sec": 1200,
+                "quality_loss_count": 70,
+            },
+        )
+        assert result.six_big_losses["planned_downtime_sec"] == 1800
+        assert result.six_big_losses["quality_loss_count"] == 70
+
+    def test_oee_result_without_losses(self):
+        result = OEEResult(
+            equipment_id=uuid.uuid4(),
+            period_start=datetime.now(timezone.utc),
+            period_end=datetime.now(timezone.utc),
+            availability=1.0,
+            performance=1.0,
+            quality=1.0,
+            oee=1.0,
+        )
+        assert result.six_big_losses is None

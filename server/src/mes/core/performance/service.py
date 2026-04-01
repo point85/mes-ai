@@ -312,7 +312,28 @@ class ProductionCounterService:
 
 
 class OEEService:
-    """Calculates OEE (Overall Equipment Effectiveness) metrics."""
+    """Calculates OEE (Overall Equipment Effectiveness) metrics.
+
+    Implements the standard OEE formula addressing the Six Big Losses:
+
+    Availability Losses:
+        1. Planned Downtime (changeovers, maintenance)    → oee_bucket: downtime_planned
+        2. Unplanned Downtime (breakdowns)                → oee_bucket: downtime_unplanned
+
+    Performance Losses:
+        3. Minor Stops / Idling                           → captured via speed loss
+        4. Reduced Speed / Slow Cycles                    → captured via speed loss
+
+    Quality Losses:
+        5. Production Rejects                             → reject_count
+        6. Startup Rejects / Reduced Yield                → reject_count + rework_count
+
+    Formulas:
+        Availability = Run Time / Planned Production Time
+        Performance  = (Ideal Cycle Time × Total Count) / Run Time
+        Quality      = Good Count / Total Count
+        OEE          = Availability × Performance × Quality
+    """
 
     @staticmethod
     async def calculate_oee(
@@ -326,14 +347,20 @@ class OEEService:
 
         OEE = Availability × Performance × Quality
 
-        Availability: uptime / (uptime + downtime)
-            uses EquipmentStateLog.oee_bucket
-        Performance: (ideal_cycle_time × total_count) / actual_run_time
-            uses ProductionCounter
+        Availability: run_time / planned_production_time
+            Run Time = time in uptime states (value_add + non_value)
+            Planned Production Time = Run Time + Downtime (excludes 'excluded' bucket)
+            Uses EquipmentStateLog.oee_bucket
+
+        Performance: (ideal_cycle_time × total_count) / run_time
+            Ideal Cycle Time derived from EquipmentMaterial.design_speed (Nameplate Capacity)
+            Falls back to ProductionCounter.ideal_cycle_time_sec if set
+            Run Time = same uptime computed for Availability
+
         Quality: good_count / total_count
-            uses ProductionCounter
+            Uses ProductionCounter (good + reject + rework = total)
         """
-        # ── Availability from state logs ────────────────────────────
+        # ── 1. Availability from state logs ─────────────────────────
         stmt = select(EquipmentStateLog).where(
             EquipmentStateLog.equipment_id == equipment_id,
             EquipmentStateLog.started_at >= period_start,
@@ -348,17 +375,21 @@ class OEEService:
             duration = (end - log.started_at).total_seconds()
             buckets[log.oee_bucket] += duration
 
-        uptime = buckets.get("uptime_value_add", 0) + buckets.get("uptime_non_value", 0)
-        downtime = buckets.get("downtime_planned", 0) + buckets.get("downtime_unplanned", 0)
-        total_time = uptime + downtime
-        availability = uptime / total_time if total_time > 0 else 0.0
+        uptime_value_add = buckets.get("uptime_value_add", 0)
+        uptime_non_value = buckets.get("uptime_non_value", 0)
+        downtime_planned = buckets.get("downtime_planned", 0)
+        downtime_unplanned = buckets.get("downtime_unplanned", 0)
+        excluded_time = buckets.get("excluded", 0)
 
-        # ── Performance & Quality from counters ─────────────────────
+        run_time = uptime_value_add + uptime_non_value
+        planned_production_time = run_time + downtime_planned + downtime_unplanned
+        availability = run_time / planned_production_time if planned_production_time > 0 else 0.0
+
+        # ── 2. Counters (good / reject / rework) ───────────────────
         counter_stmt = select(
             func.sum(ProductionCounter.good_count).label("total_good"),
             func.sum(ProductionCounter.reject_count).label("total_reject"),
             func.sum(ProductionCounter.rework_count).label("total_rework"),
-            func.sum(ProductionCounter.actual_run_time_sec).label("total_run_time"),
             func.avg(ProductionCounter.ideal_cycle_time_sec).label("avg_cycle_time"),
         ).where(
             ProductionCounter.equipment_id == equipment_id,
@@ -372,19 +403,30 @@ class OEEService:
         total_reject = row.total_reject or 0
         total_rework = row.total_rework or 0
         total_count = total_good + total_reject + total_rework
-        total_run_time = row.total_run_time or 0
-        avg_cycle_time = row.avg_cycle_time or 0
 
-        # Performance: (ideal_cycle × total_count) / actual_run_time
-        if total_run_time > 0 and avg_cycle_time > 0:
-            performance = (avg_cycle_time * total_count) / total_run_time
+        # ── 3. Ideal Cycle Time (from EquipmentMaterial or counter) ─
+        ideal_cycle_time = await OEEService._resolve_ideal_cycle_time(
+            session, equipment_id, row.avg_cycle_time,
+        )
+
+        # ── 4. Performance: (ideal_cycle × total_count) / run_time ──
+        if run_time > 0 and ideal_cycle_time > 0:
+            performance_raw = (ideal_cycle_time * total_count) / run_time
         else:
-            performance = 0.0
+            performance_raw = 0.0
+        # Cap at 1.0: exceeding 100% indicates incorrect ideal cycle time
+        performance = min(performance_raw, 1.0)
 
-        # Quality: good / total
+        # ── 5. Quality: good / total ────────────────────────────────
         quality = total_good / total_count if total_count > 0 else 0.0
 
         oee = availability * performance * quality
+
+        # ── 6. Speed loss (Performance Losses 3+4) ──────────────────
+        #    Theoretical production time = ideal_cycle_time × total_count
+        #    Speed loss = run_time − theoretical production time
+        theoretical_production_time = ideal_cycle_time * total_count if ideal_cycle_time > 0 else 0
+        speed_loss_sec = max(0, run_time - theoretical_production_time) if run_time > 0 else 0
 
         # Emit event
         await event_bus.publish(oee_calculated(
@@ -401,13 +443,67 @@ class OEEService:
             "quality": round(quality, 4),
             "oee": round(oee, 4),
             "details": {
-                "uptime_sec": round(uptime, 2),
-                "downtime_sec": round(downtime, 2),
+                "planned_production_time_sec": round(planned_production_time, 2),
+                "run_time_sec": round(run_time, 2),
+                "excluded_time_sec": round(excluded_time, 2),
+                "ideal_cycle_time_sec": round(ideal_cycle_time, 4) if ideal_cycle_time else None,
                 "total_good": total_good,
                 "total_reject": total_reject,
                 "total_rework": total_rework,
-                "total_run_time_sec": round(total_run_time, 2),
-                "avg_ideal_cycle_time_sec": round(avg_cycle_time, 4) if avg_cycle_time else None,
+                "total_count": total_count,
                 "state_log_count": len(logs),
             },
+            "six_big_losses": {
+                "planned_downtime_sec": round(downtime_planned, 2),
+                "unplanned_downtime_sec": round(downtime_unplanned, 2),
+                "speed_loss_sec": round(speed_loss_sec, 2),
+                "quality_loss_count": total_reject + total_rework,
+            },
         }
+
+    @staticmethod
+    async def _resolve_ideal_cycle_time(
+        session: AsyncSession,
+        equipment_id: UUID,
+        counter_avg_cycle_time: float | None,
+    ) -> float:
+        """
+        Determine ideal cycle time in seconds for an equipment.
+
+        Priority:
+        1. EquipmentMaterial.design_speed (Nameplate Capacity) — converted to sec/unit
+        2. ProductionCounter.ideal_cycle_time_sec average (fallback)
+        3. 0.0 (no data available)
+
+        Conversion: If design_speed is 120 EA/h, the denominator UoM (h)
+        has a multiplier to seconds (3600). ideal_cycle_time = 3600 / 120 = 30 sec/unit.
+        """
+        from mes.core.physical_model.models import EquipmentMaterial
+
+        # Look up the first EquipmentMaterial for this equipment.
+        # design_speed_unit (UnitOfMeasure) is eager-loaded via selectin,
+        # and UnitOfMeasure.denominator_uom is also selectin-loaded.
+        em_stmt = (
+            select(EquipmentMaterial)
+            .where(EquipmentMaterial.equipment_id == equipment_id)
+            .limit(1)
+        )
+        em_result = await session.execute(em_stmt)
+        em = em_result.scalar_one_or_none()
+
+        if em is not None and em.design_speed > 0:
+            rate_uom = em.design_speed_unit
+            if rate_uom and rate_uom.denominator_uom:
+                # denominator_uom.multiplier converts to base time unit (seconds)
+                # e.g. "h" has multiplier=3600 → ideal = 3600 / 120 = 30 sec/unit
+                denominator_in_seconds = rate_uom.denominator_uom.multiplier
+                return denominator_in_seconds / em.design_speed
+
+            # Fallback: assume rate is per hour if UoM lookup fails
+            return 3600.0 / em.design_speed
+
+        # Fallback to counter-stored ideal cycle time
+        if counter_avg_cycle_time and counter_avg_cycle_time > 0:
+            return float(counter_avg_cycle_time)
+
+        return 0.0

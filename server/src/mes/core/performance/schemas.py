@@ -284,3 +284,4 @@ class OEEResult(BaseModel):
     quality: float = Field(..., ge=0, le=1, description="0.0 – 1.0")
     oee: float = Field(..., ge=0, description="availability × performance × quality")
     details: dict | None = None
+    six_big_losses: dict | None = None
