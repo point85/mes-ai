@@ -32,3 +32,24 @@ def oee_calculated(
             "oee": oee,
         },
     )
+
+
+def production_counter_updated(
+    equipment_id: str,
+    good_delta: int = 0,
+    reject_delta: int = 0,
+    rework_delta: int = 0,
+    source_plugin: str = "manual",
+) -> MESEvent:
+    """Create an event when production counters are incremented."""
+    return MESEvent(
+        event_type="production.counter.updated",
+        source="performance",
+        payload={
+            "equipment_id": equipment_id,
+            "good_delta": good_delta,
+            "reject_delta": reject_delta,
+            "rework_delta": rework_delta,
+            "source_plugin": source_plugin,
+        },
+    )

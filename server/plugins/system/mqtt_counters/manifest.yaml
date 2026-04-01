@@ -1,0 +1,59 @@
+id: mqtt-counters
+name: MQTT Production Counter Collector
+version: "1.0.0"
+description: >
+  Subscribes to MQTT topics where equipment publishes production count
+  events (good / reject / rework deltas) and forwards them to the
+  ProductionCounterService for OEE tracking.
+
+  Default topic pattern: mes/equipment/{equipment_id}/counters
+
+  Expected JSON payload:
+    {
+      "good_delta": 10,
+      "reject_delta": 1,
+      "rework_delta": 0,
+      "order_id": "optional-uuid"
+    }
+author: MES AI Contributors
+comment: >
+  Requires aiomqtt library. Install with: pip install mes-ai[mqtt]
+  Configure broker via parameters or MES_MQTT_* environment variables.
+category: performance
+origin: system
+min_mes_version: "0.1.0"
+
+extension_points:
+  - type: data_processor
+    name: mqtt_counter_collector
+
+event_subscriptions: []
+dependencies: []
+
+parameters:
+  broker_host:
+    type: string
+    default: "localhost"
+    description: MQTT broker hostname or IP address
+  broker_port:
+    type: integer
+    default: 1883
+    description: MQTT broker port
+  topic_pattern:
+    type: string
+    default: "mes/equipment/+/counters"
+    description: >
+      MQTT topic pattern to subscribe to.
+      The '+' wildcard matches the equipment_id segment.
+  username:
+    type: string
+    default: ""
+    description: MQTT broker username (leave empty for anonymous)
+  password:
+    type: string
+    default: ""
+    description: MQTT broker password
+  qos:
+    type: integer
+    default: 1
+    description: MQTT QoS level for the subscription (0, 1, or 2)

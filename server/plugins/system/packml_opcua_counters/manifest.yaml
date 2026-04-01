@@ -1,0 +1,28 @@
+id: packml-opcua-counters
+name: PackML OPC-UA Production Counters
+version: "1.0.0"
+description: >
+  Subscribes to OPC-UA PackML PackTag nodes (OPC 30050) on equipment servers
+  to collect production counts in real time.  Monitors
+  Admin.ProdProcessedCount (good) and Admin.ProdDefectiveCount (rejected)
+  tags and atomically increments the MES production counter for each
+  equipment.  Requires the asyncua library (pip install mes-ai[opcua]).
+category: performance
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: poll_interval_sec
+    type: number
+    required: false
+    default: 5
+    description: Seconds between subscription polls (data-change driven when possible)
+  - name: subscription_interval_ms
+    type: number
+    required: false
+    default: 1000
+    description: OPC-UA subscription publishing interval in milliseconds
+
+extension_points:
+  - type: data_processor
+    name: packml_opcua_counters

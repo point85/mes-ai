@@ -22,6 +22,7 @@ from pydantic import ValidationError
 from mes.core.performance.events import (
     equipment_state_changed,
     oee_calculated,
+    production_counter_updated,
 )
 from mes.core.performance.exceptions import (
     NoCounterDataException,
@@ -35,6 +36,7 @@ from mes.core.performance.schemas import (
     DISPATCH_CATEGORIES,
     OEE_BUCKETS,
     CounterCreateUpdate,
+    CounterIncrementRequest,
     EquipmentStateLogRead,
     OEEResult,
     ProductionCounterRead,
@@ -367,3 +369,319 @@ class TestServiceAndRouteImports:
         assert "/api/v1/performance/oee" in paths
         assert "/api/v1/performance/equipment-states" in paths
         assert "/api/v1/performance/counters" in paths
+
+
+# ═══════════════════════════════════════════════════════════════════
+# CounterIncrementRequest Schema Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestCounterIncrementRequestSchema:
+    def test_minimal_defaults(self):
+        schema = CounterIncrementRequest(equipment_id=uuid.uuid4())
+        assert schema.good_delta == 0
+        assert schema.reject_delta == 0
+        assert schema.rework_delta == 0
+        assert schema.source == "manual"
+        assert schema.order_id is None
+
+    def test_full_fields(self):
+        eid = uuid.uuid4()
+        oid = uuid.uuid4()
+        schema = CounterIncrementRequest(
+            equipment_id=eid,
+            order_id=oid,
+            good_delta=10,
+            reject_delta=2,
+            rework_delta=1,
+            source="packml-opcua",
+        )
+        assert schema.equipment_id == eid
+        assert schema.order_id == oid
+        assert schema.good_delta == 10
+        assert schema.reject_delta == 2
+        assert schema.rework_delta == 1
+        assert schema.source == "packml-opcua"
+
+    def test_negative_good_delta_fails(self):
+        with pytest.raises(ValidationError):
+            CounterIncrementRequest(equipment_id=uuid.uuid4(), good_delta=-1)
+
+    def test_negative_reject_delta_fails(self):
+        with pytest.raises(ValidationError):
+            CounterIncrementRequest(equipment_id=uuid.uuid4(), reject_delta=-1)
+
+    def test_negative_rework_delta_fails(self):
+        with pytest.raises(ValidationError):
+            CounterIncrementRequest(equipment_id=uuid.uuid4(), rework_delta=-1)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# production_counter_updated Event Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestProductionCounterUpdatedEvent:
+    def test_basic_event(self):
+        ev = production_counter_updated("eq-1", good_delta=5, reject_delta=1)
+        assert ev.event_type == "production.counter.updated"
+        assert ev.source == "performance"
+        assert ev.payload["equipment_id"] == "eq-1"
+        assert ev.payload["good_delta"] == 5
+        assert ev.payload["reject_delta"] == 1
+        assert ev.payload["rework_delta"] == 0
+        assert ev.payload["source_plugin"] == "manual"
+
+    def test_custom_source(self):
+        ev = production_counter_updated("eq-2", source_plugin="mqtt-counters")
+        assert ev.payload["source_plugin"] == "mqtt-counters"
+
+    def test_all_deltas(self):
+        ev = production_counter_updated(
+            "eq-3", good_delta=10, reject_delta=2, rework_delta=3,
+            source_plugin="packml-opcua-counters",
+        )
+        assert ev.payload["good_delta"] == 10
+        assert ev.payload["reject_delta"] == 2
+        assert ev.payload["rework_delta"] == 3
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Service increment_counter Method Exists
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestCounterServiceIncrementMethod:
+    def test_increment_counter_exists(self):
+        from mes.core.performance.service import ProductionCounterService
+        assert hasattr(ProductionCounterService, "increment_counter")
+
+    def test_increment_counter_is_static(self):
+        from mes.core.performance.service import ProductionCounterService
+        import inspect
+        assert isinstance(
+            inspect.getattr_static(ProductionCounterService, "increment_counter"),
+            staticmethod,
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Route — counters/increment endpoint registered
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestCounterIncrementRoute:
+    def test_increment_route_registered(self):
+        from mes.core.performance.routes import router
+        paths = [r.path for r in router.routes]
+        assert "/api/v1/performance/counters/increment" in paths
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Plugin Tests — PackML OPC-UA Counters
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestPackMLOpcuaCountersPlugin:
+    def test_plugin_class_importable(self):
+        from plugins.system.packml_opcua_counters.plugin import PackMLOpcuaCountersPlugin
+        assert PackMLOpcuaCountersPlugin is not None
+
+    def test_plugin_inherits_mesplugin(self):
+        from plugins.system.packml_opcua_counters.plugin import PackMLOpcuaCountersPlugin
+        from mes.framework.plugin.base import MESPlugin
+        assert issubclass(PackMLOpcuaCountersPlugin, MESPlugin)
+
+    @pytest.mark.asyncio
+    async def test_initialize_stores_config(self):
+        from plugins.system.packml_opcua_counters.plugin import PackMLOpcuaCountersPlugin
+        plugin = PackMLOpcuaCountersPlugin()
+        cfg = {"poll_interval_sec": 10, "subscription_interval_ms": 500}
+        await plugin.initialize(cfg)
+        assert plugin._config == cfg
+
+    @pytest.mark.asyncio
+    async def test_stop_idempotent(self):
+        from plugins.system.packml_opcua_counters.plugin import PackMLOpcuaCountersPlugin
+        plugin = PackMLOpcuaCountersPlugin()
+        await plugin.initialize({})
+        await plugin.stop()  # Should not raise even if never started
+
+    def test_equipment_state_tracks_deltas(self):
+        from plugins.system.packml_opcua_counters.plugin import _EquipmentState
+        eid = uuid.uuid4()
+        state = _EquipmentState(eid)
+        assert state.last_good is None
+        assert state.last_reject is None
+        state.last_good = 100
+        state.last_reject = 5
+        assert state.last_good == 100
+
+
+class TestPackMLOpcuaDeltaDetection:
+    """Test delta detection logic without requiring OPC-UA connection."""
+
+    @pytest.mark.asyncio
+    async def test_first_read_sets_baseline_no_increment(self):
+        """First value read should set baseline but not trigger increment."""
+        from unittest.mock import AsyncMock, patch
+        from plugins.system.packml_opcua_counters.plugin import PackMLOpcuaCountersPlugin, _EquipmentState
+
+        plugin = PackMLOpcuaCountersPlugin()
+        await plugin.initialize({})
+        eid = uuid.uuid4()
+        plugin._equipment_states[eid] = _EquipmentState(eid)
+
+        with patch(
+            "mes.framework.db.async_session_factory"
+        ) as mock_factory:
+            await plugin._process_values(eid, 100, 5)
+            # First read — no previous baseline → no DB call
+            mock_factory.assert_not_called()
+
+        assert plugin._equipment_states[eid].last_good == 100
+        assert plugin._equipment_states[eid].last_reject == 5
+
+    @pytest.mark.asyncio
+    async def test_second_read_computes_delta(self):
+        """Second read should compute and send delta."""
+        from unittest.mock import AsyncMock, patch, MagicMock
+        from plugins.system.packml_opcua_counters.plugin import PackMLOpcuaCountersPlugin, _EquipmentState
+
+        plugin = PackMLOpcuaCountersPlugin()
+        await plugin.initialize({})
+        eid = uuid.uuid4()
+        state = _EquipmentState(eid)
+        state.last_good = 100
+        state.last_reject = 5
+        plugin._equipment_states[eid] = state
+
+        mock_session = AsyncMock()
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "mes.framework.db.async_session_factory",
+            return_value=mock_ctx,
+        ), patch(
+            "mes.core.performance.service.ProductionCounterService.increment_counter",
+            new_callable=AsyncMock,
+        ) as mock_inc:
+            await plugin._process_values(eid, 110, 7)
+            mock_inc.assert_awaited_once_with(
+                mock_session,
+                equipment_id=eid,
+                good_delta=10,
+                reject_delta=2,
+                source_plugin="packml-opcua-counters",
+            )
+
+    @pytest.mark.asyncio
+    async def test_no_change_no_increment(self):
+        """If values don't change, no DB call."""
+        from unittest.mock import AsyncMock, patch
+        from plugins.system.packml_opcua_counters.plugin import PackMLOpcuaCountersPlugin, _EquipmentState
+
+        plugin = PackMLOpcuaCountersPlugin()
+        await plugin.initialize({})
+        eid = uuid.uuid4()
+        state = _EquipmentState(eid)
+        state.last_good = 100
+        state.last_reject = 5
+        plugin._equipment_states[eid] = state
+
+        with patch(
+            "mes.framework.db.async_session_factory"
+        ) as mock_factory:
+            await plugin._process_values(eid, 100, 5)
+            mock_factory.assert_not_called()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Plugin Tests — MQTT Counters
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestMQTTCountersPlugin:
+    def test_plugin_class_importable(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        assert MQTTCountersPlugin is not None
+
+    def test_plugin_inherits_mesplugin(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        from mes.framework.plugin.base import MESPlugin
+        assert issubclass(MQTTCountersPlugin, MESPlugin)
+
+    @pytest.mark.asyncio
+    async def test_initialize_stores_config(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        plugin = MQTTCountersPlugin()
+        cfg = {"broker_host": "10.0.0.5", "broker_port": 1883}
+        await plugin.initialize(cfg)
+        assert plugin._config == cfg
+
+    @pytest.mark.asyncio
+    async def test_stop_idempotent(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        plugin = MQTTCountersPlugin()
+        await plugin.initialize({})
+        await plugin.stop()  # Should not raise even if never started
+
+
+class TestMQTTCountersTopicParsing:
+    """Test equipment_id extraction from MQTT topic paths."""
+
+    def test_valid_topic(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        eid = uuid.uuid4()
+        topic = f"mes/equipment/{eid}/counters"
+        result = MQTTCountersPlugin._extract_equipment_id(topic)
+        assert result == eid
+
+    def test_invalid_uuid(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        result = MQTTCountersPlugin._extract_equipment_id("mes/equipment/not-a-uuid/counters")
+        assert result is None
+
+    def test_wrong_suffix(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        eid = uuid.uuid4()
+        result = MQTTCountersPlugin._extract_equipment_id(f"mes/equipment/{eid}/status")
+        assert result is None
+
+    def test_short_topic(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        result = MQTTCountersPlugin._extract_equipment_id("too/short")
+        assert result is None
+
+
+class TestMQTTCountersPayloadParsing:
+    """Test JSON payload parsing for MQTT counter messages."""
+
+    def test_valid_json_bytes(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        raw = b'{"good_delta": 10, "reject_delta": 1}'
+        result = MQTTCountersPlugin._parse_payload(raw)
+        assert result == {"good_delta": 10, "reject_delta": 1}
+
+    def test_valid_json_string(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        raw = '{"good_delta": 5}'
+        result = MQTTCountersPlugin._parse_payload(raw)
+        assert result == {"good_delta": 5}
+
+    def test_invalid_json(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        result = MQTTCountersPlugin._parse_payload(b"not json")
+        assert result is None
+
+    def test_non_object_json(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        result = MQTTCountersPlugin._parse_payload(b"[1, 2, 3]")
+        assert result is None
+
+    def test_empty_bytearray(self):
+        from plugins.system.mqtt_counters.plugin import MQTTCountersPlugin
+        result = MQTTCountersPlugin._parse_payload(bytearray(b"{}"))
+        assert result == {}

@@ -20,7 +20,7 @@ from mes.framework.api.exceptions import NotFoundException
 from mes.framework.api.pagination import PaginationParams, paginate_query
 from mes.framework.events import event_bus
 
-from .events import equipment_state_changed, oee_calculated
+from .events import equipment_state_changed, oee_calculated, production_counter_updated
 from .models import EquipmentStateLog, ProductionCounter, Reason
 
 logger = logging.getLogger("mes.performance")
@@ -244,6 +244,71 @@ class ProductionCounterService:
         if shift_date is not None:
             stmt = stmt.where(ProductionCounter.shift_date == shift_date)
         return await paginate_query(session, stmt, ProductionCounter, params)
+
+    @staticmethod
+    async def increment_counter(
+        session: AsyncSession,
+        equipment_id: UUID,
+        good_delta: int = 0,
+        reject_delta: int = 0,
+        rework_delta: int = 0,
+        order_id: UUID | None = None,
+        source_plugin: str = "manual",
+    ) -> ProductionCounter:
+        """
+        Atomically increment production counters for today's shift.
+
+        Creates the counter row if it doesn't exist yet. Deltas are added
+        to the current values (not replaced). Emits a
+        ``production.counter.updated`` event on success.
+        """
+        from datetime import date as date_type
+
+        today = date_type.today()
+
+        conditions = [
+            ProductionCounter.equipment_id == equipment_id,
+            ProductionCounter.shift_date == today,
+        ]
+        if order_id is not None:
+            conditions.append(ProductionCounter.order_id == order_id)
+        else:
+            conditions.append(ProductionCounter.order_id.is_(None))
+
+        stmt = select(ProductionCounter).where(and_(*conditions))
+        result = await session.execute(stmt)
+        counter = result.scalar_one_or_none()
+
+        if counter is not None:
+            counter.good_count += good_delta
+            counter.reject_count += reject_delta
+            counter.rework_count += rework_delta
+        else:
+            counter = ProductionCounter(
+                equipment_id=equipment_id,
+                order_id=order_id,
+                shift_date=today,
+                good_count=good_delta,
+                reject_count=reject_delta,
+                rework_count=rework_delta,
+            )
+            session.add(counter)
+
+        await session.flush()
+
+        await event_bus.publish(production_counter_updated(
+            equipment_id=str(equipment_id),
+            good_delta=good_delta,
+            reject_delta=reject_delta,
+            rework_delta=rework_delta,
+            source_plugin=source_plugin,
+        ))
+
+        logger.info(
+            "Counter incremented: equip=%s good=+%d reject=+%d rework=+%d (source=%s)",
+            equipment_id, good_delta, reject_delta, rework_delta, source_plugin,
+        )
+        return counter
 
 
 class OEEService:

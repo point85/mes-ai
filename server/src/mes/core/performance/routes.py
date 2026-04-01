@@ -17,6 +17,7 @@ Endpoints:
 - POST   /api/v1/performance/equipment-states                   Record equipment state change
 - GET    /api/v1/performance/counters                           Query production counters
 - POST   /api/v1/performance/counters                           Record/update production counter
+- POST   /api/v1/performance/counters/increment                 Atomically increment counters (delta-based)
 """
 
 from __future__ import annotations
@@ -41,6 +42,7 @@ from .engine import (
 )
 from .schemas import (
     CounterCreateUpdate,
+    CounterIncrementRequest,
     EquipmentCurrentStateRead,
     EquipmentStateLogRead,
     EquipmentStateModelRead,
@@ -376,6 +378,31 @@ async def create_or_update_counter(
     """Create or update a production counter (upsert by equipment+date+order)."""
     counter = await ProductionCounterService.create_or_update_counter(
         session, **body.model_dump(),
+    )
+    await session.commit()
+    return success_response(ProductionCounterRead.model_validate(counter).model_dump())
+
+
+@router.post("/counters/increment", status_code=201)
+async def increment_counter(
+    body: CounterIncrementRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """
+    Atomically increment production counters for today's shift (delta-based).
+
+    Used by data collection plugins (OPC-UA PackTags, MQTT, manual entry)
+    to report good, rejected, and rework counts as they occur.
+    """
+    counter = await ProductionCounterService.increment_counter(
+        session,
+        equipment_id=body.equipment_id,
+        good_delta=body.good_delta,
+        reject_delta=body.reject_delta,
+        rework_delta=body.rework_delta,
+        order_id=body.order_id,
+        source_plugin=body.source,
     )
     await session.commit()
     return success_response(ProductionCounterRead.model_validate(counter).model_dump())

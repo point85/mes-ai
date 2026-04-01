@@ -238,6 +238,17 @@ class CounterCreateUpdate(BaseModel):
     actual_run_time_sec: float | None = Field(None, ge=0)
 
 
+class CounterIncrementRequest(BaseModel):
+    """Schema for atomically incrementing production counters (delta-based)."""
+
+    equipment_id: UUID
+    order_id: UUID | None = None
+    good_delta: int = Field(0, ge=0, description="Good units to add")
+    reject_delta: int = Field(0, ge=0, description="Rejected/defective units to add")
+    rework_delta: int = Field(0, ge=0, description="Rework units to add")
+    source: str = Field("manual", max_length=50, description="Data source (e.g. packml-opcua, mqtt-counter, manual)")
+
+
 class ProductionCounterRead(BaseModel):
     """Schema for returning a production counter."""
 
