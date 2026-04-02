@@ -412,7 +412,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **Area** | `id`, `name`, `code`, `description`, `site_id` | → Site, → ProductionLines |
 | **ProductionLine** | `id`, `name`, `code`, `description`, `area_id` | → Area, → WorkCells |
 | **WorkCell** | `id`, `name`, `code`, `description`, `line_id`, `wc_type` (manual/automated) | → ProductionLine, → Equipment |
-| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `capabilities` (JSON), `state_model_id` (nullable, refs EquipmentStateModel.model_id — null = 100% available) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials |
+| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `capabilities` (JSON), `state_model_id` (nullable, refs EquipmentStateModel.model_id — null = 100% available), `max_queue_depth` (nullable int — max WIP items allowed in queue, null = unlimited) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials |
 | **EquipmentMaterial** | `id`, `equipment_id`, `material_id`, `design_speed`, `design_speed_uom` (FK → UoM rate symbol), `reject_uom` (FK → UoM symbol), `target_oee` (0–100%) | → Equipment, → MaterialDefinition, → UnitOfMeasure (×2) |
 
 #### Product Definition (PROD-DEF)
@@ -423,7 +423,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **BillOfMaterial** | `id`, `product_id`, `version`, `effective_date`, `expiry_date` | → ProductDefinition, → BOMItems |
 | **BOMItem** | `id`, `bom_id`, `material_id`, `quantity`, `uom`, `position` | → BillOfMaterial, → MaterialDefinition |
 | **ProcessRoute** | `id`, `product_id`, `version`, `name`, `description`, `is_default` | → ProductDefinition, → RouteSteps |
-| **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework), `work_cell_id`, `expected_cycle_time_sec` | → ProcessRoute, → WorkCell, → StepParameters |
+| **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework), `work_cell_id`, `expected_cycle_time_sec`, `erp_operation_number` (nullable — ERP operation/step number for outbound reporting, e.g. '0010') | → ProcessRoute, → WorkCell, → StepParameters |
 | **StepParameter** | `id`, `step_id`, `name`, `data_type`, `uom`, `target_value`, `lower_limit`, `upper_limit`, `is_required` | → RouteStep |
 
 > **ISA-95 Route Ownership Boundary**
@@ -461,8 +461,8 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 
 | Entity | Fields | Relations |
 |---|---|---|
-| **Unit** | `id`, `serial_number`, `order_id`, `product_id`, `current_step_id`, `current_equipment_id`, `status` (queued/in_process/completed/scrapped/on_hold), `created_at` | → ProductionOrder, → RouteStep, → Equipment |
-| **Lot** | `id`, `lot_number`, `order_id`, `product_id`, `quantity`, `current_step_id`, `current_equipment_id`, `status` | → ProductionOrder, → RouteStep, → Equipment |
+| **Unit** | `id`, `serial_number`, `order_id`, `product_id`, `material_id`, `current_step_id`, `current_equipment_id`, `status` (queued/in_process/completed/scrapped/on_hold), `created_at` | → ProductionOrder, → MaterialDefinition, → RouteStep, → Equipment |
+| **Lot** | `id`, `lot_number`, `order_id`, `product_id`, `material_id`, `quantity`, `current_step_id`, `current_equipment_id`, `status` | → ProductionOrder, → MaterialDefinition, → RouteStep, → Equipment |
 | **UnitHistory** | `id`, `unit_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `result` (pass/fail/rework), `operator_id`, `data_snapshot` (JSON) | → Unit, → RouteStep, → Equipment |
 | **LotHistory** | `id`, `lot_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `quantity_in`, `quantity_out`, `quantity_scrapped`, `operator_id` | → Lot, → RouteStep, → Equipment |
 
@@ -2174,10 +2174,12 @@ with fields: code (4-char, immutable after create), name, description, OEE bucke
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/dispatch/evaluate` | Evaluate dispatch for a unit/lot (returns recommendation) |
-| `POST` | `/api/v1/dispatch/execute` | Execute a dispatch decision |
+| `POST` | `/api/v1/dispatch/evaluate` | Evaluate dispatch for a unit/lot (returns recommendation with filtered options) |
+| `POST` | `/api/v1/dispatch/execute` | Execute a dispatch decision (re-validates availability + capability + capacity) |
+| `POST` | `/api/v1/dispatch/auto` | Auto-dispatch: evaluate with shortest_queue strategy + execute in one call |
 | `GET` | `/api/v1/dispatch/strategies` | List available dispatch strategies |
 | `GET` | `/api/v1/dispatch/queue/{work_cell_id}` | Get dispatch queue for a work cell |
+| `GET` | `/api/v1/dispatch/equipment/{equipment_id}/status` | Equipment dispatch status (availability, queue depth, capacity, starved/at-capacity flags) |
 
 #### Material Management (MAT-MGMT)
 
@@ -2268,7 +2270,7 @@ with fields: code (4-char, immutable after create), name, description, OEE bucke
 | `POST` | `/api/v1/erp/sync/materials` | Sync material master from ERP |
 | `POST` | `/api/v1/erp/sync/products` | Sync product definitions from ERP |
 | `POST` | `/api/v1/erp/sync/boms?product_id=X` | Sync BOMs for a product |
-| `POST` | `/api/v1/erp/sync/routings?product_id=X` | Sync routings for a product |
+| `POST` | `/api/v1/erp/sync/routings?product_id=X` | Sync routings from ERP and persist to DB (upsert ProcessRoute + RouteStep) |
 | `POST` | `/api/v1/erp/sync/work-centers` | Sync work centers from ERP |
 | `POST` | `/api/v1/erp/report/completion` | Report production completion to ERP |
 | `POST` | `/api/v1/erp/report/consumption` | Report material consumption to ERP |
@@ -2813,11 +2815,11 @@ class MESEvent:
 |---|---|---|
 | `wip.unit.created` | WIP-TRACK | `{unit_id, order_id, serial_number}` |
 | `wip.unit.started` | WIP-TRACK | `{unit_id, step_id, equipment_id}` |
-| `wip.unit.completed` | WIP-TRACK | `{unit_id, step_id, result}` |
+| `wip.unit.completed` | WIP-TRACK | `{unit_id, step_id, equipment_id, result, material_id}` |
 | `wip.unit.moved` | WIP-TRACK | `{unit_id, from_step_id, to_step_id}` |
 | `wip.unit.scrapped` | WIP-TRACK | `{unit_id, step_id, reason}` |
 | `wip.unit.held` | WIP-TRACK | `{unit_id, reason}` |
-| `wip.lot.*` | WIP-TRACK | (Same pattern as unit events) |
+| `wip.lot.*` | WIP-TRACK | (Same pattern as unit events, with `lot_id`, `quantity_out`, `quantity_scrapped`) |
 | `production.order.released` | PROD-ORDER | `{order_id, product_id, quantity}` |
 | `production.order.started` | PROD-ORDER | `{order_id}` |
 | `production.order.completed` | PROD-ORDER | `{order_id, quantity_completed}` |
@@ -2829,7 +2831,9 @@ class MESEvent:
 | `quality.nc.created` | QUAL-MGMT | `{nc_id, unit_id, nc_type}` |
 | `material.consumed` | MAT-MGMT | `{material_lot_id, unit_id, quantity}` |
 | `dispatch.evaluated` | DISPATCH | `{unit_id, strategy, recommendation}` |
-| `dispatch.executed` | DISPATCH | `{unit_id, destination_step_id}` |
+| `dispatch.executed` | DISPATCH | `{unit_id, destination_step_id, destination_equipment_id}` |
+| `dispatch.blocked` | DISPATCH | `{unit_id, lot_id, step_id, reason}` |
+| `dispatch.equipment.starved` | DISPATCH | `{equipment_id, work_cell_id}` |
 | `data.collected` | DATA-COLLECT | `{definition_id, unit_id, value}` |
 | `plugin.loaded` | PLUGIN-FW | `{plugin_id, version}` |
 | `plugin.error` | PLUGIN-FW | `{plugin_id, error}` |
@@ -3000,13 +3004,27 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 
 | Data | MES Source | ERP Destination | Trigger |
 |---|---|---|---|
-| **Production Completion** | WIP-TRACK (unit/lot completes final step) | ERP production confirmation | Event: `wip.unit.completed` at final step |
+| **Production Completion** | WIP-TRACK (unit/lot completes step) | ERP production confirmation | **Auto**: `wip.unit.completed` / `wip.lot.completed` event → `erp/handlers.py` → outbound queue |
 | **Material Consumption** | MAT-MGMT (materials consumed at step) | ERP goods movement (backflush or real-time) | Event: `material.consumed` |
 | **Scrap Reporting** | WIP-TRACK (unit/lot scrapped) | ERP scrap posting | Event: `wip.unit.scrapped` |
 | **Labor Reporting** | DATA-COLLECT (operator time at step) | ERP time confirmation | Event: `wip.unit.completed` (with labor data) |
 | **Equipment Downtime** | PERF-ANALYSIS (equipment state log) | ERP maintenance notification | Event: `equipment.state.changed` (to down) |
 | **Quality Results** | QUAL-MGMT (test pass/fail) | ERP quality notification | Event: `quality.test.failed` |
 | **WIP Status** | WIP-TRACK (current quantities, status) | ERP WIP reporting | Scheduled or on-demand |
+
+> **Event-Driven Outbound Reporting (D045)**
+>
+> Production completion reports are **automatically** enqueued to the ERP outbound retry queue
+> when a unit or lot completes a step. Two event handlers in `mes/adapters/erp/handlers.py`
+> subscribe to `wip.unit.completed` and `wip.lot.completed` events. Each handler:
+>
+> 1. Looks up the `ProductionOrder.erp_reference` to identify the ERP order
+> 2. Looks up `RouteStep.erp_operation_number` to identify the ERP operation
+> 3. Builds a completion report DTO with quantities (good/reject)
+> 4. Enqueues via `ERPOutboundQueueService.enqueue()` for reliable delivery with retry
+>
+> If the production order has no `erp_reference` (e.g. standalone mode), the handler skips silently.
+> The outbound queue handles retries with exponential backoff (30s base, max 5 attempts).
 
 #### 9.2.3a Route & Operation Ownership (ISA-95 Boundary)
 
@@ -3039,12 +3057,26 @@ So why does this MES store `ProcessRoute` and `RouteStep` entities at all?
 ```
 ERP (Level 4)                    MES (Level 3)
 ─────────────                    ─────────────
-Route Master  ──sync_routings()──▶  ROUTE-DEF (local copy)
+Route Master  ──sync_routings()──▶  ROUTE-DEF (local copy persisted via upsert)
+                                        │
+                                    ProcessRoute + RouteStep rows
+                                    (work_center_code → work_cell_id resolved)
+                                    (erp_operation_number populated from sequence)
                                         │
                                    ROUTE-ENGINE (interprets at execution time)
                                         │
+                                   DISPATCH (capability + capacity + availability)
+                                        │
 Cost Posting  ◀──report_completion()──  WIP-TRACK (actuals per step)
+                  (via outbound queue       (erp_reference → order_id,
+                   with retry)               erp_operation_number → operation)
 ```
+
+> **Sync Persistence (D043)**: `POST /api/v1/erp/sync/routings` now persists routes to the
+> database. For each `ProcessRouteDTO`, the service resolves the product by code, upserts
+> `ProcessRoute` (match on product_id + name + version), resolves `work_center_code` →
+> `work_cell_id` via `WorkCell.code`, and upserts `RouteStep` rows (match on route_id +
+> sequence). The first route synced for a product is set as default.
 
 The MES **never** creates routes for new products — it receives them from the ERP via
 `ERPInboundAdapter.sync_routings()`. In standalone / demo mode (no ERP connected), the
@@ -4011,7 +4043,7 @@ The `packml_opcua_counters` and `mqtt_counters` plugins serve as reference imple
 
 ### 10.1 Overview
 
-The dispatching engine determines where a unit or lot moves next after completing a step. It supports both manual and automated dispatching.
+The dispatching engine determines where a unit or lot moves next after completing a step. It supports both manual and automated dispatching. Automated dispatch is triggered by `wip.unit.completed` and `wip.lot.completed` events via event bus handlers.
 
 ### 10.2 Dispatch Strategies
 
@@ -4019,40 +4051,119 @@ The dispatching engine determines where a unit or lot moves next after completin
 |---|---|---|
 | **manual** | Built-in | Operator selects destination from valid options |
 | **first_available** | Built-in | Route to first available equipment at next step |
-| **shortest_queue** | Built-in | Route to equipment with shortest queue |
+| **shortest_queue** | Built-in | Route to equipment with shortest queue (default for auto-dispatch) |
 | **round_robin** | Built-in | Distribute evenly across available equipment |
 | **capability_match** | Built-in | Route based on equipment capability and product requirements |
 | **custom** | Plugin | User-defined strategy via plugin extension point |
 
-### 10.3 Dispatch Flow
+### 10.3 Three-Stage Equipment Filtering
+
+Before any strategy is applied, the dispatch engine filters equipment at the target work cell
+through three mandatory gates. All three must pass for equipment to be considered eligible:
+
+#### 10.3.1 Availability Gate
+
+Checks the equipment's current `EquipmentStateLog` (where `ended_at IS NULL`) for its
+`dispatch_category`. Equipment must have `dispatch_category = "available"` to receive work.
+If no state log exists (no availability plugin installed), equipment is assumed available.
+
+#### 10.3.2 Capability Gate
+
+Checks the `EquipmentMaterial` junction table. Three cases:
+- **No material setups** → equipment is universally capable (accepts any material)
+- **Has material setups** → the WIP's `material_id` must match an `EquipmentMaterial` row
+- **WIP has no material_id** → capability check is skipped (any equipment eligible)
+
+This allows modeling real-world constraints where specific machines are set up for specific
+materials (e.g. a packaging line configured for 500ml bottles cannot run 1L bottles).
+
+#### 10.3.3 Capacity Gate
+
+Checks the current queue depth at each equipment: counts all `Unit` + `Lot` records with
+`status IN (queued, in_process)` at that equipment. Equipment is eligible only if
+`queue_depth < max_queue_depth`. If `max_queue_depth` is `NULL`, the equipment has unlimited
+capacity and always passes.
+
+### 10.4 Dispatch Flow
 
 ```
-Unit completes step
+Unit/Lot completes step
        │
        ▼
-  Get next step(s) from route
+  wip.unit.completed / wip.lot.completed event
+       │
+       ├──────────────────────────────────────┐
+       │                                      │
+       ▼                                      ▼
+  dispatch/handlers.py                    erp/handlers.py
+  auto_dispatch()                         enqueue completion report
        │
        ▼
-  Get eligible equipment at next step(s)
+  Get next step from route (by sequence)
        │
        ▼
-  Apply dispatch strategy
+  Get all Equipment at next step's WorkCell
        │
        ▼
-  ┌────┴────┐
-  │ Manual? │──Yes──▶ Present options to operator → Wait for selection
-  │         │
-  └────┬────┘
-       │ No (automated)
-       ▼
-  Execute dispatch decision
-       │
-       ▼
-  Emit dispatch.executed event
-       │
-       ▼
-  Move unit/lot to destination
+  ┌─── Three-Stage Filter ───┐
+  │ 1. Availability gate     │
+  │ 2. Capability gate       │
+  │ 3. Capacity gate         │
+  └───────────┬───────────────┘
+              │
+        Options remain?
+       ┌──────┴──────┐
+       │ No          │ Yes
+       ▼             ▼
+  Emit             Apply dispatch strategy
+  dispatch.blocked    │
+  event            ┌──┴──┐
+                   │Man? │──Yes──▶ Present options → Wait for selection
+                   └──┬──┘
+                      │ No (automated)
+                      ▼
+                 Execute dispatch decision
+                      │
+                      ▼
+                 Move unit/lot to destination
+                      │
+                      ▼
+                 Emit dispatch.executed event
 ```
+
+### 10.5 Auto-Dispatch
+
+The `auto_dispatch()` method combines evaluate + execute in a single call. It is invoked
+automatically by event handlers when a unit or lot completes a step:
+
+1. **Evaluate** with `shortest_queue` strategy (default for automation)
+2. If a recommendation exists → **execute** the dispatch decision
+3. If no eligible equipment → emit `dispatch.blocked` event, return blocked status
+
+This provides fully automated WIP flow without operator intervention, while still allowing
+manual dispatch via the `POST /dispatch/evaluate` + `POST /dispatch/execute` REST endpoints.
+
+### 10.6 Dispatch Events
+
+| Event | Topic | When |
+|---|---|---|
+| `dispatch.evaluated` | After evaluating dispatch options with strategy ranking |
+| `dispatch.executed` | After WIP is successfully moved to destination equipment |
+| `dispatch.blocked` | No eligible equipment found (all filtered out by availability/capability/capacity) |
+| `dispatch.equipment.starved` | Available equipment has an empty queue (zero WIP items) |
+
+### 10.7 Equipment Status
+
+The `GET /dispatch/equipment/{equipment_id}/status` endpoint returns a composite status view:
+
+| Field | Description |
+|---|---|
+| `dispatch_category` | Current availability category from state model |
+| `queue_depth` | Current unit + lot count at equipment |
+| `max_queue_depth` | Configured limit (null = unlimited) |
+| `is_starved` | `queue_depth == 0` and availability is `available` |
+| `is_at_capacity` | `queue_depth >= max_queue_depth` |
+| `material_setups` | List of configured `EquipmentMaterial` records |
 
 ## 11. Authentication & Authorization (AUTH)
 
