@@ -33,6 +33,7 @@ import mes.core.dispatch.handlers  # registers @event_handler decorators  # noqa
 
 # Integration adapter routers (P4)
 from mes.adapters.erp.routes import router as erp_queue_router
+import mes.adapters.erp.handlers  # registers ERP outbound @event_handler decorators  # noqa: F401
 
 # Plugin management routes
 from mes.framework.plugin.routes import router as plugin_router

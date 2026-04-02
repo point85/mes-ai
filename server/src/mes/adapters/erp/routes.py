@@ -296,10 +296,17 @@ async def sync_boms(
 @router.post("/sync/routings", response_model=dict)
 async def sync_routings(
     product_id: str = Query(..., description="Product code to fetch routings for"),
+    db: AsyncSession = Depends(get_db_session),
 ):
-    """Pull process routings for a specific product from the ERP adapter."""
+    """Pull process routings for a specific product from the ERP adapter and persist to the MES database."""
     adapter = _get_erp_inbound()
     routes = await adapter.sync_routings(product_id)
+
+    # Persist ERP routes → MES ProcessRoute + RouteStep tables
+    from mes.core.product_def.service import ProductDefService
+    await ProductDefService.sync_routes_from_erp(db, routes)
+    await db.commit()
+
     return list_response([r.model_dump(mode="json") for r in routes])
 
 

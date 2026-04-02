@@ -372,3 +372,139 @@ class ProductDefService:
         await session.flush()
         logger.info("Created step parameter %s (%s) for step %s", param.id, param.name, step_id)
         return param
+
+    # ─── ERP Routing Sync ────────────────────────────────────────────
+
+    @staticmethod
+    async def sync_routes_from_erp(
+        session: AsyncSession,
+        route_dtos: list[Any],
+    ) -> list[ProcessRoute]:
+        """
+        Import ERP routing DTOs into the MES database.
+
+        For each ProcessRouteDTO:
+        1. Resolve product by code → ProductDefinition
+        2. Upsert ProcessRoute (match on product_id + name + version)
+        3. Upsert RouteSteps (match on route_id + sequence)
+        4. Resolve work_center_code → work_cell_id via WorkCell.code
+
+        Returns the list of persisted ProcessRoute objects.
+        """
+        from mes.core.physical_model.models import WorkCell
+
+        persisted: list[ProcessRoute] = []
+
+        for dto in route_dtos:
+            # Resolve product by code
+            product_result = await session.execute(
+                select(ProductDefinition).where(
+                    ProductDefinition.code == dto.product_code,
+                    ProductDefinition.is_active.is_(True),
+                )
+            )
+            product = product_result.scalar_one_or_none()
+            if product is None:
+                logger.warning(
+                    "Skipping routing sync: product code '%s' not found in MES",
+                    dto.product_code,
+                )
+                continue
+
+            # Upsert ProcessRoute
+            route_result = await session.execute(
+                select(ProcessRoute).where(
+                    ProcessRoute.product_id == product.id,
+                    ProcessRoute.name == dto.name,
+                    ProcessRoute.version == dto.version,
+                )
+            )
+            route = route_result.scalar_one_or_none()
+
+            if route is None:
+                # Check if this should be default (first route for this product)
+                existing_routes = await session.execute(
+                    select(ProcessRoute).where(
+                        ProcessRoute.product_id == product.id,
+                        ProcessRoute.is_active.is_(True),
+                    )
+                )
+                is_first = existing_routes.scalar_one_or_none() is None
+
+                route = ProcessRoute(
+                    product_id=product.id,
+                    name=dto.name,
+                    version=dto.version,
+                    description=f"Imported from ERP",
+                    is_default=is_first,
+                )
+                session.add(route)
+                await session.flush()
+
+                await event_bus.publish(
+                    route_created(str(route.id), str(product.id), route.name)
+                )
+                logger.info(
+                    "Created route '%s' v%s for product %s from ERP sync",
+                    route.name, route.version, product.code,
+                )
+            else:
+                logger.info(
+                    "Route '%s' v%s already exists for product %s — updating steps",
+                    route.name, route.version, product.code,
+                )
+
+            # Build work_center_code → work_cell_id lookup
+            wc_codes = [
+                s.work_center_code for s in dto.steps if s.work_center_code
+            ]
+            wc_map: dict[str, Any] = {}
+            if wc_codes:
+                wc_result = await session.execute(
+                    select(WorkCell).where(
+                        WorkCell.code.in_(wc_codes),
+                        WorkCell.is_active.is_(True),
+                    )
+                )
+                for wc in wc_result.scalars().all():
+                    wc_map[wc.code] = wc.id
+
+            # Upsert RouteSteps
+            for step_dto in dto.steps:
+                step_result = await session.execute(
+                    select(RouteStep).where(
+                        RouteStep.route_id == route.id,
+                        RouteStep.sequence == step_dto.sequence,
+                    )
+                )
+                step = step_result.scalar_one_or_none()
+
+                work_cell_id = wc_map.get(step_dto.work_center_code) if step_dto.work_center_code else None
+                erp_op = str(step_dto.sequence)
+
+                if step is None:
+                    step = RouteStep(
+                        route_id=route.id,
+                        sequence=step_dto.sequence,
+                        name=step_dto.name,
+                        step_type=step_dto.step_type,
+                        work_cell_id=work_cell_id,
+                        erp_operation_number=erp_op,
+                    )
+                    session.add(step)
+                else:
+                    step.name = step_dto.name
+                    step.step_type = step_dto.step_type
+                    step.work_cell_id = work_cell_id
+                    step.erp_operation_number = erp_op
+
+                if step_dto.work_center_code and step_dto.work_center_code not in wc_map:
+                    logger.warning(
+                        "Work center '%s' not found in MES — step %d work_cell_id left null",
+                        step_dto.work_center_code, step_dto.sequence,
+                    )
+
+            await session.flush()
+            persisted.append(route)
+
+        return persisted

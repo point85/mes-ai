@@ -201,6 +201,10 @@ class RouteStep(BaseModel):
         Float, nullable=True,
         comment="Expected cycle time in seconds for performance analysis",
     )
+    erp_operation_number: Mapped[str | None] = mapped_column(
+        String(50), nullable=True,
+        comment="ERP operation/step number for outbound reporting (e.g. '0010', '0020')",
+    )
 
     # Relationships
     route: Mapped["ProcessRoute"] = relationship(

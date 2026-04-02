@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-03-24",
-  "lastSessionId": "S022",
+  "lastUpdated": "2026-04-01",
+  "lastSessionId": "S023",
 
   "phases": [
     {
@@ -162,7 +162,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete (Integration Adapters + SAP S/4HANA ERP + Oracle Cloud ERP + OPC-UA + MQTT equipment vendor adapters + SAP ERP Simulator). P5 DT-CLIENT editors complete. Plugin system redesigned: two-directory structure (system/user), full lifecycle (available→installed→enabled/disabled→uninstalled), manifest parameters (required/optional/secret), REST API with install/uninstall/enable/disable endpoints, CLI commands, DT-CLIENT UI with Available/Installed tabs and parameter forms. S020: Unified adapter-plugin architecture. S021: SAP ERP Simulator plugin (55 tests). ERP Simulator GUI client. 13 new ERP REST API endpoints. S022: ERP Simulator GUI improvements — material type display fix (SAP Type column), MATERIAL_TYPES expanded to 7, DB persistence for simulator CRUD/sync, shared ERP-agnostic UOM normalization utility (uom_mapping.py), applied to all SAP+Oracle transform UOM fields. 1063 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator complete. S023: ERP route sync now persists to DB (upsert ProcessRoute+RouteStep). RouteStep.erp_operation_number added for ERP outbound mapping. WIP completion events (lot/unit) auto-enqueue ERP outbound reports via event handlers. 1338 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -450,6 +450,24 @@
       "date": "2026-03-24",
       "decision": "ERP Simulator GUI material CRUD now persists to database. Sync endpoint upserts (create/update/reactivate). Create/update/delete endpoints call MaterialService. Delete is soft-delete via MaterialService.delete_material().",
       "rationale": "Simulator materials only existed in memory. Sync, create, update, and delete must persist to DB so materials appear in DT-CLIENT and other modules that query material_definitions table."
+    },
+    {
+      "id": "D043",
+      "date": "2026-04-01",
+      "decision": "ERP route sync persists to MES database via upsert (match on product_id+name+version for routes, route_id+sequence for steps). ERP owns route creation; MES holds execution copy with work_cell_id and parameters.",
+      "rationale": "ISA-95 Level 3/4 boundary: ERP defines WHAT operations; MES adds WHERE (work_cell_id) and HOW (parameters, cycle times). Sync endpoint converts ProcessRouteDTO list to MES ProcessRoute+RouteStep rows."
+    },
+    {
+      "id": "D044",
+      "date": "2026-04-01",
+      "decision": "RouteStep.erp_operation_number (String(50), nullable) maps MES steps back to ERP operations for outbound reporting. Populated automatically during sync from ERP.",
+      "rationale": "ERP outbound completion reports require the ERP operation number to post against the correct cost center/routing step. This field bridges MES execution steps to ERP costing operations."
+    },
+    {
+      "id": "D045",
+      "date": "2026-04-01",
+      "decision": "WIP completion events (wip.lot.completed, wip.unit.completed) auto-enqueue ERP outbound completion reports via event bus handlers. No manual reporting needed.",
+      "rationale": "Event-driven approach ensures every production completion is reported to ERP without operator intervention. Handlers look up ProductionOrder.erp_reference and RouteStep.erp_operation_number to build the completion report, then enqueue to the outbound retry queue."
     }
   ],
 

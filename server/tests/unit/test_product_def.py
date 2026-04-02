@@ -291,6 +291,7 @@ class TestRouteStepSchemas:
         assert schema.step_type == "production"
         assert schema.work_cell_id is None
         assert schema.expected_cycle_time_sec is None
+        assert schema.erp_operation_number is None
 
     def test_step_create_invalid_type(self):
         with pytest.raises(Exception):
@@ -338,6 +339,60 @@ class TestStepParameterSchemas:
     def test_param_create_boolean_type(self):
         schema = StepParameterCreate(name="Pass/Fail", data_type="boolean")
         assert schema.data_type == "boolean"
+
+
+# ─── ERP Operation Number tests ──────────────────────────────────────
+
+
+class TestRouteStepERPFields:
+    def test_step_create_with_erp_operation_number(self):
+        schema = RouteStepCreate(
+            sequence=10,
+            name="Machining",
+            erp_operation_number="0010",
+        )
+        assert schema.erp_operation_number == "0010"
+
+    def test_step_read_with_erp_operation_number(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        schema = RouteStepRead(
+            id=uuid.uuid4(),
+            route_id=uuid.uuid4(),
+            sequence=20,
+            name="Assembly",
+            step_type="production",
+            erp_operation_number="0020",
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.erp_operation_number == "0020"
+
+    def test_step_read_erp_operation_number_default_none(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        schema = RouteStepRead(
+            id=uuid.uuid4(),
+            route_id=uuid.uuid4(),
+            sequence=10,
+            name="Step",
+            step_type="production",
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.erp_operation_number is None
+
+    def test_step_update_erp_operation_number(self):
+        schema = RouteStepUpdate(erp_operation_number="0030")
+        assert schema.erp_operation_number == "0030"
+
+    def test_route_step_model_has_erp_operation_number(self):
+        col_names = {c.key for c in RouteStep.__mapper__.columns}
+        assert "erp_operation_number" in col_names
+
+    def test_service_has_sync_method(self):
+        from mes.core.product_def.service import ProductDefService
+        assert hasattr(ProductDefService, "sync_routes_from_erp")
 
     def test_param_create_enum_type(self):
         schema = StepParameterCreate(name="Color", data_type="enum")

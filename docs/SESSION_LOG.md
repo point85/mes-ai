@@ -1464,7 +1464,74 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 - **984 tests passing**, no regressions.
 - End users have a complete reference plugin showing how to build, configure, and test custom plugins.
 
-**Ready for next work:**
+---
+
+## Session S023 — 2026-04-01
+
+**Phase**: P4/P5 — Integration Adapters / Client Implementations  
+**Objective**: Product routing — ERP route sync to DB, ERP outbound auto-reporting on WIP transitions
+
+### What Happened
+
+#### 1. ERP Route Sync Persistence
+- `POST /api/v1/erp/sync/routings` previously fetched routes from the ERP adapter but did NOT save them to the database.
+- Added `sync_routes_from_erp()` static method to `ProductDefService`:
+  - Resolves product by code, upserts `ProcessRoute` (match on product_id + name + version)
+  - Builds `work_center_code → work_cell_id` lookup via `WorkCell.code`
+  - Upserts `RouteStep` rows (match on route_id + sequence), populates `erp_operation_number`
+  - Sets first route as default. Logs warnings for missing products/work centers.
+- Updated `sync_routings` endpoint to accept `AsyncSession`, call `sync_routes_from_erp()`, and commit.
+
+#### 2. RouteStep ERP Operation Mapping
+- Added `erp_operation_number` column (String(50), nullable) to `RouteStep` model.
+- Updated `RouteStepCreate`, `RouteStepRead`, `RouteStepUpdate` schemas.
+- Created Alembic migration `20260401_1100_b2c3d4e5f6a8`.
+
+#### 3. ERP Outbound Auto-Reporting via WIP Events
+- Created `mes/adapters/erp/handlers.py` with two `@event_handler` functions:
+  - `on_lot_completed_erp_report("wip.lot.completed")`: Looks up Lot → ProductionOrder.erp_reference → RouteStep.erp_operation_number, enqueues completion report with qty_good/qty_reject.
+  - `on_unit_completed_erp_report("wip.unit.completed")`: Same pattern for units (qty_good=1 if pass, else qty_reject=1).
+- Both handlers use independent DB sessions and skip silently if no `erp_reference` exists.
+- Registered handlers via import in `main.py`.
+
+#### 4. Design Decisions
+- **MES routes are needed**: ERP defines WHAT operations; MES adds WHERE (work_cell_id) and HOW (parameters, cycle times).
+- **Step transitions are the right trigger**: `wip.lot.completed` / `wip.unit.completed` events auto-enqueue outbound reports to the ERP outbound queue with retry.
+
+#### 5. Tests
+- 14 new unit tests across `test_product_def.py` (6) and `test_erp_adapters.py` (8).
+- **1338 total tests passing**, no regressions.
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D043 | ERP route sync persists to MES database via upsert (match on product_id+name+version for routes, route_id+sequence for steps). ERP owns route creation; MES holds execution copy with work_cell_id and parameters. |
+| D044 | RouteStep.erp_operation_number maps MES steps back to ERP operations for outbound reporting. Populated automatically during sync from ERP. |
+| D045 | WIP completion events (wip.lot.completed, wip.unit.completed) auto-enqueue ERP outbound completion reports. No manual reporting needed — event-driven via event bus handlers. |
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `server/src/mes/adapters/erp/handlers.py` | ERP outbound event handlers for lot/unit completion |
+| `server/alembic/versions/20260401_1100_b2c3d4e5f6a8_add_erp_operation_number_to_route_steps.py` | Migration for erp_operation_number column |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/core/product_def/models.py` | Added `erp_operation_number` to RouteStep |
+| `server/src/mes/core/product_def/schemas.py` | Added `erp_operation_number` to Create/Read/Update schemas |
+| `server/src/mes/core/product_def/service.py` | Added `sync_routes_from_erp()` method |
+| `server/src/mes/adapters/erp/routes.py` | Updated `sync_routings` endpoint to persist to DB |
+| `server/src/mes/main.py` | Registered ERP outbound event handlers |
+| `server/tests/unit/test_product_def.py` | 6 new tests for ERP operation number and sync |
+| `server/tests/unit/test_erp_adapters.py` | 8 new tests for handlers and DTO mapping |
+| `docs/PROJECT_STATE.json` | S023, D043-D045, 1338 tests |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- ERP route sync to DB fully implemented and tested.
+- ERP outbound auto-reporting on WIP transitions fully implemented and tested.
+- **1338 tests passing**, no regressions.
 1. **More vendor adapters** — Modbus TCP equipment, D365 F&O ERP, Infor M3 ERP
 2. **P5 continued: RT-GUI** — Runtime operator client
 3. **P6: Testing & CI** — GitHub Actions pipeline, integration tests

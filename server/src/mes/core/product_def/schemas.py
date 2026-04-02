@@ -174,6 +174,7 @@ class RouteStepCreate(BaseModel):
     step_type: str = Field("production", pattern=r"^(production|inspection|rework)$")
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
+    erp_operation_number: str | None = Field(None, max_length=50, description="ERP operation number for outbound reporting")
 
 
 class RouteStepRead(BaseModel):
@@ -186,6 +187,7 @@ class RouteStepRead(BaseModel):
     step_type: str
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = None
+    erp_operation_number: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -201,6 +203,7 @@ class RouteStepUpdate(BaseModel):
     step_type: str | None = Field(None, pattern=r"^(production|inspection|rework)$")
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
+    erp_operation_number: str | None = Field(None, max_length=50)
 
 
 # ─── StepParameter ───────────────────────────────────────────────────

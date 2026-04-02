@@ -385,6 +385,73 @@ class TestMockERPOutboundAdapter:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# ERP Outbound Handler Registration Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestERPOutboundHandlers:
+    def test_handlers_module_importable(self):
+        import mes.adapters.erp.handlers  # noqa: F401
+
+    def test_event_handlers_registered(self):
+        from mes.framework.events.decorators import get_registered_handlers
+        handlers = get_registered_handlers()
+        event_types = [h[0] for h in handlers]
+        # ERP handlers subscribe to completion events
+        assert "wip.lot.completed" in event_types
+        assert "wip.unit.completed" in event_types
+
+    def test_handler_functions_exist(self):
+        import inspect
+        from mes.adapters.erp.handlers import (
+            on_lot_completed_erp_report,
+            on_unit_completed_erp_report,
+        )
+        assert inspect.iscoroutinefunction(on_lot_completed_erp_report)
+        assert inspect.iscoroutinefunction(on_unit_completed_erp_report)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ProcessRouteDTO → MES Route Mapping Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestProcessRouteDTOMapping:
+    def test_route_dto_with_steps(self):
+        dto = ProcessRouteDTO(
+            product_code="FG-WIDGET-100",
+            name="50000001",
+            version="01",
+            steps=[
+                RouteStepDTO(sequence=10, name="Cut", step_type="production", work_center_code="WC-CUT-01"),
+                RouteStepDTO(sequence=20, name="Test", step_type="inspection", work_center_code="WC-TEST-01"),
+            ],
+        )
+        assert dto.product_code == "FG-WIDGET-100"
+        assert len(dto.steps) == 2
+        assert dto.steps[0].work_center_code == "WC-CUT-01"
+        assert dto.steps[1].step_type == "inspection"
+
+    def test_route_step_dto_defaults(self):
+        step = RouteStepDTO(sequence=1, name="Step 1")
+        assert step.step_type == "production"
+        assert step.work_center_code is None
+        assert step.description == ""
+
+    def test_route_dto_metadata(self):
+        dto = ProcessRouteDTO(
+            product_code="P1",
+            name="R1",
+            metadata={"plant": "1000"},
+        )
+        assert dto.metadata["plant"] == "1000"
+
+    def test_route_step_sequence_validation(self):
+        with pytest.raises(ValidationError):
+            RouteStepDTO(sequence=0, name="Bad")
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Exceptions
 # ═══════════════════════════════════════════════════════════════════
 
