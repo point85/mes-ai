@@ -5,9 +5,11 @@ Provides runtime logic for:
 - Determining the first step in a route
 - Determining the next step for a unit/lot given the current step
 - Resolving the assigned route for a production order
+- Graph-based routing via StepTransition edges (rework, MRB, conditional)
+- Fallback to linear sequence-based routing when no transitions are defined
 
-Route definition models (ProcessRoute, RouteStep, StepParameter) live in
-the product_def module since they are tightly coupled to ProductDefinition.
+Route definition models (ProcessRoute, RouteStep, StepParameter, StepTransition)
+live in the product_def module since they are tightly coupled to ProductDefinition.
 """
 
 from __future__ import annotations
@@ -19,21 +21,34 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mes.core.product_def.models import ProcessRoute, RouteStep
+from mes.core.product_def.models import ProcessRoute, RouteStep, StepTransition
 from mes.core.production.models import ProductionOrder
 from mes.framework.api.exceptions import NotFoundException
 from mes.core.wip.exceptions import NoRouteAssignedException, NoNextStepException
 
 logger = logging.getLogger("mes.routing")
 
+# Result values that map to transition conditions
+_RESULT_TO_CONDITION: dict[str, str] = {
+    "pass": "on_pass",
+    "fail": "on_fail",
+    "rework": "on_rework",
+}
+
 
 class RoutingEngineService:
     """
     Runtime routing engine — resolves step progression for WIP.
 
-    Route steps are ordered by their `sequence` field.
-    The engine finds the current step's position and returns the next step
-    in sequence order, or None if the current step is the last one.
+    Two routing modes:
+    1. **Graph routing** (preferred): When the current step has outgoing
+       StepTransition records, the engine evaluates them against the step
+       completion result to pick the next step.
+    2. **Linear fallback**: When no transitions are defined for a step,
+       the engine falls back to the next step by ascending sequence number.
+
+    For MRB / disposition steps, the caller must supply a disposition label
+    that matches a StepTransition.label to select the correct path.
     """
 
     @staticmethod
@@ -121,21 +136,127 @@ class RoutingEngineService:
         session: AsyncSession,
         order_id: UUID,
         current_step_id: UUID | None,
+        result: str | None = None,
+        disposition: str | None = None,
     ) -> RouteStep | None:
         """
         Determine the next step after current_step_id in the order's route.
 
-        Returns None if current_step_id is the last step (unit/lot is complete).
-        If current_step_id is None, returns the first step.
+        Args:
+            session:         DB session
+            order_id:        The production order ID (for route resolution)
+            current_step_id: Current step (None → returns first step)
+            result:          Step completion result: 'pass', 'fail', 'rework'
+                             Used to evaluate conditional transitions.
+            disposition:     Operator-selected label for MRB/disposition steps.
+                             Must match a StepTransition.label exactly.
+
+        Returns:
+            The next RouteStep, or None if the route is complete.
+
+        Routing priority:
+        1. If transitions exist for current step → evaluate graph transitions
+        2. If no transitions → fall back to linear sequence ordering
         """
         if current_step_id is None:
             return await RoutingEngineService.get_first_step(session, order_id)
 
         route = await RoutingEngineService.get_route_for_order(session, order_id)
+
+        # Load outgoing transitions for the current step
+        trans_stmt = (
+            select(StepTransition)
+            .where(
+                StepTransition.from_step_id == current_step_id,
+                StepTransition.is_active.is_(True),
+            )
+            .order_by(StepTransition.priority.desc())
+        )
+        trans_result = await session.execute(trans_stmt)
+        transitions = list(trans_result.scalars().all())
+
+        if transitions:
+            next_step = await RoutingEngineService._resolve_graph_transition(
+                session, transitions, result, disposition,
+            )
+            if next_step is not None:
+                logger.info(
+                    "Graph routing: step %s → %s (result=%s, disposition=%s)",
+                    current_step_id, next_step.id, result, disposition,
+                )
+                return next_step
+
+        # Fallback: linear sequence-based routing
+        return await RoutingEngineService._resolve_linear_next(
+            route, current_step_id,
+        )
+
+    @staticmethod
+    async def _resolve_graph_transition(
+        session: AsyncSession,
+        transitions: list[StepTransition],
+        result: str | None,
+        disposition: str | None,
+    ) -> RouteStep | None:
+        """
+        Evaluate transition edges to find the matching next step.
+
+        Evaluation order (highest priority first):
+        1. Disposition match: condition='disposition' AND label matches
+        2. Result match: condition matches the result (on_pass/on_fail/on_rework)
+        3. Always: condition='always'
+        4. Default: is_default=True
+
+        Returns None only if no transition matches (caller falls back to linear).
+        """
+        result_condition = _RESULT_TO_CONDITION.get(result or "", "")
+        disposition_match: StepTransition | None = None
+        result_match: StepTransition | None = None
+        always_match: StepTransition | None = None
+        default: StepTransition | None = None
+
+        for t in transitions:
+            # Collect disposition matches (highest priority)
+            if disposition and t.condition == "disposition" and t.label == disposition:
+                if disposition_match is None:
+                    disposition_match = t
+
+            # Collect result-based matches
+            elif result_condition and t.condition == result_condition:
+                if result_match is None:
+                    result_match = t
+
+            # Collect always (unconditional) matches
+            elif t.condition == "always":
+                if always_match is None:
+                    always_match = t
+
+            # Track the default fallback
+            if t.is_default and default is None:
+                default = t
+
+        # Priority: disposition > result > always > default
+        chosen = disposition_match or result_match or always_match or default
+        if chosen is None:
+            return None
+
+        # Load the target step
+        step_stmt = select(RouteStep).where(
+            RouteStep.id == chosen.to_step_id,
+            RouteStep.is_active.is_(True),
+        )
+        step_result = await session.execute(step_stmt)
+        return step_result.scalar_one_or_none()
+
+    @staticmethod
+    async def _resolve_linear_next(
+        route: ProcessRoute,
+        current_step_id: UUID,
+    ) -> RouteStep | None:
+        """Fall back to next step by ascending sequence number."""
         steps = sorted(route.steps, key=lambda s: s.sequence)
         active_steps = [s for s in steps if s.is_active]
 
-        # Find current step's position
         current_index = None
         for i, step in enumerate(active_steps):
             if step.id == current_step_id:
@@ -143,18 +264,43 @@ class RoutingEngineService:
                 break
 
         if current_index is None:
-            # Current step not found in route — treat as complete
             logger.warning(
                 "Step %s not found in route %s — returning None (complete)",
                 current_step_id, route.id,
             )
             return None
 
-        # Return next step or None if at end
         next_index = current_index + 1
         if next_index < len(active_steps):
             return active_steps[next_index]
         return None
+
+    @staticmethod
+    async def get_available_dispositions(
+        session: AsyncSession,
+        step_id: UUID,
+    ) -> list[dict[str, str]]:
+        """
+        Return the disposition choices available at a step.
+
+        Used by MRB / disposition steps where the operator must choose
+        the exit path. Returns a list of {label, to_step_id} dicts.
+        """
+        stmt = (
+            select(StepTransition)
+            .where(
+                StepTransition.from_step_id == step_id,
+                StepTransition.condition == "disposition",
+                StepTransition.is_active.is_(True),
+            )
+            .order_by(StepTransition.priority.desc())
+        )
+        result = await session.execute(stmt)
+        transitions = result.scalars().all()
+        return [
+            {"label": t.label or "(unlabeled)", "to_step_id": str(t.to_step_id)}
+            for t in transitions
+        ]
 
     @staticmethod
     async def get_route_steps(

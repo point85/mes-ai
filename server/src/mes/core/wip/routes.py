@@ -133,7 +133,12 @@ async def move_unit(
 ):
     """Move a unit to the next step (or a specific target step)."""
     target = body.target_step_id if body else None
-    unit = await UnitService.move_unit(session, unit_id, target_step_id=target)
+    result = body.result if body else None
+    disposition = body.disposition if body else None
+    unit = await UnitService.move_unit(
+        session, unit_id, target_step_id=target,
+        result=result, disposition=disposition,
+    )
     await session.commit()
     return success_response(UnitRead.model_validate(unit).model_dump())
 
@@ -277,7 +282,12 @@ async def move_lot(
 ):
     """Move a lot to the next step (or a specific target step)."""
     target = body.target_step_id if body else None
-    lot = await LotService.move_lot(session, lot_id, target_step_id=target)
+    result = body.result if body else None
+    disposition = body.disposition if body else None
+    lot = await LotService.move_lot(
+        session, lot_id, target_step_id=target,
+        result=result, disposition=disposition,
+    )
     await session.commit()
     return success_response(LotRead.model_validate(lot).model_dump())
 

@@ -25,6 +25,7 @@ from mes.core.product_def.models import (
     ProductDefinition,
     RouteStep,
     StepParameter,
+    StepTransition,
 )
 from mes.core.product_def.schemas import (
     BOMCreate,
@@ -43,6 +44,9 @@ from mes.core.product_def.schemas import (
     RouteUpdate,
     StepParameterCreate,
     StepParameterRead,
+    StepTransitionCreate,
+    StepTransitionRead,
+    StepTransitionUpdate,
 )
 
 
@@ -70,11 +74,14 @@ class TestProductDefModels:
     def test_step_parameter_tablename(self):
         assert StepParameter.__tablename__ == "step_parameters"
 
+    def test_step_transition_tablename(self):
+        assert StepTransition.__tablename__ == "step_transitions"
+
     def test_all_models_inherit_base_columns(self):
         """All product def entities must have id, created_at, updated_at, is_active."""
         for model_cls in [
             ProductDefinition, BillOfMaterial, BOMItem,
-            ProcessRoute, RouteStep, StepParameter,
+            ProcessRoute, RouteStep, StepParameter, StepTransition,
         ]:
             mapper = model_cls.__mapper__
             col_names = {c.key for c in mapper.columns}
@@ -104,6 +111,19 @@ class TestProductDefModels:
     def test_step_has_parameters_relationship(self):
         rels = {r.key for r in RouteStep.__mapper__.relationships}
         assert "parameters" in rels
+
+    def test_step_has_outgoing_transitions_relationship(self):
+        rels = {r.key for r in RouteStep.__mapper__.relationships}
+        assert "outgoing_transitions" in rels
+
+    def test_step_has_incoming_transitions_relationship(self):
+        rels = {r.key for r in RouteStep.__mapper__.relationships}
+        assert "incoming_transitions" in rels
+
+    def test_step_transition_has_from_and_to_step_relationships(self):
+        rels = {r.key for r in StepTransition.__mapper__.relationships}
+        assert "from_step" in rels
+        assert "to_step" in rels
 
 
 # ─── ProductDefinition schema tests ──────────────────────────────────
@@ -309,6 +329,10 @@ class TestRouteStepSchemas:
     def test_step_create_zero_sequence_rejected(self):
         with pytest.raises(Exception):
             RouteStepCreate(sequence=0, name="Bad")
+
+    def test_step_create_mrb_type(self):
+        schema = RouteStepCreate(sequence=30, name="MRB Review", step_type="mrb")
+        assert schema.step_type == "mrb"
 
 
 # ─── StepParameter schema tests ──────────────────────────────────────

@@ -40,6 +40,9 @@ from .schemas import (
     RouteUpdate,
     StepParameterCreate,
     StepParameterRead,
+    StepTransitionCreate,
+    StepTransitionRead,
+    StepTransitionUpdate,
 )
 from .service import ProductDefService
 
@@ -343,3 +346,75 @@ async def create_step_parameter(
     param = await svc.create_step_parameter(session, step_id, **body.model_dump())
     await session.commit()
     return success_response(StepParameterRead.model_validate(param).model_dump())
+
+
+# ─── Step Transitions ────────────────────────────────────────────────
+
+
+@router.get("/steps/{step_id}/transitions")
+async def list_step_transitions(
+    step_id: UUID,
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """List outgoing transitions for a step."""
+    items, cursor, has_more = await svc.list_step_transitions(session, step_id, params)
+    return list_response(
+        [StepTransitionRead.model_validate(t).model_dump() for t in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
+
+
+@router.post("/steps/{step_id}/transitions", status_code=201)
+async def create_step_transition(
+    step_id: UUID,
+    body: StepTransitionCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.create")),
+):
+    """Create an outgoing transition from a step (route graph edge)."""
+    transition = await svc.create_step_transition(
+        session, step_id, **body.model_dump(),
+    )
+    await session.commit()
+    return success_response(StepTransitionRead.model_validate(transition).model_dump())
+
+
+@router.get("/transitions/{transition_id}")
+async def get_step_transition(
+    transition_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """Get a step transition by ID."""
+    transition = await svc.get_step_transition(session, transition_id)
+    return success_response(StepTransitionRead.model_validate(transition).model_dump())
+
+
+@router.put("/transitions/{transition_id}")
+async def update_step_transition(
+    transition_id: UUID,
+    body: StepTransitionUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.update")),
+):
+    """Update a step transition."""
+    transition = await svc.update_step_transition(
+        session, transition_id, **body.model_dump(exclude_unset=True),
+    )
+    await session.commit()
+    return success_response(StepTransitionRead.model_validate(transition).model_dump())
+
+
+@router.delete("/transitions/{transition_id}", status_code=204)
+async def delete_step_transition(
+    transition_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Delete a step transition."""
+    await svc.delete_step_transition(session, transition_id)
+    await session.commit()

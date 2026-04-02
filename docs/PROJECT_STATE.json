@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-04-02",
-  "lastSessionId": "S024",
+  "lastSessionId": "S025",
 
   "phases": [
     {
@@ -167,7 +167,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator complete. S024: Equipment Availability Simulator finished — 6 tabs (Dashboard, Equipment, State History, OEE Analysis, Auto-Simulator, State Models), shared equipment context, hierarchy pickers, OEE gauge cards, auto-random-transition engine. 90 modules, 268KB JS. 1338 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S025: Step Transitions (graph routing) implemented — StepTransition model, DTOs, REST endpoints, graph-aware routing engine with disposition/result/always/default evaluation, WIP service pass-through, Alembic migration. 1381 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -200,6 +200,7 @@
       "SAP-SIMULATOR": { "name": "SAP ERP Simulator Plugin",         "phase": "P4", "status": "implemented" },
       "ERP-SIM-GUI":   { "name": "ERP Simulator GUI Client",         "phase": "P5", "status": "implemented" },
       "AVAIL-SIM":    { "name": "Equipment Availability Simulator GUI", "phase": "P5", "status": "implemented" },
+      "STEP-TRANS":   { "name": "Step Transitions (Graph Routing)",     "phase": "P3", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },
@@ -474,6 +475,12 @@
       "date": "2026-04-01",
       "decision": "WIP completion events (wip.lot.completed, wip.unit.completed) auto-enqueue ERP outbound completion reports via event bus handlers. No manual reporting needed.",
       "rationale": "Event-driven approach ensures every production completion is reported to ERP without operator intervention. Handlers look up ProductionOrder.erp_reference and RouteStep.erp_operation_number to build the completion report, then enqueue to the outbound retry queue."
+    },
+    {
+      "id": "D046",
+      "date": "2026-04-02",
+      "decision": "Step Transitions: StepTransition model (from_step_id, to_step_id, condition, is_default, priority, label) enables graph-based routing with rework loops, MRB branches, and disposition-driven paths. Conditions: always, on_pass, on_fail, on_rework, disposition. Evaluation priority: disposition > result > always > default. Linear sequence fallback when no transitions defined. REST CRUD under /steps/{id}/transitions.",
+      "rationale": "Linear-only routing cannot model rework loops, MRB disposition, or conditional branching. Graph-based transitions with condition evaluation and linear fallback preserve backward compatibility while enabling real manufacturing process flows."
     }
   ],
 

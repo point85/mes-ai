@@ -171,7 +171,7 @@ class RouteStepCreate(BaseModel):
 
     sequence: int = Field(..., ge=1)
     name: str = Field(..., min_length=1, max_length=255)
-    step_type: str = Field("production", pattern=r"^(production|inspection|rework)$")
+    step_type: str = Field("production", pattern=r"^(production|inspection|rework|mrb)$")
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50, description="ERP operation number for outbound reporting")
@@ -200,7 +200,7 @@ class RouteStepUpdate(BaseModel):
 
     sequence: int | None = Field(None, ge=1)
     name: str | None = Field(None, min_length=1, max_length=255)
-    step_type: str | None = Field(None, pattern=r"^(production|inspection|rework)$")
+    step_type: str | None = Field(None, pattern=r"^(production|inspection|rework|mrb)$")
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50)
@@ -250,3 +250,49 @@ class StepParameterUpdate(BaseModel):
     lower_limit: str | None = None
     upper_limit: str | None = None
     is_required: bool | None = None
+
+
+# ─── StepTransition ──────────────────────────────────────────────────
+
+
+class StepTransitionCreate(BaseModel):
+    """Schema for creating a step transition (route graph edge)."""
+
+    to_step_id: UUID
+    condition: str = Field(
+        "always",
+        pattern=r"^(always|on_pass|on_fail|on_rework|disposition)$",
+    )
+    is_default: bool = False
+    priority: int = Field(0, ge=0)
+    label: str | None = Field(None, max_length=255)
+
+
+class StepTransitionRead(BaseModel):
+    """Schema for returning step transition data."""
+
+    id: UUID
+    from_step_id: UUID
+    to_step_id: UUID
+    condition: str
+    is_default: bool
+    priority: int
+    label: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class StepTransitionUpdate(BaseModel):
+    """Schema for updating a step transition."""
+
+    to_step_id: UUID | None = None
+    condition: str | None = Field(
+        None,
+        pattern=r"^(always|on_pass|on_fail|on_rework|disposition)$",
+    )
+    is_default: bool | None = None
+    priority: int | None = Field(None, ge=0)
+    label: str | None = Field(None, max_length=255)

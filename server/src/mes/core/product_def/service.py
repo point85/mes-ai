@@ -2,7 +2,7 @@
 PROD-DEF: Business logic service for the product definition domain.
 
 Provides CRUD operations for ProductDefinition, BillOfMaterial, BOMItem,
-ProcessRoute, RouteStep, StepParameter.
+ProcessRoute, RouteStep, StepParameter, StepTransition.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from .models import (
     ProductDefinition,
     RouteStep,
     StepParameter,
+    StepTransition,
 )
 
 logger = logging.getLogger("mes.product_def")
@@ -508,3 +509,85 @@ class ProductDefService:
             persisted.append(route)
 
         return persisted
+
+    # ─── StepTransition operations ───────────────────────────────────
+
+    @staticmethod
+    async def list_step_transitions(
+        session: AsyncSession,
+        step_id: UUID,
+        params: PaginationParams,
+    ) -> tuple[Sequence[StepTransition], str | None, bool]:
+        """List outgoing transitions for a step."""
+        await ProductDefService.get_step(session, step_id)
+        stmt = select(StepTransition).where(
+            StepTransition.from_step_id == step_id,
+            StepTransition.is_active.is_(True),
+        )
+        return await paginate_query(session, stmt, StepTransition, params)
+
+    @staticmethod
+    async def get_step_transition(
+        session: AsyncSession, transition_id: UUID,
+    ) -> StepTransition:
+        """Get a step transition by ID."""
+        stmt = select(StepTransition).where(
+            StepTransition.id == transition_id,
+            StepTransition.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        transition = result.scalar_one_or_none()
+        if transition is None:
+            raise NotFoundException(
+                resource="StepTransition", resource_id=str(transition_id),
+            )
+        return transition
+
+    @staticmethod
+    async def create_step_transition(
+        session: AsyncSession, from_step_id: UUID, **kwargs: Any,
+    ) -> StepTransition:
+        """Create a new transition from a step."""
+        from_step = await ProductDefService.get_step(session, from_step_id)
+        # Validate to_step exists and belongs to the same route
+        to_step_id = kwargs["to_step_id"]
+        to_step = await ProductDefService.get_step(session, to_step_id)
+        if to_step.route_id != from_step.route_id:
+            raise ValueError(
+                f"to_step {to_step_id} belongs to route {to_step.route_id}, "
+                f"but from_step {from_step_id} belongs to route {from_step.route_id}"
+            )
+        transition = StepTransition(from_step_id=from_step_id, **kwargs)
+        session.add(transition)
+        await session.flush()
+        logger.info(
+            "Created transition %s → %s (condition=%s) in route %s",
+            from_step_id, to_step_id, transition.condition, from_step.route_id,
+        )
+        return transition
+
+    @staticmethod
+    async def update_step_transition(
+        session: AsyncSession, transition_id: UUID, **kwargs: Any,
+    ) -> StepTransition:
+        """Update a step transition."""
+        transition = await ProductDefService.get_step_transition(
+            session, transition_id,
+        )
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(transition, key, value)
+        await session.flush()
+        return transition
+
+    @staticmethod
+    async def delete_step_transition(
+        session: AsyncSession, transition_id: UUID,
+    ) -> None:
+        """Soft-delete a step transition."""
+        transition = await ProductDefService.get_step_transition(
+            session, transition_id,
+        )
+        transition.is_active = False
+        await session.flush()
+        logger.info("Deleted transition %s", transition_id)

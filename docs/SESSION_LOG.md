@@ -1893,3 +1893,105 @@ Added React Context (`EquipmentContext`) in `App.tsx` to share selected equipmen
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
+
+## Session S025 — 2026-04-02
+
+**Phase**: P3/P5 — Core Enhancement (Step Transitions & Graph Routing)
+**Objective**: Add conditional step transitions (rework loops, MRB branches, disposition-driven paths) to the routing engine
+
+### What Happened
+
+#### 1. Identified Linear Routing Gap
+Analyzed the existing routing model and found `RoutingEngineService.get_next_step()` only supported linear progression (next step by ascending sequence). `move_unit(target_step_id)` allowed manual jumps but no declarative routing logic. This blocked rework loops, MRB disposition paths, and any conditional branching.
+
+#### 2. StepTransition Model & DTOs
+Added `StepTransition` SQLAlchemy model in `core/product_def/models.py`:
+- `from_step_id` / `to_step_id` — FK pair to `route_steps.id`
+- `condition` — one of: `always`, `on_pass`, `on_fail`, `on_rework`, `disposition`
+- `is_default` — boolean fallback flag
+- `priority` — integer, higher evaluated first
+- `label` — string, used for disposition choice display text
+
+Added `outgoing_transitions` / `incoming_transitions` relationships on `RouteStep`.
+Pydantic DTOs: `StepTransitionCreate`, `StepTransitionRead`, `StepTransitionUpdate`.
+
+#### 3. Graph-Aware Routing Engine
+Rewrote `core/routing/service.py` with two-pass evaluation:
+1. **Graph path** — if outgoing transitions exist on current step, evaluate them with priority order: disposition match > result match (on_pass/on_fail/on_rework) > always > is_default fallback
+2. **Linear fallback** — if no transitions defined, use original logic (next active step by sequence)
+
+New methods: `_resolve_graph_transition()`, `_resolve_linear_next()`, `get_available_dispositions()`.
+
+#### 4. REST Endpoints
+Added 5 endpoints to `core/product_def/routes.py`:
+- `GET /steps/{step_id}/transitions` — list outgoing transitions
+- `POST /steps/{step_id}/transitions` — create transition (validates both steps on same route)
+- `GET /transitions/{transition_id}` — get single transition
+- `PUT /transitions/{transition_id}` — update transition
+- `DELETE /transitions/{transition_id}` — soft-delete transition
+
+#### 5. WIP Service Integration
+Updated `move_unit()` and `move_lot()` in `core/wip/service.py` to:
+- Accept `result` and `disposition` parameters from `MoveRequest`
+- Auto-read last `UnitHistory.result` / infer from `LotHistory.quantity_scrapped` when not provided
+- Pass both to `RoutingEngineService.get_next_step()`
+
+#### 6. Alembic Migration
+Created migration `20260402_1134_e386092bb59c_add_step_transitions_table.py`:
+- Creates `step_transitions` table with all columns, FKs, and indexes
+- Updates `route_steps.step_type` comment to include 'mrb'
+
+#### 7. Unit Tests (43 new)
+Added comprehensive tests covering:
+- `TestStepTransitionModel` — table name, columns, relationships
+- `TestStepTransitionSchemas` — create/read/update DTOs, condition validation
+- `TestGraphRoutingLogic` — on_pass, on_fail, on_rework, always, result>always, default fallback, disposition match, disposition>result priority, no match, empty transitions
+- `TestReworkLoopPattern` — Assembly→Test→(fail)→Rework→Test loop
+- `TestMRBDispositionPattern` — three disposition paths (return to rework, scrap, resume)
+- `TestMoveRequestSchemas` — result/disposition fields, validation
+
+#### 8. Bug Fix: Disposition Priority
+Initial implementation used a single loop with `break` on first match — higher-priority result matches won over lower-priority disposition matches. Fixed to two-pass collection: collect best disposition/result/always/default match across all transitions, then select winner with absolute order: disposition > result > always > default.
+
+### Test Results
+- **1381 unit tests passing** (43 new), 5 warnings, 0 failures
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D046 | Step Transitions: graph-based conditional routing with disposition > result > always > default evaluation and linear fallback |
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `alembic/versions/20260402_1134_..._add_step_transitions_table.py` | DB migration |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `src/mes/core/product_def/models.py` | StepTransition model, RouteStep relationships, 'mrb' step_type |
+| `src/mes/core/product_def/schemas.py` | StepTransition DTOs |
+| `src/mes/core/product_def/service.py` | CRUD for step transitions |
+| `src/mes/core/product_def/routes.py` | 5 REST endpoints |
+| `src/mes/core/routing/service.py` | Graph routing engine with two-pass evaluation |
+| `src/mes/core/wip/service.py` | result/disposition pass-through |
+| `src/mes/core/wip/schemas.py` | MoveRequest result/disposition fields |
+| `src/mes/core/wip/routes.py` | Move handlers pass new params |
+| `tests/unit/test_routing_engine.py` | 37 new tests (graph routing, rework, MRB, schemas) |
+| `tests/unit/test_product_def.py` | 6 new tests (StepTransition model/schemas) |
+| `docs/PROJECT_STATE.json` | S025, STEP-TRANS module, D046 |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- Step Transitions fully implemented and tested
+- **1381 tests passing**, no regressions
+- Next options:
+  1. **RT-GUI** — Runtime operator client (with transition/disposition UI)
+  2. **DT-CLIENT editor** — Add Step Transitions editor to process route pages
+  3. **More vendor adapters** — Modbus TCP equipment, D365 F&O ERP
+  4. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.

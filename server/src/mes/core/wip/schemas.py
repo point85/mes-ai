@@ -148,10 +148,24 @@ class CompleteRequest(BaseModel):
 
 
 class MoveRequest(BaseModel):
-    """Request to move a unit/lot to a specific step (overrides routing engine)."""
+    """Request to move a unit/lot to the next step.
+
+    If target_step_id is set, it overrides the routing engine.
+    Otherwise the routing engine evaluates transitions using result/disposition.
+    """
 
     target_step_id: UUID | None = Field(
         None, description="Target step ID (null = use routing engine for next step)",
+    )
+    result: str | None = Field(
+        None,
+        pattern=r"^(pass|fail|rework)$",
+        description="Step result for conditional routing (auto-read from history if omitted)",
+    )
+    disposition: str | None = Field(
+        None,
+        max_length=255,
+        description="Operator disposition label for MRB steps (must match a transition label)",
     )
 
 

@@ -213,10 +213,20 @@ class UnitService:
         session: AsyncSession,
         unit_id: UUID,
         target_step_id: UUID | None = None,
+        result: str | None = None,
+        disposition: str | None = None,
     ) -> Unit:
         """
         Move a unit to the next step (or specific target step).
-        If target_step_id is None, the routing engine determines the next step.
+
+        Args:
+            target_step_id: Explicit destination (bypasses routing engine).
+            result:         Step completion result ('pass'/'fail'/'rework')
+                            for graph-based conditional routing.
+            disposition:    Operator-selected label for MRB/disposition steps.
+
+        If target_step_id is None, the routing engine determines the next step
+        using transitions (if defined) or linear sequence fallback.
         If there is no next step, the unit is completed.
         """
         unit = await UnitService.get_unit(session, unit_id)
@@ -230,10 +240,29 @@ class UnitService:
         if target_step_id is not None:
             unit.current_step_id = target_step_id
         else:
-            # Use routing engine
+            # Use routing engine (graph-aware)
             from mes.core.routing.service import RoutingEngineService
+
+            # If no explicit result, look up the last history record
+            step_result = result
+            if step_result is None and from_step_id is not None:
+                hist_stmt = (
+                    select(UnitHistory)
+                    .where(
+                        UnitHistory.unit_id == unit_id,
+                        UnitHistory.step_id == from_step_id,
+                    )
+                    .order_by(UnitHistory.entered_at.desc())
+                    .limit(1)
+                )
+                hist_result = await session.execute(hist_stmt)
+                last_hist = hist_result.scalar_one_or_none()
+                if last_hist is not None:
+                    step_result = last_hist.result
+
             next_step = await RoutingEngineService.get_next_step(
                 session, unit.order_id, unit.current_step_id,
+                result=step_result, disposition=disposition,
             )
             if next_step is None:
                 # No more steps — unit is complete
@@ -498,6 +527,8 @@ class LotService:
         session: AsyncSession,
         lot_id: UUID,
         target_step_id: UUID | None = None,
+        result: str | None = None,
+        disposition: str | None = None,
     ) -> Lot:
         lot = await LotService.get_lot(session, lot_id)
         if lot.status not in ("in_process", "queued"):
@@ -511,8 +542,29 @@ class LotService:
             lot.current_step_id = target_step_id
         else:
             from mes.core.routing.service import RoutingEngineService
+
+            # If no explicit result, look up the last lot history record
+            step_result = result
+            if step_result is None and from_step_id is not None:
+                hist_stmt = (
+                    select(LotHistory)
+                    .where(
+                        LotHistory.lot_id == lot_id,
+                        LotHistory.step_id == from_step_id,
+                    )
+                    .order_by(LotHistory.entered_at.desc())
+                    .limit(1)
+                )
+                hist_result = await session.execute(hist_stmt)
+                last_hist = hist_result.scalar_one_or_none()
+                if last_hist is not None and last_hist.quantity_scrapped > 0:
+                    step_result = "fail"
+                elif last_hist is not None:
+                    step_result = "pass"
+
             next_step = await RoutingEngineService.get_next_step(
                 session, lot.order_id, lot.current_step_id,
+                result=step_result, disposition=disposition,
             )
             if next_step is None:
                 lot.status = "completed"

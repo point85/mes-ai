@@ -190,7 +190,7 @@ class RouteStep(BaseModel):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     step_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="production",
-        comment="Step type: 'production', 'inspection', or 'rework'",
+        comment="Step type: 'production', 'inspection', 'rework', or 'mrb'",
     )
     work_cell_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("work_cells.id"),
@@ -213,6 +213,19 @@ class RouteStep(BaseModel):
     parameters: Mapped[list["StepParameter"]] = relationship(
         "StepParameter", back_populates="step", cascade="all, delete-orphan",
         order_by="StepParameter.name",
+    )
+    outgoing_transitions: Mapped[list["StepTransition"]] = relationship(
+        "StepTransition",
+        foreign_keys="StepTransition.from_step_id",
+        back_populates="from_step",
+        cascade="all, delete-orphan",
+        order_by="StepTransition.priority.desc()",
+    )
+    incoming_transitions: Mapped[list["StepTransition"]] = relationship(
+        "StepTransition",
+        foreign_keys="StepTransition.to_step_id",
+        back_populates="to_step",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
@@ -266,3 +279,68 @@ class StepParameter(BaseModel):
 
     def __repr__(self) -> str:
         return f"<StepParameter id={self.id} step_id={self.step_id} name={self.name}>"
+
+
+class StepTransition(BaseModel):
+    """
+    A directed edge between two route steps supporting non-linear routing.
+
+    Enables rework loops, MRB branches, and conditional paths through a route.
+    Each transition connects a from_step to a to_step with a condition that
+    determines when this path is taken.
+
+    Condition types:
+    - 'always':      unconditional (used as default path when no other matches)
+    - 'on_pass':     taken when step result is 'pass'
+    - 'on_fail':     taken when step result is 'fail'
+    - 'on_rework':   taken when step result is 'rework'
+    - 'disposition':  operator-selected path (manual routing at MRB steps)
+
+    When a step has transitions defined, they take priority over linear
+    sequence-based routing. When no transitions are defined for a step,
+    the engine falls back to the next step by sequence number.
+    """
+
+    __tablename__ = "step_transitions"
+
+    from_step_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        nullable=False, index=True,
+        comment="Source step this transition originates from",
+    )
+    to_step_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        nullable=False, index=True,
+        comment="Target step this transition leads to",
+    )
+    condition: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="always",
+        comment="Condition: 'always', 'on_pass', 'on_fail', 'on_rework', 'disposition'",
+    )
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="Default transition when multiple match. Exactly one per from_step should be default.",
+    )
+    priority: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="Higher priority transitions are evaluated first (0 = lowest)",
+    )
+    label: Mapped[str | None] = mapped_column(
+        String(255), nullable=True,
+        comment="Human-readable label for disposition choices (e.g. 'Return to rework', 'Scrap')",
+    )
+
+    # Relationships
+    from_step: Mapped["RouteStep"] = relationship(
+        "RouteStep", foreign_keys=[from_step_id], back_populates="outgoing_transitions",
+    )
+    to_step: Mapped["RouteStep"] = relationship(
+        "RouteStep", foreign_keys=[to_step_id], back_populates="incoming_transitions",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<StepTransition id={self.id} "
+            f"from={self.from_step_id} → to={self.to_step_id} "
+            f"condition={self.condition}>"
+        )
