@@ -20,6 +20,10 @@ import {
   updateRouteStep,
   fetchStepParameters,
   createStepParameter,
+  fetchStepTransitions,
+  createStepTransition,
+  updateStepTransition,
+  deleteStepTransition,
 } from "../api/productDef";
 import type {
   ProductCreate,
@@ -32,6 +36,8 @@ import type {
   RouteStepCreate,
   RouteStepUpdate,
   StepParameterCreate,
+  StepTransitionCreate,
+  StepTransitionUpdate,
 } from "../types";
 
 const KEYS = {
@@ -41,6 +47,7 @@ const KEYS = {
   routes: (productId: string) => ["routes", productId] as const,
   steps: (routeId: string) => ["steps", routeId] as const,
   params: (stepId: string) => ["stepParams", stepId] as const,
+  transitions: (stepId: string) => ["stepTransitions", stepId] as const,
 };
 
 // ─── Products ─────────────────────────────────────────────────────────
@@ -184,5 +191,41 @@ export function useCreateStepParameter() {
     mutationFn: ({ stepId, ...body }: StepParameterCreate & { stepId: string }) =>
       createStepParameter(stepId, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["stepParams"] }),
+  });
+}
+
+// ─── Step Transitions ─────────────────────────────────────────────────
+
+export function useStepTransitions(stepId: string) {
+  return useQuery({
+    queryKey: KEYS.transitions(stepId),
+    queryFn: () => fetchStepTransitions(stepId),
+    enabled: !!stepId,
+  });
+}
+
+export function useCreateStepTransition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ stepId, ...body }: StepTransitionCreate & { stepId: string }) =>
+      createStepTransition(stepId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["stepTransitions"] }),
+  });
+}
+
+export function useUpdateStepTransition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: StepTransitionUpdate & { id: string }) =>
+      updateStepTransition(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["stepTransitions"] }),
+  });
+}
+
+export function useDeleteStepTransition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteStepTransition(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["stepTransitions"] }),
   });
 }

@@ -4,6 +4,7 @@
  */
 
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   PlusIcon,
   TrashIcon,
@@ -113,11 +114,15 @@ export default function ProductListPage() {
                   key={p.id}
                   className="hover:bg-gray-50 transition-colors"
                 >
-                  <td className="px-4 py-2.5 text-sm font-mono font-medium text-gray-900">
-                    {p.code}
+                  <td className="px-4 py-2.5 text-sm font-mono font-medium text-indigo-600">
+                    <Link to={`/products/${p.id}`} className="hover:underline">
+                      {p.code}
+                    </Link>
                   </td>
                   <td className="px-4 py-2.5 text-sm text-gray-700">
-                    {p.name}
+                    <Link to={`/products/${p.id}`} className="hover:text-indigo-600">
+                      {p.name}
+                    </Link>
                   </td>
                   <td className="px-4 py-2.5 text-sm font-mono text-gray-600">
                     {p.version}

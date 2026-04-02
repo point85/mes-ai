@@ -1955,8 +1955,19 @@ Added comprehensive tests covering:
 #### 8. Bug Fix: Disposition Priority
 Initial implementation used a single loop with `break` on first match — higher-priority result matches won over lower-priority disposition matches. Fixed to two-pass collection: collect best disposition/result/always/default match across all transitions, then select winner with absolute order: disposition > result > always > default.
 
+#### 9. DT-CLIENT Product Detail Page
+Created `ProductDetailPage.tsx` at `/products/:productId` — full route/step/transition editor:
+- **Product header** with code, version, type, active status
+- **Routes panel** — list all routes for a product, create new routes via dialog
+- **Steps table** — shows sequence, name, type, cycle time for selected route; create/edit via dialog
+- **Transitions panel** — right sidebar showing outgoing transitions for selected step; create/edit/delete with condition badges (color-coded: green=pass, red=fail, amber=rework, purple=disposition, gray=always)
+- **Three form dialogs**: RouteFormDialog, StepFormDialog, TransitionFormDialog (all with Zod v4 validation)
+- Navigation: Product list → Product detail (clickable code/name links)
+- App.tsx route: `/products/:productId` → ProductDetailPage
+
 ### Test Results
-- **1381 unit tests passing** (43 new), 5 warnings, 0 failures
+- **1381 unit tests passing**, 5 warnings, 0 failures
+- **DT-CLIENT**: TypeScript zero errors, Vite build 1142 modules / 687 KB JS
 
 ### Decisions Made
 | ID | Decision |
@@ -1967,6 +1978,10 @@ Initial implementation used a single loop with `break` on first match — higher
 | File | Purpose |
 |------|---------|
 | `alembic/versions/20260402_1134_..._add_step_transitions_table.py` | DB migration |
+| `clients/design_time/src/pages/products/ProductDetailPage.tsx` | Product detail with routes/steps/transitions |
+| `clients/design_time/src/pages/products/RouteFormDialog.tsx` | Route create dialog |
+| `clients/design_time/src/pages/products/StepFormDialog.tsx` | Step create/edit dialog |
+| `clients/design_time/src/pages/products/TransitionFormDialog.tsx` | Transition create/edit dialog |
 
 ### Files Modified
 | File | Change |
@@ -1981,8 +1996,14 @@ Initial implementation used a single loop with `break` on first match — higher
 | `src/mes/core/wip/routes.py` | Move handlers pass new params |
 | `tests/unit/test_routing_engine.py` | 37 new tests (graph routing, rework, MRB, schemas) |
 | `tests/unit/test_product_def.py` | 6 new tests (StepTransition model/schemas) |
-| `docs/PROJECT_STATE.json` | S025, STEP-TRANS module, D046 |
+| `docs/PROJECT_STATE.json` | S025, STEP-TRANS module, D046, T5.7 |
 | `docs/SESSION_LOG.md` | This session entry |
+| `clients/design_time/src/types/productDef.ts` | Added StepTransition types |
+| `clients/design_time/src/api/productDef.ts` | Added transition CRUD API functions |
+| `clients/design_time/src/hooks/useProductDef.ts` | Added transition query/mutation hooks |
+| `clients/design_time/src/pages/products/index.ts` | Added ProductDetailPage export |
+| `clients/design_time/src/pages/products/ProductListPage.tsx` | Added clickable links to detail page |
+| `clients/design_time/src/App.tsx` | Added /products/:productId route |
 
 ### Where We Stopped
 - Step Transitions fully implemented and tested

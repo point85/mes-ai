@@ -20,6 +20,9 @@ import type {
   RouteStepUpdate,
   StepParameter,
   StepParameterCreate,
+  StepTransition,
+  StepTransitionCreate,
+  StepTransitionUpdate,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -178,4 +181,42 @@ export async function createStepParameter(
     body,
   );
   return data.data;
+}
+
+// ─── Step Transitions ─────────────────────────────────────────────────
+
+export async function fetchStepTransitions(
+  stepId: string,
+): Promise<ApiListResponse<StepTransition>> {
+  const { data } = await api.get<ApiListResponse<StepTransition>>(
+    `/steps/${stepId}/transitions`,
+    { params: { limit: "200" } },
+  );
+  return data;
+}
+
+export async function createStepTransition(
+  stepId: string,
+  body: StepTransitionCreate,
+): Promise<StepTransition> {
+  const { data } = await api.post<ApiResponse<StepTransition>>(
+    `/steps/${stepId}/transitions`,
+    body,
+  );
+  return data.data;
+}
+
+export async function updateStepTransition(
+  transitionId: string,
+  body: StepTransitionUpdate,
+): Promise<StepTransition> {
+  const { data } = await api.put<ApiResponse<StepTransition>>(
+    `/transitions/${transitionId}`,
+    body,
+  );
+  return data.data;
+}
+
+export async function deleteStepTransition(transitionId: string): Promise<void> {
+  await api.delete(`/transitions/${transitionId}`);
 }

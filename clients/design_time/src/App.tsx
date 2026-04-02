@@ -12,7 +12,7 @@ import { AreaListPage } from "./pages/areas";
 import { LineListPage } from "./pages/lines";
 import { WorkCellListPage } from "./pages/work-cells";
 import { EquipmentListPage, EquipmentMaterialPage } from "./pages/equipment";
-import { ProductListPage } from "./pages/products";
+import { ProductListPage, ProductDetailPage } from "./pages/products";
 import { MaterialListPage } from "./pages/materials";
 import { DataDefListPage } from "./pages/data-collection";
 import { OrderListPage } from "./pages/orders";
@@ -49,6 +49,7 @@ export default function App() {
             <Route path="/equipment/:equipId/materials" element={<EquipmentMaterialPage />} />
             {/* Products & Materials */}
             <Route path="/products" element={<ProductListPage />} />
+            <Route path="/products/:productId" element={<ProductDetailPage />} />
             <Route path="/materials" element={<MaterialListPage />} />
             <Route path="/data-definitions" element={<DataDefListPage />} />
             <Route path="/orders" element={<OrderListPage />} />

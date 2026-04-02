@@ -154,6 +154,11 @@
           "id": "T5.6",
           "name": "Equipment Availability Simulator: 6-tab React+Vite GUI (port 5175) for state transitions, OEE, auto-simulation",
           "status": "complete"
+        },
+        {
+          "id": "T5.7",
+          "name": "DT-CLIENT: Product Detail Page with Routes, Steps, and Step Transitions editor",
+          "status": "complete"
         }
       ]
     },
@@ -167,7 +172,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S025: Step Transitions (graph routing) implemented — StepTransition model, DTOs, REST endpoints, graph-aware routing engine with disposition/result/always/default evaluation, WIP service pass-through, Alembic migration. 1381 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S025: Step Transitions (graph routing) implemented + DT-CLIENT Product Detail Page with routes/steps/transitions editor. 1381 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
