@@ -2,10 +2,12 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 const tabs = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "equipment", label: "Equipment" },
-  { id: "history", label: "State History" },
-  { id: "models", label: "State Models" },
+  { id: "dashboard", label: "Dashboard", section: "Overview" },
+  { id: "equipment", label: "Equipment", section: "Operations" },
+  { id: "history", label: "State History", section: "Operations" },
+  { id: "oee", label: "OEE Analysis", section: "Operations" },
+  { id: "simulator", label: "Auto-Simulator", section: "Tools" },
+  { id: "models", label: "State Models", section: "Reference" },
 ] as const;
 
 export type TabId = (typeof tabs)[number]["id"];
@@ -18,6 +20,8 @@ interface LayoutProps {
 
 export default function Layout({ activeTab, onTabChange, children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const sections = [...new Set(tabs.map((t) => t.section))];
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -37,21 +41,27 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2 text-sm">
-          <div className="px-3 py-2 text-xs font-semibold uppercase text-gray-500">
-            Navigation
-          </div>
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => onTabChange(t.id)}
-              className={`block w-full text-left px-4 py-1.5 hover:bg-gray-800 ${
-                activeTab === t.id
-                  ? "bg-gray-800 text-white border-l-2 border-emerald-400"
-                  : ""
-              }`}
-            >
-              {t.label}
-            </button>
+          {sections.map((section) => (
+            <div key={section}>
+              <div className="px-3 py-2 text-xs font-semibold uppercase text-gray-500">
+                {section}
+              </div>
+              {tabs
+                .filter((t) => t.section === section)
+                .map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => onTabChange(t.id)}
+                    className={`block w-full text-left px-4 py-1.5 hover:bg-gray-800 ${
+                      activeTab === t.id
+                        ? "bg-gray-800 text-white border-l-2 border-emerald-400"
+                        : ""
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+            </div>
           ))}
         </nav>
       </aside>

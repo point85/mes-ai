@@ -107,6 +107,18 @@ export interface Reason {
   is_active: boolean;
 }
 
+export interface OEEResult {
+  equipment_id: string;
+  period_start: string;
+  period_end: string;
+  availability: number;
+  performance: number;
+  quality: number;
+  oee: number;
+  details?: Record<string, unknown> | null;
+  six_big_losses?: Record<string, unknown> | null;
+}
+
 /** Standard MES API envelope. */
 export interface ApiResponse<T> {
   data: T;

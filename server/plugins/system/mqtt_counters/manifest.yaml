@@ -31,29 +31,35 @@ event_subscriptions: []
 dependencies: []
 
 parameters:
-  broker_host:
+  - name: broker_host
     type: string
     default: "localhost"
+    required: false
     description: MQTT broker hostname or IP address
-  broker_port:
+  - name: broker_port
     type: integer
     default: 1883
+    required: false
     description: MQTT broker port
-  topic_pattern:
+  - name: topic_pattern
     type: string
     default: "mes/equipment/+/counters"
+    required: false
     description: >
       MQTT topic pattern to subscribe to.
       The '+' wildcard matches the equipment_id segment.
-  username:
+  - name: username
     type: string
     default: ""
+    required: false
     description: MQTT broker username (leave empty for anonymous)
-  password:
+  - name: password
     type: string
     default: ""
+    required: false
     description: MQTT broker password
-  qos:
+  - name: qos
     type: integer
     default: 1
+    required: false
     description: MQTT QoS level for the subscription (0, 1, or 2)

@@ -10,6 +10,7 @@ import {
   fetchReasons,
   transitionEquipment,
 } from "../api/endpoints";
+import { useEquipmentContext } from "../App";
 import DataTable, { type Column } from "../components/DataTable";
 import StateBadge from "../components/StateBadge";
 import type {
@@ -32,6 +33,7 @@ interface Selection {
 }
 
 export default function EquipmentPage() {
+  const { setEquipment: setContextEquipment, navigateTo } = useEquipmentContext();
   const [sites, setSites] = useState<Site[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [lines, setLines] = useState<ProductionLine[]>([]);
@@ -253,12 +255,32 @@ export default function EquipmentPage() {
             <h2 className="text-sm font-semibold text-gray-600 uppercase">
               Transition Control — {selectedEquip.code} ({selectedEquip.name})
             </h2>
-            <button
-              className="text-xs text-gray-400 hover:text-gray-600"
-              onClick={clearSelection}
-            >
-              ✕ close
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+                onClick={() => {
+                  setContextEquipment(selectedEquip.id, selectedEquip.code);
+                  navigateTo("history");
+                }}
+              >
+                History →
+              </button>
+              <button
+                className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+                onClick={() => {
+                  setContextEquipment(selectedEquip.id, selectedEquip.code);
+                  navigateTo("oee");
+                }}
+              >
+                OEE →
+              </button>
+              <button
+                className="text-xs text-gray-400 hover:text-gray-600"
+                onClick={clearSelection}
+              >
+                ✕ close
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

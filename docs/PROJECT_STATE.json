@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-01",
-  "lastSessionId": "S023",
+  "lastUpdated": "2026-04-02",
+  "lastSessionId": "S024",
 
   "phases": [
     {
@@ -149,6 +149,11 @@
           "id": "T5.5",
           "name": "ERP REST API endpoints: 13 new endpoints for sync, report, health, confirmations",
           "status": "complete"
+        },
+        {
+          "id": "T5.6",
+          "name": "Equipment Availability Simulator: 6-tab React+Vite GUI (port 5175) for state transitions, OEE, auto-simulation",
+          "status": "complete"
         }
       ]
     },
@@ -162,7 +167,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator complete. S023: ERP route sync now persists to DB (upsert ProcessRoute+RouteStep). RouteStep.erp_operation_number added for ERP outbound mapping. WIP completion events (lot/unit) auto-enqueue ERP outbound reports via event handlers. 1338 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator complete. S024: Equipment Availability Simulator finished — 6 tabs (Dashboard, Equipment, State History, OEE Analysis, Auto-Simulator, State Models), shared equipment context, hierarchy pickers, OEE gauge cards, auto-random-transition engine. 90 modules, 268KB JS. 1338 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -194,6 +199,7 @@
       "EXAMPLE-PLUGIN": { "name": "File-Drop Test Results Example Plugin", "phase": "P5", "status": "implemented" },
       "SAP-SIMULATOR": { "name": "SAP ERP Simulator Plugin",         "phase": "P4", "status": "implemented" },
       "ERP-SIM-GUI":   { "name": "ERP Simulator GUI Client",         "phase": "P5", "status": "implemented" },
+      "AVAIL-SIM":    { "name": "Equipment Availability Simulator GUI", "phase": "P5", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },

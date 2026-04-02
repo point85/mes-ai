@@ -6,6 +6,7 @@ import type {
   EquipmentCurrentState,
   EquipmentStateLog,
   ListResponse,
+  OEEResult,
   ProductionLine,
   Reason,
   Site,
@@ -87,4 +88,40 @@ export async function fetchStateHistory(
 export async function fetchReasons(): Promise<Reason[]> {
   const res = await api.get<ApiResponse<Reason[]>>("/performance/reasons");
   return res.data.data;
+}
+
+// ── OEE Calculation ──────────────────────────────────────────────
+
+export async function fetchOEE(
+  equipId: string,
+  periodStart: string,
+  periodEnd: string,
+): Promise<OEEResult> {
+  const res = await api.get<ApiResponse<OEEResult>>("/performance/oee", {
+    params: { equipment_id: equipId, period_start: periodStart, period_end: periodEnd },
+  });
+  return res.data.data;
+}
+
+// ── Bulk equipment fetch (all in a site) ─────────────────────────
+
+export async function fetchAllEquipment(): Promise<Equipment[]> {
+  // For the simulator, fetch equipment across the whole hierarchy.
+  // We walk sites → areas → lines → work-cells → equipment.
+  const sites = await fetchSites();
+  const allEquipment: Equipment[] = [];
+  for (const site of sites) {
+    const areas = await fetchAreas(site.id);
+    for (const area of areas) {
+      const lines = await fetchLines(area.id);
+      for (const line of lines) {
+        const wcs = await fetchWorkCells(line.id);
+        for (const wc of wcs) {
+          const eqs = await fetchEquipmentInWorkCell(wc.id);
+          allEquipment.push(...eqs);
+        }
+      }
+    }
+  }
+  return allEquipment;
 }

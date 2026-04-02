@@ -1807,3 +1807,89 @@ Updated test assertions in:
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
 
 ---
+
+## Session S024 — 2026-04-02
+
+**Phase**: P5 — Client Implementations (continued)
+**Objective**: Finish the Equipment Availability Simulator client
+
+### What Happened
+
+#### 1. Assessed Existing Scaffold
+The availability simulator at `clients/availability_simulator/` had a working 4-tab skeleton (Dashboard, Equipment, History, Models) with API layer, types, and core components. Key gaps identified:
+- **HistoryPage** required manual UUID paste — no usable equipment picker
+- **No OEE page** — server has `/performance/oee` endpoint but client didn't expose it
+- **No auto-simulation** — no way to demo random state transitions across equipment
+- **No inter-page navigation** — couldn't navigate from equipment → history or OEE
+
+#### 2. Shared Equipment Context
+Added React Context (`EquipmentContext`) in `App.tsx` to share selected equipment between pages:
+- `equipmentId` / `equipmentCode` — currently selected equipment
+- `setEquipment()` — update selection
+- `navigateTo()` — switch active tab
+- Equipment page's transition panel now has "History →" and "OEE →" navigation buttons
+
+#### 3. Layout Updated (4 → 6 tabs)
+- Restructured sidebar with sections: **Overview** (Dashboard), **Operations** (Equipment, State History, OEE Analysis), **Tools** (Auto-Simulator), **Reference** (State Models)
+
+#### 4. OEE Analysis Page (NEW)
+- Equipment hierarchy picker **or** context-based (linked from Equipment page)
+- Date/time period selector (defaults to last 8 hours)
+- OEE calculation via `GET /performance/oee`
+- **4 gauge cards** with progress bars: OEE, Availability, Performance, Quality
+- Color-coded: green ≥85%, yellow ≥60%, red <60%
+- Details and Six Big Losses sections (expandable from server response)
+
+#### 5. Auto-Simulator Page (NEW)
+- Loads all equipment with state models via hierarchy traversal
+- **Equipment states grid** — live cards showing each equipment's current state, dispatch category, OEE bucket
+- **Configurable interval** (1–60 seconds, default 5)
+- **Start/Stop** controls — picks random equipment, picks random valid transition, executes it
+- **Transition log** — scrollable table of all transitions (time, equipment, from→to, dispatch, result)
+- **Stats** — total equipment, transitions count, error count, running indicator
+- Clear log / reload equipment controls
+
+#### 6. History Page Improved
+- Replaced raw UUID input with **full equipment hierarchy picker** (Site → Area → Line → Work Cell → Equipment)
+- **Context-aware** — if navigated from Equipment page, auto-loads that equipment's history
+- Added **Duration** column (calculated from started_at/ended_at)
+- Added **Notes** column
+- Configurable row limit (25/50/100/200) + Refresh button
+
+#### 7. Types & API Extensions
+- Added `OEEResult` interface to types
+- Added `fetchOEE()` and `fetchAllEquipment()` API functions
+
+#### Build Results
+- **TypeScript**: zero errors (`npx tsc -b --noEmit`)
+- **Vite build**: 90 modules, 268 KB JS + 18 KB CSS
+- **Server tests**: 1338 passing, no regressions
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `src/pages/OEEPage.tsx` | OEE Analysis page with gauge cards |
+| `src/pages/SimulatorPage.tsx` | Auto-Simulator with random transitions |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `src/App.tsx` | Added EquipmentContext provider, 6 page routes |
+| `src/components/Layout.tsx` | 6 tabs in 4 sections |
+| `src/types/index.ts` | Added OEEResult interface |
+| `src/api/endpoints.ts` | Added fetchOEE(), fetchAllEquipment() |
+| `src/pages/EquipmentPage.tsx` | Added context + History/OEE navigation buttons |
+| `src/pages/HistoryPage.tsx` | Full hierarchy picker, context-aware, duration column |
+| `docs/PROJECT_STATE.json` | S024, T5.6, AVAIL-SIM module |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- Equipment Availability Simulator fully implemented and building cleanly
+- **1338 tests passing**, no regressions
+- Next options:
+  1. **RT-GUI** — Runtime operator client
+  2. **More vendor adapters** — Modbus TCP equipment, D365 F&O ERP, Infor M3 ERP
+  3. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
