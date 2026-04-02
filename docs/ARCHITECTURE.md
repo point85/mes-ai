@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, 1293 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, 1381 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -362,8 +362,10 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 │        │                                                      │
 │        └──1:N──▶ ProcessRoute ──1:N──▶ RouteStep             │
 │                                         │                     │
-│                                         └──1:N──▶ StepParam  │
-│                                         └──M:N──▶ Equipment  │
+│                                         ├──1:N──▶ StepParam  │
+│                                         ├──M:N──▶ Equipment  │
+│                                         └──N:N──▶ StepTransition │
+│                                           (from_step ──▶ to_step) │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
 
@@ -423,7 +425,8 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **BillOfMaterial** | `id`, `product_id`, `version`, `effective_date`, `expiry_date` | → ProductDefinition, → BOMItems |
 | **BOMItem** | `id`, `bom_id`, `material_id`, `quantity`, `uom`, `position` | → BillOfMaterial, → MaterialDefinition |
 | **ProcessRoute** | `id`, `product_id`, `version`, `name`, `description`, `is_default` | → ProductDefinition, → RouteSteps |
-| **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework), `work_cell_id`, `expected_cycle_time_sec`, `erp_operation_number` (nullable — ERP operation/step number for outbound reporting, e.g. '0010') | → ProcessRoute, → WorkCell, → StepParameters |
+| **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework/mrb), `work_cell_id`, `expected_cycle_time_sec`, `erp_operation_number` (nullable — ERP operation/step number for outbound reporting, e.g. '0010') | → ProcessRoute, → WorkCell, → StepParameters, → outgoing StepTransitions, → incoming StepTransitions |
+| **StepTransition** | `id`, `from_step_id`, `to_step_id`, `condition` (always/on_pass/on_fail/on_rework/disposition), `is_default`, `priority` (higher evaluated first), `label` (nullable — human label for disposition choices) | → RouteStep (from), → RouteStep (to). Directed edge enabling rework loops, MRB branches, and conditional routing. |
 | **StepParameter** | `id`, `step_id`, `name`, `data_type`, `uom`, `target_value`, `lower_limit`, `upper_limit`, `is_required` | → RouteStep |
 
 > **ISA-95 Route Ownership Boundary**
@@ -445,8 +448,9 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 >    actuals (labor, material, yield). The MES must know which operation just finished to map it
 >    back to the ERP's cost-posting structure.
 > 4. **Shop floor deviation** — The MES may need to deviate from the ERP route at execution time
->    (rework loops, skip steps, alternate routes based on equipment availability). The ERP route
->    is the *plan*; the MES route is the *execution reality*.
+>    (rework loops, MRB branches, conditional paths via StepTransition graph, skip steps, alternate
+>    routes based on equipment availability). The ERP route is the *plan*; the MES route is the
+>    *execution reality*. See §5.8 for graph-based routing.
 >
 > Routes are synced via `ERPInboundAdapter.sync_routings()` (§9.2.4). The `ROUTE-DEF` module
 > stores them; the `ROUTE-ENGINE` module interprets them at execution time.
@@ -2044,6 +2048,205 @@ with fields: code (4-char, immutable after create), name, description, OEE bucke
 | **DT-CLIENT** | Plugin `get_states()` + `get_transitions()` for state model visualization | ✅ Yes — shows state diagram |
 | **DT-CLIENT** | `Reason` hierarchy via `/reasons` CRUD | ❌ No — standalone reason tree |
 
+### 5.8 Routing Engine (ROUTE-ENGINE)
+
+The routing engine determines step progression for WIP as it moves through a process route.
+It supports two complementary routing modes that can coexist on a single route.
+
+#### 5.8.1 Graph-Based Routing (Step Transitions)
+
+When a route step has **StepTransition** records defined (outgoing edges), the engine evaluates
+them to determine the next step. This enables non-linear routing patterns:
+
+| Pattern | Description | Example |
+|---|---|---|
+| **Rework Loop** | Failed unit returns to an earlier step for reprocessing | Inspection → (on_fail) → Rework → (always) → Inspection |
+| **MRB Branch** | Operator selects disposition at a Material Review Board step | MRB → (disposition:"Scrap") → Scrap, MRB → (disposition:"Return to rework") → Rework |
+| **Conditional Pass/Fail** | Different paths based on step result | Test → (on_pass) → Pack, Test → (on_fail) → MRB |
+| **Skip Step** | Always-transition bypasses intermediate steps | Step A → (always) → Step C |
+
+**Transition Evaluation Priority:**
+
+When multiple transitions exist for a step, they are evaluated in strict priority order:
+
+```
+1. DISPOSITION match — condition='disposition' AND label matches operator selection
+2. RESULT match     — condition matches step result (on_pass / on_fail / on_rework)
+3. ALWAYS           — condition='always' (unconditional)
+4. DEFAULT          — is_default=True (fallback when nothing else matches)
+```
+
+Within each tier, transitions are ordered by the `priority` field (descending — higher = first).
+The first match wins. If no transition matches, the engine falls back to linear routing.
+
+**StepTransition condition types:**
+
+| Condition | When Taken | Requires |
+|---|---|---|
+| `always` | Unconditionally | Nothing |
+| `on_pass` | Step result = 'pass' | `result` parameter on move |
+| `on_fail` | Step result = 'fail' | `result` parameter on move |
+| `on_rework` | Step result = 'rework' | `result` parameter on move |
+| `disposition` | Operator selects this labeled path at an MRB step | `disposition` parameter matching `label` |
+
+#### 5.8.2 Linear Fallback Routing
+
+When a step has **no outgoing transitions**, the engine falls back to the next step by ascending
+`sequence` number in the route. This is the original routing behavior and requires no transition
+configuration — a route with only steps (no transitions) automatically flows linearly.
+
+#### 5.8.3 Routing Engine API (`RoutingEngineService`)
+
+| Method | Description |
+|---|---|
+| `get_route_for_order(order_id)` | Resolve the process route for a production order. Priority: explicit route → product's default → first route found. |
+| `get_first_step(order_id)` | Get the first step (lowest sequence) in the order's route. |
+| `get_next_step(order_id, current_step_id, result, disposition)` | Determine the next step. Evaluates graph transitions first, then linear fallback. Returns `None` when route is complete. |
+| `get_available_dispositions(step_id)` | Return disposition choices at an MRB step (list of `{label, to_step_id}` from `condition='disposition'` transitions). |
+
+#### 5.8.4 Integration with WIP and Dispatch
+
+The routing engine is called by the WIP service during `move_unit()` / `move_lot()`:
+
+```
+Unit completes step (result = 'pass' | 'fail' | 'rework')
+       │
+       ▼
+  WIP move_unit(result, disposition)
+       │
+       ├── If explicit target_step_id → bypass routing engine
+       │
+       ├── If result not provided → read from last UnitHistory record
+       │
+       ▼
+  RoutingEngineService.get_next_step(order_id, current_step_id, result, disposition)
+       │
+       ├── Has outgoing transitions? → evaluate graph (§5.8.1)
+       │       └── Match found → return target step
+       │       └── No match  → fall through to linear
+       │
+       ├── No transitions → linear fallback (§5.8.2)
+       │       └── Next by sequence → return step
+       │       └── No more steps → return None (route complete)
+       │
+       ▼
+  Route complete? → unit.status = 'completed'
+  Next step found? → unit.current_step_id = next, unit.status = 'queued'
+       │
+       ▼
+  Dispatch engine evaluates equipment assignment (§10)
+```
+
+### 5.9 WIP Queuing & Equipment Tracking
+
+Units and lots flow through a well-defined lifecycle of status transitions and equipment
+assignments. This section documents how the MES tracks what WIP is queued for equipment
+versus what is actively being processed.
+
+#### 5.9.1 WIP Status Lifecycle
+
+Each `Unit` or `Lot` carries a `status` field and a `current_equipment_id` field (nullable).
+The combination of these two values determines the WIP's position in the factory:
+
+```
+  create_unit()          start_unit()          complete_step()        move_unit()
+       │                      │                      │                     │
+       ▼                      ▼                      ▼                     ▼
+   ┌────────┐           ┌───────────┐          ┌───────────┐        ┌────────┐
+   │ queued  │──start──▶│in_process │──complete▶│in_process │──move─▶│ queued  │
+   │ step=S1 │           │ step=S1   │          │ step=S1   │        │ step=S2 │
+   │ equip=∅ │           │ equip=E1  │          │ equip=E1  │        │ equip=∅ │
+   └────────┘           └───────────┘          └───────────┘        └────────┘
+       │                                                                 │
+       │  dispatch_execute()                                             │
+       │       │                                    route complete──▶ completed
+       ▼       ▼                                    (step=∅, equip=∅)
+   ┌────────────────┐
+   │    queued       │
+   │ step=S1         │
+   │ equip=E1        │  ◀── dispatched but not yet started
+   └────────────────┘
+
+   Any non-terminal status:
+       │                │
+     hold()         scrap()
+       ▼                ▼
+   ┌─────────┐    ┌──────────┐
+   │ on_hold  │    │ scrapped  │  (terminal)
+   └─────────┘    └──────────┘
+       │
+   release_hold()
+       ▼
+   ┌────────┐
+   │ queued  │
+   └────────┘
+```
+
+**Status meanings:**
+
+| Status | `current_equipment_id` | Meaning |
+|---|---|---|
+| `queued` | `NULL` | At a step, awaiting dispatch to an equipment |
+| `queued` | set | Dispatched to equipment, waiting in its input queue |
+| `in_process` | set | Actively being processed on equipment |
+| `completed` | `NULL` | All route steps finished |
+| `on_hold` | preserved | Temporarily suspended (retains step and equipment) |
+| `scrapped` | `NULL` | Permanently removed from production |
+
+#### 5.9.2 Equipment Queue Model
+
+The MES does not maintain a separate queue table. Instead, the equipment's queue is derived
+from the **current state of Unit and Lot records** that reference that equipment:
+
+```sql
+-- Conceptual: equipment queue depth
+SELECT COUNT(*) FROM (
+    SELECT id FROM units
+    WHERE current_equipment_id = :equip_id AND status IN ('queued', 'in_process')
+    UNION ALL
+    SELECT id FROM lots
+    WHERE current_equipment_id = :equip_id AND status IN ('queued', 'in_process')
+) AS queue
+```
+
+This means:
+- **Queue depth** = count of units + lots at the equipment with status `queued` or `in_process`
+- **In-process count** is typically 1 per equipment (but not enforced — some equipment processes batches)
+- **Queued count** = items dispatched and waiting in the equipment's input buffer
+
+#### 5.9.3 Lifecycle Operations & Field Changes
+
+| Operation | Status Change | `current_step_id` | `current_equipment_id` | History Record |
+|---|---|---|---|---|
+| `create_unit()` | → `queued` | set to first step (or NULL) | `NULL` | — |
+| `dispatch_execute()` | unchanged (`queued`) | unchanged | **set** to target equipment | — |
+| `start_unit(equip_id)` | `queued` → `in_process` | set (resolves first step if NULL) | **set** if provided | `UnitHistory` created (`entered_at`) |
+| `complete_unit_step()` | unchanged (`in_process`) | unchanged | unchanged | `UnitHistory` updated (`exited_at`, `result`) |
+| `move_unit()` | → `queued` (or `completed`) | **set** to next step (or `NULL`) | **reset to `NULL`** | — |
+| `hold_unit()` | → `on_hold` | unchanged | unchanged | — |
+| `release_hold_unit()` | → `queued` | unchanged | unchanged | — |
+| `scrap_unit()` | → `scrapped` | unchanged | **reset to `NULL`** | — |
+
+**Key invariant:** On `move_unit()`, `current_equipment_id` is always reset to `NULL`.
+The dispatch engine is responsible for re-assigning equipment at the new step. This separation
+ensures the routing engine handles "where in the route" while dispatch handles "which machine."
+
+#### 5.9.4 History & Audit Trail
+
+Every step visit creates a `UnitHistory` (or `LotHistory`) record with:
+
+| Field | Set On | Description |
+|---|---|---|
+| `entered_at` | `start_unit()` | Timestamp when processing began |
+| `exited_at` | `complete_unit_step()` | Timestamp when the step was completed |
+| `result` | `complete_unit_step()` | Outcome: `pass`, `fail`, or `rework` |
+| `equipment_id` | `start_unit()` | Which equipment performed this step |
+| `data_snapshot` | `complete_unit_step()` | Optional JSON blob of step data |
+
+Rework loops can produce **multiple history records** for the same step on the same unit — each
+visit creates a new record. This provides full traceability of how many times a unit visited a
+step and what the result was each time.
+
 ## 6. REST API
 
 ### 6.1 Design Principles
@@ -2139,6 +2342,8 @@ with fields: code (4-char, immutable after create), name, description, OEE bucke
 | `GET/POST` | `/api/v1/routes/{route_id}/steps` | List / create route steps |
 | `GET/PUT` | `/api/v1/steps/{step_id}` | Get / update route step |
 | `GET/POST` | `/api/v1/steps/{step_id}/parameters` | List / create step parameters |
+| `GET/POST` | `/api/v1/steps/{step_id}/transitions` | List / create step transitions (outgoing edges) |
+| `GET/PUT/DELETE` | `/api/v1/transitions/{transition_id}` | Get / update / delete a step transition |
 
 #### Production Orders (PROD-ORDER)
 
@@ -2157,7 +2362,7 @@ with fields: code (4-char, immutable after create), name, description, OEE bucke
 | `GET` | `/api/v1/units/{unit_id}` | Get unit with current state |
 | `POST` | `/api/v1/units/{unit_id}/start` | Start processing at current step |
 | `POST` | `/api/v1/units/{unit_id}/complete` | Complete current step |
-| `POST` | `/api/v1/units/{unit_id}/move` | Move to next step (triggers dispatch) |
+| `POST` | `/api/v1/units/{unit_id}/move` | Move to next step (accepts optional `result` and `disposition` for graph routing; triggers dispatch) |
 | `POST` | `/api/v1/units/{unit_id}/hold` | Place unit on hold |
 | `POST` | `/api/v1/units/{unit_id}/release-hold` | Release from hold |
 | `POST` | `/api/v1/units/{unit_id}/scrap` | Scrap the unit |
@@ -4087,7 +4292,7 @@ capacity and always passes.
 ### 10.4 Dispatch Flow
 
 ```
-Unit/Lot completes step
+Unit/Lot completes step (result = pass/fail/rework)
        │
        ▼
   wip.unit.completed / wip.lot.completed event
@@ -4099,7 +4304,8 @@ Unit/Lot completes step
   auto_dispatch()                         enqueue completion report
        │
        ▼
-  Get next step from route (by sequence)
+  Get next step from routing engine (§5.8)
+  (graph transitions → linear fallback)
        │
        ▼
   Get all Equipment at next step's WorkCell
