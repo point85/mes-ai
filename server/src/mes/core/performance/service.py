@@ -15,6 +15,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mes.framework.api.exceptions import NotFoundException
 from mes.framework.api.pagination import PaginationParams, paginate_query
@@ -479,12 +480,14 @@ class OEEService:
         has a multiplier to seconds (3600). ideal_cycle_time = 3600 / 120 = 30 sec/unit.
         """
         from mes.core.physical_model.models import EquipmentMaterial
+        from mes.core.uom.models import UnitOfMeasure
 
-        # Look up the first EquipmentMaterial for this equipment.
-        # design_speed_unit (UnitOfMeasure) is eager-loaded via selectin,
-        # and UnitOfMeasure.denominator_uom is also selectin-loaded.
         em_stmt = (
             select(EquipmentMaterial)
+            .options(
+                selectinload(EquipmentMaterial.design_speed_unit)
+                .selectinload(UnitOfMeasure.denominator_uom)
+            )
             .where(EquipmentMaterial.equipment_id == equipment_id)
             .limit(1)
         )
