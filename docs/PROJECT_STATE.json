@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-02",
-  "lastSessionId": "S025",
+  "lastUpdated": "2026-04-03",
+  "lastSessionId": "S026",
 
   "phases": [
     {
@@ -164,6 +164,11 @@
           "id": "T5.8",
           "name": "Pre-RT-GUI server gaps: WebSocket gateway, serial number auto-gen, lot hold/scrap/release, dashboard aggregation",
           "status": "complete"
+        },
+        {
+          "id": "T5.9",
+          "name": "CPG Demo: server seed module + one-click buttons in ERP Simulator and DT-CLIENT for juice-bottling demo data",
+          "status": "complete"
         }
       ]
     },
@@ -177,7 +182,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S025: Step Transitions (graph routing) + DT-CLIENT Product Detail Page + Pre-RT-GUI server gaps (WebSocket gateway, serial auto-gen, lot hold/scrap, dashboard aggregation). 1422 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S026: CPG Demo seed module — server endpoints + one-click buttons in ERP Simulator (ERP data) and DT-CLIENT (plant model). 1484 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -214,6 +219,7 @@
       "WS-GATEWAY":  { "name": "WebSocket Event Gateway",              "phase": "P5", "status": "implemented" },
       "SERIAL-GEN":  { "name": "Serial/Lot Number Auto-Generation",    "phase": "P5", "status": "implemented" },
       "DASHBOARD":   { "name": "Dashboard Aggregation Endpoints",      "phase": "P5", "status": "implemented" },
+      "CPG-DEMO":    { "name": "CPG Demo Seed Module",                 "phase": "P5", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },
@@ -494,6 +500,12 @@
       "date": "2026-04-02",
       "decision": "Step Transitions: StepTransition model (from_step_id, to_step_id, condition, is_default, priority, label) enables graph-based routing with rework loops, MRB branches, and disposition-driven paths. Conditions: always, on_pass, on_fail, on_rework, disposition. Evaluation priority: disposition > result > always > default. Linear sequence fallback when no transitions defined. REST CRUD under /steps/{id}/transitions.",
       "rationale": "Linear-only routing cannot model rework loops, MRB disposition, or conditional branching. Graph-based transitions with condition evaluation and linear fallback preserve backward compatibility while enabling real manufacturing process flows."
+    },
+    {
+      "id": "D047",
+      "date": "2026-04-03",
+      "decision": "CPG Demo: Server-side seed module with two POST endpoints (/demo/seed-cpg-erp, /demo/seed-cpg-plant) that orchestrate all service calls. One-click buttons in ERP Simulator and DT-CLIENT call these endpoints.",
+      "rationale": "Server-side orchestration avoids 30+ sequential client-side API calls and ensures transactional consistency. Demonstrates ISA-95 structure with realistic juice bottling line: 7 route steps, rework/MRB branches, 6 work cells, 7 equipment, dual fillers for dispatch."
     }
   ],
 

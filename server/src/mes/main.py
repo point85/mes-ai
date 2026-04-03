@@ -39,6 +39,9 @@ import mes.adapters.erp.handlers  # registers ERP outbound @event_handler decora
 # Dashboard aggregation routes
 from mes.core.dashboard.routes import router as dashboard_router
 
+# Demo seed routes
+from mes.core.demo.routes import router as demo_router
+
 # Plugin management routes
 from mes.framework.plugin.routes import router as plugin_router
 
@@ -160,6 +163,9 @@ def create_app() -> FastAPI:
 
     # Dashboard aggregation routes
     app.include_router(dashboard_router)
+
+    # Demo seed routes
+    app.include_router(demo_router)
 
     # Real-time event WebSocket gateway
     app.include_router(events_router)

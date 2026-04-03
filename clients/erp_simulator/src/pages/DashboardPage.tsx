@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getERPHealth, type ERPHealth } from "../api/erp";
+import { getERPHealth, seedCPGErpData, type ERPHealth, type SeedSummary } from "../api/erp";
 import StatusBadge from "../components/StatusBadge";
 import { useERPType } from "../hooks/useERPType";
 
@@ -8,6 +8,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { erpType, erpLabel } = useERPType();
+
+  const [seeding, setSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState<SeedSummary | null>(null);
+  const [seedError, setSeedError] = useState<string | null>(null);
 
   const checkHealth = async () => {
     setLoading(true);
@@ -18,6 +22,19 @@ export default function DashboardPage() {
       setError(err instanceof Error ? err.message : "Health check failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSeedCPG = async () => {
+    setSeeding(true);
+    setSeedError(null);
+    setSeedResult(null);
+    try {
+      setSeedResult(await seedCPGErpData());
+    } catch (err: unknown) {
+      setSeedError(err instanceof Error ? err.message : "Seed failed");
+    } finally {
+      setSeeding(false);
     }
   };
 
@@ -75,6 +92,38 @@ export default function DashboardPage() {
 
         {!health && !error && (
           <div className="text-sm text-gray-500">Click "Check Health" to verify adapter connectivity.</div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg border p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-gray-800">CPG Demo — Juice Bottling</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Seed all ERP master data: 11 materials, product, BOM (9 items), route (7 steps with transitions), 20 step parameters, 20 data definitions, 1 quality test, and 3 production orders.
+            </p>
+          </div>
+          <button onClick={handleSeedCPG} disabled={seeding} className="px-4 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50 whitespace-nowrap">
+            {seeding ? "Seeding…" : "Seed CPG Demo"}
+          </button>
+        </div>
+
+        {seedError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">{seedError}</div>}
+
+        {seedResult && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded text-sm text-emerald-800">
+            <p className="font-medium mb-1">CPG ERP data seeded successfully</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 text-xs">
+              <span>Materials: {seedResult.materials}</span>
+              <span>BOM Items: {seedResult.bom_items}</span>
+              <span>Route Steps: {seedResult.route_steps}</span>
+              <span>Transitions: {seedResult.transitions}</span>
+              <span>Step Params: {seedResult.step_parameters}</span>
+              <span>Data Defs: {seedResult.data_definitions}</span>
+              <span>Quality Tests: {seedResult.quality_tests}</span>
+              <span>Orders: {seedResult.production_orders}</span>
+            </div>
+          </div>
         )}
       </div>
 

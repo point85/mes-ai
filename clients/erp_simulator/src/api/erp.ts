@@ -108,6 +108,24 @@ export async function getERPHealth(): Promise<ERPHealth> {
   return unwrapData(await api.get("/erp/health"));
 }
 
+// ── Demo Seed ─────────────────────────────────────────────────────────────
+
+export interface SeedSummary {
+  materials: number;
+  product: string | null;
+  bom_items: number;
+  route_steps: number;
+  transitions: number;
+  step_parameters: number;
+  data_definitions: number;
+  quality_tests: number;
+  production_orders: number;
+}
+
+export async function seedCPGErpData(): Promise<SeedSummary> {
+  return unwrapData(await api.post("/demo/seed-cpg-erp"));
+}
+
 // ── Inbound Sync ──────────────────────────────────────────────────────────
 
 export async function syncProductionOrders(): Promise<ProductionOrder[]> {
