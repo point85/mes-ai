@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, 1381 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), 1547 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -242,7 +242,8 @@ mes_ai/
 │   │       │   ├── product_def/       # PROD-DEF
 │   │       │   ├── quality/           # QUAL-MGMT
 │   │       │   ├── performance/       # PERF-ANALYSIS
-│   │       │   └── genealogy/         # GENEALOGY
+│   │       │   ├── genealogy/         # GENEALOGY
+│   │       │   └── demo/              # CPG-DEMO + ELEC-DEMO seed modules
 │   │       │
 │   │       ├── framework/             # Framework infrastructure
 │   │       │   ├── __init__.py
@@ -2487,6 +2488,15 @@ step and what the result was each time.
 | `GET` | `/api/v1/erp/queue` | List failed outbound queue items |
 | `GET` | `/api/v1/erp/queue/stats` | Outbound queue statistics |
 | `POST` | `/api/v1/erp/queue/{id}/retry` | Retry a failed outbound item |
+
+#### Demo Data Seeding (CPG-DEMO, ELEC-DEMO)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/demo/seed-cpg-erp` | Seed CPG juice-bottling ERP master data (materials, product, BOM, route, orders) |
+| `POST` | `/api/v1/demo/seed-cpg-plant` | Seed CPG ISA-95 physical model (site, area, line, work cells, equipment) |
+| `POST` | `/api/v1/demo/seed-electronics-erp` | Seed Electronics PCB assembly ERP master data (materials, product, BOM, route, orders) |
+| `POST` | `/api/v1/demo/seed-electronics-plant` | Seed Electronics ISA-95 physical model (site, area, line, work cells, equipment) |
 
 #### Real-Time Events (WebSocket)
 
@@ -6283,7 +6293,83 @@ npm run dev
 4. Navigate to Outbound → Report Completion → fill form → submit → receive SAP doc number
 5. Navigate to Confirmations → click \"Refresh\" → see all generated SAP documents
 
-## 18. Implementation Task Breakdown (Phase 3+)
+## 18. Demo Data Seeding Module (CPG-DEMO, ELEC-DEMO)
+
+Server-side seed module that creates complete, realistic manufacturing scenarios in one click. Each demo populates all ISA-95 layers — from ERP master data (materials, products, BOMs, routes, orders) to the physical plant model (sites, areas, lines, work cells, equipment with state models and material assignments). Two complementary scenarios cover the major manufacturing paradigms.
+
+### 18.1 Architecture
+
+```
+server/src/mes/core/demo/
+├── __init__.py
+├── cpg_data.py              # CPG demo constants (juice bottling)
+├── electronics_data.py      # Electronics demo constants (PCB assembly)
+├── service.py               # Seed orchestration (4 entry points)
+└── routes.py                # 4 POST endpoints under /api/v1/demo/
+```
+
+**Design principles:**
+- Server-side orchestration avoids 30+ sequential client-side API calls and ensures transactional consistency
+- Each scenario uses distinct code prefixes (CPG- / ECB-) so both can coexist in the same database
+- Data constants separated from orchestration logic for clarity and testability
+- Seed functions call existing service modules (MaterialService, ProductService, etc.) — no direct SQL
+
+### 18.2 CPG Demo — Juice Bottling Line (Process / Lot-Tracked)
+
+**Product:** FG-OJ-1L (Orange Juice 1 Liter), product_type=`process`
+
+| Category | Count | Details |
+|---|---|---|
+| Materials | 11 | Concentrate, water, citric acid, sugar, ascorbic acid, sodium benzoate, bottles, caps, labels, cartons, finished good |
+| BOM Items | 9 | Quantities and UOM codes for all components |
+| Route Steps | 7 | Blending → Pasteurization → QC Testing → Filling & Capping → Labeling & Packing → Re-Blend (rework) → MRB Review |
+| Transitions | 9 | Pass/fail/always/disposition conditions; rework loop (QC fail → Re-Blend → Blending); MRB branches (return-to-reblend, scrap, resume-labeling) |
+| Step Parameters | 21 | Recipe targets (temperatures, pressures, speeds, volumes) |
+| Data Definitions | 21 | Collection templates matching step parameters |
+| Quality Tests | 1 | Brix/pH/micro inline at QC Testing step |
+| Production Orders | 3 | PO-OJ-001/002/003 (qty 500/1000/2000) |
+| Physical Model | 1 site, 1 area, 1 line, 6 work cells, 7 equipment | Dual fillers FL-400A/FL-400B for dispatch demonstration |
+| Equipment Materials | 7 | Design speeds and target OEE per equipment |
+
+### 18.3 Electronics Demo — PCB Assembly Line (Discrete / Unit-Tracked)
+
+**Product:** FG-ECB-100 (Electronic Controller Board), product_type=`discrete`, serial_number_template=`SN-{order}-{seq:05d}`
+
+| Category | Count | Details |
+|---|---|---|
+| Materials | 9 | PCB blank, SMD kit, through-hole kit, solder paste, flux, conformal coat, populated PCB (semi), ESD bag, finished good |
+| BOM Items | 8 | Quantities and UOM codes for all components |
+| Route Steps | 8 | Paste Application → SMD Placement → Reflow Soldering → AOI Inspection → TH Insert & Conformal Coat → Functional Test → Rework Station → MRB Review |
+| Transitions | 10 | AOI branches (pass/fail/rework); rework loops back to AOI; MRB disposition (return-to-rework, scrap, resume-coating) |
+| Step Parameters | 26 | Recipe targets (temperatures, pressures, speeds, times) |
+| Data Definitions | 28 | Collection templates matching step parameters |
+| Quality Tests | 1 | ECB-FCT-BOARD functional test at step 60 |
+| Production Orders | 3 | PO-ECB-001/002/003 (qty 50/100/25) |
+| Physical Model | 1 site, 1 area, 1 line, 7 work cells, 8 equipment | Dual PNP-800A/PNP-800B pick-and-place machines for dispatch demonstration |
+| Equipment Materials | 8 | Design speeds and target OEE per equipment |
+
+### 18.4 Client Integration
+
+**ERP Simulator** (port 5174) — Dashboard page has one-click seed buttons for CPG and Electronics ERP data (materials, products, BOMs, routes, orders). Each button calls `POST /api/v1/demo/seed-{scenario}-erp` and displays a summary grid with counts.
+
+**DT-CLIENT** (port 5173) — Dashboard page has one-click seed buttons for CPG and Electronics plant models (ISA-95 hierarchy, equipment, material assignments). Each button calls `POST /api/v1/demo/seed-{scenario}-plant` and displays a summary grid with counts.
+
+### 18.5 Comparison: Process vs Discrete
+
+| Dimension | CPG (Juice Bottling) | Electronics (PCB Assembly) |
+|---|---|---|
+| **Product type** | `process` | `discrete` |
+| **Tracking** | Lot-based | Unit serial number |
+| **Serial template** | N/A | `SN-{order}-{seq:05d}` |
+| **Branching trigger** | QC test result | AOI inspection result |
+| **Rework pattern** | QC fail → Re-Blend → Blending | AOI fail → Rework → AOI re-inspect |
+| **Dual equipment** | Fillers (FL-400A/B) | Pick-and-place (PNP-800A/B) |
+| **Code prefix** | CPG- | ECB- |
+| **Typical order qty** | 500–2000 | 25–100 |
+
+---
+
+## 19. Implementation Task Breakdown (Phase 3+)
 
 Phase 3 implementation will follow this dependency order:
 
@@ -6318,4 +6404,4 @@ Each module implementation will include:
 
 ---
 
-*Last updated: 2026-03-22 — Session S021 (SAP ERP Simulator, ERP Simulator GUI Client, ERP REST API endpoints)*
+*Last updated: 2026-04-03 — Session S026b (Electronics Demo seed module, CPG + Electronics demo data seeding architecture documented)*
