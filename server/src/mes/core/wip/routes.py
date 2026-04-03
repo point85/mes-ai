@@ -20,6 +20,9 @@ Endpoints — Lots:
 - POST   /api/v1/lots/{lot_id}/start       Start processing
 - POST   /api/v1/lots/{lot_id}/complete    Complete current step
 - POST   /api/v1/lots/{lot_id}/move        Move to next step
+- POST   /api/v1/lots/{lot_id}/hold        Place on hold
+- POST   /api/v1/lots/{lot_id}/release-hold  Release from hold
+- POST   /api/v1/lots/{lot_id}/scrap       Scrap the lot
 - GET    /api/v1/lots/{lot_id}/history     Get processing history
 """
 
@@ -42,6 +45,7 @@ from .schemas import (
     StartRequest, CompleteRequest, MoveRequest,
     HoldRequest, ScrapRequest,
 )
+from .serial import SerialNumberService
 from .service import UnitService, LotService
 
 router = APIRouter(prefix="/api/v1", tags=["WIP Tracking"])
@@ -76,8 +80,14 @@ async def create_unit(
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("wip.create")),
 ):
-    """Create a new unit under a released production order."""
-    unit = await UnitService.create_unit(session, **body.model_dump())
+    """Create a new unit under a released production order.
+    If serial_number is omitted, it is auto-generated from the template."""
+    data = body.model_dump(exclude={"serial_template"})
+    if data["serial_number"] is None:
+        data["serial_number"] = await SerialNumberService.generate_serial_number(
+            session, body.order_id, template=body.serial_template,
+        )
+    unit = await UnitService.create_unit(session, **data)
     await session.commit()
     return success_response(UnitRead.model_validate(unit).model_dump())
 
@@ -223,8 +233,14 @@ async def create_lot(
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("wip.create")),
 ):
-    """Create a new lot under a released production order."""
-    lot = await LotService.create_lot(session, **body.model_dump())
+    """Create a new lot under a released production order.
+    If lot_number is omitted, it is auto-generated from the template."""
+    data = body.model_dump(exclude={"lot_template"})
+    if data["lot_number"] is None:
+        data["lot_number"] = await SerialNumberService.generate_lot_number(
+            session, body.order_id, template=body.lot_template,
+        )
+    lot = await LotService.create_lot(session, **data)
     await session.commit()
     return success_response(LotRead.model_validate(lot).model_dump())
 
@@ -288,6 +304,44 @@ async def move_lot(
         session, lot_id, target_step_id=target,
         result=result, disposition=disposition,
     )
+    await session.commit()
+    return success_response(LotRead.model_validate(lot).model_dump())
+
+
+@router.post("/lots/{lot_id}/hold")
+async def hold_lot(
+    lot_id: UUID,
+    body: HoldRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.update")),
+):
+    """Place a lot on hold."""
+    lot = await LotService.hold_lot(session, lot_id, reason=body.reason)
+    await session.commit()
+    return success_response(LotRead.model_validate(lot).model_dump())
+
+
+@router.post("/lots/{lot_id}/release-hold")
+async def release_hold_lot(
+    lot_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.update")),
+):
+    """Release a lot from hold."""
+    lot = await LotService.release_hold_lot(session, lot_id)
+    await session.commit()
+    return success_response(LotRead.model_validate(lot).model_dump())
+
+
+@router.post("/lots/{lot_id}/scrap")
+async def scrap_lot(
+    lot_id: UUID,
+    body: ScrapRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.update")),
+):
+    """Scrap a lot."""
+    lot = await LotService.scrap_lot(session, lot_id, reason=body.reason)
     await session.commit()
     return success_response(LotRead.model_validate(lot).model_dump())
 

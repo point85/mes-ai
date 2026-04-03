@@ -140,3 +140,35 @@ def lot_moved(lot_id: str, from_step_id: str | None, to_step_id: str | None) -> 
             "to_step_id": to_step_id,
         },
     )
+
+
+def lot_held(lot_id: str, reason: str) -> MESEvent:
+    return MESEvent(
+        event_type="wip.lot.held",
+        source="wip",
+        payload={
+            "lot_id": lot_id,
+            "reason": reason,
+        },
+    )
+
+
+def lot_released(lot_id: str) -> MESEvent:
+    return MESEvent(
+        event_type="wip.lot.released",
+        source="wip",
+        payload={"lot_id": lot_id},
+    )
+
+
+def lot_scrapped(lot_id: str, step_id: str | None, reason: str, quantity: int) -> MESEvent:
+    return MESEvent(
+        event_type="wip.lot.scrapped",
+        source="wip",
+        payload={
+            "lot_id": lot_id,
+            "step_id": step_id,
+            "reason": reason,
+            "quantity": quantity,
+        },
+    )

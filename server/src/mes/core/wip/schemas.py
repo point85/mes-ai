@@ -22,12 +22,13 @@ UNIT_STATUSES = {"queued", "in_process", "completed", "scrapped", "on_hold"}
 
 
 class UnitCreate(BaseModel):
-    """Schema for creating a new unit."""
+    """Schema for creating a new unit. If serial_number is omitted, it is auto-generated."""
 
-    serial_number: str = Field(..., min_length=1, max_length=200)
+    serial_number: str | None = Field(None, min_length=1, max_length=200, description="Omit for auto-generation")
     order_id: UUID
     product_id: UUID
     material_id: UUID | None = Field(None, description="Output material for dispatch capability matching")
+    serial_template: str | None = Field(None, max_length=200, description="Template for auto-generation (e.g. 'SN-{order}-{seq:05d}')")
 
 
 class UnitRead(BaseModel):
@@ -57,13 +58,14 @@ LOT_STATUSES = {"queued", "in_process", "completed", "scrapped", "on_hold"}
 
 
 class LotCreate(BaseModel):
-    """Schema for creating a new lot."""
+    """Schema for creating a new lot. If lot_number is omitted, it is auto-generated."""
 
-    lot_number: str = Field(..., min_length=1, max_length=200)
+    lot_number: str | None = Field(None, min_length=1, max_length=200, description="Omit for auto-generation")
     order_id: UUID
     product_id: UUID
     quantity: int = Field(..., gt=0)
     material_id: UUID | None = Field(None, description="Output material for dispatch capability matching")
+    lot_template: str | None = Field(None, max_length=200, description="Template for auto-generation (e.g. 'LOT-{order}-{seq:04d}')")
 
 
 class LotRead(BaseModel):

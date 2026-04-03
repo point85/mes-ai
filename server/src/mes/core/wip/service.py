@@ -26,6 +26,7 @@ from .events import (
     unit_created, unit_started, unit_completed, unit_moved,
     unit_scrapped, unit_held, unit_released,
     lot_created, lot_started, lot_completed, lot_moved,
+    lot_held, lot_released, lot_scrapped,
 )
 from .exceptions import (
     DuplicateSerialNumberException,
@@ -595,4 +596,68 @@ class LotService:
             )
         )
         logger.info("Moved lot %s to step %s", lot.id, lot.current_step_id)
+        return lot
+
+    @staticmethod
+    async def hold_lot(
+        session: AsyncSession, lot_id: UUID, reason: str,
+    ) -> Lot:
+        """Place a lot on hold."""
+        lot = await LotService.get_lot(session, lot_id)
+        if lot.status in ("completed", "scrapped"):
+            raise InvalidWIPTransitionException(
+                lot.lot_number, lot.status, "hold",
+            )
+        lot.status = "on_hold"
+        await session.flush()
+
+        await event_bus.publish(lot_held(str(lot.id), reason))
+        logger.info("Held lot %s: %s", lot.id, reason)
+        return lot
+
+    @staticmethod
+    async def release_hold_lot(
+        session: AsyncSession, lot_id: UUID,
+    ) -> Lot:
+        """Release a lot from hold, returning it to 'queued'."""
+        lot = await LotService.get_lot(session, lot_id)
+        if lot.status != "on_hold":
+            raise InvalidWIPTransitionException(
+                lot.lot_number, lot.status, "release-hold",
+            )
+        lot.status = "queued"
+        await session.flush()
+
+        await event_bus.publish(lot_released(str(lot.id)))
+        logger.info("Released hold on lot %s", lot.id)
+        return lot
+
+    @staticmethod
+    async def scrap_lot(
+        session: AsyncSession, lot_id: UUID, reason: str,
+    ) -> Lot:
+        """Scrap a lot. Increments the order's scrapped count by the lot quantity."""
+        lot = await LotService.get_lot(session, lot_id)
+        if lot.status in ("completed", "scrapped"):
+            raise InvalidWIPTransitionException(
+                lot.lot_number, lot.status, "scrap",
+            )
+        step_id = lot.current_step_id
+        lot.status = "scrapped"
+        lot.current_equipment_id = None
+        await session.flush()
+
+        await ProductionOrderService.increment_scrapped(
+            session, lot.order_id, lot.quantity,
+        )
+
+        await event_bus.publish(
+            lot_scrapped(
+                str(lot.id),
+                str(step_id) if step_id else None,
+                reason,
+                lot.quantity,
+            )
+        )
+        logger.info("Scrapped lot %s (qty=%d): %s", lot.id, lot.quantity, reason)
         return lot

@@ -159,6 +159,11 @@
           "id": "T5.7",
           "name": "DT-CLIENT: Product Detail Page with Routes, Steps, and Step Transitions editor",
           "status": "complete"
+        },
+        {
+          "id": "T5.8",
+          "name": "Pre-RT-GUI server gaps: WebSocket gateway, serial number auto-gen, lot hold/scrap/release, dashboard aggregation",
+          "status": "complete"
         }
       ]
     },
@@ -172,7 +177,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S025: Step Transitions (graph routing) implemented + DT-CLIENT Product Detail Page with routes/steps/transitions editor. 1381 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S025: Step Transitions (graph routing) + DT-CLIENT Product Detail Page + Pre-RT-GUI server gaps (WebSocket gateway, serial auto-gen, lot hold/scrap, dashboard aggregation). 1422 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -206,6 +211,9 @@
       "ERP-SIM-GUI":   { "name": "ERP Simulator GUI Client",         "phase": "P5", "status": "implemented" },
       "AVAIL-SIM":    { "name": "Equipment Availability Simulator GUI", "phase": "P5", "status": "implemented" },
       "STEP-TRANS":   { "name": "Step Transitions (Graph Routing)",     "phase": "P3", "status": "implemented" },
+      "WS-GATEWAY":  { "name": "WebSocket Event Gateway",              "phase": "P5", "status": "implemented" },
+      "SERIAL-GEN":  { "name": "Serial/Lot Number Auto-Generation",    "phase": "P5", "status": "implemented" },
+      "DASHBOARD":   { "name": "Dashboard Aggregation Endpoints",      "phase": "P5", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },

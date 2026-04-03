@@ -2007,12 +2007,96 @@ Created `ProductDetailPage.tsx` at `/products/:productId` — full route/step/tr
 
 ### Where We Stopped
 - Step Transitions fully implemented and tested
-- **1381 tests passing**, no regressions
+- Pre-RT-GUI server gaps complete: WebSocket gateway, serial auto-gen, lot hold/scrap, dashboard aggregation
+- **1422 tests passing**, no regressions
 - Next options:
-  1. **RT-GUI** — Runtime operator client (with transition/disposition UI)
-  2. **DT-CLIENT editor** — Add Step Transitions editor to process route pages
-  3. **More vendor adapters** — Modbus TCP equipment, D365 F&O ERP
-  4. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+  1. **RT-GUI** — Runtime operator client (all server prerequisites now met)
+  2. **More vendor adapters** — Modbus TCP equipment, D365 F&O ERP
+  3. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+
+### S025 Continuation — Pre-RT-GUI Server Gaps
+
+#### 10. Architecture Document Update
+Updated `docs/ARCHITECTURE.md` with 8 edits:
+- Status line: 1381→1422 tests, added graph-based transitions and WIP queuing
+- §5.1 ER diagram: StepTransition edges
+- §5.2: StepTransition entity, RouteStep mrb type
+- §5.8 Routing Engine (new): graph-based routing, linear fallback, integration flow
+- §5.9 WIP Queuing & Equipment Tracking (new): status lifecycle, queue model, operations, audit trail
+- §6.3: step transition CRUD endpoints, updated move endpoint
+- §10.4: dispatch flow references graph routing
+- ISA-95 boundary note: StepTransition reference
+
+#### 11. WebSocket Event Gateway
+Created `server/src/mes/framework/events/gateway.py`:
+- `_ConnectionManager` class: tracks WebSocket connections with topic filters (empty = all events)
+- Subscribes to event bus with wildcard `"*"`, broadcasts MESEvent JSON to matching clients
+- Topic matching: exact, prefix wildcard (`wip.unit.*`), or fnmatch
+- Client commands: `subscribe` (filter by topics), `ping` (keepalive)
+- Endpoint: `WS /api/v1/events/ws`
+- Registered in `main.py` via `events_router`
+
+#### 12. Serial Number Auto-Generation
+Created `server/src/mes/core/wip/serial.py`:
+- `SerialNumberService` with `generate_serial_number()` and `generate_lot_number()`
+- Templates: Python str.format() with variables: `{seq}`, `{order}`, `{product}`, `{date}`, `{year}`, `{month}`, `{day}`
+- Defaults: `"SN-{order}-{seq:05d}"` / `"LOT-{order}-{seq:04d}"`
+- Sequence via COUNT of existing units/lots on the order
+- Updated `UnitCreate.serial_number` → optional (None = auto-gen), added `serial_template`
+- Updated `LotCreate.lot_number` → optional, added `lot_template`
+- Updated `create_unit`/`create_lot` routes to call auto-generation when None
+
+#### 13. Lot Hold / Scrap / Release-Hold
+Added 3 event factories in `wip/events.py`: `lot_held()`, `lot_released()`, `lot_scrapped()`
+Added 3 service methods in `LotService`: `hold_lot()`, `release_hold_lot()`, `scrap_lot()`:
+- `hold_lot`: validates not completed/scrapped, sets status="on_hold"
+- `release_hold_lot`: validates on_hold, sets status="queued"
+- `scrap_lot`: validates not completed/scrapped, sets status="scrapped", clears equipment, calls `increment_scrapped`
+Added 3 REST endpoints: `POST /lots/{lot_id}/hold`, `/lots/{lot_id}/release-hold`, `/lots/{lot_id}/scrap`
+
+#### 14. Dashboard Aggregation Endpoints
+Created `server/src/mes/core/dashboard/` module:
+- `service.py` — `DashboardService` with 3 static async methods:
+  - `order_progress()`: active order rollup with completion %, WIP status bucket counts
+  - `line_status()`: production line equipment states + queue depths
+  - `shift_summary()`: production counts for configurable time window (default 8h)
+- `routes.py` — 3 REST endpoints:
+  - `GET /api/v1/dashboard/order-progress?status=`
+  - `GET /api/v1/dashboard/line-status?line_id=`
+  - `GET /api/v1/dashboard/shift-summary?hours=&equipment_id=`
+- Dashboard router registered in `main.py`
+
+#### 15. Unit Tests (41 new → 1422 total)
+Created `tests/unit/test_pre_rt_gui.py` covering all 4 features:
+- **WebSocket gateway**: topic matching (7), import (2), app route (1)
+- **Serial number**: template formatting (6), service import (2), schema optionality (5)
+- **Lot hold/scrap**: event factories (3), service methods (3), route registration (3)
+- **Dashboard**: module import (5), route registration (3), app-level (1)
+- Fixed 2 regressions in `test_wip.py` (added `min_length=1` to optional serial/lot fields)
+
+### Test Results (Final)
+- **1422 unit tests passing**, 5 warnings, 0 failures
+
+### Files Created (S025 continuation)
+| File | Purpose |
+|------|---------|
+| `server/src/mes/framework/events/gateway.py` | WebSocket event gateway |
+| `server/src/mes/core/wip/serial.py` | Serial/lot number auto-generation |
+| `server/src/mes/core/dashboard/__init__.py` | Dashboard module init |
+| `server/src/mes/core/dashboard/service.py` | Dashboard aggregation queries |
+| `server/src/mes/core/dashboard/routes.py` | Dashboard REST endpoints |
+| `tests/unit/test_pre_rt_gui.py` | 41 tests for all 4 features |
+
+### Files Modified (S025 continuation)
+| File | Change |
+|------|--------|
+| `src/mes/main.py` | Added events_router + dashboard_router |
+| `src/mes/core/wip/schemas.py` | serial_number/lot_number optional, templates |
+| `src/mes/core/wip/routes.py` | Auto-gen logic, 3 lot endpoints |
+| `src/mes/core/wip/events.py` | lot_held, lot_released, lot_scrapped |
+| `src/mes/core/wip/service.py` | LotService hold/release/scrap methods |
+| `docs/ARCHITECTURE.md` | §5.8, §5.9, routing/queuing updates |
+| `docs/PROJECT_STATE.json` | T5.8, 3 new modules, test count |
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.

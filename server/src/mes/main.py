@@ -9,6 +9,7 @@ from mes.framework.api.exceptions import register_exception_handlers
 from mes.framework.auth.routes import router as auth_router
 from mes.framework.events import event_bus
 from mes.framework.events.decorators import get_registered_handlers
+from mes.framework.events.gateway import router as events_router
 from mes.framework.plugin import PluginManager
 
 # Core module routers (Layer 1+)
@@ -34,6 +35,9 @@ import mes.core.dispatch.handlers  # registers @event_handler decorators  # noqa
 # Integration adapter routers (P4)
 from mes.adapters.erp.routes import router as erp_queue_router
 import mes.adapters.erp.handlers  # registers ERP outbound @event_handler decorators  # noqa: F401
+
+# Dashboard aggregation routes
+from mes.core.dashboard.routes import router as dashboard_router
 
 # Plugin management routes
 from mes.framework.plugin.routes import router as plugin_router
@@ -153,6 +157,12 @@ def create_app() -> FastAPI:
 
     # Plugin management routes
     app.include_router(plugin_router)
+
+    # Dashboard aggregation routes
+    app.include_router(dashboard_router)
+
+    # Real-time event WebSocket gateway
+    app.include_router(events_router)
 
     @app.get("/health", tags=["System"])
     async def health_check():
