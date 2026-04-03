@@ -594,10 +594,8 @@ async def delete_simulator_material(
             status_code=400,
             error_code="NOT_A_SIMULATOR",
         )
-    removed = adapter.delete_material(code)
-    if not removed:
-        from mes.framework.api.exceptions import NotFoundException
-        raise NotFoundException(resource="Material", resource_id=code)
+    # Remove from simulator in-memory store (best-effort)
+    adapter.delete_material(code)
 
     # Soft-delete from MES database
     result = await session.execute(
@@ -610,5 +608,7 @@ async def delete_simulator_material(
     if db_material is not None:
         await MaterialService.delete_material(session, db_material.id)
         await session.commit()
+        return success_response({"deleted": True, "code": code})
 
-    return success_response({"deleted": True, "code": code})
+    from mes.framework.api.exceptions import NotFoundException
+    raise NotFoundException(resource="Material", resource_id=code)

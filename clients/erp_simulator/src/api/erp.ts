@@ -20,6 +20,27 @@ export interface ProductionOrder {
   metadata: Record<string, unknown>;
 }
 
+export interface DBProductionOrder {
+  id: string;
+  order_number: string;
+  product_id: string;
+  route_id: string | null;
+  quantity_ordered: number;
+  quantity_completed: number;
+  quantity_scrapped: number;
+  status: string;
+  priority: number;
+  planned_start: string | null;
+  planned_end: string | null;
+  actual_start: string | null;
+  actual_end: string | null;
+  erp_reference: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MaterialDefinition {
   code: string;
   name: string;
@@ -136,8 +157,20 @@ export async function syncProductionOrders(): Promise<ProductionOrder[]> {
   return unwrapData(await api.post("/erp/sync/production-orders"));
 }
 
+export async function readProductionOrders(): Promise<DBProductionOrder[]> {
+  return unwrapData(await api.get("/orders", { params: { limit: 200 } }));
+}
+
+export async function deleteProductionOrder(id: string): Promise<void> {
+  await api.delete(`/orders/${encodeURIComponent(id)}`);
+}
+
 export async function syncMaterials(): Promise<MaterialDefinition[]> {
   return unwrapData(await api.post("/erp/sync/materials"));
+}
+
+export async function readMaterials(): Promise<MaterialDefinition[]> {
+  return unwrapData(await api.get("/materials", { params: { limit: 200 } }));
 }
 
 export async function syncProducts(): Promise<ProductDefinition[]> {

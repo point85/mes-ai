@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   syncMaterials,
+  readMaterials,
   createMaterial,
   updateMaterial,
   deleteMaterial,
@@ -62,17 +63,17 @@ export default function MaterialsPage() {
       .catch(() => {});
   }, []);
 
-  /* ── Sync ─────────────────────────────────────────────────────── */
+  /* ── Read ───────────────────────────────────────────────────── */
 
-  const handleSync = async () => {
+  const handleRead = async () => {
     setLoading(true);
     setError(null);
     setEditCode(null);
     setAdding(false);
     try {
-      setData(await syncMaterials());
+      setData(await readMaterials());
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Sync failed");
+      setError(err instanceof Error ? err.message : "Read failed");
     } finally {
       setLoading(false);
     }
@@ -177,11 +178,11 @@ export default function MaterialsPage() {
       {/* Action bar */}
       <div className="flex items-center gap-3">
         <button
-          onClick={handleSync}
+          onClick={handleRead}
           disabled={loading}
           className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? "Syncing…" : "Sync Materials"}
+          {loading ? "Reading…" : "Read Materials"}
         </button>
         {!adding && (
           <button

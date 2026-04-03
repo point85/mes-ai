@@ -25,6 +25,7 @@ from mes.core.data_collection.service import DataDefinitionService
 from mes.core.quality.service import QualityTestService
 from mes.core.physical_model.service import PhysicalModelService
 from mes.core.physical_model.models import WorkCell, Equipment
+from mes.core.uom.models import UnitOfMeasure
 
 from . import cpg_data as D
 from . import electronics_data as E
@@ -104,6 +105,9 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
             label=t["label"],
         )
         summary["transitions"] += 1
+
+    # ── 6b. Ensure demo-specific UOMs exist ─────────────────────────
+    await _ensure_demo_uoms(session)
 
     # ── 7. Step Parameters ────────────────────────────────────────────
     for seq, params in D.STEP_PARAMS.items():
@@ -288,6 +292,9 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
         )
         summary["transitions"] += 1
 
+    # ── 6b. Ensure demo-specific UOMs exist ─────────────────────────
+    await _ensure_demo_uoms(session)
+
     # ── 7. Step Parameters ────────────────────────────────────────────
     for seq, params in E.STEP_PARAMS.items():
         step = step_by_seq[seq]
@@ -445,3 +452,41 @@ async def _material_id_map(session: AsyncSession) -> dict[str, UUID]:
         )
     )
     return {row[0]: row[1] for row in result.all()}
+
+
+# Demo-specific UOMs not in the standard seed data.
+# Each entry: (symbol, name, uom_type, multiplier, offset)
+_DEMO_UOMS: list[tuple[str, str, str, float, float]] = [
+    ("°Bx",    "degrees Brix",         "concentration", 1.0, 0.0),
+    ("pH",     "pH",                   "concentration", 1.0, 0.0),
+    ("CFU/mL", "colony-forming units per mL", "concentration", 1.0, 0.0),
+    ("mL",     "millilitre",           "volume",        0.001, 0.0),
+    ("mm",     "millimetre",           "length",        0.001, 0.0),
+    ("Nm",     "newton-metre",         "torque",        1.0, 0.0),
+    ("count",  "count",                "count",         1.0, 0.0),
+    ("V",      "volt",                 "electrical",    1.0, 0.0),
+    ("mA",     "milliampere",          "electrical",    0.001, 0.0),
+    ("kPa",    "kilopascal",           "pressure",      1000.0, 0.0),
+    ("µm",     "micrometre",           "length",        1e-6, 0.0),
+    ("cph",    "components per hour",  "rate",          1.0, 0.0),
+    ("mm/s",   "millimetres per second", "rate",        0.001, 0.0),
+    ("mm/min", "millimetres per minute", "rate",        0.001 / 60, 0.0),
+]
+
+
+async def _ensure_demo_uoms(session: AsyncSession) -> None:
+    """Create any demo-specific UOMs that are not already in the DB."""
+    result = await session.execute(select(UnitOfMeasure.symbol))
+    existing = {row[0] for row in result.all()}
+
+    for symbol, name, uom_type, multiplier, offset in _DEMO_UOMS:
+        if symbol not in existing:
+            session.add(UnitOfMeasure(
+                symbol=symbol,
+                name=name,
+                uom_type=uom_type,
+                multiplier=multiplier,
+                offset=offset,
+                is_builtin=False,
+            ))
+    await session.flush()
