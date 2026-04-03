@@ -2191,3 +2191,94 @@ Created `server/tests/unit/test_cpg_demo.py` with 14 test classes covering data 
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
+
+## Session S026b — 2026-04-03
+
+**Phase**: P5 — Client Implementations
+**Objective**: Electronics Demo — discrete-manufacturing PCB assembly with unit serial number tracking
+
+### What Happened
+
+#### 1. Electronics Demo Data Module
+Created `server/src/mes/core/demo/electronics_data.py` with all demo constants for an **Electronic Controller Board (ECB) Assembly Line**:
+- **9 materials**: PCB blank, SMD component kit, through-hole kit, solder paste, flux, conformal coat, populated PCB (semi-finished), ESD bag, finished good (FG-ECB-100)
+- **1 product**: FG-ECB-100 (Electronic Controller Board, type="discrete", serial template `SN-{order}-{seq:05d}`)
+- **8 BOM items** with quantities and UOM codes
+- **8 route steps**: Paste Application (10) → SMD Placement (20) → Reflow Soldering (30) → AOI Inspection (40) → TH Insert & Conformal Coat (50) → Functional Test (60) → Rework Station (70) → MRB Review (80)
+- **10 step transitions**: AOI branches to pass/fail/rework, rework loops back to AOI, MRB disposition paths (return-to-rework, scrap, resume-coating)
+- **26 step parameters**: recipe targets per step (temperatures, pressures, speeds, times)
+- **28 data definitions**: collection templates matching step parameters
+- **1 quality test**: ECB-FCT-BOARD functional test at step 60
+- **3 production orders**: PO-ECB-001/002/003 with quantities 50/100/25
+- **S95 physical model**: 1 site (Apex Electronics), 1 area (PCBA Area), 1 line (LINE-SMT-01), 7 work cells, 8 equipment pieces (including dual PNP-800A/PNP-800B pick-and-place machines for dispatch demo)
+- **8 equipment-material assignments** with design speeds and target OEE
+
+#### 2. Server Seed Service
+Extended `server/src/mes/core/demo/service.py` with two new entry points:
+- `seed_electronics_erp_data(session)` — creates materials → product → BOM → route → steps → transitions → step params → data defs → quality test → production orders
+- `seed_electronics_plant_data(session)` — creates site → area → line → work cells → equipment (with state models) → equipment-material assignments
+- Reuses existing helper functions (`_get_or_create_material`, `_get_or_create_product`, etc.)
+
+#### 3. REST Endpoints
+Extended `server/src/mes/core/demo/routes.py`:
+- `POST /api/v1/demo/seed-electronics-erp` — seeds all electronics ERP master data, returns summary counts
+- `POST /api/v1/demo/seed-electronics-plant` — seeds ISA-95 hierarchy, returns summary counts
+
+#### 4. ERP Simulator Seed Button
+- Added `seedElectronicsErpData()` API function in `clients/erp_simulator/src/api/erp.ts`
+- Added "Electronics Demo — PCB Assembly" card on DashboardPage with blue-themed button, loading state, success summary grid (8 metrics), and error display
+
+#### 5. DT-CLIENT Seed Button
+- Added `seedElectronicsPlantData()` API function in `clients/design_time/src/api/demo.ts`
+- Added "Electronics Demo — PCB Assembly Plant" card on DashboardPage with blue-themed button, loading state, success summary grid (6 metrics), and error display
+
+#### 6. Unit Tests (63 new)
+Created `server/tests/unit/test_electronics_demo.py` with 14 test classes:
+- TestElecDataMaterials (5), TestElecDataProduct (2), TestElecDataBOM (4), TestElecDataRoute (8)
+- TestElecDataTransitions (6), TestElecDataStepParams (3), TestElecDataDataDefs (4), TestElecDataQualityTest (2)
+- TestElecDataOrders (4), TestElecDataPhysicalModel (12), TestElecDataEquipmentMaterials (4)
+- TestElecServiceImports (2), TestElecDemoRouteRegistration (3), TestElecDataIntegrity (4)
+
+#### 7. Bug Fixes During Testing
+- Fixed test count assertions (26 step params and 28 data defs vs estimated 28 and 30)
+
+### Test Results
+- **1547 unit tests passing** (1484 + 63 new), 5 warnings, 0 failures
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D048 | Electronics Demo: Discrete-manufacturing PCB assembly with unit serial number tracking. Same seed pattern as CPG. ECB- prefix for data isolation. |
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `server/src/mes/core/demo/electronics_data.py` | All electronics demo data constants |
+| `server/tests/unit/test_electronics_demo.py` | 63 unit tests |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/core/demo/service.py` | Added `electronics_data` import, two seed functions |
+| `server/src/mes/core/demo/routes.py` | Two new POST endpoints for electronics |
+| `clients/erp_simulator/src/api/erp.ts` | Added `seedElectronicsErpData()` |
+| `clients/erp_simulator/src/pages/DashboardPage.tsx` | Added electronics seed button card |
+| `clients/design_time/src/api/demo.ts` | Added `seedElectronicsPlantData()` |
+| `clients/design_time/src/pages/DashboardPage.tsx` | Added electronics seed button card |
+| `docs/PROJECT_STATE.json` | S026b, ELEC-DEMO module, D048, T5.10, test count |
+| `docs/SESSION_LOG.md` | This session entry |
+
+### Where We Stopped
+- Electronics Demo fully implemented and tested
+- **1547 tests passing**, no regressions
+- Two demo scenarios available: CPG (process/lot-tracked) and Electronics (discrete/unit-tracked)
+- Next options:
+  1. **RT-GUI** — Runtime operator client (both demo datasets available)
+  2. **Integration test** — Run seed endpoints against real DB
+  3. **P6: Testing & CI** — GitHub Actions pipeline
+  4. **More vendor adapters** — Modbus TCP, D365 F&O
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.

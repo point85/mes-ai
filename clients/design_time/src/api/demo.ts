@@ -13,3 +13,8 @@ export async function seedCPGPlantData(): Promise<PlantSeedSummary> {
   const { data } = await api.post<{ data: PlantSeedSummary }>("/demo/seed-cpg-plant");
   return data.data;
 }
+
+export async function seedElectronicsPlantData(): Promise<PlantSeedSummary> {
+  const { data } = await api.post<{ data: PlantSeedSummary }>("/demo/seed-electronics-plant");
+  return data.data;
+}

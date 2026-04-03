@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-04-03",
-  "lastSessionId": "S026",
+  "lastSessionId": "S026b",
 
   "phases": [
     {
@@ -169,6 +169,11 @@
           "id": "T5.9",
           "name": "CPG Demo: server seed module + one-click buttons in ERP Simulator and DT-CLIENT for juice-bottling demo data",
           "status": "complete"
+        },
+        {
+          "id": "T5.10",
+          "name": "Electronics Demo: discrete-manufacturing PCB assembly seed module with unit serial number tracking + one-click buttons",
+          "status": "complete"
         }
       ]
     },
@@ -182,7 +187,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S026: CPG Demo seed module — server endpoints + one-click buttons in ERP Simulator (ERP data) and DT-CLIENT (plant model). 1484 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S026: CPG Demo seed module. S026b: Electronics Demo seed module — discrete-manufacturing PCB assembly with unit serial number tracking. 1547 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -220,6 +225,7 @@
       "SERIAL-GEN":  { "name": "Serial/Lot Number Auto-Generation",    "phase": "P5", "status": "implemented" },
       "DASHBOARD":   { "name": "Dashboard Aggregation Endpoints",      "phase": "P5", "status": "implemented" },
       "CPG-DEMO":    { "name": "CPG Demo Seed Module",                 "phase": "P5", "status": "implemented" },
+      "ELEC-DEMO":   { "name": "Electronics Demo Seed Module",          "phase": "P5", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },
@@ -506,6 +512,12 @@
       "date": "2026-04-03",
       "decision": "CPG Demo: Server-side seed module with two POST endpoints (/demo/seed-cpg-erp, /demo/seed-cpg-plant) that orchestrate all service calls. One-click buttons in ERP Simulator and DT-CLIENT call these endpoints.",
       "rationale": "Server-side orchestration avoids 30+ sequential client-side API calls and ensures transactional consistency. Demonstrates ISA-95 structure with realistic juice bottling line: 7 route steps, rework/MRB branches, 6 work cells, 7 equipment, dual fillers for dispatch."
+    },
+    {
+      "id": "D048",
+      "date": "2026-04-03",
+      "decision": "Electronics Demo: Discrete-manufacturing PCB assembly demo with unit serial number tracking. Same seed pattern as CPG (two POST endpoints, one-click buttons). Product type 'discrete' with serial template SN-{order}-{seq:05d}. 8 route steps including AOI branch to rework loop and MRB disposition. Dual PNP placement machines for dispatch.",
+      "rationale": "Complements CPG (process/lot-tracked) with a discrete/unit-tracked scenario. Demonstrates serial number auto-generation, AOI-driven pass/fail/rework branching, and MRB disposition paths. ECB- prefix avoids data collisions with CPG-."
     }
   ],
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getERPHealth, seedCPGErpData, type ERPHealth, type SeedSummary } from "../api/erp";
+import { getERPHealth, seedCPGErpData, seedElectronicsErpData, type ERPHealth, type SeedSummary } from "../api/erp";
 import StatusBadge from "../components/StatusBadge";
 import { useERPType } from "../hooks/useERPType";
 
@@ -12,6 +12,10 @@ export default function DashboardPage() {
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState<SeedSummary | null>(null);
   const [seedError, setSeedError] = useState<string | null>(null);
+
+  const [seedingElec, setSeedingElec] = useState(false);
+  const [seedElecResult, setSeedElecResult] = useState<SeedSummary | null>(null);
+  const [seedElecError, setSeedElecError] = useState<string | null>(null);
 
   const checkHealth = async () => {
     setLoading(true);
@@ -35,6 +39,19 @@ export default function DashboardPage() {
       setSeedError(err instanceof Error ? err.message : "Seed failed");
     } finally {
       setSeeding(false);
+    }
+  };
+
+  const handleSeedElectronics = async () => {
+    setSeedingElec(true);
+    setSeedElecError(null);
+    setSeedElecResult(null);
+    try {
+      setSeedElecResult(await seedElectronicsErpData());
+    } catch (err: unknown) {
+      setSeedElecError(err instanceof Error ? err.message : "Seed failed");
+    } finally {
+      setSeedingElec(false);
     }
   };
 
@@ -122,6 +139,38 @@ export default function DashboardPage() {
               <span>Data Defs: {seedResult.data_definitions}</span>
               <span>Quality Tests: {seedResult.quality_tests}</span>
               <span>Orders: {seedResult.production_orders}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg border p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-gray-800">Electronics Demo — PCB Assembly</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Seed ERP data: 9 materials, product, BOM (8 items), route (8 steps with rework/MRB transitions), 28 step parameters, 30 data definitions, 1 quality test, and 3 serial-tracked production orders.
+            </p>
+          </div>
+          <button onClick={handleSeedElectronics} disabled={seedingElec} className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">
+            {seedingElec ? "Seeding…" : "Seed Electronics Demo"}
+          </button>
+        </div>
+
+        {seedElecError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">{seedElecError}</div>}
+
+        {seedElecResult && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+            <p className="font-medium mb-1">Electronics ERP data seeded successfully</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 text-xs">
+              <span>Materials: {seedElecResult.materials}</span>
+              <span>BOM Items: {seedElecResult.bom_items}</span>
+              <span>Route Steps: {seedElecResult.route_steps}</span>
+              <span>Transitions: {seedElecResult.transitions}</span>
+              <span>Step Params: {seedElecResult.step_parameters}</span>
+              <span>Data Defs: {seedElecResult.data_definitions}</span>
+              <span>Quality Tests: {seedElecResult.quality_tests}</span>
+              <span>Orders: {seedElecResult.production_orders}</span>
             </div>
           </div>
         )}

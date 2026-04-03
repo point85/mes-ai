@@ -126,6 +126,10 @@ export async function seedCPGErpData(): Promise<SeedSummary> {
   return unwrapData(await api.post("/demo/seed-cpg-erp"));
 }
 
+export async function seedElectronicsErpData(): Promise<SeedSummary> {
+  return unwrapData(await api.post("/demo/seed-electronics-erp"));
+}
+
 // ── Inbound Sync ──────────────────────────────────────────────────────────
 
 export async function syncProductionOrders(): Promise<ProductionOrder[]> {
