@@ -99,6 +99,7 @@ class BOMItemCreate(BaseModel):
     quantity: float = Field(..., gt=0)
     uom: str = Field("EA", max_length=20)
     position: int = Field(0, ge=0)
+    route_step_id: UUID | None = None
 
 
 class BOMItemRead(BaseModel):
@@ -110,6 +111,7 @@ class BOMItemRead(BaseModel):
     quantity: float
     uom: str
     position: int
+    route_step_id: UUID | None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -124,6 +126,7 @@ class BOMItemUpdate(BaseModel):
     quantity: float | None = Field(None, gt=0)
     uom: str | None = Field(None, max_length=20)
     position: int | None = Field(None, ge=0)
+    route_step_id: UUID | None = None
 
 
 # ─── ProcessRoute ────────────────────────────────────────────────────

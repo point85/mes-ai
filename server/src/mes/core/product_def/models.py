@@ -125,6 +125,11 @@ class BOMItem(BaseModel):
         Integer, nullable=False, default=0,
         comment="Sort order within the BOM",
     )
+    route_step_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        nullable=True, index=True,
+        comment="Optional FK to route step where this material is consumed",
+    )
 
     # Relationships
     bom: Mapped["BillOfMaterial"] = relationship(

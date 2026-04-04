@@ -216,6 +216,7 @@ export interface DBBomItem {
   quantity: number;
   uom: string;
   position: number;
+  route_step_id: string | null;
   is_active: boolean;
 }
 
