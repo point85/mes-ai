@@ -107,6 +107,17 @@ async def update_product(
     return success_response(ProductRead.model_validate(product).model_dump())
 
 
+@router.delete("/products/{product_id}", status_code=204)
+async def delete_product(
+    product_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Soft-delete a product definition."""
+    await svc.delete_product(session, product_id)
+    await session.commit()
+
+
 # ─── BOMs ─────────────────────────────────────────────────────────────
 
 

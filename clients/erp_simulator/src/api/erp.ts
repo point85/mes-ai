@@ -177,6 +177,56 @@ export async function syncProducts(): Promise<ProductDefinition[]> {
   return unwrapData(await api.post("/erp/sync/products"));
 }
 
+export interface DBProduct {
+  id: string;
+  name: string;
+  code: string;
+  version: string;
+  description: string | null;
+  uom: string;
+  product_type: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function readProducts(): Promise<DBProduct[]> {
+  return unwrapData(await api.get("/products", { params: { limit: 200 } }));
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  await api.delete(`/products/${encodeURIComponent(id)}`);
+}
+
+export interface DBBom {
+  id: string;
+  product_id: string;
+  version: string;
+  effective_date: string | null;
+  expiry_date: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DBBomItem {
+  id: string;
+  bom_id: string;
+  material_code: string;
+  quantity: number;
+  uom: string;
+  position: number;
+  is_active: boolean;
+}
+
+export async function readProductBoms(productId: string): Promise<DBBom[]> {
+  return unwrapData(await api.get(`/products/${encodeURIComponent(productId)}/boms`, { params: { limit: 200 } }));
+}
+
+export async function readBomItems(bomId: string): Promise<DBBomItem[]> {
+  return unwrapData(await api.get(`/boms/${encodeURIComponent(bomId)}/items`, { params: { limit: 200 } }));
+}
+
 export async function syncBoms(productId: string): Promise<BillOfMaterial[]> {
   return unwrapData(
     await api.post("/erp/sync/boms", null, { params: { product_id: productId } })

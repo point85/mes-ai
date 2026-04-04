@@ -109,6 +109,14 @@ class ProductDefService:
         await session.flush()
         return product
 
+    @staticmethod
+    async def delete_product(session: AsyncSession, product_id: UUID) -> None:
+        """Soft-delete a product definition."""
+        product = await ProductDefService.get_product(session, product_id)
+        product.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted product %s (%s v%s)", product.id, product.code, product.version)
+
     # ─── BillOfMaterial operations ───────────────────────────────────
 
     @staticmethod
