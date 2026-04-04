@@ -45,15 +45,15 @@ PRODUCT = {
 # ---------------------------------------------------------------------------
 
 BOM_ITEMS: list[dict] = [
-    {"material_code": "RM-OJ-CONC",    "quantity": 200.0,   "uom": "kg", "position": 10},
-    {"material_code": "RM-WATER",      "quantity": 800.0,   "uom": "L",  "position": 20},
-    {"material_code": "RM-SUGAR",      "quantity": 50.0,    "uom": "kg", "position": 30},
-    {"material_code": "RM-CITRIC",     "quantity": 2.0,     "uom": "kg", "position": 40},
-    {"material_code": "RM-VITC",       "quantity": 0.5,     "uom": "kg", "position": 50},
-    {"material_code": "PKG-BOTTLE-1L", "quantity": 1000.0,  "uom": "EA", "position": 60},
-    {"material_code": "PKG-CAP",       "quantity": 1000.0,  "uom": "EA", "position": 70},
-    {"material_code": "PKG-LABEL",     "quantity": 1000.0,  "uom": "EA", "position": 80},
-    {"material_code": "PKG-CASE",      "quantity": 84.0,    "uom": "EA", "position": 90},
+    {"material_code": "RM-OJ-CONC",    "quantity": 200.0,   "uom": "kg", "position": 10, "step_sequence": 10},   # Blending
+    {"material_code": "RM-WATER",      "quantity": 800.0,   "uom": "L",  "position": 20, "step_sequence": 10},   # Blending
+    {"material_code": "RM-SUGAR",      "quantity": 50.0,    "uom": "kg", "position": 30, "step_sequence": 10},   # Blending
+    {"material_code": "RM-CITRIC",     "quantity": 2.0,     "uom": "kg", "position": 40, "step_sequence": 10},   # Blending
+    {"material_code": "RM-VITC",       "quantity": 0.5,     "uom": "kg", "position": 50, "step_sequence": 10},   # Blending
+    {"material_code": "PKG-BOTTLE-1L", "quantity": 1000.0,  "uom": "EA", "position": 60, "step_sequence": 40},   # Filling & Capping
+    {"material_code": "PKG-CAP",       "quantity": 1000.0,  "uom": "EA", "position": 70, "step_sequence": 40},   # Filling & Capping
+    {"material_code": "PKG-LABEL",     "quantity": 1000.0,  "uom": "EA", "position": 80, "step_sequence": 50},   # Labeling & Packing
+    {"material_code": "PKG-CASE",      "quantity": 84.0,    "uom": "EA", "position": 90, "step_sequence": 50},   # Labeling & Packing
 ]
 
 # ---------------------------------------------------------------------------

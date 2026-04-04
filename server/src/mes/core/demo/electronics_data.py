@@ -45,14 +45,14 @@ PRODUCT = {
 # ---------------------------------------------------------------------------
 
 BOM_ITEMS: list[dict] = [
-    {"material_code": "RM-PCB-BLANK",  "quantity": 1.0,  "uom": "EA", "position": 10},
-    {"material_code": "RM-SMD-KIT",    "quantity": 1.0,  "uom": "EA", "position": 20},
-    {"material_code": "RM-THRU-KIT",   "quantity": 1.0,  "uom": "EA", "position": 30},
-    {"material_code": "RM-SOLDER-PST", "quantity": 5.0,  "uom": "g",  "position": 40},
-    {"material_code": "RM-FLUX",       "quantity": 2.0,  "uom": "mL", "position": 50},
-    {"material_code": "RM-CONFORMAL",  "quantity": 3.0,  "uom": "mL", "position": 60},
-    {"material_code": "SF-POP-PCB",    "quantity": 1.0,  "uom": "EA", "position": 70},
-    {"material_code": "PKG-ESD-BAG",   "quantity": 1.0,  "uom": "EA", "position": 80},
+    {"material_code": "RM-PCB-BLANK",  "quantity": 1.0,  "uom": "EA", "position": 10, "step_sequence": 10},   # Solder Paste Application
+    {"material_code": "RM-SMD-KIT",    "quantity": 1.0,  "uom": "EA", "position": 20, "step_sequence": 20},   # SMD Placement
+    {"material_code": "RM-THRU-KIT",   "quantity": 1.0,  "uom": "EA", "position": 30, "step_sequence": 50},   # Through-Hole & Conformal Coat
+    {"material_code": "RM-SOLDER-PST", "quantity": 5.0,  "uom": "g",  "position": 40, "step_sequence": 10},   # Solder Paste Application
+    {"material_code": "RM-FLUX",       "quantity": 2.0,  "uom": "mL", "position": 50, "step_sequence": 50},   # Through-Hole & Conformal Coat
+    {"material_code": "RM-CONFORMAL",  "quantity": 3.0,  "uom": "mL", "position": 60, "step_sequence": 50},   # Through-Hole & Conformal Coat
+    {"material_code": "SF-POP-PCB",    "quantity": 1.0,  "uom": "EA", "position": 70},                         # no step — intermediate/output
+    {"material_code": "PKG-ESD-BAG",   "quantity": 1.0,  "uom": "EA", "position": 80},                         # no step — final packaging
 ]
 
 # ---------------------------------------------------------------------------

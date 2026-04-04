@@ -59,21 +59,13 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     product = await _get_or_create_product(session, D.PRODUCT)
     summary["product"] = str(product.id)
 
-    # ── 3. BOM ────────────────────────────────────────────────────────
-    bom = await ProductDefService.create_bom(
-        session, product.id, version="1.0",
-    )
-    for item in D.BOM_ITEMS:
-        await ProductDefService.create_bom_item(session, bom.id, **item)
-        summary["bom_items"] += 1
-
-    # ── 4. Route ──────────────────────────────────────────────────────
+    # ── 3. Route ──────────────────────────────────────────────────────
     route = await ProductDefService.create_route(
         session, product.id,
         name=D.ROUTE_NAME, version="1.0", is_default=True,
     )
 
-    # ── 5. Steps ──────────────────────────────────────────────────────
+    # ── 4. Steps ──────────────────────────────────────────────────────
     step_by_seq: dict[int, Any] = {}
     wc_ids = await _work_cell_id_map(session)
 
@@ -91,6 +83,18 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
         step = await ProductDefService.create_step(session, route.id, **step_kwargs)
         step_by_seq[s["sequence"]] = step
         summary["route_steps"] += 1
+
+    # ── 5. BOM (with route_step_id links) ─────────────────────────────
+    bom = await ProductDefService.create_bom(
+        session, product.id, version="1.0",
+    )
+    for item in D.BOM_ITEMS:
+        item_kwargs = {k: v for k, v in item.items() if k != "step_sequence"}
+        step_seq = item.get("step_sequence")
+        if step_seq and step_seq in step_by_seq:
+            item_kwargs["route_step_id"] = step_by_seq[step_seq].id
+        await ProductDefService.create_bom_item(session, bom.id, **item_kwargs)
+        summary["bom_items"] += 1
 
     # ── 6. Transitions ────────────────────────────────────────────────
     for t in D.TRANSITIONS:
@@ -246,20 +250,13 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     summary["product"] = str(product.id)
 
     # ── 3. BOM ────────────────────────────────────────────────────────
-    bom = await ProductDefService.create_bom(
-        session, product.id, version="1.0",
-    )
-    for item in E.BOM_ITEMS:
-        await ProductDefService.create_bom_item(session, bom.id, **item)
-        summary["bom_items"] += 1
-
-    # ── 4. Route ──────────────────────────────────────────────────────
+    # ── 3. Route ──────────────────────────────────────────────────────
     route = await ProductDefService.create_route(
         session, product.id,
         name=E.ROUTE_NAME, version="1.0", is_default=True,
     )
 
-    # ── 5. Steps ──────────────────────────────────────────────────────
+    # ── 4. Steps ──────────────────────────────────────────────────────
     step_by_seq: dict[int, Any] = {}
     wc_ids = await _work_cell_id_map(session)
 
@@ -277,6 +274,18 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
         step = await ProductDefService.create_step(session, route.id, **step_kwargs)
         step_by_seq[s["sequence"]] = step
         summary["route_steps"] += 1
+
+    # ── 5. BOM (with route_step_id links) ─────────────────────────────
+    bom = await ProductDefService.create_bom(
+        session, product.id, version="1.0",
+    )
+    for item in E.BOM_ITEMS:
+        item_kwargs = {k: v for k, v in item.items() if k != "step_sequence"}
+        step_seq = item.get("step_sequence")
+        if step_seq and step_seq in step_by_seq:
+            item_kwargs["route_step_id"] = step_by_seq[step_seq].id
+        await ProductDefService.create_bom_item(session, bom.id, **item_kwargs)
+        summary["bom_items"] += 1
 
     # ── 6. Transitions ────────────────────────────────────────────────
     for t in E.TRANSITIONS:
