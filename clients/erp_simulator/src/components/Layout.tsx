@@ -7,7 +7,6 @@ const tabs = [
   { id: "orders", label: "Production Orders" },
   { id: "materials", label: "Materials" },
   { id: "products", label: "Products" },
-  { id: "routings", label: "Routings" },
   { id: "work-centers", label: "Work Centers" },
   { id: "completion", label: "Report Completion" },
   { id: "consumption", label: "Report Consumption" },
@@ -33,7 +32,7 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
   const badgeColor = erpType === "oracle" ? "bg-red-600" : "bg-blue-500";
 
   const inboundTabs = tabs.filter((t) =>
-    ["dashboard", "orders", "materials", "products", "routings", "work-centers"].includes(t.id)
+    ["dashboard", "orders", "materials", "products", "work-centers"].includes(t.id)
   );
   const outboundTabs = tabs.filter((t) =>
     ["completion", "consumption", "scrap", "labor", "downtime", "quality", "confirmations"].includes(t.id)

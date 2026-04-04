@@ -227,6 +227,38 @@ export async function readBomItems(bomId: string): Promise<DBBomItem[]> {
   return unwrapData(await api.get(`/boms/${encodeURIComponent(bomId)}/items`, { params: { limit: 200 } }));
 }
 
+export interface DBRoute {
+  id: string;
+  product_id: string;
+  version: string;
+  name: string;
+  description: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DBRouteStep {
+  id: string;
+  route_id: string;
+  sequence: number;
+  name: string;
+  step_type: string;
+  work_cell_id: string | null;
+  expected_cycle_time_sec: number | null;
+  erp_operation_number: string | null;
+  is_active: boolean;
+}
+
+export async function readProductRoutes(productId: string): Promise<DBRoute[]> {
+  return unwrapData(await api.get(`/products/${encodeURIComponent(productId)}/routes`, { params: { limit: 200 } }));
+}
+
+export async function readRouteSteps(routeId: string): Promise<DBRouteStep[]> {
+  return unwrapData(await api.get(`/routes/${encodeURIComponent(routeId)}/steps`, { params: { limit: 200 } }));
+}
+
 export async function syncBoms(productId: string): Promise<BillOfMaterial[]> {
   return unwrapData(
     await api.post("/erp/sync/boms", null, { params: { product_id: productId } })

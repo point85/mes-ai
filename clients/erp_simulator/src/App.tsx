@@ -5,7 +5,6 @@ import DashboardPage from "./pages/DashboardPage";
 import OrdersPage from "./pages/OrdersPage";
 import MaterialsPage from "./pages/MaterialsPage";
 import ProductsPage from "./pages/ProductsPage";
-import RoutingsPage from "./pages/RoutingsPage";
 import WorkCentersPage from "./pages/WorkCentersPage";
 import CompletionPage from "./pages/CompletionPage";
 import ConsumptionPage from "./pages/ConsumptionPage";
@@ -20,7 +19,6 @@ const pages: Record<TabId, React.FC> = {
   orders: OrdersPage,
   materials: MaterialsPage,
   products: ProductsPage,
-  routings: RoutingsPage,
   "work-centers": WorkCentersPage,
   completion: CompletionPage,
   consumption: ConsumptionPage,

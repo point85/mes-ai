@@ -4,14 +4,24 @@ import {
   deleteProduct,
   readProductBoms,
   readBomItems,
+  readProductRoutes,
+  readRouteSteps,
   type DBProduct,
   type DBBom,
   type DBBomItem,
+  type DBRoute,
+  type DBRouteStep,
 } from "../api/erp";
 
 interface BomWithItems extends DBBom {
   items: DBBomItem[];
 }
+
+interface RouteWithSteps extends DBRoute {
+  steps: DBRouteStep[];
+}
+
+type DetailTab = "bom" | "routing";
 
 export default function ProductsPage() {
   const [data, setData] = useState<DBProduct[]>([]);
@@ -20,14 +30,17 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<DetailTab>("bom");
   const [boms, setBoms] = useState<BomWithItems[]>([]);
-  const [bomLoading, setBomLoading] = useState(false);
+  const [routes, setRoutes] = useState<RouteWithSteps[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const handleRead = async () => {
     setLoading(true);
     setError(null);
     setSelectedId(null);
     setBoms([]);
+    setRoutes([]);
     try {
       setData(await readProducts());
     } catch (err: unknown) {
@@ -46,6 +59,7 @@ export default function ProductsPage() {
       if (selectedId === id) {
         setSelectedId(null);
         setBoms([]);
+        setRoutes([]);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Delete failed");
@@ -58,25 +72,119 @@ export default function ProductsPage() {
     if (selectedId === id) {
       setSelectedId(null);
       setBoms([]);
+      setRoutes([]);
       return;
     }
     setSelectedId(id);
-    setBomLoading(true);
+    setActiveTab("bom");
+    setDetailLoading(true);
     setBoms([]);
+    setRoutes([]);
     try {
-      const bomList = await readProductBoms(id);
-      const withItems: BomWithItems[] = await Promise.all(
-        bomList.map(async (b) => ({
-          ...b,
-          items: await readBomItems(b.id),
-        }))
+      const [bomList, routeList] = await Promise.all([
+        readProductBoms(id),
+        readProductRoutes(id),
+      ]);
+      const bomsWithItems = await Promise.all(
+        bomList.map(async (b) => ({ ...b, items: await readBomItems(b.id) }))
       );
-      setBoms(withItems);
+      const routesWithSteps = await Promise.all(
+        routeList.map(async (r) => ({ ...r, steps: await readRouteSteps(r.id) }))
+      );
+      setBoms(bomsWithItems);
+      setRoutes(routesWithSteps);
     } catch {
       setBoms([]);
+      setRoutes([]);
     } finally {
-      setBomLoading(false);
+      setDetailLoading(false);
     }
+  };
+
+  const renderBomPanel = () => {
+    if (detailLoading) return <span className="text-sm text-gray-500">Loading…</span>;
+    if (boms.length === 0) return <span className="text-sm text-gray-400">No BOMs for this product</span>;
+    return (
+      <div className="space-y-3">
+        {boms.map((bom) => (
+          <div key={bom.id} className="border rounded bg-white p-3">
+            <div className="text-xs font-semibold text-gray-600 mb-2">
+              BOM v{bom.version}
+              {bom.effective_date && <span className="ml-2 font-normal">Effective: {bom.effective_date}</span>}
+              {bom.expiry_date && <span className="ml-2 font-normal">Expires: {bom.expiry_date}</span>}
+            </div>
+            {bom.items.length === 0 ? (
+              <span className="text-xs text-gray-400">No items</span>
+            ) : (
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500">
+                    <th className="text-left pr-4 pb-1">Pos</th>
+                    <th className="text-left pr-4 pb-1">Material</th>
+                    <th className="text-left pr-4 pb-1">Qty</th>
+                    <th className="text-left pb-1">UoM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bom.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="pr-4 py-0.5">{item.position}</td>
+                      <td className="pr-4 py-0.5">{item.material_code}</td>
+                      <td className="pr-4 py-0.5">{item.quantity}</td>
+                      <td className="py-0.5">{item.uom}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderRoutingPanel = () => {
+    if (detailLoading) return <span className="text-sm text-gray-500">Loading…</span>;
+    if (routes.length === 0) return <span className="text-sm text-gray-400">No routes for this product</span>;
+    return (
+      <div className="space-y-3">
+        {routes.map((route) => (
+          <div key={route.id} className="border rounded bg-white p-3">
+            <div className="text-xs font-semibold text-gray-600 mb-2">
+              {route.name} v{route.version}
+              {route.is_default && <span className="ml-2 text-blue-600">(default)</span>}
+              {route.description && <span className="ml-2 font-normal text-gray-500">{route.description}</span>}
+            </div>
+            {route.steps.length === 0 ? (
+              <span className="text-xs text-gray-400">No steps</span>
+            ) : (
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500">
+                    <th className="text-left pr-4 pb-1">Seq</th>
+                    <th className="text-left pr-4 pb-1">Name</th>
+                    <th className="text-left pr-4 pb-1">Type</th>
+                    <th className="text-left pr-4 pb-1">Cycle Time (s)</th>
+                    <th className="text-left pb-1">ERP Op #</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {route.steps.map((step) => (
+                    <tr key={step.id}>
+                      <td className="pr-4 py-0.5">{step.sequence}</td>
+                      <td className="pr-4 py-0.5">{step.name}</td>
+                      <td className="pr-4 py-0.5">{step.step_type}</td>
+                      <td className="pr-4 py-0.5">{step.expected_cycle_time_sec ?? "—"}</td>
+                      <td className="py-0.5">{step.erp_operation_number ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -101,25 +209,25 @@ export default function ProductsPage() {
           Click &lsquo;Read Products&rsquo; to load data from the database
         </div>
       ) : (
-        <div className="overflow-x-auto bg-white rounded-lg border">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                {["Code", "Name", "Type", "Version", "UoM", "Description", "Actions"].map((h) => (
-                  <th key={h} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {data.map((row) => {
-                const busy = deleting === row.id;
-                const selected = selectedId === row.id;
-                return (
-                  <>
+        <>
+          <div className="overflow-x-auto bg-white rounded-lg border">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  {["Code", "Name", "Type", "Version", "UoM", "Description", "Actions"].map((h) => (
+                    <th key={h} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {data.map((row) => {
+                  const busy = deleting === row.id;
+                  const selected = selectedId === row.id;
+                  return (
                     <tr
                       key={row.id}
                       onClick={() => handleSelectProduct(row.id)}
-                      className={`cursor-pointer ${selected ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                      className={`cursor-pointer ${selected ? "bg-blue-50 border-l-2 border-blue-400" : "hover:bg-gray-50"}`}
                     >
                       <td className="px-3 py-2 whitespace-nowrap">{row.code}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{row.name}</td>
@@ -137,59 +245,37 @@ export default function ProductsPage() {
                         </button>
                       </td>
                     </tr>
-                    {selected && (
-                      <tr key={`${row.id}-bom`}>
-                        <td colSpan={7} className="px-4 py-3 bg-gray-50">
-                          {bomLoading ? (
-                            <span className="text-sm text-gray-500">Loading BOMs…</span>
-                          ) : boms.length === 0 ? (
-                            <span className="text-sm text-gray-400">No BOMs for this product</span>
-                          ) : (
-                            <div className="space-y-3">
-                              {boms.map((bom) => (
-                                <div key={bom.id} className="border rounded bg-white p-3">
-                                  <div className="text-xs font-semibold text-gray-600 mb-2">
-                                    BOM v{bom.version}
-                                    {bom.effective_date && <span className="ml-2 font-normal">Effective: {bom.effective_date}</span>}
-                                    {bom.expiry_date && <span className="ml-2 font-normal">Expires: {bom.expiry_date}</span>}
-                                  </div>
-                                  {bom.items.length === 0 ? (
-                                    <span className="text-xs text-gray-400">No items</span>
-                                  ) : (
-                                    <table className="min-w-full text-xs">
-                                      <thead>
-                                        <tr className="text-gray-500">
-                                          <th className="text-left pr-4 pb-1">Pos</th>
-                                          <th className="text-left pr-4 pb-1">Material</th>
-                                          <th className="text-left pr-4 pb-1">Qty</th>
-                                          <th className="text-left pb-1">UoM</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {bom.items.map((item) => (
-                                          <tr key={item.id}>
-                                            <td className="pr-4 py-0.5">{item.position}</td>
-                                            <td className="pr-4 py-0.5">{item.material_code}</td>
-                                            <td className="pr-4 py-0.5">{item.quantity}</td>
-                                            <td className="py-0.5">{item.uom}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {selectedId && (
+            <div className="bg-white rounded-lg border">
+              {/* Tab bar */}
+              <div className="flex border-b">
+                {(["bom", "routing"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-2 text-sm font-medium ${
+                      activeTab === tab
+                        ? "text-blue-600 border-b-2 border-blue-600"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {tab === "bom" ? "Bill of Materials" : "Routing"}
+                  </button>
+                ))}
+              </div>
+              {/* Tab content */}
+              <div className="p-4">
+                {activeTab === "bom" ? renderBomPanel() : renderRoutingPanel()}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
