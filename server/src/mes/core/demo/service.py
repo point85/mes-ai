@@ -61,7 +61,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
                                 "route_steps": 0, "transitions": 0,
                                 "step_parameters": 0, "data_definitions": 0,
-                                "quality_tests": 0, "production_orders": 0}
+                                "quality_tests": 0}
 
     # ── 1. Materials ──────────────────────────────────────────────────
     mat_ids: dict[str, UUID] = {}
@@ -156,19 +156,6 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     ):
         summary["quality_tests"] += 1
 
-    # ── 10. Production Orders ─────────────────────────────────────────
-    for o in D.ORDERS:
-        order_kwargs = dict(o)
-        order_number = order_kwargs.pop("order_number")
-        if await _get_or_create_order(
-            session,
-            order_number=order_number,
-            product_id=product.id,
-            route_id=route.id,
-            **order_kwargs,
-        ):
-            summary["production_orders"] += 1
-
     await session.commit()
     logger.info("CPG ERP demo data seeded: %s", summary)
     return summary
@@ -258,7 +245,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
                                 "route_steps": 0, "transitions": 0,
                                 "step_parameters": 0, "data_definitions": 0,
-                                "quality_tests": 0, "production_orders": 0}
+                                "quality_tests": 0}
 
     # ── 1. Materials ──────────────────────────────────────────────────
     mat_ids: dict[str, UUID] = {}
@@ -353,19 +340,6 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
         session, code=qt_code, step_id=fct_step.id, **qt_kwargs,
     ):
         summary["quality_tests"] += 1
-
-    # ── 10. Production Orders ─────────────────────────────────────────
-    for o in E.ORDERS:
-        order_kwargs = dict(o)
-        order_number = order_kwargs.pop("order_number")
-        if await _get_or_create_order(
-            session,
-            order_number=order_number,
-            product_id=product.id,
-            route_id=route.id,
-            **order_kwargs,
-        ):
-            summary["production_orders"] += 1
 
     await session.commit()
     logger.info("Electronics ERP demo data seeded: %s", summary)

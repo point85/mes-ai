@@ -140,7 +140,6 @@ export interface SeedSummary {
   step_parameters: number;
   data_definitions: number;
   quality_tests: number;
-  production_orders: number;
 }
 
 export async function seedCPGErpData(): Promise<SeedSummary> {
@@ -159,6 +158,45 @@ export async function syncProductionOrders(): Promise<ProductionOrder[]> {
 
 export async function readProductionOrders(): Promise<DBProductionOrder[]> {
   return unwrapData(await api.get("/orders", { params: { limit: 200 } }));
+}
+
+export interface OrderCreatePayload {
+  order_number: string;
+  product_id: string;
+  route_id?: string | null;
+  quantity_ordered: number;
+  priority?: number;
+  planned_start?: string | null;
+  planned_end?: string | null;
+  erp_reference?: string | null;
+  notes?: string | null;
+}
+
+export interface OrderUpdatePayload {
+  order_number?: string;
+  product_id?: string;
+  route_id?: string | null;
+  quantity_ordered?: number;
+  priority?: number;
+  planned_start?: string | null;
+  planned_end?: string | null;
+  erp_reference?: string | null;
+  notes?: string | null;
+}
+
+export async function createProductionOrder(
+  payload: OrderCreatePayload,
+): Promise<DBProductionOrder> {
+  return unwrapData(await api.post("/orders", payload));
+}
+
+export async function updateProductionOrder(
+  id: string,
+  payload: OrderUpdatePayload,
+): Promise<DBProductionOrder> {
+  return unwrapData(
+    await api.patch(`/orders/${encodeURIComponent(id)}`, payload),
+  );
 }
 
 export async function deleteProductionOrder(id: string): Promise<void> {

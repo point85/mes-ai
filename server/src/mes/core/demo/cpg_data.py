@@ -249,14 +249,10 @@ QUALITY_TEST = {
 }
 
 # ---------------------------------------------------------------------------
-# Production Orders
+# Production Orders  (removed — create via Production Orders page in ERP Sim)
 # ---------------------------------------------------------------------------
 
-ORDERS: list[dict] = [
-    {"order_number": "PO-OJ-001", "quantity_ordered": 1000, "priority": 2, "notes": "Normal priority batch"},
-    {"order_number": "PO-OJ-002", "quantity_ordered": 2500, "priority": 1, "notes": "High priority — distributor deadline"},
-    {"order_number": "PO-OJ-003", "quantity_ordered": 500,  "priority": 3, "notes": "Low priority fill-in run"},
-]
+ORDERS: list[dict] = []
 
 # ---------------------------------------------------------------------------
 # Physical Model  (ISA‑95 hierarchy)

@@ -238,21 +238,11 @@ class TestElecDataQualityTest:
 
 
 class TestElecDataOrders:
-    """Verify production orders."""
+    """Verify production orders list is empty (orders created via CRUD)."""
 
-    def test_order_count(self):
+    def test_orders_empty(self):
         from mes.core.demo.electronics_data import ORDERS
-        assert len(ORDERS) == 3
-
-    def test_order_numbers_unique(self):
-        from mes.core.demo.electronics_data import ORDERS
-        nums = [o["order_number"] for o in ORDERS]
-        assert len(nums) == len(set(nums))
-
-    def test_all_orders_have_quantity(self):
-        from mes.core.demo.electronics_data import ORDERS
-        for o in ORDERS:
-            assert o["quantity_ordered"] > 0
+        assert ORDERS == []
 
     def test_serial_template_defined(self):
         from mes.core.demo.electronics_data import SERIAL_TEMPLATE

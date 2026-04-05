@@ -243,26 +243,11 @@ class TestCPGDataQualityTest:
 
 
 class TestCPGDataOrders:
-    """Verify production orders."""
+    """Verify production orders list is empty (orders created via CRUD)."""
 
-    def test_order_count(self):
+    def test_orders_empty(self):
         from mes.core.demo.cpg_data import ORDERS
-        assert len(ORDERS) == 3
-
-    def test_order_numbers_unique(self):
-        from mes.core.demo.cpg_data import ORDERS
-        nums = [o["order_number"] for o in ORDERS]
-        assert len(nums) == len(set(nums))
-
-    def test_order_quantities_positive(self):
-        from mes.core.demo.cpg_data import ORDERS
-        for o in ORDERS:
-            assert o["quantity_ordered"] > 0
-
-    def test_order_priorities_range(self):
-        from mes.core.demo.cpg_data import ORDERS
-        for o in ORDERS:
-            assert 1 <= o["priority"] <= 5
+        assert ORDERS == []
 
 
 # ═════════════════════════════════════════════════════════════════════

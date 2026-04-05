@@ -274,14 +274,10 @@ QUALITY_TEST = {
 }
 
 # ---------------------------------------------------------------------------
-# Production Orders  (unit-tracked with serial number templates)
+# Production Orders  (removed — create via Production Orders page in ERP Sim)
 # ---------------------------------------------------------------------------
 
-ORDERS: list[dict] = [
-    {"order_number": "PO-ECB-001", "quantity_ordered": 50,  "priority": 1, "notes": "High priority — customer commitment"},
-    {"order_number": "PO-ECB-002", "quantity_ordered": 100, "priority": 2, "notes": "Normal production run"},
-    {"order_number": "PO-ECB-003", "quantity_ordered": 25,  "priority": 3, "notes": "Engineering validation batch"},
-]
+ORDERS: list[dict] = []
 
 SERIAL_TEMPLATE = "SN-{order}-{seq:05d}"
 

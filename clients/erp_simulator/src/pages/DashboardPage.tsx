@@ -117,7 +117,7 @@ export default function DashboardPage() {
           <div>
             <h3 className="font-medium text-gray-800">CPG Demo — Juice Bottling</h3>
             <p className="text-sm text-gray-500 mt-1">
-              Seed all ERP master data: 11 materials, product, BOM (9 items), route (7 steps with transitions), 20 step parameters, 20 data definitions, 1 quality test, and 3 production orders.
+              Seed all ERP master data: 11 materials, product, BOM (9 items), route (7 steps with transitions), 20 step parameters, 20 data definitions, and 1 quality test.
             </p>
           </div>
           <button onClick={handleSeedCPG} disabled={seeding} className="px-4 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50 whitespace-nowrap">
@@ -138,7 +138,6 @@ export default function DashboardPage() {
               <span>Step Params: {seedResult.step_parameters}</span>
               <span>Data Defs: {seedResult.data_definitions}</span>
               <span>Quality Tests: {seedResult.quality_tests}</span>
-              <span>Orders: {seedResult.production_orders}</span>
             </div>
           </div>
         )}
@@ -149,7 +148,7 @@ export default function DashboardPage() {
           <div>
             <h3 className="font-medium text-gray-800">Electronics Demo — PCB Assembly</h3>
             <p className="text-sm text-gray-500 mt-1">
-              Seed ERP data: 9 materials, product, BOM (8 items), route (8 steps with rework/MRB transitions), 28 step parameters, 30 data definitions, 1 quality test, and 3 serial-tracked production orders.
+              Seed ERP data: 9 materials, product, BOM (8 items), route (8 steps with rework/MRB transitions), 28 step parameters, 30 data definitions, and 1 quality test.
             </p>
           </div>
           <button onClick={handleSeedElectronics} disabled={seedingElec} className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">
@@ -170,7 +169,6 @@ export default function DashboardPage() {
               <span>Step Params: {seedElecResult.step_parameters}</span>
               <span>Data Defs: {seedElecResult.data_definitions}</span>
               <span>Quality Tests: {seedElecResult.quality_tests}</span>
-              <span>Orders: {seedElecResult.production_orders}</span>
             </div>
           </div>
         )}
