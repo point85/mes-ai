@@ -23,6 +23,8 @@ import type {
   StepTransition,
   StepTransitionCreate,
   StepTransitionUpdate,
+  RouteProductAssignment,
+  RouteProductAssignmentCreate,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -219,4 +221,48 @@ export async function updateStepTransition(
 
 export async function deleteStepTransition(transitionId: string): Promise<void> {
   await api.delete(`/transitions/${transitionId}`);
+}
+
+// ─── Standalone Routes (Route Editor) ─────────────────────────────────
+
+export async function fetchAllRoutes(): Promise<ApiListResponse<ProcessRoute>> {
+  const { data } = await api.get<ApiListResponse<ProcessRoute>>("/routes", {
+    params: { limit: "200" },
+  });
+  return data;
+}
+
+export async function createStandaloneRoute(body: RouteCreate): Promise<ProcessRoute> {
+  const { data } = await api.post<ApiResponse<ProcessRoute>>("/routes", body);
+  return data.data;
+}
+
+// ─── Route–Product Assignments ────────────────────────────────────────
+
+export async function fetchRouteProducts(
+  routeId: string,
+): Promise<ApiListResponse<RouteProductAssignment>> {
+  const { data } = await api.get<ApiListResponse<RouteProductAssignment>>(
+    `/routes/${routeId}/products`,
+    { params: { limit: "200" } },
+  );
+  return data;
+}
+
+export async function assignProductToRoute(
+  routeId: string,
+  body: RouteProductAssignmentCreate,
+): Promise<RouteProductAssignment> {
+  const { data } = await api.post<ApiResponse<RouteProductAssignment>>(
+    `/routes/${routeId}/products`,
+    body,
+  );
+  return data.data;
+}
+
+export async function unassignProductFromRoute(
+  routeId: string,
+  productId: string,
+): Promise<void> {
+  await api.delete(`/routes/${routeId}/products/${productId}`);
 }

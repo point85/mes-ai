@@ -143,14 +143,17 @@ class BOMItem(BaseModel):
 class ProcessRoute(BaseModel):
     """
     A manufacturing route — an ordered sequence of steps to produce a product.
-    Each product may have multiple routes; one is marked as default.
+    Routes may be shared across many products via the route_product_assignments
+    junction table.  The legacy ``product_id`` column is kept nullable for
+    backward-compatibility with ERP-synced routes (1:1 with product).
     """
 
     __tablename__ = "process_routes"
 
-    product_id: Mapped[uuid.UUID] = mapped_column(
+    product_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("product_definitions.id"),
-        nullable=False, index=True,
+        nullable=True, index=True,
+        comment="Legacy 1:1 product FK. Nullable — use route_product_assignments for many:many.",
     )
     version: Mapped[str] = mapped_column(
         String(50), nullable=False, default="1.0",
@@ -163,12 +166,15 @@ class ProcessRoute(BaseModel):
     )
 
     # Relationships
-    product: Mapped["ProductDefinition"] = relationship(
+    product: Mapped["ProductDefinition | None"] = relationship(
         "ProductDefinition", back_populates="routes",
     )
     steps: Mapped[list["RouteStep"]] = relationship(
         "RouteStep", back_populates="route", cascade="all, delete-orphan",
         order_by="RouteStep.sequence",
+    )
+    product_assignments: Mapped[list["RouteProductAssignment"]] = relationship(
+        "RouteProductAssignment", back_populates="route", cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
@@ -349,3 +355,30 @@ class StepTransition(BaseModel):
             f"from={self.from_step_id} → to={self.to_step_id} "
             f"condition={self.condition}>"
         )
+
+
+class RouteProductAssignment(BaseModel):
+    """
+    Junction table linking a ProcessRoute to one or more ProductDefinitions.
+    Supports many-to-many: multiple products can share the same manufacturing route.
+    """
+
+    __tablename__ = "route_product_assignments"
+
+    route_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("process_routes.id"),
+        nullable=False, index=True,
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("product_definitions.id"),
+        nullable=False, index=True,
+    )
+
+    # Relationships
+    route: Mapped["ProcessRoute"] = relationship(
+        "ProcessRoute", back_populates="product_assignments",
+    )
+    product: Mapped["ProductDefinition"] = relationship("ProductDefinition")
+
+    def __repr__(self) -> str:
+        return f"<RouteProductAssignment route={self.route_id} product={self.product_id}>"

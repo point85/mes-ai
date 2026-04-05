@@ -26,6 +26,7 @@ from .models import (
     BOMItem,
     ProcessRoute,
     ProductDefinition,
+    RouteProductAssignment,
     RouteStep,
     StepParameter,
     StepTransition,
@@ -599,3 +600,93 @@ class ProductDefService:
         transition.is_active = False
         await session.flush()
         logger.info("Deleted transition %s", transition_id)
+
+    # ─── Standalone Route operations (route editor) ──────────────────
+
+    @staticmethod
+    async def list_all_routes(
+        session: AsyncSession,
+        params: PaginationParams,
+    ) -> tuple[Sequence[ProcessRoute], str | None, bool]:
+        """List all active routes (not scoped to a product)."""
+        stmt = select(ProcessRoute).where(ProcessRoute.is_active.is_(True))
+        return await paginate_query(session, stmt, ProcessRoute, params)
+
+    @staticmethod
+    async def create_standalone_route(
+        session: AsyncSession, **kwargs: Any,
+    ) -> ProcessRoute:
+        """Create a route that is not bound to a single product."""
+        route = ProcessRoute(**kwargs)
+        session.add(route)
+        await session.flush()
+        logger.info("Created standalone route %s (%s)", route.id, route.name)
+        return route
+
+    # ─── RouteProductAssignment operations ───────────────────────────
+
+    @staticmethod
+    async def list_route_products(
+        session: AsyncSession,
+        route_id: UUID,
+        params: PaginationParams,
+    ) -> tuple[Sequence[RouteProductAssignment], str | None, bool]:
+        """List product assignments for a route."""
+        await ProductDefService.get_route(session, route_id)
+        stmt = select(RouteProductAssignment).where(
+            RouteProductAssignment.route_id == route_id,
+            RouteProductAssignment.is_active.is_(True),
+        )
+        return await paginate_query(session, stmt, RouteProductAssignment, params)
+
+    @staticmethod
+    async def assign_product_to_route(
+        session: AsyncSession, route_id: UUID, product_id: UUID,
+    ) -> RouteProductAssignment:
+        """Assign a product to a route (many-to-many)."""
+        await ProductDefService.get_route(session, route_id)
+        await ProductDefService.get_product(session, product_id)
+
+        # Check for existing assignment (including soft-deleted)
+        stmt = select(RouteProductAssignment).where(
+            RouteProductAssignment.route_id == route_id,
+            RouteProductAssignment.product_id == product_id,
+        )
+        result = await session.execute(stmt)
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            if existing.is_active:
+                raise ValueError(
+                    f"Product {product_id} is already assigned to route {route_id}"
+                )
+            # Re-activate soft-deleted assignment
+            existing.is_active = True
+            await session.flush()
+            return existing
+
+        assignment = RouteProductAssignment(route_id=route_id, product_id=product_id)
+        session.add(assignment)
+        await session.flush()
+        logger.info("Assigned product %s to route %s", product_id, route_id)
+        return assignment
+
+    @staticmethod
+    async def unassign_product_from_route(
+        session: AsyncSession, route_id: UUID, product_id: UUID,
+    ) -> None:
+        """Remove a product assignment from a route (soft-delete)."""
+        stmt = select(RouteProductAssignment).where(
+            RouteProductAssignment.route_id == route_id,
+            RouteProductAssignment.product_id == product_id,
+            RouteProductAssignment.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        assignment = result.scalar_one_or_none()
+        if assignment is None:
+            raise NotFoundException(
+                resource="RouteProductAssignment",
+                resource_id=f"route={route_id}, product={product_id}",
+            )
+        assignment.is_active = False
+        await session.flush()
+        logger.info("Unassigned product %s from route %s", product_id, route_id)

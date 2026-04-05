@@ -145,7 +145,7 @@ class RouteRead(BaseModel):
     """Schema for returning process route data."""
 
     id: UUID
-    product_id: UUID
+    product_id: UUID | None = None
     version: str
     name: str
     description: str | None = None
@@ -299,3 +299,25 @@ class StepTransitionUpdate(BaseModel):
     is_default: bool | None = None
     priority: int | None = Field(None, ge=0)
     label: str | None = Field(None, max_length=255)
+
+
+# ─── Route–Product Assignment ────────────────────────────────────────
+
+
+class RouteProductAssignmentCreate(BaseModel):
+    """Schema for assigning a product to a route."""
+
+    product_id: UUID
+
+
+class RouteProductAssignmentRead(BaseModel):
+    """Schema for returning a route–product assignment."""
+
+    id: UUID
+    route_id: UUID
+    product_id: UUID
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

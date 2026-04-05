@@ -86,7 +86,7 @@ export interface BOMItemCreate {
 
 export interface ProcessRoute {
   id: string;
-  product_id: string;
+  product_id: string | null;
   version: string;
   name: string;
   description: string | null;
@@ -120,6 +120,7 @@ export interface RouteStep {
   step_type: string;
   work_cell_id: string | null;
   expected_cycle_time_sec: number | null;
+  erp_operation_number: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -197,4 +198,19 @@ export interface StepTransitionUpdate {
   is_default?: boolean;
   priority?: number;
   label?: string | null;
+}
+
+// ─── Route–Product Assignment ─────────────────────────────────────────
+
+export interface RouteProductAssignment {
+  id: string;
+  route_id: string;
+  product_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RouteProductAssignmentCreate {
+  product_id: string;
 }

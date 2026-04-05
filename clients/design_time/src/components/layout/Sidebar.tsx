@@ -19,6 +19,7 @@ import {
   LinkIcon,
   ArrowsRightLeftIcon,
   PuzzlePieceIcon,
+  QueueListIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -50,6 +51,7 @@ const sections: NavSection[] = [
     title: "Products",
     items: [
       { label: "Products", to: "/products", icon: CubeIcon },
+      { label: "Routes", to: "/routes", icon: QueueListIcon },
       { label: "Materials", to: "/materials", icon: BeakerIcon },
     ],
   },

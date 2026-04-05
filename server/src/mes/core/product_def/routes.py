@@ -43,6 +43,8 @@ from .schemas import (
     StepTransitionCreate,
     StepTransitionRead,
     StepTransitionUpdate,
+    RouteProductAssignmentCreate,
+    RouteProductAssignmentRead,
 )
 from .service import ProductDefService
 
@@ -428,4 +430,84 @@ async def delete_step_transition(
 ):
     """Delete a step transition."""
     await svc.delete_step_transition(session, transition_id)
+    await session.commit()
+
+
+# ─── Standalone Routes (Route Editor) ────────────────────────────────
+
+
+@router.get("/routes")
+async def list_all_routes(
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """List all routes across all products + standalone routes."""
+    items, cursor, has_more = await svc.list_all_routes(session, params)
+    return list_response(
+        [RouteRead.model_validate(r).model_dump() for r in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
+
+
+@router.post("/routes", status_code=201)
+async def create_standalone_route(
+    body: RouteCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.create")),
+):
+    """Create a standalone route (not bound to a single product)."""
+    route = await svc.create_standalone_route(session, **body.model_dump())
+    await session.commit()
+    return success_response(RouteRead.model_validate(route).model_dump())
+
+
+# ─── Route–Product Assignments ───────────────────────────────────────
+
+
+@router.get("/routes/{route_id}/products")
+async def list_route_products(
+    route_id: UUID,
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """List products assigned to a route."""
+    items, cursor, has_more = await svc.list_route_products(session, route_id, params)
+    return list_response(
+        [RouteProductAssignmentRead.model_validate(a).model_dump() for a in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
+
+
+@router.post("/routes/{route_id}/products", status_code=201)
+async def assign_product_to_route(
+    route_id: UUID,
+    body: RouteProductAssignmentCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.create")),
+):
+    """Assign a product to a route."""
+    assignment = await svc.assign_product_to_route(
+        session, route_id, body.product_id,
+    )
+    await session.commit()
+    return success_response(
+        RouteProductAssignmentRead.model_validate(assignment).model_dump()
+    )
+
+
+@router.delete("/routes/{route_id}/products/{product_id}", status_code=204)
+async def unassign_product_from_route(
+    route_id: UUID,
+    product_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Remove a product assignment from a route."""
+    await svc.unassign_product_from_route(session, route_id, product_id)
     await session.commit()

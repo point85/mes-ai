@@ -24,6 +24,11 @@ import {
   createStepTransition,
   updateStepTransition,
   deleteStepTransition,
+  fetchAllRoutes,
+  createStandaloneRoute,
+  fetchRouteProducts,
+  assignProductToRoute,
+  unassignProductFromRoute,
 } from "../api/productDef";
 import type {
   ProductCreate,
@@ -38,6 +43,7 @@ import type {
   StepParameterCreate,
   StepTransitionCreate,
   StepTransitionUpdate,
+  RouteProductAssignmentCreate,
 } from "../types";
 
 const KEYS = {
@@ -45,6 +51,8 @@ const KEYS = {
   boms: (productId: string) => ["boms", productId] as const,
   bomItems: (bomId: string) => ["bomItems", bomId] as const,
   routes: (productId: string) => ["routes", productId] as const,
+  allRoutes: ["allRoutes"] as const,
+  routeProducts: (routeId: string) => ["routeProducts", routeId] as const,
   steps: (routeId: string) => ["steps", routeId] as const,
   params: (stepId: string) => ["stepParams", stepId] as const,
   transitions: (stepId: string) => ["stepTransitions", stepId] as const,
@@ -227,5 +235,50 @@ export function useDeleteStepTransition() {
   return useMutation({
     mutationFn: (id: string) => deleteStepTransition(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["stepTransitions"] }),
+  });
+}
+
+// ─── Standalone Routes (Route Editor) ─────────────────────────────────
+
+export function useAllRoutes() {
+  return useQuery({ queryKey: KEYS.allRoutes, queryFn: fetchAllRoutes });
+}
+
+export function useCreateStandaloneRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RouteCreate) => createStandaloneRoute(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.allRoutes });
+      qc.invalidateQueries({ queryKey: ["routes"] });
+    },
+  });
+}
+
+// ─── Route–Product Assignments ────────────────────────────────────────
+
+export function useRouteProducts(routeId: string) {
+  return useQuery({
+    queryKey: KEYS.routeProducts(routeId),
+    queryFn: () => fetchRouteProducts(routeId),
+    enabled: !!routeId,
+  });
+}
+
+export function useAssignProductToRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routeId, ...body }: RouteProductAssignmentCreate & { routeId: string }) =>
+      assignProductToRoute(routeId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["routeProducts"] }),
+  });
+}
+
+export function useUnassignProductFromRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routeId, productId }: { routeId: string; productId: string }) =>
+      unassignProductFromRoute(routeId, productId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["routeProducts"] }),
   });
 }

@@ -23,6 +23,7 @@ from mes.core.product_def.models import (
     BOMItem,
     ProcessRoute,
     ProductDefinition,
+    RouteProductAssignment,
     RouteStep,
     StepParameter,
     StepTransition,
@@ -47,6 +48,8 @@ from mes.core.product_def.schemas import (
     StepTransitionCreate,
     StepTransitionRead,
     StepTransitionUpdate,
+    RouteProductAssignmentCreate,
+    RouteProductAssignmentRead,
 )
 
 
@@ -488,3 +491,74 @@ class TestProductDefExceptions:
         assert "2.0" in str(exc)
         assert exc.details["code"] == "WDG-A"
         assert exc.details["version"] == "2.0"
+
+
+# ─── Route–Product Assignment tests ──────────────────────────────────
+
+
+class TestRouteProductAssignment:
+    """Tests for the route–product many-to-many support."""
+
+    def test_route_product_assignment_tablename(self):
+        assert RouteProductAssignment.__tablename__ == "route_product_assignments"
+
+    def test_route_product_assignment_has_base_columns(self):
+        col_names = {c.key for c in RouteProductAssignment.__mapper__.columns}
+        assert "id" in col_names
+        assert "route_id" in col_names
+        assert "product_id" in col_names
+        assert "is_active" in col_names
+
+    def test_route_product_assignment_relationships(self):
+        rels = {r.key for r in RouteProductAssignment.__mapper__.relationships}
+        assert "route" in rels
+        assert "product" in rels
+
+    def test_process_route_product_id_nullable(self):
+        """product_id on ProcessRoute should be nullable for standalone routes."""
+        col = ProcessRoute.__table__.columns["product_id"]
+        assert col.nullable is True
+
+    def test_process_route_has_product_assignments_relationship(self):
+        rels = {r.key for r in ProcessRoute.__mapper__.relationships}
+        assert "product_assignments" in rels
+
+    def test_route_product_assignment_create_schema(self):
+        schema = RouteProductAssignmentCreate(product_id=uuid.uuid4())
+        assert schema.product_id is not None
+
+    def test_route_product_assignment_read_schema(self):
+        now = datetime.now(timezone.utc)
+        schema = RouteProductAssignmentRead(
+            id=uuid.uuid4(),
+            route_id=uuid.uuid4(),
+            product_id=uuid.uuid4(),
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.is_active is True
+
+    def test_route_read_product_id_optional(self):
+        """RouteRead should accept null product_id for standalone routes."""
+        now = datetime.now(timezone.utc)
+        schema = RouteRead(
+            id=uuid.uuid4(),
+            product_id=None,
+            version="1.0",
+            name="Standalone Route",
+            description=None,
+            is_default=False,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.product_id is None
+
+    def test_service_has_standalone_route_methods(self):
+        from mes.core.product_def.service import ProductDefService
+        assert hasattr(ProductDefService, "list_all_routes")
+        assert hasattr(ProductDefService, "create_standalone_route")
+        assert hasattr(ProductDefService, "assign_product_to_route")
+        assert hasattr(ProductDefService, "unassign_product_from_route")
+        assert hasattr(ProductDefService, "list_route_products")
