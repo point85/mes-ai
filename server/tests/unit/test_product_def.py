@@ -23,6 +23,7 @@ from mes.core.product_def.models import (
     BOMItem,
     ProcessRoute,
     ProductDefinition,
+    RouteMaterialAssignment,
     RouteProductAssignment,
     RouteStep,
     StepParameter,
@@ -50,6 +51,8 @@ from mes.core.product_def.schemas import (
     StepTransitionUpdate,
     RouteProductAssignmentCreate,
     RouteProductAssignmentRead,
+    RouteMaterialAssignmentCreate,
+    RouteMaterialAssignmentRead,
 )
 
 
@@ -562,3 +565,56 @@ class TestRouteProductAssignment:
         assert hasattr(ProductDefService, "assign_product_to_route")
         assert hasattr(ProductDefService, "unassign_product_from_route")
         assert hasattr(ProductDefService, "list_route_products")
+
+
+# ─── Route–Material Assignment tests ─────────────────────────────────
+
+
+class TestRouteMaterialAssignment:
+    """Tests for the route–material many-to-many support."""
+
+    def test_route_material_assignment_tablename(self):
+        assert RouteMaterialAssignment.__tablename__ == "route_material_assignments"
+
+    def test_route_material_assignment_has_base_columns(self):
+        col_names = {c.key for c in RouteMaterialAssignment.__mapper__.columns}
+        assert "id" in col_names
+        assert "route_id" in col_names
+        assert "material_id" in col_names
+        assert "is_active" in col_names
+
+    def test_route_material_assignment_relationships(self):
+        rels = {r.key for r in RouteMaterialAssignment.__mapper__.relationships}
+        assert "route" in rels
+        assert "material" in rels
+
+    def test_process_route_has_material_assignments_relationship(self):
+        rels = {r.key for r in ProcessRoute.__mapper__.relationships}
+        assert "material_assignments" in rels
+
+    def test_route_material_assignment_create_schema(self):
+        schema = RouteMaterialAssignmentCreate(material_id=uuid.uuid4())
+        assert schema.material_id is not None
+
+    def test_route_material_assignment_read_schema(self):
+        now = datetime.now(timezone.utc)
+        schema = RouteMaterialAssignmentRead(
+            id=uuid.uuid4(),
+            route_id=uuid.uuid4(),
+            material_id=uuid.uuid4(),
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.is_active is True
+
+    def test_service_has_material_assignment_methods(self):
+        from mes.core.product_def.service import ProductDefService
+        assert hasattr(ProductDefService, "list_route_materials")
+        assert hasattr(ProductDefService, "assign_material_to_route")
+        assert hasattr(ProductDefService, "unassign_material_from_route")
+
+    def test_service_has_delete_methods(self):
+        from mes.core.product_def.service import ProductDefService
+        assert hasattr(ProductDefService, "delete_standalone_route")
+        assert hasattr(ProductDefService, "delete_step")

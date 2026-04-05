@@ -25,6 +25,8 @@ import type {
   StepTransitionUpdate,
   RouteProductAssignment,
   RouteProductAssignmentCreate,
+  RouteMaterialAssignment,
+  RouteMaterialAssignmentCreate,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -265,4 +267,49 @@ export async function unassignProductFromRoute(
   productId: string,
 ): Promise<void> {
   await api.delete(`/routes/${routeId}/products/${productId}`);
+}
+
+// ─── Route Update / Delete ────────────────────────────────────────────
+
+export async function updateStandaloneRoute(id: string, body: RouteUpdate): Promise<ProcessRoute> {
+  const { data } = await api.put<ApiResponse<ProcessRoute>>(`/routes/${id}`, body);
+  return data.data;
+}
+
+export async function deleteRoute(routeId: string): Promise<void> {
+  await api.delete(`/routes/${routeId}`);
+}
+
+export async function deleteStep(stepId: string): Promise<void> {
+  await api.delete(`/steps/${stepId}`);
+}
+
+// ─── Route–Material Assignments ───────────────────────────────────────
+
+export async function fetchRouteMaterials(
+  routeId: string,
+): Promise<ApiListResponse<RouteMaterialAssignment>> {
+  const { data } = await api.get<ApiListResponse<RouteMaterialAssignment>>(
+    `/routes/${routeId}/materials`,
+    { params: { limit: "200" } },
+  );
+  return data;
+}
+
+export async function assignMaterialToRoute(
+  routeId: string,
+  body: RouteMaterialAssignmentCreate,
+): Promise<RouteMaterialAssignment> {
+  const { data } = await api.post<ApiResponse<RouteMaterialAssignment>>(
+    `/routes/${routeId}/materials`,
+    body,
+  );
+  return data.data;
+}
+
+export async function unassignMaterialFromRoute(
+  routeId: string,
+  materialId: string,
+): Promise<void> {
+  await api.delete(`/routes/${routeId}/materials/${materialId}`);
 }

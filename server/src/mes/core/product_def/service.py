@@ -26,6 +26,7 @@ from .models import (
     BOMItem,
     ProcessRoute,
     ProductDefinition,
+    RouteMaterialAssignment,
     RouteProductAssignment,
     RouteStep,
     StepParameter,
@@ -690,3 +691,95 @@ class ProductDefService:
         assignment.is_active = False
         await session.flush()
         logger.info("Unassigned product %s from route %s", product_id, route_id)
+
+    # ─── Standalone Route delete / Step delete ────────────────────────
+
+    @staticmethod
+    async def delete_standalone_route(
+        session: AsyncSession, route_id: UUID,
+    ) -> None:
+        """Soft-delete a standalone route."""
+        route = await ProductDefService.get_route(session, route_id)
+        route.is_active = False
+        await session.flush()
+        logger.info("Deleted standalone route %s", route_id)
+
+    @staticmethod
+    async def delete_step(
+        session: AsyncSession, step_id: UUID,
+    ) -> None:
+        """Soft-delete a route step."""
+        step = await ProductDefService.get_step(session, step_id)
+        step.is_active = False
+        await session.flush()
+        logger.info("Deleted step %s", step_id)
+
+    # ─── RouteMaterialAssignment operations ──────────────────────────
+
+    @staticmethod
+    async def list_route_materials(
+        session: AsyncSession,
+        route_id: UUID,
+        params: PaginationParams,
+    ) -> tuple[Sequence[RouteMaterialAssignment], str | None, bool]:
+        """List material assignments for a route."""
+        await ProductDefService.get_route(session, route_id)
+        stmt = select(RouteMaterialAssignment).where(
+            RouteMaterialAssignment.route_id == route_id,
+            RouteMaterialAssignment.is_active.is_(True),
+        )
+        return await paginate_query(session, stmt, RouteMaterialAssignment, params)
+
+    @staticmethod
+    async def assign_material_to_route(
+        session: AsyncSession, route_id: UUID, material_id: UUID,
+    ) -> RouteMaterialAssignment:
+        """Assign a material to a route (many-to-many)."""
+        from mes.core.material.service import MaterialService
+
+        await ProductDefService.get_route(session, route_id)
+        await MaterialService.get_material(session, material_id)
+
+        # Check for existing assignment (including soft-deleted)
+        stmt = select(RouteMaterialAssignment).where(
+            RouteMaterialAssignment.route_id == route_id,
+            RouteMaterialAssignment.material_id == material_id,
+        )
+        result = await session.execute(stmt)
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            if existing.is_active:
+                raise ValueError(
+                    f"Material {material_id} is already assigned to route {route_id}"
+                )
+            # Re-activate soft-deleted assignment
+            existing.is_active = True
+            await session.flush()
+            return existing
+
+        assignment = RouteMaterialAssignment(route_id=route_id, material_id=material_id)
+        session.add(assignment)
+        await session.flush()
+        logger.info("Assigned material %s to route %s", material_id, route_id)
+        return assignment
+
+    @staticmethod
+    async def unassign_material_from_route(
+        session: AsyncSession, route_id: UUID, material_id: UUID,
+    ) -> None:
+        """Remove a material assignment from a route (soft-delete)."""
+        stmt = select(RouteMaterialAssignment).where(
+            RouteMaterialAssignment.route_id == route_id,
+            RouteMaterialAssignment.material_id == material_id,
+            RouteMaterialAssignment.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        assignment = result.scalar_one_or_none()
+        if assignment is None:
+            raise NotFoundException(
+                resource="RouteMaterialAssignment",
+                resource_id=f"route={route_id}, material={material_id}",
+            )
+        assignment.is_active = False
+        await session.flush()
+        logger.info("Unassigned material %s from route %s", material_id, route_id)

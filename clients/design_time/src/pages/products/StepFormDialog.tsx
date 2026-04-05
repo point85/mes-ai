@@ -14,8 +14,9 @@ import type { RouteStep } from "../../types";
 const schema = z.object({
   sequence: z.number().int().min(1, "Sequence ≥ 1"),
   name: z.string().min(1, "Name is required").max(255),
-  step_type: z.enum(["standard", "inspection", "rework", "mrb"]),
+  step_type: z.enum(["production", "inspection", "rework", "mrb"]),
   expected_cycle_time_sec: z.number().min(0).nullable().optional(),
+  erp_operation_number: z.string().max(50).nullable().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -42,8 +43,9 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
     defaultValues: {
       sequence: 10,
       name: "",
-      step_type: "standard",
+      step_type: "production",
       expected_cycle_time_sec: null,
+      erp_operation_number: null,
     },
   });
 
@@ -52,8 +54,9 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
       reset({
         sequence: step.sequence,
         name: step.name,
-        step_type: step.step_type as "standard" | "inspection" | "rework" | "mrb",
+        step_type: step.step_type as "production" | "inspection" | "rework" | "mrb",
         expected_cycle_time_sec: step.expected_cycle_time_sec,
+        erp_operation_number: step.erp_operation_number,
       });
     }
   }, [step, reset]);
@@ -113,7 +116,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
                   {...register("step_type")}
                   className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 >
-                  <option value="standard">Standard</option>
+                  <option value="production">Production</option>
                   <option value="inspection">Inspection</option>
                   <option value="rework">Rework</option>
                   <option value="mrb">MRB</option>
@@ -140,6 +143,16 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
                 {...register("expected_cycle_time_sec")}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 placeholder="120"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                ERP Operation # <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                {...register("erp_operation_number")}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                placeholder="0010"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">

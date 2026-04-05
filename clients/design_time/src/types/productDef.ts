@@ -214,3 +214,18 @@ export interface RouteProductAssignment {
 export interface RouteProductAssignmentCreate {
   product_id: string;
 }
+
+// ─── Route–Material Assignment ────────────────────────────────────────
+
+export interface RouteMaterialAssignment {
+  id: string;
+  route_id: string;
+  material_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RouteMaterialAssignmentCreate {
+  material_id: string;
+}

@@ -26,9 +26,15 @@ import {
   deleteStepTransition,
   fetchAllRoutes,
   createStandaloneRoute,
+  updateStandaloneRoute,
+  deleteRoute,
+  deleteStep,
   fetchRouteProducts,
   assignProductToRoute,
   unassignProductFromRoute,
+  fetchRouteMaterials,
+  assignMaterialToRoute,
+  unassignMaterialFromRoute,
 } from "../api/productDef";
 import type {
   ProductCreate,
@@ -44,6 +50,7 @@ import type {
   StepTransitionCreate,
   StepTransitionUpdate,
   RouteProductAssignmentCreate,
+  RouteMaterialAssignmentCreate,
 } from "../types";
 
 const KEYS = {
@@ -53,6 +60,7 @@ const KEYS = {
   routes: (productId: string) => ["routes", productId] as const,
   allRoutes: ["allRoutes"] as const,
   routeProducts: (routeId: string) => ["routeProducts", routeId] as const,
+  routeMaterials: (routeId: string) => ["routeMaterials", routeId] as const,
   steps: (routeId: string) => ["steps", routeId] as const,
   params: (stepId: string) => ["stepParams", stepId] as const,
   transitions: (stepId: string) => ["stepTransitions", stepId] as const,
@@ -280,5 +288,66 @@ export function useUnassignProductFromRoute() {
     mutationFn: ({ routeId, productId }: { routeId: string; productId: string }) =>
       unassignProductFromRoute(routeId, productId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["routeProducts"] }),
+  });
+}
+
+// ─── Standalone Route Update / Delete ─────────────────────────────────
+
+export function useUpdateStandaloneRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: RouteUpdate & { id: string }) =>
+      updateStandaloneRoute(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.allRoutes });
+      qc.invalidateQueries({ queryKey: ["routes"] });
+    },
+  });
+}
+
+export function useDeleteRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (routeId: string) => deleteRoute(routeId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.allRoutes });
+      qc.invalidateQueries({ queryKey: ["routes"] });
+    },
+  });
+}
+
+export function useDeleteStep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (stepId: string) => deleteStep(stepId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["steps"] }),
+  });
+}
+
+// ─── Route–Material Assignments ───────────────────────────────────────
+
+export function useRouteMaterials(routeId: string) {
+  return useQuery({
+    queryKey: KEYS.routeMaterials(routeId),
+    queryFn: () => fetchRouteMaterials(routeId),
+    enabled: !!routeId,
+  });
+}
+
+export function useAssignMaterialToRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routeId, ...body }: RouteMaterialAssignmentCreate & { routeId: string }) =>
+      assignMaterialToRoute(routeId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["routeMaterials"] }),
+  });
+}
+
+export function useUnassignMaterialFromRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routeId, materialId }: { routeId: string; materialId: string }) =>
+      unassignMaterialFromRoute(routeId, materialId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["routeMaterials"] }),
   });
 }

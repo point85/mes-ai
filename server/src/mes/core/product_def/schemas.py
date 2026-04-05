@@ -321,3 +321,25 @@ class RouteProductAssignmentRead(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ─── Route–Material Assignment ───────────────────────────────────────
+
+
+class RouteMaterialAssignmentCreate(BaseModel):
+    """Schema for assigning a material to a route."""
+
+    material_id: UUID
+
+
+class RouteMaterialAssignmentRead(BaseModel):
+    """Schema for returning a route–material assignment."""
+
+    id: UUID
+    route_id: UUID
+    material_id: UUID
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

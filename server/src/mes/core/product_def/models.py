@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
 from mes.core.uom.models import UnitOfMeasure  # noqa: F401 — needed for relationships
+from mes.core.material.models import MaterialDefinition  # noqa: F401 — needed for RouteMaterialAssignment
 
 
 class ProductDefinition(BaseModel):
@@ -175,6 +176,9 @@ class ProcessRoute(BaseModel):
     )
     product_assignments: Mapped[list["RouteProductAssignment"]] = relationship(
         "RouteProductAssignment", back_populates="route", cascade="all, delete-orphan",
+    )
+    material_assignments: Mapped[list["RouteMaterialAssignment"]] = relationship(
+        "RouteMaterialAssignment", back_populates="route", cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
@@ -382,3 +386,32 @@ class RouteProductAssignment(BaseModel):
 
     def __repr__(self) -> str:
         return f"<RouteProductAssignment route={self.route_id} product={self.product_id}>"
+
+
+class RouteMaterialAssignment(BaseModel):
+    """
+    Junction table linking a ProcessRoute to one or more MaterialDefinitions.
+    Allows any material type (raw, intermediate, finished, etc.) to be assigned
+    to a route — e.g. an intermediate material produced by one route and consumed
+    by another.
+    """
+
+    __tablename__ = "route_material_assignments"
+
+    route_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("process_routes.id"),
+        nullable=False, index=True,
+    )
+    material_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("material_definitions.id"),
+        nullable=False, index=True,
+    )
+
+    # Relationships
+    route: Mapped["ProcessRoute"] = relationship(
+        "ProcessRoute", back_populates="material_assignments",
+    )
+    material: Mapped["MaterialDefinition"] = relationship("MaterialDefinition")
+
+    def __repr__(self) -> str:
+        return f"<RouteMaterialAssignment route={self.route_id} material={self.material_id}>"

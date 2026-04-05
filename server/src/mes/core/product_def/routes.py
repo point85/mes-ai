@@ -45,6 +45,8 @@ from .schemas import (
     StepTransitionUpdate,
     RouteProductAssignmentCreate,
     RouteProductAssignmentRead,
+    RouteMaterialAssignmentCreate,
+    RouteMaterialAssignmentRead,
 )
 from .service import ProductDefService
 
@@ -510,4 +512,78 @@ async def unassign_product_from_route(
 ):
     """Remove a product assignment from a route."""
     await svc.unassign_product_from_route(session, route_id, product_id)
+    await session.commit()
+
+
+# ─── Standalone Route Delete ─────────────────────────────────────────
+
+
+@router.delete("/routes/{route_id}", status_code=204)
+async def delete_standalone_route(
+    route_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Soft-delete a standalone route."""
+    await svc.delete_standalone_route(session, route_id)
+    await session.commit()
+
+
+@router.delete("/steps/{step_id}", status_code=204)
+async def delete_step(
+    step_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Soft-delete a route step."""
+    await svc.delete_step(session, step_id)
+    await session.commit()
+
+
+# ─── Route–Material Assignments ──────────────────────────────────────
+
+
+@router.get("/routes/{route_id}/materials")
+async def list_route_materials(
+    route_id: UUID,
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """List materials assigned to a route."""
+    items, cursor, has_more = await svc.list_route_materials(session, route_id, params)
+    return list_response(
+        [RouteMaterialAssignmentRead.model_validate(a).model_dump() for a in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
+
+
+@router.post("/routes/{route_id}/materials", status_code=201)
+async def assign_material_to_route(
+    route_id: UUID,
+    body: RouteMaterialAssignmentCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.create")),
+):
+    """Assign a material to a route."""
+    assignment = await svc.assign_material_to_route(
+        session, route_id, body.material_id,
+    )
+    await session.commit()
+    return success_response(
+        RouteMaterialAssignmentRead.model_validate(assignment).model_dump()
+    )
+
+
+@router.delete("/routes/{route_id}/materials/{material_id}", status_code=204)
+async def unassign_material_from_route(
+    route_id: UUID,
+    material_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Remove a material assignment from a route."""
+    await svc.unassign_material_from_route(session, route_id, material_id)
     await session.commit()
