@@ -2488,6 +2488,11 @@ step and what the result was each time.
 | `GET` | `/api/v1/erp/queue` | List failed outbound queue items |
 | `GET` | `/api/v1/erp/queue/stats` | Outbound queue statistics |
 | `POST` | `/api/v1/erp/queue/{id}/retry` | Retry a failed outbound item |
+| `GET` | `/api/v1/erp/inbound/queue` | List inbound order queue items (filter by status) |
+| `POST` | `/api/v1/erp/inbound/queue` | Directly enqueue ERP orders (push model) |
+| `GET` | `/api/v1/erp/inbound/queue/stats` | Inbound order queue statistics |
+| `POST` | `/api/v1/erp/inbound/queue/process` | Manually trigger inbound order processing |
+| `POST` | `/api/v1/erp/inbound/queue/{id}/retry` | Retry a failed inbound order |
 
 #### Demo Data Seeding (CPG-DEMO, ELEC-DEMO)
 

@@ -2268,6 +2268,126 @@ Created `server/tests/unit/test_electronics_demo.py` with 14 test classes:
 | `clients/design_time/src/api/demo.ts` | Added `seedElectronicsPlantData()` |
 | `clients/design_time/src/pages/DashboardPage.tsx` | Added electronics seed button card |
 | `docs/PROJECT_STATE.json` | S026b, ELEC-DEMO module, D048, T5.10, test count |
+
+---
+
+## Session S027 — 2026-04-05
+
+**Phase**: P4/P5 — Integration Adapters / Client Implementations
+**Objective**: ERP Inbound Order Queue — persistent queue with background processor for converting ERP orders into ProductionOrders + WIP (Lots/Units)
+
+### What Happened
+
+#### 1. Problem Statement
+Previously, `sync_production_orders` returned DTOs but did not persist them. If MES was down when ERP sent orders, they would be lost. Orders also required manual creation via REST API. User requested a persistent inbound queue with automatic processing.
+
+#### 2. Seed Idempotency Fix (carried over from S026b)
+Made all 4 seed functions in `service.py` fully idempotent:
+- Added `_get_or_create_equipment_material()` helper to prevent 409 on re-seed
+- Equipment-material assignments now use get-or-create pattern in both CPG and Electronics plant seed functions
+- Removed unused `suppress` import
+
+#### 3. ERPInboundOrder Model (`server/src/mes/adapters/erp/inbound_queue.py`)
+Created `erp_inbound_orders` table with:
+- `erp_reference`, `product_code` — from the ERP order DTO
+- `payload` — full JSON-serialized ProductionOrderDTO
+- `status` — pending | processed | failed | retry
+- `order_id` — MES ProductionOrder.id after successful processing
+- `wip_ids` — JSON list of created Lot/Unit IDs
+- `processor_name` — which OrderProcessor handled it
+- Retry bookkeeping: `attempts`, `max_attempts`, `next_retry_at`, `last_error`
+- `processed_at` timestamp
+
+#### 4. ERPInboundQueueService
+Service class with:
+- `enqueue()` — persist a single ERP order for later processing
+- `enqueue_from_sync()` — bulk enqueue from adapter sync, skips duplicates by erp_reference
+- `process_queue()` — picks pending/retryable items, delegates to registered OrderProcessor, marks processed or retries with exponential backoff (30s base, 5 max attempts)
+- `list_items()`, `get_stats()`, `retry_item()` — query/admin methods
+- `set_processor()` / `get_processor()` — register the active OrderProcessor
+
+#### 5. OrderProcessor Interface
+Abstract base class with:
+- `name` property — human-readable processor name
+- `process_order(session, payload)` — convert ERP order dict into MES entities, return `ProcessorResult(order_id, wip_ids)`
+- End users implement this interface for their business rules
+
+#### 6. Demo Order Processors (`server/src/mes/core/demo/order_processors.py`)
+Two concrete implementations:
+- **CPGLotProcessor** (`cpg-lot-processor`): Creates one ProductionOrder + one Lot per ERP order. Lot number = `LOT-{erp_reference}`. Auto-releases order.
+- **ElectronicsUnitProcessor** (`electronics-unit-processor`): Creates one ProductionOrder + N Units (one per piece) per ERP order. Serial numbers = `SN-{erp_reference}-NNNNN`. Auto-releases order.
+- Both are idempotent — if order already exists for the ERP reference, they skip creation.
+
+#### 7. REST Endpoints
+Updated `server/src/mes/adapters/erp/routes.py`:
+- **Modified** `POST /api/v1/erp/sync/production-orders` — now accepts `enqueue=true` (default) to persist orders to the inbound queue
+- **New** `GET /api/v1/erp/inbound/queue` — list inbound queue items (filter by status)
+- **New** `GET /api/v1/erp/inbound/queue/stats` — queue statistics
+- **New** `POST /api/v1/erp/inbound/queue/process` — manually trigger processing
+- **New** `POST /api/v1/erp/inbound/queue/{id}/retry` — reset failed item
+
+#### 8. Background Task
+Updated `server/src/mes/main.py`:
+- `_inbound_queue_loop()` — asyncio background task running every 5 seconds, processes pending inbound orders
+- `_register_demo_order_processor()` — reads `ERP_ORDER_PROCESSOR` env var (`cpg` | `electronics` | `none`, default `cpg`) and registers the appropriate processor
+- Task is created at startup, cancelled on shutdown
+
+#### 9. Alembic Migration
+Created `20260405_1000_g8h9i0j1k2l3_add_erp_inbound_orders_table.py`
+
+#### 10. Unit Tests (36 new)
+Created `server/tests/unit/test_erp_inbound_queue.py`:
+- Model, schema, event, processor interface, service enqueue/dedup/process/retry tests
+- CPGLotProcessor and ElectronicsUnitProcessor logic tests
+- Demo processor registration tests (env var selection)
+
+### Test Results
+- **1583 unit tests passing** (1547 + 36 new), 9 warnings, 0 failures
+
+### Architecture: How the Inbound Order Queue Works
+
+```
+ERP System ──sync──> MES API ──enqueue──> erp_inbound_orders table
+                                              │
+                                              ▼ (every 5 seconds)
+                                     _inbound_queue_loop()
+                                              │
+                                              ▼
+                                    ERPInboundQueueService.process_queue()
+                                              │
+                                              ▼
+                                    OrderProcessor.process_order()
+                                       ┌──────┴──────┐
+                                       ▼              ▼
+                              CPGLotProcessor   ElectronicsUnitProcessor
+                              (1 order + 1 lot) (1 order + N units)
+                                       │              │
+                                       ▼              ▼
+                              ProductionOrder + Lot/Units created in DB
+                                       │
+                                       ▼
+                              Queue item marked "processed"
+```
+
+**To customize**: Implement `OrderProcessor`, set `ERP_ORDER_PROCESSOR=none`, call `ERPInboundQueueService.set_processor(YourProcessor())` at startup.
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `server/src/mes/adapters/erp/inbound_queue.py` | ERPInboundOrder model, ERPInboundQueueService, OrderProcessor interface |
+| `server/src/mes/core/demo/order_processors.py` | CPGLotProcessor, ElectronicsUnitProcessor |
+| `server/alembic/versions/20260405_1000_g8h9i0j1k2l3_add_erp_inbound_orders_table.py` | Migration |
+| `server/tests/unit/test_erp_inbound_queue.py` | 36 unit tests |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/adapters/erp/routes.py` | Updated sync endpoint to enqueue; added 4 inbound queue endpoints |
+| `server/src/mes/main.py` | Added background task loop + demo processor registration |
+| `server/alembic/env.py` | Added inbound_queue model import |
+| `server/src/mes/core/demo/service.py` | Added `_get_or_create_equipment_material`, removed `suppress` import |
+| `docs/ARCHITECTURE.md` | Added inbound queue API endpoints to REST table |
+| `docs/PROJECT_STATE.json` | S027, ERP-INBOUND-Q module, test count |
 | `docs/SESSION_LOG.md` | This session entry |
 
 ### Where We Stopped

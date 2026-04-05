@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -77,11 +78,20 @@ async def lifespan(app: FastAPI):
     for router in await plugin_manager.get_plugin_routes():
         app.include_router(router)
 
+    # ── Inbound order queue: register demo processor & start background task ──
+    _register_demo_order_processor()
+    inbound_task = asyncio.create_task(_inbound_queue_loop())
+
     logger.info("MES AI server ready")
     yield
 
     # Shutdown
     logger.info("MES AI server shutting down")
+    inbound_task.cancel()
+    try:
+        await inbound_task
+    except asyncio.CancelledError:
+        pass
     await plugin_manager.stop_all()
     event_bus.clear()
     logger.info("MES AI server stopped")
@@ -106,6 +116,67 @@ async def _get_installed_enabled_plugin_ids() -> set[str]:
     except Exception as exc:
         logger.warning("Could not query plugin_config (DB may not be ready): %s", exc)
         return set()
+
+
+def _register_demo_order_processor() -> None:
+    """
+    Register the appropriate demo order processor based on the
+    ``ERP_ORDER_PROCESSOR`` environment variable.
+
+    Supported values:
+        cpg          — CPGLotProcessor (one lot per order, batch mfg)
+        electronics  — ElectronicsUnitProcessor (one unit per piece, discrete)
+        none         — no processor (orders stay in queue until user registers one)
+
+    Default: ``cpg``
+    """
+    import os
+    from mes.adapters.erp.inbound_queue import ERPInboundQueueService
+
+    choice = os.environ.get("ERP_ORDER_PROCESSOR", "cpg").lower().strip()
+
+    if choice == "none":
+        logger.info("Inbound order processor: none (manual processing)")
+        return
+
+    if choice == "electronics":
+        from mes.core.demo.order_processors import ElectronicsUnitProcessor
+        ERPInboundQueueService.set_processor(ElectronicsUnitProcessor())
+    else:
+        from mes.core.demo.order_processors import CPGLotProcessor
+        ERPInboundQueueService.set_processor(CPGLotProcessor())
+
+
+INBOUND_QUEUE_INTERVAL_SEC = 5  # How often to check for new inbound orders
+
+
+async def _inbound_queue_loop() -> None:
+    """
+    Background task that periodically processes the inbound order queue.
+
+    Runs every ``INBOUND_QUEUE_INTERVAL_SEC`` seconds.  Each iteration
+    opens a fresh DB session, calls ``process_queue()``, and commits.
+    Errors are logged but never crash the loop.
+    """
+    from mes.framework.db import async_session_factory
+    from mes.adapters.erp.inbound_queue import ERPInboundQueueService
+
+    logger.info(
+        "Inbound order queue processor started (interval=%ds)",
+        INBOUND_QUEUE_INTERVAL_SEC,
+    )
+    while True:
+        await asyncio.sleep(INBOUND_QUEUE_INTERVAL_SEC)
+        try:
+            async with async_session_factory() as session:
+                processed = await ERPInboundQueueService.process_queue(session)
+                await session.commit()
+                if processed > 0:
+                    logger.info("Inbound queue: processed %d orders", processed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Inbound queue processing error")
 
 
 def create_app() -> FastAPI:

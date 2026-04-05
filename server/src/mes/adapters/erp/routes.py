@@ -221,11 +221,31 @@ async def erp_health():
 @router.post("/sync/production-orders", response_model=dict)
 async def sync_production_orders(
     since: datetime | None = Query(None, description="Only fetch orders changed after this timestamp"),
+    enqueue: bool = Query(True, description="Persist orders to the inbound queue for processing"),
+    session: AsyncSession = Depends(get_db_session),
 ):
-    """Pull production orders from the ERP adapter."""
+    """
+    Pull production orders from the ERP adapter.
+
+    When ``enqueue=True`` (default) the orders are also persisted to the
+    ``erp_inbound_orders`` queue for asynchronous processing by the
+    registered ``OrderProcessor``.
+    """
     adapter = _get_erp_inbound()
     orders = await adapter.sync_production_orders(since=since)
-    return list_response([o.model_dump(mode="json") for o in orders])
+
+    enqueued_ids: list[str] = []
+    if enqueue and orders:
+        from .inbound_queue import ERPInboundQueueService
+        enqueued_ids = await ERPInboundQueueService.enqueue_from_sync(session, orders)
+        await session.commit()
+
+    data = [o.model_dump(mode="json") for o in orders]
+    return success_response({
+        "orders": data,
+        "total": len(data),
+        "enqueued": len(enqueued_ids),
+    })
 
 
 @router.post("/sync/materials", response_model=dict)
@@ -612,3 +632,114 @@ async def delete_simulator_material(
 
     from mes.framework.api.exceptions import NotFoundException
     raise NotFoundException(resource="Material", resource_id=code)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Inbound Order Queue  (ERP → MES processing pipeline)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class InboundOrderPayload(BaseModel):
+    """Payload for directly enqueuing an ERP order."""
+    erp_reference: str = Field(..., description="Unique ERP order reference")
+    product_code: str = Field(..., description="Product code in MES")
+    quantity_ordered: int = Field(..., ge=1)
+    priority: int = Field(default=0)
+    planned_start: str | None = None
+    planned_end: str | None = None
+    uom: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class InboundOrderBatch(BaseModel):
+    orders: list[InboundOrderPayload]
+
+
+@router.post("/inbound/queue", response_model=dict)
+async def enqueue_inbound_orders(
+    body: InboundOrderBatch,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """
+    Directly enqueue ERP orders for processing (push model).
+
+    Use this when the ERP system pushes orders to MES via HTTP
+    rather than having MES pull them from the ERP adapter.
+    Duplicate ``erp_reference`` values in pending/retry status are skipped.
+    """
+    from .inbound_queue import ERPInboundQueueService
+    payloads = [o.model_dump(mode="json") for o in body.orders]
+    ids = await ERPInboundQueueService.enqueue_from_sync(db, payloads)
+    await db.commit()
+    return success_response({"enqueued": len(ids), "total": len(body.orders)})
+
+
+@router.get("/inbound/queue", response_model=dict)
+async def list_inbound_items(
+    status: str | None = Query(None, description="Filter by status"),
+    limit: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """List inbound order queue items."""
+    from .inbound_queue import ERPInboundQueueService, InboundOrderRead
+    items = await ERPInboundQueueService.list_items(db, status=status, limit=limit)
+    data = [
+        InboundOrderRead(
+            id=str(item.id),
+            erp_reference=item.erp_reference,
+            product_code=item.product_code,
+            payload=json.loads(item.payload),
+            status=item.status,
+            order_id=item.order_id,
+            wip_ids=json.loads(item.wip_ids) if item.wip_ids else None,
+            processor_name=item.processor_name,
+            attempts=item.attempts,
+            max_attempts=item.max_attempts,
+            next_retry_at=item.next_retry_at,
+            last_error=item.last_error,
+            processed_at=item.processed_at,
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+        ).model_dump(mode="json")
+        for item in items
+    ]
+    return list_response(data)
+
+
+@router.get("/inbound/queue/stats", response_model=dict)
+async def inbound_queue_stats(
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Get inbound order queue statistics."""
+    from .inbound_queue import ERPInboundQueueService
+    stats = await ERPInboundQueueService.get_stats(db)
+    return success_response(stats.model_dump())
+
+
+@router.post("/inbound/queue/process", response_model=dict)
+async def process_inbound_queue(
+    batch_size: int = Query(10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """
+    Manually trigger processing of pending inbound orders.
+
+    Normally this runs automatically every 5 seconds.  This endpoint
+    lets you trigger it on demand (e.g. after seeding demo data).
+    """
+    from .inbound_queue import ERPInboundQueueService
+    processed = await ERPInboundQueueService.process_queue(db, batch_size=batch_size)
+    await db.commit()
+    return success_response({"processed": processed})
+
+
+@router.post("/inbound/queue/{item_id}/retry", response_model=dict)
+async def retry_inbound_item(
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Reset a failed inbound order to pending for reprocessing."""
+    from .inbound_queue import ERPInboundQueueService
+    await ERPInboundQueueService.retry_item(db, str(item_id))
+    await db.commit()
+    return success_response({"retried": True, "item_id": str(item_id)})

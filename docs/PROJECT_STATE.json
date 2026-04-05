@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-03",
-  "lastSessionId": "S026b",
+  "lastUpdated": "2026-04-05",
+  "lastSessionId": "S027",
 
   "phases": [
     {
@@ -187,7 +187,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S026: CPG Demo seed module. S026b: Electronics Demo seed module — discrete-manufacturing PCB assembly with unit serial number tracking. 1547 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S026: CPG Demo seed module. S026b: Electronics Demo seed module. S027: ERP Inbound Order Queue — persistent queue + background processor + CPG/Electronics demo order processors + push endpoint + datetime fix. 1590 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -226,6 +226,7 @@
       "DASHBOARD":   { "name": "Dashboard Aggregation Endpoints",      "phase": "P5", "status": "implemented" },
       "CPG-DEMO":    { "name": "CPG Demo Seed Module",                 "phase": "P5", "status": "implemented" },
       "ELEC-DEMO":   { "name": "Electronics Demo Seed Module",          "phase": "P5", "status": "implemented" },
+      "ERP-INBOUND-Q": { "name": "ERP Inbound Order Queue & Processor", "phase": "P4", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },
