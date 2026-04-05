@@ -3206,6 +3206,15 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
                      │  │ ERPOutboundAdapter │  │
                      │  │ ERPTransformLayer  │  │
                      │  └───────────────────┘  │
+                     │           │              │
+                     │           ▼              │
+                     │  ┌───────────────────┐  │
+                     │  │ erp_inbound_orders │  │  (persistent queue)
+                     │  └────────┬──────────┘  │
+                     │           ▼              │
+                     │  ┌───────────────────┐  │
+                     │  │  OrderProcessor   │  │  (background, every 5s)
+                     │  └───────────────────┘  │
                      └───────────────────────────┘
 ```
 
@@ -3213,7 +3222,7 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 
 | Data | ERP Source | MES Destination | Trigger |
 |---|---|---|---|
-| **Production Orders** | ERP production planning/scheduling | PROD-ORDER module | Scheduled poll or ERP push (webhook/event) |
+| **Production Orders** | ERP production planning/scheduling | ERP-INBOUND-Q → PROD-ORDER module | Pull sync or push to `/erp/inbound/queue` → background processor (§9.2.3b) |
 | **Material Master** | ERP material management | MAT-MGMT module | Scheduled sync or on-demand |
 | **Bill of Materials** | ERP product engineering | PROD-DEF module | On production order receipt or scheduled sync |
 | **Product/Item Master** | ERP product management | PROD-DEF module | Scheduled sync |
@@ -3301,6 +3310,157 @@ Cost Posting  ◀──report_completion()──  WIP-TRACK (actuals per step)
 The MES **never** creates routes for new products — it receives them from the ERP via
 `ERPInboundAdapter.sync_routings()`. In standalone / demo mode (no ERP connected), the
 DT-CLIENT route editor (§15.5) provides manual route entry as a substitute.
+
+#### 9.2.3b Inbound Order Queue & Background Processor (ERP-INBOUND-Q)
+
+Production orders arriving from the ERP must survive MES downtime and be processed
+asynchronously. The **ERP Inbound Order Queue** provides a persistent, retry-capable
+pipeline that converts ERP orders into MES `ProductionOrder` + WIP entities (Lots or Units).
+
+##### Architecture
+
+```
+ERP System                        MES
+──────────                        ───
+  │                                 │
+  │  ┌─ Pull model ──────────────┐  │
+  │  │ POST /erp/sync/           │  │
+  │  │   production-orders       │──┼──▶ ERPInboundAdapter.sync_production_orders()
+  │  │   ?enqueue=true           │  │         │
+  │  └───────────────────────────┘  │         │  enqueue_from_sync()
+  │                                 │         ▼
+  │  ┌─ Push model ──────────────┐  │    ┌─────────────────────┐
+  │  │ POST /erp/inbound/queue   │──┼──▶ │ erp_inbound_orders  │ (PostgreSQL table)
+  │  │   { orders: [...] }       │  │    │                     │
+  │  └───────────────────────────┘  │    │ status: pending     │
+  │                                 │    │         retry       │
+  │                                 │    │         processed   │
+  │                                 │    │         failed      │
+  │                                 │    └────────┬────────────┘
+  │                                 │             │ every 5 seconds
+  │                                 │             ▼
+  │                                 │    _inbound_queue_loop()
+  │                                 │             │
+  │                                 │             ▼
+  │                                 │    ERPInboundQueueService.process_queue()
+  │                                 │             │
+  │                                 │             ▼
+  │                                 │    OrderProcessor.process_order()
+  │                                 │        ┌────┴────┐
+  │                                 │        ▼         ▼
+  │                                 │   CPGLot    ElectronicsUnit
+  │                                 │   Processor Processor
+  │                                 │        │         │
+  │                                 │        ▼         ▼
+  │                                 │   ProductionOrder + Lot/Units
+```
+
+##### Two Ingestion Models
+
+| Model | Endpoint | How it works |
+|---|---|---|
+| **Pull** | `POST /api/v1/erp/sync/production-orders?enqueue=true` | MES polls the ERP adapter plugin; returned DTOs are auto-enqueued |
+| **Push** | `POST /api/v1/erp/inbound/queue` | ERP posts orders directly to MES via HTTP (body: `{ orders: [...] }`) |
+
+Both models feed the same `erp_inbound_orders` table. Duplicate `erp_reference` values
+in `pending` or `retry` status are silently skipped (dedup).
+
+##### `erp_inbound_orders` Table
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID | Primary key |
+| `erp_reference` | VARCHAR | Unique ERP order identifier (indexed) |
+| `product_code` | VARCHAR | Product code for lookup in MES |
+| `payload` | TEXT (JSON) | Full serialised `ProductionOrderDTO` |
+| `status` | VARCHAR | `pending` → `processed` / `retry` → `failed` (indexed) |
+| `order_id` | VARCHAR | MES `ProductionOrder.id` after processing |
+| `wip_ids` | TEXT (JSON) | List of created Lot/Unit IDs |
+| `processor_name` | VARCHAR | Which `OrderProcessor` handled this item |
+| `attempts` | INTEGER | Number of processing attempts (default 0) |
+| `max_attempts` | INTEGER | Retry ceiling (default 5) |
+| `next_retry_at` | TIMESTAMP | Earliest time to retry (exponential backoff) |
+| `last_error` | TEXT | Last exception message |
+| `processed_at` | TIMESTAMP | When successfully processed |
+
+##### Background Task
+
+`_inbound_queue_loop()` in `mes/main.py` runs as an `asyncio.create_task` started in the
+app lifespan. Every `INBOUND_QUEUE_INTERVAL_SEC` (default 5) seconds it:
+
+1. Opens a fresh `AsyncSession`
+2. Calls `ERPInboundQueueService.process_queue(session)`
+3. **Always commits** — both successful and failed items are persisted (status, attempts, backoff)
+4. On shutdown, the task is cancelled gracefully
+
+##### Retry & Backoff
+
+Failed items transition to `retry` status with exponential backoff:
+
+- Base delay: 30 seconds (`BACKOFF_BASE_SEC`)
+- Formula: `30 × 2^(attempts-1)` → 30s, 60s, 120s, 240s
+- After `max_attempts` (default 5), status becomes `failed`
+- Failed items can be manually reset via `POST /api/v1/erp/inbound/queue/{id}/retry`
+
+##### OrderProcessor Interface
+
+End users implement the `OrderProcessor` abstract class to define business-specific
+logic for converting ERP orders into MES entities:
+
+```python
+from mes.adapters.erp.inbound_queue import OrderProcessor, ProcessorResult
+
+class MyProcessor(OrderProcessor):
+    @property
+    def name(self) -> str:
+        return "my-custom-processor"
+
+    async def process_order(self, session, payload: dict) -> ProcessorResult:
+        # 1. Look up product by payload["product_code"]
+        # 2. Create ProductionOrder
+        # 3. Create Lots or Units
+        # 4. Return ProcessorResult(order_id=..., wip_ids=[...])
+        ...
+```
+
+Register at startup by setting `ERP_ORDER_PROCESSOR=none` and calling:
+```python
+ERPInboundQueueService.set_processor(MyProcessor())
+```
+
+##### Demo Processors
+
+Two demo processors in `mes/core/demo/order_processors.py`:
+
+| Processor | `ERP_ORDER_PROCESSOR` | Creates | WIP strategy |
+|---|---|---|---|
+| `CPGLotProcessor` | `cpg` (default) | 1 order + 1 Lot | Lot number = `LOT-{erp_reference}`, qty = order qty |
+| `ElectronicsUnitProcessor` | `electronics` | 1 order + N Units | Serial = `SN-{erp_reference}-NNNNN`, one per piece |
+
+Both processors:
+- Auto-release the order (`created` → `released`)
+- Are idempotent — skip if an order with the same `erp_reference` already exists
+- Parse `planned_start` / `planned_end` from ISO-8601 strings via `_parse_dt()`
+- Look up the product's default `ProcessRoute` for route assignment
+
+##### REST Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/erp/inbound/queue` | Enqueue orders directly (push model) |
+| `GET` | `/api/v1/erp/inbound/queue` | List queue items (filter by `?status=`) |
+| `GET` | `/api/v1/erp/inbound/queue/stats` | Queue counts by status |
+| `POST` | `/api/v1/erp/inbound/queue/process` | Manually trigger processing |
+| `POST` | `/api/v1/erp/inbound/queue/{id}/retry` | Reset a failed item to pending |
+
+##### Key Files
+
+| File | Purpose |
+|---|---|
+| `server/src/mes/adapters/erp/inbound_queue.py` | Model, service, interface, schemas, events |
+| `server/src/mes/core/demo/order_processors.py` | CPGLotProcessor, ElectronicsUnitProcessor |
+| `server/src/mes/main.py` | Background task loop, processor registration |
+| `server/alembic/versions/…_add_erp_inbound_orders_table.py` | Database migration |
 
 #### 9.2.4 Abstract ERP Interface
 
