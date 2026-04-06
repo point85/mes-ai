@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), 1547 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§19), 1611 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -6534,7 +6534,175 @@ server/src/mes/core/demo/
 
 ---
 
-## 19. Implementation Task Breakdown (Phase 3+)
+## 19. Production Order Lifecycle & WIP Generation
+
+### 19.1 Order Lifecycle
+
+A production order follows a strict five-state lifecycle. Each transition is enforced by the server; invalid transitions return a `409 Conflict` error.
+
+```
+                ┌──────────┐
+                │ created  │   Order exists but is not yet on the shop floor
+                └────┬─────┘
+                     │  POST /orders/{id}/release   (DT-CLIENT "Release" button)
+                     ▼
+                ┌──────────┐
+                │ released │   Available for production; WIP generator picks it up
+                └────┬─────┘
+                     │  Automatic — first unit/lot created by WIP generator
+                     ▼
+              ┌─────────────┐
+              │ in_progress │   At least one unit or lot is being processed
+              └──────┬──────┘
+                     │  POST /orders/{id}/complete   (DT-CLIENT "Complete" button)
+                     ▼
+              ┌───────────┐
+              │ completed │   All ordered quantity produced or scrapped
+              └─────┬─────┘
+                    │  POST /orders/{id}/close   (DT-CLIENT "Close" button)
+                    ▼
+               ┌────────┐
+               │ closed │   Finalized — no further changes
+               └────────┘
+
+  Note: Any non-closed status may jump directly to "closed" (e.g. cancelled orders).
+```
+
+| From | Allowed targets | Trigger |
+|---|---|---|
+| `created` | `released`, `closed` | Manual (DT-CLIENT or API) |
+| `released` | `in_progress`, `closed` | Automatic (WIP generator) or manual close |
+| `in_progress` | `completed`, `closed` | Manual (DT-CLIENT or API) |
+| `completed` | `closed` | Manual (DT-CLIENT or API) |
+
+### 19.2 How Orders Are Created and Released
+
+1. **Create orders** — Use the **ERP Simulator** (port 5174) → "Production Orders" tab → "+ Create Orders". The form provides a product dropdown, a count field (number of orders to create, default 3), quantity per order, and priority. Orders are created in `created` status via `POST /api/v1/orders`.
+
+2. **Release orders** — Use the **Design-Time Client** (port 5173) → "Orders" page. Each order in `created` status shows a **Release** button (play icon ▶). Clicking it calls `POST /api/v1/orders/{id}/release`, which sets `status = "released"` and publishes a `production.order.released` event.
+
+3. **WIP generation** — Within seconds, the server-side WIP generator background task picks up the released order and creates the appropriate lots or units (see §19.3).
+
+### 19.3 WIP Generator — Background Polling Task
+
+The WIP generator is a background `asyncio` task that runs inside the MES server process. It polls the database every **5 seconds** (configurable via `WIP_GENERATOR_INTERVAL_SEC`) for orders in `released` status and creates lots or units automatically.
+
+#### Source File
+
+```
+server/src/mes/core/production/wip_generator.py
+```
+
+This is the **primary customization point** for end users who need to control how WIP is created.
+
+#### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  wip_generator_loop()  (runs every 5s)                          │
+│                                                                 │
+│  1. Query: SELECT * FROM production_orders                      │
+│            WHERE status = 'released' AND is_active = true       │
+│            ORDER BY priority DESC, created_at                   │
+│                                                                 │
+│  2. For each released order:                                    │
+│     ┌───────────────────────────────────────────────────┐       │
+│     │  _generate_wip_for_order(session, order)          │       │
+│     │                                                   │       │
+│     │  a. Load product → check product_type             │       │
+│     │                                                   │       │
+│     │  b. IF product_type == "process":                 │       │
+│     │       → Generate lot number (SerialNumberService) │       │
+│     │       → LotService.create_lot(qty=qty_ordered)    │       │
+│     │       → 1 lot created                             │       │
+│     │                                                   │       │
+│     │  c. IF product_type == "discrete":                │       │
+│     │       → For i in 1..quantity_ordered:             │       │
+│     │           Generate serial (SerialNumberService)   │       │
+│     │           UnitService.create_unit(serial=...)     │       │
+│     │       → N units created                           │       │
+│     │                                                   │       │
+│     │  d. create_unit/create_lot auto-calls             │       │
+│     │     start_order() → status becomes "in_progress"  │       │
+│     └───────────────────────────────────────────────────┘       │
+│                                                                 │
+│  3. Commit transaction                                          │
+│  4. Sleep 5 seconds → repeat                                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Startup Wiring
+
+The task is registered in the FastAPI lifespan handler (`server/src/mes/main.py`):
+
+```python
+from mes.core.production.wip_generator import wip_generator_loop
+wip_task = asyncio.create_task(wip_generator_loop())
+```
+
+On shutdown, the task is cancelled cleanly.
+
+### 19.4 Customization Guide for End Users
+
+The WIP generator is designed as the **extension point** where end users implement site-specific business rules. The key function to customize is `_generate_wip_for_order()` in `wip_generator.py`.
+
+#### Serial Number / Lot Number Generation
+
+Default templates are defined in `server/src/mes/core/wip/serial.py`:
+
+```python
+DEFAULT_SERIAL_TEMPLATE = "SN-{order}-{seq:05d}"    # → SN-PO-001-00001
+DEFAULT_LOT_TEMPLATE    = "LOT-{order}-{seq:04d}"    # → LOT-PO-001-0001
+```
+
+Available template variables: `{seq}`, `{order}`, `{product}`, `{date}`, `{year}`, `{month}`, `{day}`.
+
+**To customize**, either:
+- Change the default templates in `serial.py`, or
+- Pass a custom `template` argument when calling `SerialNumberService.generate_serial_number()` / `generate_lot_number()` in `_generate_wip_for_order()`.
+
+#### Adding Pre-Creation Rules and Checks
+
+Modify `_generate_wip_for_order()` to add business logic **before** creating lots/units. Common customizations:
+
+| Rule | Where to Add | Example |
+|---|---|---|
+| **Inventory check** | Before `LotService.create_lot()` / `UnitService.create_unit()` | Query `MaterialLot` table to verify sufficient raw materials are available for the BOM; raise an exception or skip the order if inventory is insufficient |
+| **Capacity check** | Before WIP creation | Query equipment availability/queue depth to verify the production line can accept more work |
+| **Custom lot sizing** | Replace the single-lot logic | Split a process order into multiple lots (e.g., 1000 units → 4 lots of 250) based on equipment batch size |
+| **Route assignment** | Before WIP creation | If `order.route_id` is null, resolve the default route and set `current_step_id` on the new unit/lot |
+| **Shift/schedule check** | At the top of `_generate_wip_for_order()` | Only create WIP during active production shifts |
+| **Custom serial format** | In the serial generation call | Pass a site-specific template: `generate_serial_number(session, order.id, template="SITE1-{date}-{seq:06d}")` |
+
+#### Example: Adding an Inventory Check
+
+```python
+async def _generate_wip_for_order(session: AsyncSession, order: ProductionOrder) -> int:
+    product = await session.get(ProductDefinition, order.product_id)
+    if product is None:
+        return 0
+
+    # ── Custom rule: verify raw material availability ──
+    if not await _check_material_availability(session, order):
+        logger.info("Order %s: insufficient materials — skipping", order.order_number)
+        return 0
+
+    # ... existing lot/unit creation logic ...
+```
+
+#### Key Files Reference
+
+| File | Purpose | Customize? |
+|---|---|---|
+| `server/src/mes/core/production/wip_generator.py` | Background task + WIP creation logic | **Yes** — primary customization point |
+| `server/src/mes/core/wip/serial.py` | Serial/lot number template engine | **Yes** — change templates or add custom variables |
+| `server/src/mes/core/wip/service.py` | `UnitService.create_unit()`, `LotService.create_lot()` | Rarely — these handle DB writes and event publishing |
+| `server/src/mes/core/production/service.py` | `start_order()` — auto-transitions released → in_progress | Rarely — called automatically by create_unit/create_lot |
+| `server/src/mes/main.py` | Registers the background task in `lifespan()` | Only to change the polling interval |
+
+---
+
+## 20. Implementation Task Breakdown (Phase 3+)
 
 Phase 3 implementation will follow this dependency order:
 
@@ -6569,4 +6737,4 @@ Each module implementation will include:
 
 ---
 
-*Last updated: 2026-04-03 — Session S026b (Electronics Demo seed module, CPG + Electronics demo data seeding architecture documented)*
+*Last updated: 2026-04-05 — Session S027 (Production order lifecycle, WIP generator background task, customization guide documented)*
