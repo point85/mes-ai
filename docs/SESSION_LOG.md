@@ -2391,14 +2391,160 @@ ERP System ──sync──> MES API ──enqueue──> erp_inbound_orders tab
 | `docs/SESSION_LOG.md` | This session entry |
 
 ### Where We Stopped
-- Electronics Demo fully implemented and tested
-- **1547 tests passing**, no regressions
-- Two demo scenarios available: CPG (process/lot-tracked) and Electronics (discrete/unit-tracked)
+- ERP Inbound Order Queue fully implemented and tested
+- **1583 tests passing**, no regressions
 - Next options:
   1. **RT-GUI** — Runtime operator client (both demo datasets available)
   2. **Integration test** — Run seed endpoints against real DB
   3. **P6: Testing & CI** — GitHub Actions pipeline
   4. **More vendor adapters** — Modbus TCP, D365 F&O
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
+
+## Session S028 — 2026-04-05/06
+
+**Phase**: P5 — Client Implementations  
+**Objective**: Route Editor v2 (material assignments + full CRUD), ERP Simulator order CRUD, WIP generator background task, architecture documentation
+
+### What Happened
+
+#### 1. Route Editor v2 — Material Assignments & Full CRUD
+
+Extended the DT-CLIENT Route Editor from read-only to full CRUD with material assignment support.
+
+**Server-side:**
+- New `RouteMaterialAssignment` model (many-to-many: route ↔ material) in `product_def/models.py`
+- Alembic migration `i0j1k2l3m4n5` creating `route_material_assignments` table
+- `RouteMaterialAssignmentCreate/Read` Pydantic schemas
+- Service methods: `delete_standalone_route`, `delete_step`, `list_route_materials`, `assign_material_to_route`, `unassign_material_from_route`
+- REST endpoints: `DELETE /routes/{id}`, `DELETE /steps/{id}`, `GET/POST /routes/{id}/materials`, `DELETE /routes/{id}/materials/{mid}`
+- Removed duplicate `PUT /routes/{route_id}` endpoint (was already defined at line 259)
+- 8 new unit tests for RouteMaterialAssignment
+
+**DT-CLIENT:**
+- New `RouteFormDialog.tsx` — supports both create and edit
+- Rebuilt `RouteEditorPage.tsx` — full CRUD with material assignment panel
+- TS types: `RouteMaterialAssignment`, `RouteMaterialAssignmentCreate`
+- API functions: `updateStandaloneRoute`, `deleteRoute`, `deleteStep`, `fetchRouteMaterials`, `assignMaterialToRoute`, `unassignMaterialFromRoute`
+- Hooks: `useUpdateStandaloneRoute`, `useDeleteRoute`, `useDeleteStep`, `useRouteMaterials`, `useAssignMaterialToRoute`, `useUnassignMaterialFromRoute`
+- Fixed `StepFormDialog.tsx`: "standard" → "production" in Zod enum and select options; added `erp_operation_number` field
+
+**Test count after**: 1607 passing
+
+#### 2. ERP Simulator — Order CRUD & Demo Seed Cleanup
+
+Removed production order creation from CPG and Electronics demo seeds. Rebuilt the Production Orders page with full manual CRUD.
+
+**Server-side:**
+- Emptied `ORDERS` list in `cpg_data.py` and `electronics_data.py`
+- Removed production order creation blocks (step 10) from both `seed_erp_data()` and `seed_electronics_erp_data()` in `service.py`
+- Removed `production_orders` key from both seed summary dicts
+- Updated unit tests: replaced 7 order-specific tests with 2 `test_orders_empty` assertions
+
+**ERP Simulator client:**
+- Removed `production_orders` field from `SeedSummary` TypeScript interface
+- Updated `DashboardPage.tsx`: removed "production orders" from CPG/Electronics descriptions and seed result grids
+- Added `OrderCreatePayload`, `OrderUpdatePayload` interfaces and `createProductionOrder()`, `updateProductionOrder()` API functions in `erp.ts`
+- Rebuilt `OrdersPage.tsx` with full CRUD:
+  - Auto-loads orders on mount
+  - Create form: product dropdown, route dropdown (auto-fills when product selected), **count field** (default 3 — creates N orders at once), quantity per order, priority
+  - Auto-generated order numbers: `{PRODUCT_CODE}-{timestamp36}-{seq}`
+  - Inline edit (order number, ERP ref, quantity, priority)
+  - Delete
+
+**Test count after**: 1602 passing (net −5 from replacing 7 order tests with 2)
+
+#### 3. WIP Generator — Background Polling Task
+
+Created a background `asyncio` task that automatically generates lots/units for released production orders.
+
+**New file:** `server/src/mes/core/production/wip_generator.py`
+- `wip_generator_loop()` — polls every 5 seconds (configurable via `WIP_GENERATOR_INTERVAL_SEC`)
+- `process_released_orders(session)` — queries orders with `status="released"`, ordered by priority desc + created_at
+- `_generate_wip_for_order(session, order)` — loads product, checks `product_type`:
+  - `"process"` → creates 1 lot via `LotService.create_lot()` with full `quantity_ordered`
+  - `"discrete"` → creates N units via `UnitService.create_unit()`, one per piece
+- Serial/lot numbers auto-generated via `SerialNumberService` templates
+- `create_unit`/`create_lot` auto-calls `start_order()` → order transitions to `in_progress`
+- Error on one order doesn't block processing of others
+
+**Wired into app:** Updated `server/src/mes/main.py` lifespan:
+```python
+from mes.core.production.wip_generator import wip_generator_loop
+wip_task = asyncio.create_task(wip_generator_loop())
+```
+Clean cancellation on shutdown.
+
+**New tests:** `server/tests/unit/test_wip_generator.py` — 9 tests:
+- Discrete product creates N units
+- Process product creates 1 lot with full quantity
+- Missing product returns 0
+- No released orders returns 0
+- Multiple orders processed with correct totals
+- Error on one order continues to next
+- Loop cancels cleanly
+- Loop processes and commits
+
+**Test count after**: 1611 passing
+
+#### 4. Architecture Documentation — §19 Production Order Lifecycle
+
+Added new section 19 "Production Order Lifecycle & WIP Generation" to `ARCHITECTURE.md`:
+- **§19.1** — Full order lifecycle state diagram (`created → released → in_progress → completed → closed`) with transition table
+- **§19.2** — How orders are created (ERP Simulator) and released (DT-CLIENT Release button)
+- **§19.3** — WIP generator: polling logic diagram, startup wiring, process vs discrete branching
+- **§19.4** — Customization guide for end users: serial/lot number templates, pre-creation rules table (inventory check, capacity check, custom lot sizing, route assignment, shift/schedule gating), code example, key files reference
+
+Old section 19 (Implementation Tasks) renumbered to section 20.
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `server/src/mes/core/production/wip_generator.py` | Background WIP generator task |
+| `server/tests/unit/test_wip_generator.py` | 9 unit tests for WIP generator |
+| `server/alembic/versions/20260406_1400_i0j1k2l3m4n5_*.py` | route_material_assignments migration |
+| `clients/design_time/src/pages/routes/RouteFormDialog.tsx` | Route create/edit dialog |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/core/product_def/models.py` | Added `RouteMaterialAssignment` model |
+| `server/src/mes/core/product_def/schemas.py` | Added `RouteMaterialAssignmentCreate/Read` |
+| `server/src/mes/core/product_def/service.py` | Added delete + material assignment service methods |
+| `server/src/mes/core/product_def/routes.py` | Added delete + material assignment REST endpoints |
+| `server/src/mes/main.py` | Added WIP generator background task to lifespan |
+| `server/src/mes/core/demo/cpg_data.py` | Emptied ORDERS list |
+| `server/src/mes/core/demo/electronics_data.py` | Emptied ORDERS list |
+| `server/src/mes/core/demo/service.py` | Removed order creation from both seed functions |
+| `server/tests/unit/test_cpg_demo.py` | Replaced order tests with `test_orders_empty` |
+| `server/tests/unit/test_electronics_demo.py` | Replaced order tests with `test_orders_empty` |
+| `server/tests/unit/test_product_def.py` | Added 8 RouteMaterialAssignment tests |
+| `clients/erp_simulator/src/api/erp.ts` | Added order CRUD API functions, removed `production_orders` from SeedSummary |
+| `clients/erp_simulator/src/pages/OrdersPage.tsx` | Full CRUD rebuild with create form |
+| `clients/erp_simulator/src/pages/DashboardPage.tsx` | Removed production order references |
+| `clients/design_time/src/types/productDef.ts` | Added material assignment types |
+| `clients/design_time/src/api/productDef.ts` | Added 6 new API functions |
+| `clients/design_time/src/hooks/useProductDef.ts` | Added 6 new hooks |
+| `clients/design_time/src/pages/routes/RouteEditorPage.tsx` | Full CRUD rebuild |
+| `clients/design_time/src/pages/products/StepFormDialog.tsx` | Fixed "standard"→"production" bug |
+| `docs/ARCHITECTURE.md` | Added §19 (Order Lifecycle & WIP Generation), renumbered §20 |
+
+### Test Results
+- **1611 unit tests passing** (1583 + 8 route material + 9 wip generator − 5 removed order data tests + 16 net from other changes), 5 warnings, 0 failures
+
+### Where We Stopped
+- Route Editor v2 with material assignments complete
+- ERP Simulator order CRUD complete (demo seed orders removed)
+- WIP generator background task operational
+- Architecture §19 documented with customization guide
+- **1611 tests passing**
+- Next options:
+  1. **RT-GUI** — Runtime operator client (shop floor WIP processing)
+  2. **P6: Testing & CI** — GitHub Actions pipeline
+  3. **More vendor adapters** — Modbus TCP, D365 F&O
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.

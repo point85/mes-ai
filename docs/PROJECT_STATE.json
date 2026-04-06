@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-05",
-  "lastSessionId": "S027",
+  "lastUpdated": "2026-04-06",
+  "lastSessionId": "S028",
 
   "phases": [
     {
@@ -174,6 +174,26 @@
           "id": "T5.10",
           "name": "Electronics Demo: discrete-manufacturing PCB assembly seed module with unit serial number tracking + one-click buttons",
           "status": "complete"
+        },
+        {
+          "id": "T5.11",
+          "name": "Route Editor v2: full CRUD with material assignments, RouteFormDialog, RouteMaterialAssignment model/migration",
+          "status": "complete"
+        },
+        {
+          "id": "T5.12",
+          "name": "ERP Simulator Orders CRUD: removed demo seed orders, rebuilt OrdersPage with create/edit/delete",
+          "status": "complete"
+        },
+        {
+          "id": "T5.13",
+          "name": "WIP Generator: background asyncio polling task — auto-creates lots/units for released production orders",
+          "status": "complete"
+        },
+        {
+          "id": "T5.14",
+          "name": "Architecture §19: Production Order Lifecycle & WIP Generation documentation with customization guide",
+          "status": "complete"
         }
       ]
     },
@@ -187,7 +207,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S026: CPG Demo seed module. S026b: Electronics Demo seed module. S027: ERP Inbound Order Queue — persistent queue + background processor + CPG/Electronics demo order processors + push endpoint + datetime fix. 1590 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S026: CPG Demo. S026b: Electronics Demo. S027: ERP Inbound Order Queue. S028: Route Editor v2 (material assignments + full CRUD), ERP Simulator order CRUD, WIP generator background task, ARCHITECTURE.md §19. 1611 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -227,6 +247,8 @@
       "CPG-DEMO":    { "name": "CPG Demo Seed Module",                 "phase": "P5", "status": "implemented" },
       "ELEC-DEMO":   { "name": "Electronics Demo Seed Module",          "phase": "P5", "status": "implemented" },
       "ERP-INBOUND-Q": { "name": "ERP Inbound Order Queue & Processor", "phase": "P4", "status": "implemented" },
+      "ROUTE-EDITOR-V2": { "name": "Route Editor v2 (CRUD + Material Assignments)", "phase": "P5", "status": "implemented" },
+      "WIP-GENERATOR": { "name": "WIP Generator Background Task", "phase": "P5", "status": "implemented" },
       "REST-API":      { "name": "REST API Layer",                 "phase": "P3", "status": "implemented" },
       "DATA-LAYER":    { "name": "Data Persistence Layer",         "phase": "P3", "status": "implemented" },
       "EVENT-BUS":     { "name": "Event Bus",                      "phase": "P3", "status": "implemented" },
