@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-04-06",
-  "lastSessionId": "S028",
+  "lastSessionId": "S029",
 
   "phases": [
     {
@@ -194,6 +194,16 @@
           "id": "T5.14",
           "name": "Architecture §19: Production Order Lifecycle & WIP Generation documentation with customization guide",
           "status": "complete"
+        },
+        {
+          "id": "T5.15",
+          "name": "RT-GUI server gaps: barcode scan lookup, composite step-context endpoint, disposition endpoint",
+          "status": "complete"
+        },
+        {
+          "id": "T5.16",
+          "name": "RT-GUI client: React 19 + Vite 8 + Tailwind v4 shop floor operator UI (scan, step processing, data collection, orders, live events)",
+          "status": "complete"
         }
       ]
     },
@@ -207,7 +217,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator complete. S026: CPG Demo. S026b: Electronics Demo. S027: ERP Inbound Order Queue. S028: Route Editor v2 (material assignments + full CRUD), ERP Simulator order CRUD, WIP generator background task, ARCHITECTURE.md §19. 1611 unit tests passing. Next: RT-GUI, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator + RT-GUI complete. S029: RT-GUI shop floor operator client (5 pages, step processing panel, WebSocket events, barcode scan), 5 new server endpoints + step_context builder, 10 new tests. 1621 unit tests passing. Next: start RT-GUI dev server & browser test, integration tests, P6 Testing & CI, or more vendor adapters.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -231,7 +241,7 @@
       "MQTT-ADAPTER":  { "name": "MQTT Equipment Adapter",         "phase": "P4", "status": "implemented" },
       "ORACLE-ADAPTER": { "name": "Oracle Cloud ERP Adapter",     "phase": "P4", "status": "implemented" },
       "TEST-INTFC":    { "name": "Test Equipment Adapter",         "phase": "P4", "status": "implemented" },
-      "RT-GUI":        { "name": "Runtime GUI Client",             "phase": "P5", "status": "planned" },
+      "RT-GUI":        { "name": "Runtime GUI Client",             "phase": "P5", "status": "implemented" },
       "RT-HEADLESS":   { "name": "Runtime Headless Client",        "phase": "P5", "status": "planned" },
       "DT-CLIENT":     { "name": "Design-Time Client",             "phase": "P5", "status": "in-progress" },
       "PLUGIN-FW":     { "name": "Plugin Framework",               "phase": "P3", "status": "implemented" },

@@ -4,7 +4,9 @@ WIP-TRACK: REST API routes for work-in-process tracking.
 Endpoints — Units:
 - GET    /api/v1/units                     List units
 - POST   /api/v1/units                     Create a unit
+- GET    /api/v1/units/by-serial/{serial}  Lookup by serial number (barcode scan)
 - GET    /api/v1/units/{unit_id}           Get a unit
+- GET    /api/v1/units/{unit_id}/step-context  Composite: unit + step + data defs + quality tests
 - POST   /api/v1/units/{unit_id}/start     Start processing at current step
 - POST   /api/v1/units/{unit_id}/complete  Complete current step
 - POST   /api/v1/units/{unit_id}/move      Move to next step
@@ -16,7 +18,9 @@ Endpoints — Units:
 Endpoints — Lots:
 - GET    /api/v1/lots                      List lots
 - POST   /api/v1/lots                      Create a lot
+- GET    /api/v1/lots/by-number/{lot_num}  Lookup by lot number (barcode scan)
 - GET    /api/v1/lots/{lot_id}             Get a lot
+- GET    /api/v1/lots/{lot_id}/step-context  Composite: lot + step + data defs + quality tests
 - POST   /api/v1/lots/{lot_id}/start       Start processing
 - POST   /api/v1/lots/{lot_id}/complete    Complete current step
 - POST   /api/v1/lots/{lot_id}/move        Move to next step
@@ -24,6 +28,9 @@ Endpoints — Lots:
 - POST   /api/v1/lots/{lot_id}/release-hold  Release from hold
 - POST   /api/v1/lots/{lot_id}/scrap       Scrap the lot
 - GET    /api/v1/lots/{lot_id}/history     Get processing history
+
+Endpoints — Routing:
+- GET    /api/v1/steps/{step_id}/dispositions  Available disposition choices for MRB steps
 """
 
 from __future__ import annotations
@@ -92,6 +99,17 @@ async def create_unit(
     return success_response(UnitRead.model_validate(unit).model_dump())
 
 
+@router.get("/units/by-serial/{serial_number}")
+async def get_unit_by_serial(
+    serial_number: str,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.read")),
+):
+    """Look up a unit by serial number (barcode scan)."""
+    unit = await UnitService.get_unit_by_serial(session, serial_number)
+    return success_response(UnitRead.model_validate(unit).model_dump())
+
+
 @router.get("/units/{unit_id}")
 async def get_unit(
     unit_id: UUID,
@@ -101,6 +119,21 @@ async def get_unit(
     """Get a unit by ID."""
     unit = await UnitService.get_unit(session, unit_id)
     return success_response(UnitRead.model_validate(unit).model_dump())
+
+
+@router.get("/units/{unit_id}/step-context")
+async def get_unit_step_context(
+    unit_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.read")),
+):
+    """Composite endpoint: unit + current step details + data definitions + quality tests + dispositions.
+
+    Returns everything the RT-GUI needs to render the operator work screen for a unit.
+    """
+    from mes.core.wip.step_context import build_step_context
+    ctx = await build_step_context(session, unit_id=unit_id)
+    return success_response(ctx)
 
 
 @router.post("/units/{unit_id}/start")
@@ -245,6 +278,17 @@ async def create_lot(
     return success_response(LotRead.model_validate(lot).model_dump())
 
 
+@router.get("/lots/by-number/{lot_number}")
+async def get_lot_by_number(
+    lot_number: str,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.read")),
+):
+    """Look up a lot by lot number (barcode scan)."""
+    lot = await LotService.get_lot_by_number(session, lot_number)
+    return success_response(LotRead.model_validate(lot).model_dump())
+
+
 @router.get("/lots/{lot_id}")
 async def get_lot(
     lot_id: UUID,
@@ -254,6 +298,18 @@ async def get_lot(
     """Get a lot by ID."""
     lot = await LotService.get_lot(session, lot_id)
     return success_response(LotRead.model_validate(lot).model_dump())
+
+
+@router.get("/lots/{lot_id}/step-context")
+async def get_lot_step_context(
+    lot_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.read")),
+):
+    """Composite endpoint: lot + current step details + data definitions + quality tests + dispositions."""
+    from mes.core.wip.step_context import build_step_context
+    ctx = await build_step_context(session, lot_id=lot_id)
+    return success_response(ctx)
 
 
 @router.post("/lots/{lot_id}/start")
@@ -357,3 +413,20 @@ async def get_lot_history(
     return success_response(
         [LotHistoryRead.model_validate(r).model_dump() for r in records]
     )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ROUTING HELPER ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════
+
+
+@router.get("/steps/{step_id}/dispositions")
+async def get_step_dispositions(
+    step_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.read")),
+):
+    """Return disposition choices available at an MRB/disposition step."""
+    from mes.core.routing.service import RoutingEngineService
+    dispositions = await RoutingEngineService.get_available_dispositions(session, step_id)
+    return success_response(dispositions)

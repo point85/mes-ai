@@ -74,6 +74,21 @@ class UnitService:
         return unit
 
     @staticmethod
+    async def get_unit_by_serial(
+        session: AsyncSession, serial_number: str,
+    ) -> Unit:
+        """Look up a unit by serial number. Used for barcode scanning."""
+        stmt = select(Unit).where(
+            Unit.serial_number == serial_number,
+            Unit.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        unit = result.scalar_one_or_none()
+        if unit is None:
+            raise NotFoundException(resource="Unit", resource_id=serial_number)
+        return unit
+
+    @staticmethod
     async def get_unit_history(
         session: AsyncSession, unit_id: UUID,
     ) -> Sequence[UnitHistory]:
@@ -392,6 +407,21 @@ class LotService:
         lot = result.scalar_one_or_none()
         if lot is None:
             raise NotFoundException(resource="Lot", resource_id=str(lot_id))
+        return lot
+
+    @staticmethod
+    async def get_lot_by_number(
+        session: AsyncSession, lot_number: str,
+    ) -> Lot:
+        """Look up a lot by lot number. Used for barcode scanning."""
+        stmt = select(Lot).where(
+            Lot.lot_number == lot_number,
+            Lot.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        lot = result.scalar_one_or_none()
+        if lot is None:
+            raise NotFoundException(resource="Lot", resource_id=lot_number)
         return lot
 
     @staticmethod

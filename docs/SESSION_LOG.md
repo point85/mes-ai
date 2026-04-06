@@ -2548,3 +2548,72 @@ Old section 19 (Implementation Tasks) renumbered to section 20.
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
+
+## Session S029 — 2026-04-06
+
+**Phase**: P5 (MES Clients — Runtime)
+**Objective**: RT-GUI — Runtime operator client for shop floor (WIP scanning, step processing, data collection)
+
+### What Happened
+
+#### Server Gap Endpoints
+Identified 5 gaps in the REST API needed by the operator UI, then implemented:
+1. **`GET /api/v1/units/by-serial/{serial_number}`** — barcode scan lookup, placed before `{unit_id}` route
+2. **`GET /api/v1/lots/by-number/{lot_number}`** — lot barcode scan lookup
+3. **`GET /api/v1/units/{unit_id}/step-context`** — composite endpoint returning WIP + step + params + data defs + quality tests + dispositions + route steps
+4. **`GET /api/v1/lots/{lot_id}/step-context`** — same for lots
+5. **`GET /api/v1/steps/{step_id}/dispositions`** — MRB disposition choices from routing engine
+6. Created `wip/step_context.py` — composite builder that loads everything the operator screen needs in one call
+
+#### New Service Methods
+- `UnitService.get_unit_by_serial(session, serial_number)` — select + NotFoundException
+- `LotService.get_lot_by_number(session, lot_number)` — select + NotFoundException
+
+#### RT-GUI Client (React 19 + Vite 8 + Tailwind v4)
+Full scaffold at `clients/runtime_gui/` on **port 5176**:
+- **Types**: Unit, Lot, RouteStep, StepParameter, DataDefinition, QualityTest, Disposition, StepContext, ProductionOrder, MESEvent
+- **API layer** (`api/runtime.ts`): ~30 functions covering units, lots, routing, data collection, quality, orders, dashboard
+- **WebSocket hook** (`hooks/useWebSocket.ts`): auto-reconnect, topic subscription
+- **Layout**: 5-tab nav (Dashboard, Scan WIP, Active WIP, Orders, Live Events) with WS status indicator
+- **StepProcessingPanel**: Core operator work screen — data collection form, quality test pass/fail, complete step with result, move with disposition, hold/scrap with reason
+- **RouteProgressBar**: Visual step progress (numbered circles, current highlight)
+- **DashboardPage**: Shift summary, order progress with bars, recent events
+- **ScanPage**: Barcode scan input (unit/lot toggle), loads step context, renders StepProcessingPanel
+- **ActiveWipPage**: Unit/lot list with status filter, open → StepProcessingPanel
+- **OrdersPage**: Production orders table with status filter and badges
+- **EventsPage**: Live WebSocket events with category filter (WIP, Orders, Quality, Dispatch, Data, Equipment)
+- **App.tsx**: Wires Layout + all pages + WebSocket event accumulation
+
+#### Unit Tests
+10 new tests covering:
+- `UnitService.get_unit_by_serial` — found + not-found
+- `LotService.get_lot_by_number` — found + not-found
+- `build_step_context` — no args error, unit/lot with no step, full step data load (4 session.execute calls), route error fallback, MRB dispositions
+
+### Files Changed
+| File | Change |
+|------|--------|
+| `server/src/mes/core/wip/service.py` | Added `get_unit_by_serial`, `get_lot_by_number` |
+| `server/src/mes/core/wip/routes.py` | Added 5 new endpoints (by-serial, step-context ×2, by-number, dispositions) |
+| `server/src/mes/core/wip/step_context.py` | **NEW** — composite step-context builder |
+| `server/tests/unit/test_wip_rt_gui_endpoints.py` | **NEW** — 10 tests for new endpoints |
+| `clients/runtime_gui/` | **NEW** — entire client scaffold (20+ files) |
+
+### Test Results
+- **1621 unit tests passing** (1611 + 10 RT-GUI endpoint tests), 5 warnings, 0 failures
+- TypeScript: zero type errors (`tsc --noEmit` clean)
+
+### Where We Stopped
+- RT-GUI client fully scaffolded and type-checks clean
+- Server endpoints for barcode scan, step context, and dispositions operational
+- **1621 tests passing**
+- Next options:
+  1. **Start RT-GUI dev server** and test in browser against running backend
+  2. **Integration tests** for new endpoints (HTTP-level)
+  3. **P6: Testing & CI** — GitHub Actions pipeline
+  4. **More vendor adapters** — Modbus TCP, D365 F&O
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
