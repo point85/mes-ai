@@ -12,9 +12,6 @@ export default defineConfig({
       '/api': {
         target: MES_SERVER,
         changeOrigin: true,
-      },
-      '/ws': {
-        target: MES_SERVER.replace('http', 'ws'),
         ws: true,
       },
     },
