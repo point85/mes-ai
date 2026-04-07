@@ -26,7 +26,7 @@ export default function App() {
       case "scan": return <ScanPage />;
       case "active-wip": return <ActiveWipPage />;
       case "orders": return <OrdersPage />;
-      case "events": return <EventsPage events={events} />;
+      case "events": return <EventsPage events={events} onClear={() => setEvents([])} />;
     }
   }, [activeTab, events]);
 

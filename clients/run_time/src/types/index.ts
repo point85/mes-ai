@@ -7,6 +7,7 @@ export interface Unit {
   product_id: string;
   material_id: string | null;
   current_step_id: string | null;
+  current_step_name: string | null;
   current_equipment_id: string | null;
   status: "queued" | "in_process" | "completed" | "scrapped" | "on_hold";
   is_active: boolean;
@@ -22,6 +23,7 @@ export interface Lot {
   quantity: number;
   material_id: string | null;
   current_step_id: string | null;
+  current_step_name: string | null;
   current_equipment_id: string | null;
   status: "queued" | "in_process" | "completed" | "scrapped" | "on_hold";
   is_active: boolean;

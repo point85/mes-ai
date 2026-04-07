@@ -40,6 +40,7 @@ class UnitRead(BaseModel):
     product_id: UUID
     material_id: UUID | None = None
     current_step_id: UUID | None = None
+    current_step_name: str | None = None
     current_equipment_id: UUID | None = None
     status: str
     is_active: bool
@@ -78,6 +79,7 @@ class LotRead(BaseModel):
     quantity: int
     material_id: UUID | None = None
     current_step_id: UUID | None = None
+    current_step_name: str | None = None
     current_equipment_id: UUID | None = None
     status: str
     is_active: bool

@@ -76,10 +76,17 @@ class Unit(BaseModel):
     material: Mapped["MaterialDefinition | None"] = relationship(  # noqa: F821
         "MaterialDefinition", foreign_keys=[material_id],
     )
+    current_step: Mapped["RouteStep | None"] = relationship(  # noqa: F821
+        "RouteStep", foreign_keys=[current_step_id], lazy="joined",
+    )
     history: Mapped[list["UnitHistory"]] = relationship(
         "UnitHistory", back_populates="unit", cascade="all, delete-orphan",
         order_by="UnitHistory.entered_at",
     )
+
+    @property
+    def current_step_name(self) -> str | None:
+        return self.current_step.name if self.current_step else None
 
     def __repr__(self) -> str:
         return f"<Unit id={self.id} sn={self.serial_number} status={self.status}>"
@@ -137,10 +144,17 @@ class Lot(BaseModel):
     material: Mapped["MaterialDefinition | None"] = relationship(  # noqa: F821
         "MaterialDefinition", foreign_keys=[material_id],
     )
+    current_step: Mapped["RouteStep | None"] = relationship(  # noqa: F821
+        "RouteStep", foreign_keys=[current_step_id], lazy="joined",
+    )
     history: Mapped[list["LotHistory"]] = relationship(
         "LotHistory", back_populates="lot", cascade="all, delete-orphan",
         order_by="LotHistory.entered_at",
     )
+
+    @property
+    def current_step_name(self) -> str | None:
+        return self.current_step.name if self.current_step else None
 
     def __repr__(self) -> str:
         return f"<Lot id={self.id} lot_number={self.lot_number} status={self.status}>"

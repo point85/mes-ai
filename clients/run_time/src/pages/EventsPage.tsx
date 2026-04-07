@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import type { MESEvent } from "../types";
 
 interface Props {
   events: MESEvent[];
+  onClear?: () => void;
 }
 
 const EVENT_CATEGORIES = [
@@ -15,7 +17,7 @@ const EVENT_CATEGORIES = [
   { label: "Equipment", prefix: "equipment." },
 ];
 
-export default function EventsPage({ events }: Props) {
+export default function EventsPage({ events, onClear }: Props) {
   const [filter, setFilter] = useState("");
 
   const filtered = filter
@@ -25,7 +27,14 @@ export default function EventsPage({ events }: Props) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Live Events</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-800">Live Events</h2>
+        {onClear && (
+          <button onClick={onClear} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800">
+            <ArrowPathIcon className="h-4 w-4" /> Clear
+          </button>
+        )}
+      </div>
 
       {/* Category filter */}
       <div className="flex gap-2 flex-wrap">

@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { fetchUnits, fetchLots, fetchUnitStepContext, fetchLotStepContext } from "../api/runtime";
 import { useState } from "react";
 import type { StepContext } from "../types";
 import StepProcessingPanel from "../components/StepProcessingPanel";
 
 export default function ActiveWipPage() {
+  const queryClient = useQueryClient();
   const [view, setView] = useState<"units" | "lots">("units");
   const [statusFilter, setStatusFilter] = useState<string>("in_process");
   const [context, setContext] = useState<StepContext | null>(null);
@@ -58,9 +60,19 @@ export default function ActiveWipPage() {
     );
   }
 
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["units"] });
+    queryClient.invalidateQueries({ queryKey: ["lots"] });
+  };
+
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Active WIP</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-800">Active WIP</h2>
+        <button onClick={refresh} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800">
+          <ArrowPathIcon className="h-4 w-4" /> Refresh
+        </button>
+      </div>
 
       {/* Filters */}
       <div className="flex gap-4 items-end">
@@ -97,6 +109,7 @@ export default function ActiveWipPage() {
                 <tr className="border-b text-left text-gray-500">
                   <th className="py-2 px-3">Serial #</th>
                   <th className="py-2 px-3">Status</th>
+                  <th className="py-2 px-3">Current Step</th>
                   <th className="py-2 px-3">Order</th>
                   <th className="py-2 px-3">Created</th>
                   <th className="py-2 px-3"></th>
@@ -107,6 +120,7 @@ export default function ActiveWipPage() {
                   <tr key={u.id} className="border-b hover:bg-gray-50">
                     <td className="py-2 px-3 font-mono">{u.serial_number}</td>
                     <td className="py-2 px-3"><StatusBadge status={u.status} /></td>
+                    <td className="py-2 px-3 text-sm">{u.current_step_name ?? "—"}</td>
                     <td className="py-2 px-3 font-mono text-xs">{u.order_id.slice(0, 8)}</td>
                     <td className="py-2 px-3 text-xs text-gray-400">{new Date(u.created_at).toLocaleString()}</td>
                     <td className="py-2 px-3">
@@ -131,6 +145,7 @@ export default function ActiveWipPage() {
                   <th className="py-2 px-3">Lot #</th>
                   <th className="py-2 px-3">Qty</th>
                   <th className="py-2 px-3">Status</th>
+                  <th className="py-2 px-3">Current Step</th>
                   <th className="py-2 px-3">Order</th>
                   <th className="py-2 px-3">Created</th>
                   <th className="py-2 px-3"></th>
@@ -142,6 +157,7 @@ export default function ActiveWipPage() {
                     <td className="py-2 px-3 font-mono">{l.lot_number}</td>
                     <td className="py-2 px-3">{l.quantity}</td>
                     <td className="py-2 px-3"><StatusBadge status={l.status} /></td>
+                    <td className="py-2 px-3 text-sm">{l.current_step_name ?? "—"}</td>
                     <td className="py-2 px-3 font-mono text-xs">{l.order_id.slice(0, 8)}</td>
                     <td className="py-2 px-3 text-xs text-gray-400">{new Date(l.created_at).toLocaleString()}</td>
                     <td className="py-2 px-3">

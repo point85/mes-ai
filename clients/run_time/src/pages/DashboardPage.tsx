@@ -1,12 +1,23 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { fetchOrderProgress, fetchShiftSummary } from "../api/runtime";
 import type { MESEvent } from "../types";
+
+interface WipCounts {
+  queued: number;
+  in_process: number;
+  on_hold: number;
+  completed: number;
+  scrapped: number;
+}
 
 interface Props {
   events: MESEvent[];
 }
 
 export default function DashboardPage({ events }: Props) {
+  const queryClient = useQueryClient();
+
   const { data: orders, isLoading } = useQuery({
     queryKey: ["order-progress"],
     queryFn: () => fetchOrderProgress(),
@@ -19,11 +30,21 @@ export default function DashboardPage({ events }: Props) {
     refetchInterval: 30_000,
   });
 
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["order-progress"] });
+    queryClient.invalidateQueries({ queryKey: ["shift-summary"] });
+  };
+
   const recentEvents = events.slice(-20).reverse();
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Shop Floor Dashboard</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-800">Shop Floor Dashboard</h2>
+        <button onClick={refresh} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800">
+          <ArrowPathIcon className="h-4 w-4" /> Refresh
+        </button>
+      </div>
 
       {/* Shift Summary */}
       {shift && (
@@ -50,14 +71,19 @@ export default function DashboardPage({ events }: Props) {
                   <th className="py-2 px-3">Ordered</th>
                   <th className="py-2 px-3">Completed</th>
                   <th className="py-2 px-3">Scrapped</th>
-                  <th className="py-2 px-3">Progress</th>
+                  <th className="py-2 px-3">WIP</th>
+                  <th className="py-2 px-3">Throughput</th>
                 </tr>
               </thead>
               <tbody>
                 {(orders as Record<string, unknown>[]).map((o, i) => {
                   const ordered = Number(o.quantity_ordered ?? 0);
                   const completed = Number(o.quantity_completed ?? 0);
-                  const pct = ordered > 0 ? Math.round((completed / ordered) * 100) : 0;
+                  const scrapped = Number(o.quantity_scrapped ?? 0);
+                  const wip = o.wip_counts as WipCounts | undefined;
+                  const throughput = completed + scrapped;
+                  const pctCompleted = ordered > 0 ? Math.round((completed / ordered) * 100) : 0;
+                  const pctScrapped = ordered > 0 ? Math.round((scrapped / ordered) * 100) : 0;
                   return (
                     <tr key={i} className="border-b hover:bg-gray-50">
                       <td className="py-2 px-3 font-mono">{String(o.order_number ?? "")}</td>
@@ -66,16 +92,35 @@ export default function DashboardPage({ events }: Props) {
                       </td>
                       <td className="py-2 px-3">{ordered}</td>
                       <td className="py-2 px-3">{completed}</td>
-                      <td className="py-2 px-3">{Number(o.quantity_scrapped ?? 0)}</td>
+                      <td className="py-2 px-3">{scrapped}</td>
+                      <td className="py-2 px-3">
+                        {wip ? (
+                          <div className="flex gap-2 text-xs">
+                            {wip.queued > 0 && <span className="text-blue-600">{wip.queued} queued</span>}
+                            {wip.in_process > 0 && <span className="text-yellow-600">{wip.in_process} active</span>}
+                            {wip.on_hold > 0 && <span className="text-orange-600">{wip.on_hold} held</span>}
+                          </div>
+                        ) : "—"}
+                      </td>
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div
-                              className="h-2 rounded-full bg-indigo-600"
-                              style={{ width: `${Math.min(pct, 100)}%` }}
-                            />
+                          <div className="w-28 bg-gray-200 rounded-full h-2.5 flex overflow-hidden">
+                            {pctCompleted > 0 && (
+                              <div
+                                className="h-2.5 bg-green-500"
+                                style={{ width: `${Math.min(pctCompleted, 100)}%` }}
+                              />
+                            )}
+                            {pctScrapped > 0 && (
+                              <div
+                                className="h-2.5 bg-red-400"
+                                style={{ width: `${Math.min(pctScrapped, 100)}%` }}
+                              />
+                            )}
                           </div>
-                          <span className="text-xs text-gray-500">{pct}%</span>
+                          <span className="text-xs text-gray-500 whitespace-nowrap">
+                            {throughput}/{ordered}
+                          </span>
                         </div>
                       </td>
                     </tr>

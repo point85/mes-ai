@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { StepContext, Unit, Lot, DataDefinition } from "../types";
 import {
   startUnit, completeUnit, moveUnit, holdUnit, releaseHoldUnit, scrapUnit,
@@ -16,6 +17,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   const { wip_type, wip, step, step_parameters, data_definitions, quality_tests, dispositions, route_steps } = context;
   const isUnit = wip_type === "unit";
   const identifier = isUnit ? (wip as Unit).serial_number : (wip as Lot).lot_number;
+  const queryClient = useQueryClient();
 
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,12 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
     try {
       await fn();
       setSuccessMsg(msg);
+      // Invalidate all related queries so other pages refresh immediately
+      await queryClient.invalidateQueries({ queryKey: ["units"] });
+      await queryClient.invalidateQueries({ queryKey: ["lots"] });
+      await queryClient.invalidateQueries({ queryKey: ["orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["order-progress"] });
+      await queryClient.invalidateQueries({ queryKey: ["shift-summary"] });
       await onRefresh();
     } catch (err: unknown) {
       const m = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Action failed";

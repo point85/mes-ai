@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { fetchUnitBySerial, fetchLotByNumber, fetchUnitStepContext, fetchLotStepContext } from "../api/runtime";
 import type { StepContext } from "../types";
 import StepProcessingPanel from "../components/StepProcessingPanel";
@@ -40,9 +41,22 @@ export default function ScanPage() {
     if (e.key === "Enter") handleScan();
   };
 
+  const resetScan = () => {
+    setContext(null);
+    setError(null);
+    setScanInput("");
+  };
+
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Scan WIP</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-800">Scan WIP</h2>
+        {context && (
+          <button onClick={resetScan} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800">
+            <ArrowPathIcon className="h-4 w-4" /> New Scan
+          </button>
+        )}
+      </div>
 
       {/* Scan bar */}
       <div className="bg-white rounded-lg shadow p-5">

@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { fetchOrders } from "../api/runtime";
 
 export default function OrdersPage() {
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("");
 
   const { data: orders, isLoading } = useQuery({
@@ -11,9 +13,18 @@ export default function OrdersPage() {
     refetchInterval: 10_000,
   });
 
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+  };
+
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Production Orders</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-800">Production Orders</h2>
+        <button onClick={refresh} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800">
+          <ArrowPathIcon className="h-4 w-4" /> Refresh
+        </button>
+      </div>
 
       <div className="flex gap-4 items-end">
         <div>

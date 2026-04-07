@@ -539,6 +539,15 @@ class LotService:
             history.quantity_out = quantity_out
             history.quantity_scrapped = quantity_scrapped
 
+        # Update lot quantity to reflect output (may shrink due to scrap)
+        lot.quantity = quantity_out
+
+        # Propagate step-level scrap to the production order immediately
+        if quantity_scrapped > 0:
+            await ProductionOrderService.increment_scrapped(
+                session, lot.order_id, quantity_scrapped,
+            )
+
         await session.flush()
 
         await event_bus.publish(
