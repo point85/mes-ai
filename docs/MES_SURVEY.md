@@ -225,7 +225,7 @@ Based on the survey, the following is the prioritized list of required functiona
 
 | Module ID | Module Name | Description |
 |---|---|---|
-| `RT-GUI` | Runtime GUI Client | Web-based operator interface for WIP transactions: start, complete, move, scrap, rework, split, merge. Show current workstation state, queue, and work instructions. |
+| `RT-CLIENT` | Runtime Client | Web-based operator interface for WIP transactions: start, complete, move, scrap, rework, split, merge. Show current workstation state, queue, and work instructions. |
 | `RT-HEADLESS` | Runtime Headless Client | API-driven client for automated equipment integration. Executes same transactions as GUI client but without UI, driven by equipment events. |
 | `DT-CLIENT` | Design-Time Client | Web-based admin interface to configure the MES: define physical model, routes, products, quality checks, dispatching rules, and plugins. Browse module registry and visualize how components fit together. |
 

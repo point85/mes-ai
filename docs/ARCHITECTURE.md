@@ -312,7 +312,7 @@ mes_ai/
 │
 ├── clients/                           # Client implementations
 │   ├── shared/                        # @mes/ui shared component library
-│   ├── runtime_gui/                   # RT-GUI (React)
+│   ├── run_time/                      # RT-CLIENT (React)
 │   ├── runtime_headless/              # RT-HEADLESS (Python)
 │   ├── design_time/                   # DT-CLIENT (React)
 │   ├── erp_simulator/                 # ERP Simulator GUI (React)
@@ -1369,7 +1369,7 @@ The set of valid states and legal transitions between them determines:
 | **Dispatching** | DISPATCH module only assigns work to equipment in an available/idle state. The state model defines what "available" means. |
 | **ERP Reporting** | `ERPOutboundAdapter` reports downtime events. ERP expects states mapped to its own categories (planned vs. unplanned). |
 | **Equipment Adapter** | Equipment adapters (§9.3) translate raw PLC/OPC-UA signals into state transitions. The state model defines the target vocabulary. |
-| **Dashboards** | RT-GUI Andon boards and performance dashboards color-code equipment by state. |
+| **Dashboards** | RT-CLIENT Andon boards and performance dashboards color-code equipment by state. |
 
 #### 5.7.2 Industry Standard Candidates
 
@@ -2045,7 +2045,7 @@ with fields: code (4-char, immutable after create), name, description, OEE bucke
 | **OEE (PERF-ANALYSIS)** | `EquipmentStateLog.oee_bucket` | ❌ No — uses canonical bucket only |
 | **ERP Reporting** | `EquipmentStateModelPlugin.map_to_erp_downtime_category()` | ⚠️ Thin — calls one method |
 | **Equipment Adapter** | `EquipmentStateModelPlugin.validate_transition()` | ✅ Yes — validates PLC signals |
-| **RT-GUI / Dashboards** | `EquipmentStateLog.state` + plugin `get_states()` for display names/colors | ✅ Yes — renders plugin states |
+| **RT-CLIENT / Dashboards** | `EquipmentStateLog.state` + plugin `get_states()` for display names/colors | ✅ Yes — renders plugin states |
 | **DT-CLIENT** | Plugin `get_states()` + `get_transitions()` for state model visualization | ✅ Yes — shows state diagram |
 | **DT-CLIENT** | `Reason` hierarchy via `/reasons` CRUD | ❌ No — standalone reason tree |
 
@@ -4993,7 +4993,7 @@ The Design-Time Client is the **reference configuration environment** for defini
 
 ### 15.1 Scope & Responsibilities
 
-The DT-CLIENT handles **definition-time** activities — everything that happens *before* a production order is released. It does **not** handle runtime operations (WIP tracking, dispatching, data collection) — those belong to the RT-GUI and RT-HEADLESS clients.
+The DT-CLIENT handles **definition-time** activities — everything that happens *before* a production order is released. It does **not** handle runtime operations (WIP tracking, dispatching, data collection) — those belong to the RT-CLIENT and RT-HEADLESS clients.
 
 **In scope:**
 
@@ -5009,7 +5009,7 @@ The DT-CLIENT handles **definition-time** activities — everything that happens
 | **System Configuration** | Environment settings, adapter configuration, event bus settings |
 | **Import/Export** | Bulk import from CSV/JSON, export configuration snapshots |
 
-**Out of scope** (belongs to RT-GUI / RT-HEADLESS):
+**Out of scope** (belongs to RT-CLIENT / RT-HEADLESS):
 
 | Activity | Why Not DT-CLIENT |
 |---|---|
@@ -5077,7 +5077,7 @@ The DT-CLIENT handles **definition-time** activities — everything that happens
 
 | Component | Choice | Rationale |
 |---|---|---|
-| **Framework** | React 18+ | Shared with RT-GUI; AI-friendly; large component ecosystem |
+| **Framework** | React 18+ | Shared with RT-CLIENT; AI-friendly; large component ecosystem |
 | **Language** | TypeScript 5+ | Type safety catches configuration errors at compile time |
 | **Build Tool** | Vite | Fast HMR; simple config; standard for new React projects |
 | **Routing** | React Router v6+ | Standard; nested routes map naturally to entity hierarchies |
@@ -5097,10 +5097,10 @@ The DT-CLIENT is a **web application** that runs in the user's browser — it ne
 | Client | Technology | Why |
 |---|---|---|
 | **DT-CLIENT** (config UI) | React + TypeScript (PWA) | Browser-based GUI for manufacturing engineers to define plant model, products, routes, quality |
-| **RT-GUI** (runtime UI) | React + TypeScript (PWA) | Browser-based GUI for shop floor operators to track WIP, enter data, view dashboards |
+| **RT-CLIENT** (runtime UI) | React + TypeScript (PWA) | Browser-based GUI for shop floor operators to track WIP, enter data, view dashboards |
 | **RT-HEADLESS** (automation) | **Python** (`httpx`) | No UI — scripts, equipment integration, batch automation. Same language as server. |
 
-> **Progressive Web Applications (PWA):** Both browser-based clients (DT-CLIENT and RT-GUI)
+> **Progressive Web Applications (PWA):** Both browser-based clients (DT-CLIENT and RT-CLIENT)
 > are built as PWAs. This provides:
 >
 > - **Offline resilience** — service worker caches the app shell and static assets so the UI
@@ -5384,7 +5384,7 @@ Process routes are configured using a visual flow editor:
 
 ### 15.6 Shared Component Library
 
-Components shared between DT-CLIENT and RT-GUI are extracted into a common library:
+Components shared between DT-CLIENT and RT-CLIENT are extracted into a common library:
 
 ```
 clients/
@@ -5415,7 +5415,7 @@ clients/
 │   └── tests/
 │
 ├── design_time/                       # DT-CLIENT (imports @mes/ui)
-└── runtime_gui/                       # RT-GUI (imports @mes/ui)
+└── run_time/                          # RT-CLIENT (imports @mes/ui)
 ```
 
 ### 15.7 API Interaction Layer
@@ -6458,11 +6458,11 @@ npm run dev
 4. Navigate to Outbound → Report Completion → fill form → submit → receive SAP doc number
 5. Navigate to Confirmations → click \"Refresh\" → see all generated SAP documents
 
-## 18. Runtime GUI Client (RT-GUI)
+## 18. Runtime Client (RT-CLIENT)
 
-The **Runtime GUI** is a shop-floor operator client for real-time WIP processing. Where the DT-CLIENT (§15) is an engineering configuration tool, the RT-GUI is the execution-time interface used by operators, line leads, and supervisors during production.
+The **Runtime Client** is a shop-floor operator client for real-time WIP processing. Where the DT-CLIENT (§15) is an engineering configuration tool, the RT-CLIENT is the execution-time interface used by operators, line leads, and supervisors during production.
 
-> **Module ID:** `RT-GUI` — Phase P5
+> **Module ID:** `RT-CLIENT` — Phase P5
 
 ### 18.1 Scope & Responsibilities
 
@@ -6481,7 +6481,7 @@ The **Runtime GUI** is a shop-floor operator client for real-time WIP processing
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  RT-GUI  (port 5176)                    │
+│                  RT-CLIENT  (port 5176)                   │
 │                                                         │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
 │  │Dashboard │ │ Scan WIP │ │Active WIP│ │  Orders   │  │
@@ -6521,7 +6521,7 @@ The **Runtime GUI** is a shop-floor operator client for real-time WIP processing
 ### 18.4 Project Structure
 
 ```
-clients/runtime_gui/
+clients/run_time/
 ├── package.json              # React 19, Vite 8, Tailwind v4
 ├── vite.config.ts            # port 5176, proxy /api → :8082
 ├── tsconfig.json
@@ -6552,7 +6552,7 @@ clients/runtime_gui/
 
 ### 18.5 Pages & Navigation
 
-The RT-GUI uses a **flat tab layout** (no nested routing) optimized for shop-floor touch screens and barcode scanners.
+The RT-CLIENT uses a **flat tab layout** (no nested routing) optimized for shop-floor touch screens and barcode scanners.
 
 | Tab | Page | Description |
 |-----|------|-------------|
@@ -6634,7 +6634,7 @@ Two lookup endpoints support barcode gun input, placed **before** the `{unit_id}
 
 ### 18.9 WebSocket Integration
 
-The RT-GUI connects to `ws://localhost:8082/api/v1/events/ws` and subscribes to:
+The RT-CLIENT connects to `ws://localhost:8082/api/v1/events/ws` and subscribes to:
 
 ```json
 { "action": "subscribe", "topics": [
@@ -6674,8 +6674,8 @@ cd c:\dev\mes_ai\server
 $env:MES_AUTH_MODE = "none"
 uvicorn mes.main:app --reload --port 8082
 
-# Terminal 2: RT-GUI
-cd c:\dev\mes_ai\clients\runtime_gui
+# Terminal 2: RT-CLIENT
+cd c:\dev\mes_ai\clients\run_time
 npm install
 npm run dev
 # → http://localhost:5176
@@ -6969,4 +6969,4 @@ Each module implementation will include:
 
 ---
 
-*Last updated: 2026-04-06 — Session S029 (RT-GUI operator client §18: barcode scan, step processing, data collection, quality tests, live events; 5 new server endpoints; composite step-context builder)*
+*Last updated: 2026-04-07 — Session S029 (RT-CLIENT operator client §18: barcode scan, step processing, data collection, quality tests, live events; 5 new server endpoints; composite step-context builder; renamed RT-GUI→RT-CLIENT, runtime_gui→run_time)*

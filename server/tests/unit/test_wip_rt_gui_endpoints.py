@@ -1,5 +1,5 @@
 """
-Unit tests for the RT-GUI server endpoints added to WIP-TRACK.
+Unit tests for the RT-CLIENT server endpoints added to WIP-TRACK.
 
 Covers:
 - UnitService.get_unit_by_serial  (service layer)

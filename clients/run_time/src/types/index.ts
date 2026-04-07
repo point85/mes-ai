@@ -1,4 +1,4 @@
-/* RT-GUI TypeScript types — mirrors server Pydantic schemas */
+/* RT-CLIENT TypeScript types — mirrors server Pydantic schemas */
 
 export interface Unit {
   id: string;

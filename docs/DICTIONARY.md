@@ -104,7 +104,7 @@
 | Term | Definition |
 |---|---|
 | **MES Server** | The Python/FastAPI backend application that houses all business logic, API endpoints, event bus, and plugin framework. |
-| **Runtime GUI Client** (**RT-GUI**) | The React web application used by shop floor operators and supervisors during production. Real-time dashboards, WIP tracking, data entry. |
+| **Runtime Client** (**RT-CLIENT**) | The React web application used by shop floor operators and supervisors during production. Real-time dashboards, WIP tracking, data entry. |
 | **Runtime Headless Client** (**RT-HEADLESS**) | A Python `httpx`-based client for automation scripts, equipment integration, and headless workflows (no UI). |
 | **Design-Time Client** (**DT-CLIENT**) | The React web application used by manufacturing engineers and admins to configure products, routes, equipment, and plugins. |
 | **Plugin** | A self-contained extension package that adds or modifies MES behavior without changing core code. Defined by a `manifest.yaml` and a Python class extending `MESPlugin`. |
@@ -138,7 +138,7 @@ These short identifiers are used in architecture docs, code paths, commit messag
 | `ERP-OBOUND` | ERP Outbound Adapter | `server/src/mes/adapters/erp/` |
 | `EQUIP-INTFC` | Equipment Interface | `server/src/mes/adapters/equipment/` |
 | `TEST-INTFC` | Test Equipment Interface | `server/src/mes/adapters/test_equipment/` |
-| `RT-GUI` | Runtime GUI Client | `clients/runtime_gui/` |
+| `RT-CLIENT` | Runtime Client | `clients/run_time/` |
 | `RT-HEADLESS` | Runtime Headless Client | `clients/runtime_headless/` |
 | `DT-CLIENT` | Design-Time Client | `clients/design_time/` |
 | `SESSION-META` | Session/Configuration | `server/src/mes/config.py` |
@@ -207,7 +207,7 @@ These short identifiers are used in architecture docs, code paths, commit messag
 | **Phase 1 (P1)** | Survey & Requirements — commercial MES analysis, module identification. Deliverable: `MES_SURVEY.md`. **Complete.** |
 | **Phase 2 (P2)** | Architecture & Design — full system architecture. Deliverable: `ARCHITECTURE.md`. **Complete.** |
 | **Phase 3 (P3)** | Core Server Implementation — build the server in 5 layers. **Next phase.** |
-| **Phase 4 (P4)** | Client Implementation — build RT-GUI, DT-CLIENT, RT-HEADLESS. |
+| **Phase 4 (P4)** | Client Implementation — build RT-CLIENT, DT-CLIENT, RT-HEADLESS. |
 | **Phase 5 (P5)** | Integration & Testing — end-to-end integration, load testing, documentation. |
 
 ### Implementation Layers (Phase 3)

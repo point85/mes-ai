@@ -192,7 +192,7 @@ npm run dev
 serves on http://localhost:5175
 
 # Runtime client
-cd c:\dev\mes_ai\clients\runtime_gui
+cd c:\dev\mes_ai\clients\run_time
 npm run dev
 Then open http://localhost:5176.
 

@@ -2554,7 +2554,7 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 ## Session S029 — 2026-04-06
 
 **Phase**: P5 (MES Clients — Runtime)
-**Objective**: RT-GUI — Runtime operator client for shop floor (WIP scanning, step processing, data collection)
+**Objective**: RT-CLIENT — Runtime operator client for shop floor (WIP scanning, step processing, data collection)
 
 ### What Happened
 
@@ -2571,8 +2571,8 @@ Identified 5 gaps in the REST API needed by the operator UI, then implemented:
 - `UnitService.get_unit_by_serial(session, serial_number)` — select + NotFoundException
 - `LotService.get_lot_by_number(session, lot_number)` — select + NotFoundException
 
-#### RT-GUI Client (React 19 + Vite 8 + Tailwind v4)
-Full scaffold at `clients/runtime_gui/` on **port 5176**:
+#### RT-CLIENT (React 19 + Vite 8 + Tailwind v4)
+Full scaffold at `clients/run_time/` on **port 5176**:
 - **Types**: Unit, Lot, RouteStep, StepParameter, DataDefinition, QualityTest, Disposition, StepContext, ProductionOrder, MESEvent
 - **API layer** (`api/runtime.ts`): ~30 functions covering units, lots, routing, data collection, quality, orders, dashboard
 - **WebSocket hook** (`hooks/useWebSocket.ts`): auto-reconnect, topic subscription
@@ -2599,18 +2599,20 @@ Full scaffold at `clients/runtime_gui/` on **port 5176**:
 | `server/src/mes/core/wip/routes.py` | Added 5 new endpoints (by-serial, step-context ×2, by-number, dispositions) |
 | `server/src/mes/core/wip/step_context.py` | **NEW** — composite step-context builder |
 | `server/tests/unit/test_wip_rt_gui_endpoints.py` | **NEW** — 10 tests for new endpoints |
-| `clients/runtime_gui/` | **NEW** — entire client scaffold (20+ files) |
+| `clients/run_time/` | **NEW** — entire client scaffold (20+ files) |
 
 ### Test Results
-- **1621 unit tests passing** (1611 + 10 RT-GUI endpoint tests), 5 warnings, 0 failures
+- **1621 unit tests passing** (1611 + 10 RT-CLIENT endpoint tests), 5 warnings, 0 failures
 - TypeScript: zero type errors (`tsc --noEmit` clean)
 
 ### Where We Stopped
-- RT-GUI client fully scaffolded and type-checks clean
+- RT-CLIENT fully scaffolded and type-checks clean
 - Server endpoints for barcode scan, step context, and dispositions operational
+- Renamed `RT-GUI` → `RT-CLIENT` and `clients/runtime_gui/` → `clients/run_time/` across all docs
+- ARCHITECTURE.md §18 updated with new name
 - **1621 tests passing**
 - Next options:
-  1. **Start RT-GUI dev server** and test in browser against running backend
+  1. **Start RT-CLIENT dev server** and test in browser against running backend
   2. **Integration tests** for new endpoints (HTTP-level)
   3. **P6: Testing & CI** — GitHub Actions pipeline
   4. **More vendor adapters** — Modbus TCP, D365 F&O

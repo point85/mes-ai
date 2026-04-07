@@ -129,7 +129,7 @@ async def get_unit_step_context(
 ):
     """Composite endpoint: unit + current step details + data definitions + quality tests + dispositions.
 
-    Returns everything the RT-GUI needs to render the operator work screen for a unit.
+    Returns everything the RT-CLIENT needs to render the operator work screen for a unit.
     """
     from mes.core.wip.step_context import build_step_context
     ctx = await build_step_context(session, unit_id=unit_id)

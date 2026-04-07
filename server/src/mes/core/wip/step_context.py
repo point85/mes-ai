@@ -1,5 +1,5 @@
 """
-WIP-TRACK: Composite step-context builder for the RT-GUI.
+WIP-TRACK: Composite step-context builder for the RT-CLIENT.
 
 Given a unit or lot ID, returns a single dict containing everything the
 operator work screen needs:

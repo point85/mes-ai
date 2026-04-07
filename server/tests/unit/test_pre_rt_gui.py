@@ -1,5 +1,5 @@
 """
-Unit tests for the 4 pre-RT-GUI server-side features:
+Unit tests for the 4 pre-RT-CLIENT server-side features:
 
 1. WebSocket event gateway (_ConnectionManager, topic matching)
 2. Serial number auto-generation (template formatting)
