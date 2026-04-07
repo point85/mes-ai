@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§19), 1611 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), 1621 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -3835,7 +3835,7 @@ plugins/system/sap_erp_simulator/
 **Why not call real SAP APIs?**  No SAP system is available during development. The simulator exists to:
 1. Validate the full inbound sync path (SAP OData → Transform → MES DTOs)
 2. Validate the full outbound report path (MES DTOs → Transform → SAP format → confirmation)
-3. Test the ERP REST API endpoints (§6.3) end-to-end via the GUI client (§18)
+3. Test the ERP REST API endpoints (§6.3) end-to-end via the GUI client (§17)
 4. Exercise configurable failure injection and latency simulation
 
 ##### Data Catalog
@@ -6458,7 +6458,239 @@ npm run dev
 4. Navigate to Outbound → Report Completion → fill form → submit → receive SAP doc number
 5. Navigate to Confirmations → click \"Refresh\" → see all generated SAP documents
 
-## 18. Demo Data Seeding Module (CPG-DEMO, ELEC-DEMO)
+## 18. Runtime GUI Client (RT-GUI)
+
+The **Runtime GUI** is a shop-floor operator client for real-time WIP processing. Where the DT-CLIENT (§15) is an engineering configuration tool, the RT-GUI is the execution-time interface used by operators, line leads, and supervisors during production.
+
+> **Module ID:** `RT-GUI` — Phase P5
+
+### 18.1 Scope & Responsibilities
+
+| In Scope | Out of Scope |
+|----------|--------------|
+| Barcode / serial-number scanning to locate WIP | Route / product / material editing (DT-CLIENT) |
+| Step processing: start, complete, move, hold, scrap | Plugin management (DT-CLIENT) |
+| Data collection (numeric, string, boolean, enum) | ERP synchronization (ERP-SIM-GUI) |
+| Quality test pass / fail recording | Equipment state transitions (Availability Simulator) |
+| MRB disposition selection | User / role administration (DT-CLIENT) |
+| Route progress visualization | |
+| Production order monitoring | |
+| Live WebSocket event stream | |
+
+### 18.2 Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  RT-GUI  (port 5176)                    │
+│                                                         │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
+│  │Dashboard │ │ Scan WIP │ │Active WIP│ │  Orders   │  │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────┬─────┘  │
+│       │             │            │              │        │
+│  ┌────┴─────────────┴────────────┴──────────────┴────┐  │
+│  │           StepProcessingPanel                     │  │
+│  │  (data collect · quality · complete · move · hold)│  │
+│  └───────────────────────┬───────────────────────────┘  │
+│                          │                              │
+│  ┌───────────┐   ┌──────┴──────┐   ┌────────────────┐  │
+│  │ useWebSocket│   │ api/runtime │   │ Live Events   │  │
+│  └──────┬────┘   └──────┬──────┘   └───────┬────────┘  │
+└─────────┼───────────────┼───────────────────┼───────────┘
+          │  WebSocket    │  REST /api/v1     │
+          ▼               ▼                   ▼
+┌─────────────────────────────────────────────────────────┐
+│              MES Server  (port 8082)                    │
+│   /api/v1/events/ws  ·  /api/v1/units  ·  /api/v1/lots │
+│   /api/v1/steps  ·  /api/v1/data-collection  ·  ...    │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 18.3 Technology Stack
+
+| Component | Choice | Rationale |
+|-----------|--------|-----------|
+| UI framework | React 19 | Same as DT-CLIENT; shared patterns |
+| Bundler | Vite 8 | Fast HMR, Tailwind v4 plugin |
+| Styling | Tailwind CSS v4 | Utility-first; `@apply` for `.btn-primary`, `.input-field` |
+| Data fetching | TanStack React Query 5 | Cache, auto-refetch, stale-while-revalidate |
+| HTTP client | axios | Interceptors, envelope unwrapping |
+| Routing | React Router 7 | N/A (single-page tab navigation) |
+| Accessible UI | Headless UI 2 + Heroicons 2 | Keyboard / screen-reader support |
+| Language | TypeScript 5.9 | Strict mode, bundler module resolution |
+
+### 18.4 Project Structure
+
+```
+clients/runtime_gui/
+├── package.json              # React 19, Vite 8, Tailwind v4
+├── vite.config.ts            # port 5176, proxy /api → :8082
+├── tsconfig.json
+├── tsconfig.app.json
+├── index.html
+└── src/
+    ├── main.tsx              # QueryClient (retry:1, staleTime:5s)
+    ├── App.tsx               # Tab state + WebSocket wiring
+    ├── index.css             # Tailwind import + .btn-primary, .input-field
+    ├── vite-env.d.ts
+    ├── types/
+    │   └── index.ts          # Unit, Lot, StepContext, MESEvent, …
+    ├── api/
+    │   └── runtime.ts        # ~30 API functions (units, lots, routing, quality, …)
+    ├── hooks/
+    │   └── useWebSocket.ts   # Auto-reconnect, topic subscription
+    ├── components/
+    │   ├── Layout.tsx         # Header + 5-tab nav + WS status
+    │   ├── StepProcessingPanel.tsx  # Core operator work screen
+    │   └── RouteProgressBar.tsx     # Visual step progress
+    └── pages/
+        ├── DashboardPage.tsx  # Order progress, shift summary
+        ├── ScanPage.tsx       # Barcode scan → step context
+        ├── ActiveWipPage.tsx  # WIP list with status filter
+        ├── OrdersPage.tsx     # Production order table
+        └── EventsPage.tsx     # Live WebSocket event stream
+```
+
+### 18.5 Pages & Navigation
+
+The RT-GUI uses a **flat tab layout** (no nested routing) optimized for shop-floor touch screens and barcode scanners.
+
+| Tab | Page | Description |
+|-----|------|-------------|
+| **Dashboard** | `DashboardPage` | Shift summary (8-hr window), order progress with visual bars, recent events |
+| **Scan WIP** | `ScanPage` | Enter serial number or lot number (keyboard / barcode gun), loads composite step context, renders `StepProcessingPanel` |
+| **Active WIP** | `ActiveWipPage` | List all units or lots with status filter. Open any item → `StepProcessingPanel` |
+| **Orders** | `OrdersPage` | Production orders with status filter, priority badges, ERP reference, qty progress |
+| **Live Events** | `EventsPage` | Real-time WebSocket feed with category filter (WIP, Orders, Quality, Dispatch, Data, Equipment) |
+
+### 18.6 StepProcessingPanel — Core Operator Work Screen
+
+The `StepProcessingPanel` is the central component, rendered by both the Scan and Active WIP pages. It receives a `StepContext` payload (from the composite endpoint) and provides the full step-processing workflow:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  SN-001  │  Status: in_process  │  Step: Assembly   │
+├─────────────────────────────────────────────────────┤
+│  ● ── ● ── ◉ ── ○ ── ○   Route Progress            │
+│  Mix  Blend Assy  QC  Pack                          │
+├─────────────────────────────────────────────────────┤
+│  DATA COLLECTION                                    │
+│  ┌─────────────┬──────────┬───────────────────┐     │
+│  │ Torque (Nm) │ [12.5  ] │ Spec: 10.0–15.0  │     │
+│  │ Lot Code    │ [A-1234] │ (string)          │     │
+│  │ Visual OK?  │ [✓]      │ (boolean)         │     │
+│  └─────────────┴──────────┴───────────────────┘     │
+├─────────────────────────────────────────────────────┤
+│  QUALITY TESTS                                      │
+│  Dimensional Check  [Pass] [Fail]                   │
+│  Electrical Test    [Pass] [Fail]                   │
+├─────────────────────────────────────────────────────┤
+│  [ Complete Step ▾ pass ]   [ Move → Next Step ]    │
+│  [ Hold ] reason: [_____]   [ Scrap ] reason: [___] │
+└─────────────────────────────────────────────────────┘
+```
+
+**State-dependent behavior:**
+| WIP Status | Available Actions |
+|------------|------------------|
+| `queued` | Start |
+| `in_process` | Collect data, record quality, complete step, move, hold, scrap |
+| `on_hold` | Release hold |
+| `completed` / `scrapped` | None (terminal states) |
+
+### 18.7 Server-Side Support: Composite Step-Context Endpoint
+
+To minimize round-trips, a **composite endpoint** returns everything the operator screen needs in one call:
+
+```
+GET /api/v1/units/{unit_id}/step-context
+GET /api/v1/lots/{lot_id}/step-context
+```
+
+**Response payload:**
+```json
+{
+  "wip_type": "unit",
+  "wip": { "id": "…", "serial_number": "SN-001", "status": "in_process", … },
+  "step": { "id": "…", "name": "Assembly", "step_type": "standard", "sequence": 3, … },
+  "step_parameters": [ { "name": "Torque", "target": 12.5, "lower_limit": 10.0, "upper_limit": 15.0, … } ],
+  "data_definitions": [ { "name": "Torque (Nm)", "data_type": "numeric", "step_id": "…", … } ],
+  "quality_tests": [ { "name": "Dimensional Check", "test_type": "pass_fail", … } ],
+  "dispositions": [ { "label": "Rework", "to_step_id": "…" }, { "label": "Scrap", "to_step_id": null } ],
+  "route_steps": [ { "id": "…", "name": "Mix", "sequence": 1 }, … ]
+}
+```
+
+The builder (`server/src/mes/core/wip/step_context.py`) loads: WIP item → current step → step parameters → data definitions → quality tests → dispositions (for MRB steps) → all route steps (for progress tracker).
+
+### 18.8 Server-Side Support: Barcode Scan Endpoints
+
+Two lookup endpoints support barcode gun input, placed **before** the `{unit_id}` / `{lot_id}` routes to avoid UUID path conflicts:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/units/by-serial/{serial_number}` | Look up a unit by its serial number |
+| `GET /api/v1/lots/by-number/{lot_number}` | Look up a lot by its lot number |
+| `GET /api/v1/steps/{step_id}/dispositions` | Get available MRB disposition choices |
+
+### 18.9 WebSocket Integration
+
+The RT-GUI connects to `ws://localhost:8082/api/v1/events/ws` and subscribes to:
+
+```json
+{ "action": "subscribe", "topics": [
+    "wip.*", "production.order.*", "dispatch.*",
+    "quality.*", "data.*", "equipment.state.*"
+] }
+```
+
+Events feed three consumers:
+1. **DashboardPage** — recent events list and shift summary refresh triggers
+2. **EventsPage** — full live stream with category filtering
+3. **App.tsx** — accumulates up to 500 events in state, distributes to pages
+
+The `useWebSocket` hook handles auto-reconnection (3-second delay) and exposes a `connected` boolean for the header status indicator.
+
+### 18.10 API Layer
+
+`api/runtime.ts` exports ~30 functions organized by domain:
+
+| Domain | Functions |
+|--------|-----------|
+| **Units** | `fetchUnits`, `fetchUnitBySerial`, `fetchUnitStepContext`, `fetchUnitHistory`, `startUnit`, `completeUnit`, `moveUnit`, `holdUnit`, `releaseHoldUnit`, `scrapUnit` |
+| **Lots** | `fetchLots`, `fetchLotByNumber`, `fetchLotStepContext`, `fetchLotHistory`, `startLot`, `completeLot`, `moveLot`, `holdLot`, `releaseHoldLot`, `scrapLot` |
+| **Routing** | `fetchDispositions` |
+| **Data Collection** | `collectDataPoint`, `collectDataBatch` |
+| **Quality** | `recordQualityResult` |
+| **Orders** | `fetchOrders` |
+| **Dashboard** | `fetchOrderProgress`, `fetchLineStatus`, `fetchShiftSummary` |
+
+All functions use an `unwrap<T>()` helper to extract `response.data.data` from the MES API response envelope (§6.2).
+
+### 18.11 How to Run
+
+```bash
+# Terminal 1: MES server (must be running)
+cd c:\dev\mes_ai\server
+$env:MES_AUTH_MODE = "none"
+uvicorn mes.main:app --reload --port 8082
+
+# Terminal 2: RT-GUI
+cd c:\dev\mes_ai\clients\runtime_gui
+npm install
+npm run dev
+# → http://localhost:5176
+```
+
+**Operator workflow:**
+1. Open http://localhost:5176 → Dashboard shows order progress and shift summary
+2. Navigate to **Scan WIP** → scan a serial number → step context loads → process the step
+3. Collect data points, record quality test results, complete the step
+4. WIP moves to the next step (or select a disposition for MRB steps)
+5. Monitor **Live Events** tab for real-time WebSocket feed across all domains
+
+---
+
+## 19. Demo Data Seeding Module (CPG-DEMO, ELEC-DEMO)
 
 Server-side seed module that creates complete, realistic manufacturing scenarios in one click. Each demo populates all ISA-95 layers — from ERP master data (materials, products, BOMs, routes, orders) to the physical plant model (sites, areas, lines, work cells, equipment with state models and material assignments). Two complementary scenarios cover the major manufacturing paradigms.
 
@@ -6534,9 +6766,9 @@ server/src/mes/core/demo/
 
 ---
 
-## 19. Production Order Lifecycle & WIP Generation
+## 20. Production Order Lifecycle & WIP Generation
 
-### 19.1 Order Lifecycle
+### 20.1 Order Lifecycle
 
 A production order follows a strict five-state lifecycle. Each transition is enforced by the server; invalid transitions return a `409 Conflict` error.
 
@@ -6575,15 +6807,15 @@ A production order follows a strict five-state lifecycle. Each transition is enf
 | `in_progress` | `completed`, `closed` | Manual (DT-CLIENT or API) |
 | `completed` | `closed` | Manual (DT-CLIENT or API) |
 
-### 19.2 How Orders Are Created and Released
+### 20.2 How Orders Are Created and Released
 
 1. **Create orders** — Use the **ERP Simulator** (port 5174) → "Production Orders" tab → "+ Create Orders". The form provides a product dropdown, a count field (number of orders to create, default 3), quantity per order, and priority. Orders are created in `created` status via `POST /api/v1/orders`.
 
 2. **Release orders** — Use the **Design-Time Client** (port 5173) → "Orders" page. Each order in `created` status shows a **Release** button (play icon ▶). Clicking it calls `POST /api/v1/orders/{id}/release`, which sets `status = "released"` and publishes a `production.order.released` event.
 
-3. **WIP generation** — Within seconds, the server-side WIP generator background task picks up the released order and creates the appropriate lots or units (see §19.3).
+3. **WIP generation** — Within seconds, the server-side WIP generator background task picks up the released order and creates the appropriate lots or units (see §20.3).
 
-### 19.3 WIP Generator — Background Polling Task
+### 20.3 WIP Generator — Background Polling Task
 
 The WIP generator is a background `asyncio` task that runs inside the MES server process. It polls the database every **5 seconds** (configurable via `WIP_GENERATOR_INTERVAL_SEC`) for orders in `released` status and creates lots or units automatically.
 
@@ -6642,7 +6874,7 @@ wip_task = asyncio.create_task(wip_generator_loop())
 
 On shutdown, the task is cancelled cleanly.
 
-### 19.4 Customization Guide for End Users
+### 20.4 Customization Guide for End Users
 
 The WIP generator is designed as the **extension point** where end users implement site-specific business rules. The key function to customize is `_generate_wip_for_order()` in `wip_generator.py`.
 
@@ -6702,7 +6934,7 @@ async def _generate_wip_for_order(session: AsyncSession, order: ProductionOrder)
 
 ---
 
-## 20. Implementation Task Breakdown (Phase 3+)
+## 21. Implementation Task Breakdown (Phase 3+)
 
 Phase 3 implementation will follow this dependency order:
 
@@ -6737,4 +6969,4 @@ Each module implementation will include:
 
 ---
 
-*Last updated: 2026-04-05 — Session S027 (Production order lifecycle, WIP generator background task, customization guide documented)*
+*Last updated: 2026-04-06 — Session S029 (RT-GUI operator client §18: barcode scan, step processing, data collection, quality tests, live events; 5 new server endpoints; composite step-context builder)*

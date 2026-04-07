@@ -191,6 +191,9 @@ npm install
 npm run dev
 serves on http://localhost:5175
 
-
+# Runtime client
+cd c:\dev\mes_ai\clients\runtime_gui
+npm run dev
+Then open http://localhost:5176.
 
 
