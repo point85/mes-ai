@@ -178,6 +178,8 @@ class ConsumptionRead(BaseModel):
     step_id: UUID | None = None
     quantity_consumed: float
     consumed_at: datetime
+    consumed_at_utc: datetime | None = None
     created_at: datetime
+    created_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}

@@ -18,7 +18,9 @@ class GenealogyStepRecord(BaseModel):
     step_id: UUID | None = None
     step_name: str | None = None
     entered_at: datetime | None = None
+    entered_at_utc: datetime | None = None
     exited_at: datetime | None = None
+    exited_at_utc: datetime | None = None
     result: str | None = None
     equipment_id: UUID | None = None
     data_snapshot: dict | None = None
@@ -33,6 +35,7 @@ class GenealogyMaterialRecord(BaseModel):
     lot_number: str | None = None
     quantity_consumed: float
     consumed_at: datetime
+    consumed_at_utc: datetime | None = None
     step_id: UUID | None = None
 
 
@@ -45,6 +48,7 @@ class GenealogyTestRecord(BaseModel):
     result: str
     measured_values: dict | None = None
     tested_at: datetime
+    tested_at_utc: datetime | None = None
     equipment_id: UUID | None = None
 
 
@@ -58,6 +62,7 @@ class GenealogyDataRecord(BaseModel):
     value_string: str | None = None
     value_boolean: bool | None = None
     collected_at: datetime
+    collected_at_utc: datetime | None = None
 
 
 class GenealogyRecord(BaseModel):

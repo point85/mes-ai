@@ -62,6 +62,10 @@ class ERPOutboundQueueItem(BaseModel):
         DateTime(timezone=True), nullable=True,
         comment="Next retry timestamp (exponential backoff)",
     )
+    next_retry_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Next retry timestamp in UTC (exponential backoff)",
+    )
     last_error: Mapped[str | None] = mapped_column(
         Text, nullable=True,
         comment="Error message from last failed attempt",
@@ -92,10 +96,13 @@ class QueueItemRead(PydanticBaseModel):
     attempts: int
     max_attempts: int
     next_retry_at: datetime | None = None
+    next_retry_at_utc: datetime | None = None
     last_error: str | None = None
     erp_doc_number: str | None = None
     created_at: datetime
+    created_at_utc: datetime | None = None
     updated_at: datetime
+    updated_at_utc: datetime | None = None
 
 
 class QueueItemCreate(PydanticBaseModel):
@@ -262,6 +269,7 @@ class ERPOutboundQueueService:
                     item.next_retry_at = datetime.fromtimestamp(
                         now.timestamp() + backoff, tz=timezone.utc,
                     )
+                    item.next_retry_at_utc = item.next_retry_at
                     logger.warning(
                         "ERP outbound %s (id=%s) retry %d/%d in %ds",
                         item.report_type, item.id, item.attempts, item.max_attempts, backoff,
@@ -304,6 +312,7 @@ class ERPOutboundQueueService:
         item.status = "pending"
         item.attempts = 0
         item.next_retry_at = None
+        item.next_retry_at_utc = None
         item.last_error = None
         await db.flush()
         logger.info("Reset ERP outbound item %s to pending", item_id)

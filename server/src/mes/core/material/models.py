@@ -181,6 +181,10 @@ class MaterialConsumption(BaseModel):
         DateTime(timezone=True), nullable=False,
         comment="Timestamp when consumption was recorded",
     )
+    consumed_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp when consumption was recorded (UTC)",
+    )
 
     # ── Relationships ───────────────────────────────────────────────
     material_lot: Mapped["MaterialLot"] = relationship(

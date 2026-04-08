@@ -70,7 +70,9 @@ async def local_login(
         raise UnauthorizedException(message="Invalid username or password")
 
     # Update last login
-    user.last_login = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    user.last_login = now
+    user.last_login_utc = now
     await session.commit()
 
     roles = AuthService.get_user_roles(user)

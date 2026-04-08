@@ -45,7 +45,9 @@ class UnitRead(BaseModel):
     status: str
     is_active: bool
     created_at: datetime
+    created_at_utc: datetime | None = None
     updated_at: datetime
+    updated_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -84,7 +86,9 @@ class LotRead(BaseModel):
     status: str
     is_active: bool
     created_at: datetime
+    created_at_utc: datetime | None = None
     updated_at: datetime
+    updated_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -102,11 +106,14 @@ class UnitHistoryRead(BaseModel):
     step_id: UUID
     equipment_id: UUID | None = None
     entered_at: datetime
+    entered_at_utc: datetime | None = None
     exited_at: datetime | None = None
+    exited_at_utc: datetime | None = None
     result: str | None = None
     operator_id: UUID | None = None
     data_snapshot: dict | None = None
     created_at: datetime
+    created_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -119,12 +126,15 @@ class LotHistoryRead(BaseModel):
     step_id: UUID
     equipment_id: UUID | None = None
     entered_at: datetime
+    entered_at_utc: datetime | None = None
     exited_at: datetime | None = None
+    exited_at_utc: datetime | None = None
     quantity_in: int
     quantity_out: int
     quantity_scrapped: int
     operator_id: UUID | None = None
     created_at: datetime
+    created_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}
 

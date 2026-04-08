@@ -201,6 +201,16 @@ class UnitHistory(BaseModel):
         comment="Freeform JSON snapshot of data collected at this step",
     )
 
+    # ── UTC Timestamps ──────────────────────────────────────────────
+    entered_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp when the unit entered this step (UTC)",
+    )
+    exited_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp when the unit left this step (UTC)",
+    )
+
     # ── Relationships ───────────────────────────────────────────────
     unit: Mapped["Unit"] = relationship(
         "Unit", back_populates="history",
@@ -238,6 +248,14 @@ class LotHistory(BaseModel):
     )
     exited_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
+    )
+    entered_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp when the lot entered this step (UTC)",
+    )
+    exited_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp when the lot left this step (UTC)",
     )
     quantity_in: Mapped[int] = mapped_column(
         Integer, nullable=False,

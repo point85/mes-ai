@@ -224,6 +224,7 @@ class DataPointService:
             value_boolean=value_boolean,
         )
 
+        now = datetime.now(timezone.utc)
         point = DataPoint(
             definition_id=defn.id,
             unit_id=unit_id,
@@ -231,7 +232,8 @@ class DataPointService:
             value_numeric=value_numeric,
             value_string=value_string,
             value_boolean=value_boolean,
-            collected_at=datetime.now(timezone.utc),
+            collected_at=now,
+            collected_at_utc=now,
             source_equipment_id=source_equipment_id,
             operator_id=operator_id,
         )

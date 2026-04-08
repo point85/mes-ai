@@ -110,6 +110,10 @@ class TestResult(BaseModel):
         DateTime(timezone=True), nullable=False,
         comment="When the test was performed",
     )
+    tested_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="When the test was performed (UTC)",
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Relationships ───────────────────────────────────────────────
@@ -165,6 +169,9 @@ class NonConformance(BaseModel):
         comment="Workflow status: open, investigating, resolved, closed",
     )
     resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    resolved_at_utc: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
     )
     resolved_by_id: Mapped[uuid.UUID | None] = mapped_column(

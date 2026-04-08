@@ -56,14 +56,20 @@ class OrderRead(BaseModel):
     status: str
     priority: int
     planned_start: datetime | None = None
+    planned_start_utc: datetime | None = None
     planned_end: datetime | None = None
+    planned_end_utc: datetime | None = None
     actual_start: datetime | None = None
+    actual_start_utc: datetime | None = None
     actual_end: datetime | None = None
+    actual_end_utc: datetime | None = None
     erp_reference: str | None = None
     notes: str | None = None
     is_active: bool
     created_at: datetime
+    created_at_utc: datetime | None = None
     updated_at: datetime
+    updated_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}
 

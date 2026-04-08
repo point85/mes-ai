@@ -150,6 +150,14 @@ class EquipmentStateLog(BaseModel):
         DateTime(timezone=True), nullable=True,
         comment="When this state ended (null = current state)",
     )
+    started_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="When this state began (UTC)",
+    )
+    ended_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="When this state ended (UTC)",
+    )
     reason_code: Mapped[str | None] = mapped_column(
         String(50), nullable=True,
         comment="Optional reason code for the state change",

@@ -139,6 +139,10 @@ class DataPoint(BaseModel):
         DateTime(timezone=True), nullable=False,
         comment="Timestamp when the data was collected",
     )
+    collected_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp when the data was collected (UTC)",
+    )
     source_equipment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("equipment.id"),
         nullable=True, index=True,

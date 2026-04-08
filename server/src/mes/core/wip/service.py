@@ -160,11 +160,13 @@ class UnitService:
         await session.flush()
 
         # Create history record
+        now = datetime.now(timezone.utc)
         history = UnitHistory(
             unit_id=unit.id,
             step_id=unit.current_step_id,
             equipment_id=unit.current_equipment_id,
-            entered_at=datetime.now(timezone.utc),
+            entered_at=now,
+            entered_at_utc=now,
         )
         session.add(history)
         await session.flush()
@@ -209,7 +211,9 @@ class UnitService:
         history_result = await session.execute(stmt)
         history = history_result.scalar_one_or_none()
         if history is not None:
-            history.exited_at = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            history.exited_at = now
+            history.exited_at_utc = now
             history.result = result
             history.data_snapshot = data_snapshot
 
@@ -486,11 +490,13 @@ class LotService:
         lot.status = "in_process"
         await session.flush()
 
+        now = datetime.now(timezone.utc)
         history = LotHistory(
             lot_id=lot.id,
             step_id=lot.current_step_id,
             equipment_id=lot.current_equipment_id,
-            entered_at=datetime.now(timezone.utc),
+            entered_at=now,
+            entered_at_utc=now,
             quantity_in=lot.quantity,
         )
         session.add(history)
@@ -535,7 +541,9 @@ class LotService:
         history_result = await session.execute(stmt)
         history = history_result.scalar_one_or_none()
         if history is not None:
-            history.exited_at = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            history.exited_at = now
+            history.exited_at_utc = now
             history.quantity_out = quantity_out
             history.quantity_scrapped = quantity_scrapped
 

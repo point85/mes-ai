@@ -78,6 +78,11 @@ class ProductionOrderService:
             raise DuplicateOrderNumberException(kwargs["order_number"])
 
         order = ProductionOrder(**kwargs)
+        # Sync planned date _utc columns
+        if order.planned_start is not None:
+            order.planned_start_utc = order.planned_start
+        if order.planned_end is not None:
+            order.planned_end_utc = order.planned_end
         session.add(order)
         await session.flush()
 
@@ -163,7 +168,9 @@ class ProductionOrderService:
             return order  # idempotent
         ProductionOrderService._validate_transition(order, "in_progress")
         order.status = "in_progress"
-        order.actual_start = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        order.actual_start = now
+        order.actual_start_utc = now
         await session.flush()
 
         await event_bus.publish(order_started(str(order.id)))
@@ -178,7 +185,9 @@ class ProductionOrderService:
         order = await ProductionOrderService.get_order(session, order_id)
         ProductionOrderService._validate_transition(order, "completed")
         order.status = "completed"
-        order.actual_end = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        order.actual_end = now
+        order.actual_end_utc = now
         await session.flush()
 
         await event_bus.publish(
@@ -200,7 +209,9 @@ class ProductionOrderService:
         ProductionOrderService._validate_transition(order, "closed")
         order.status = "closed"
         if order.actual_end is None:
-            order.actual_end = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            order.actual_end = now
+            order.actual_end_utc = now
         await session.flush()
 
         logger.info("Closed production order %s (%s)", order.id, order.order_number)

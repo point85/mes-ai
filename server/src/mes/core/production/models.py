@@ -82,6 +82,20 @@ class ProductionOrder(BaseModel):
         DateTime(timezone=True), nullable=True,
     )
 
+    # ── UTC Timestamps ──────────────────────────────────────────────
+    planned_start_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    planned_end_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    actual_start_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    actual_end_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+
     erp_reference: Mapped[str | None] = mapped_column(
         String(255), nullable=True,
         comment="External reference from ERP system",

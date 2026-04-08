@@ -118,6 +118,7 @@ class GenealogyService:
                 result=tr.result,
                 measured_values=tr.measured_values,
                 tested_at=tr.tested_at,
+                tested_at_utc=tr.tested_at_utc,
                 equipment_id=tr.equipment_id,
             )
             for tr, qt in test_rows
@@ -142,6 +143,7 @@ class GenealogyService:
                 value_string=dp.value_string,
                 value_boolean=dp.value_boolean,
                 collected_at=dp.collected_at,
+                collected_at_utc=dp.collected_at_utc,
             )
             for dp, dd in data_rows
         ]
@@ -187,7 +189,9 @@ class GenealogyService:
             GenealogyStepRecord(
                 step_id=h.step_id,
                 entered_at=h.entered_at,
+                entered_at_utc=h.entered_at_utc,
                 exited_at=h.exited_at,
+                exited_at_utc=h.exited_at_utc,
                 result=h.result,
                 equipment_id=h.equipment_id,
             )
@@ -213,6 +217,7 @@ class GenealogyService:
                 lot_number=mat_lot.lot_number,
                 quantity_consumed=consumption.quantity_consumed,
                 consumed_at=consumption.consumed_at,
+                consumed_at_utc=consumption.consumed_at_utc,
                 step_id=consumption.step_id,
             )
             for consumption, mat_lot, mat_def in mat_rows
@@ -236,6 +241,7 @@ class GenealogyService:
                 result=tr.result,
                 measured_values=tr.measured_values,
                 tested_at=tr.tested_at,
+                tested_at_utc=tr.tested_at_utc,
                 equipment_id=tr.equipment_id,
             )
             for tr, qt in test_rows
@@ -260,6 +266,7 @@ class GenealogyService:
                 value_string=dp.value_string,
                 value_boolean=dp.value_boolean,
                 collected_at=dp.collected_at,
+                collected_at_utc=dp.collected_at_utc,
             )
             for dp, dd in data_rows
         ]

@@ -139,10 +139,13 @@ class TestResultRead(BaseModel):
     operator_id: UUID | None = None
     equipment_id: UUID | None = None
     tested_at: datetime
+    tested_at_utc: datetime | None = None
     notes: str | None = None
     is_active: bool
     created_at: datetime
+    created_at_utc: datetime | None = None
     updated_at: datetime
+    updated_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -181,10 +184,13 @@ class NonConformanceRead(BaseModel):
     disposition: str | None = None
     status: str
     resolved_at: datetime | None = None
+    resolved_at_utc: datetime | None = None
     resolved_by_id: UUID | None = None
     is_active: bool
     created_at: datetime
+    created_at_utc: datetime | None = None
     updated_at: datetime
+    updated_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}
 

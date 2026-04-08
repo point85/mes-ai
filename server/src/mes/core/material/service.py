@@ -267,13 +267,15 @@ class MaterialLotService:
             lot.status = "consumed"
 
         # Create consumption record
+        now = datetime.now(timezone.utc)
         consumption = MaterialConsumption(
             material_lot_id=lot.id,
             unit_id=unit_id,
             lot_id=lot_wip_id,
             step_id=step_id,
             quantity_consumed=quantity_consumed,
-            consumed_at=datetime.now(timezone.utc),
+            consumed_at=now,
+            consumed_at_utc=now,
         )
         session.add(consumption)
         await session.flush()

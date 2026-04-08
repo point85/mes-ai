@@ -37,7 +37,22 @@ class BaseModel(Base):
         nullable=False,
         comment="Timestamp when the entity was last updated"
     )
-    
+
+    created_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=True,
+        comment="Timestamp when the entity was created (UTC)"
+    )
+
+    updated_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=True,
+        comment="Timestamp when the entity was last updated (UTC)"
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,

@@ -155,10 +155,13 @@ class DataPointRead(BaseModel):
     value_string: str | None = None
     value_boolean: bool | None = None
     collected_at: datetime
+    collected_at_utc: datetime | None = None
     source_equipment_id: UUID | None = None
     operator_id: UUID | None = None
     is_active: bool
     created_at: datetime
+    created_at_utc: datetime | None = None
     updated_at: datetime
+    updated_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}

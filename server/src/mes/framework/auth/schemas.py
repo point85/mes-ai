@@ -37,8 +37,10 @@ class UserRead(BaseModel):
     full_name: str | None = None
     idp_issuer: str | None = None
     last_login: datetime | None = None
+    last_login_utc: datetime | None = None
     is_active: bool
     created_at: datetime
+    created_at_utc: datetime | None = None
     roles: list[str] = Field(default_factory=list, description="List of role names")
 
     model_config = {"from_attributes": True}

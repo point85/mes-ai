@@ -113,6 +113,10 @@ class ERPInboundOrder(BaseModel):
         DateTime(timezone=True), nullable=True,
         comment="Next retry timestamp (exponential backoff)",
     )
+    next_retry_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Next retry timestamp in UTC (exponential backoff)",
+    )
     last_error: Mapped[str | None] = mapped_column(
         Text, nullable=True,
         comment="Error message from the last failed attempt",
@@ -120,6 +124,10 @@ class ERPInboundOrder(BaseModel):
     processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
         comment="Timestamp when successfully processed",
+    )
+    processed_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp when successfully processed (UTC)",
     )
 
 
@@ -142,10 +150,14 @@ class InboundOrderRead(PydanticBaseModel):
     attempts: int
     max_attempts: int
     next_retry_at: datetime | None = None
+    next_retry_at_utc: datetime | None = None
     last_error: str | None = None
     processed_at: datetime | None = None
+    processed_at_utc: datetime | None = None
     created_at: datetime
+    created_at_utc: datetime | None = None
     updated_at: datetime
+    updated_at_utc: datetime | None = None
 
 
 class InboundQueueStats(PydanticBaseModel):
@@ -400,6 +412,7 @@ class ERPInboundQueueService:
                 item.processor_name = cls._processor.name
                 item.attempts += 1
                 item.processed_at = datetime.now(timezone.utc)
+                item.processed_at_utc = item.processed_at
                 await session.flush()
                 processed += 1
 
@@ -429,6 +442,7 @@ class ERPInboundQueueService:
                     item.status = "retry"
                     backoff = cls.BACKOFF_BASE_SEC * (2 ** (item.attempts - 1))
                     item.next_retry_at = now + timedelta(seconds=backoff)
+                    item.next_retry_at_utc = item.next_retry_at
                     logger.warning(
                         "Inbound order %s attempt %d failed, retry at %s: %s",
                         item.erp_reference, item.attempts,
@@ -500,6 +514,7 @@ class ERPInboundQueueService:
         item.attempts = 0
         item.last_error = None
         item.next_retry_at = None
+        item.next_retry_at_utc = None
         await session.flush()
         logger.info("Reset inbound order %s to pending", item_id)
         return item

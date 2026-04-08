@@ -135,7 +135,9 @@ class EquipmentStateService:
         prev_log = result.scalar_one_or_none()
         if prev_log is not None:
             prev_log.ended_at = started_at
+            prev_log.ended_at_utc = started_at
 
+        kwargs["started_at_utc"] = started_at
         log = EquipmentStateLog(**kwargs)
         session.add(log)
         await session.flush()

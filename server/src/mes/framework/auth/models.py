@@ -50,6 +50,7 @@ class User(BaseModel):
     )
 
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     user_roles: Mapped[list["UserRole"]] = relationship(

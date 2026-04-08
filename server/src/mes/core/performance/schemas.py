@@ -163,6 +163,7 @@ class EquipmentCurrentStateRead(BaseModel):
     dispatch_category: str
     oee_bucket: str
     started_at: datetime | None = None
+    started_at_utc: datetime | None = None
     valid_transitions: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -210,12 +211,16 @@ class EquipmentStateLogRead(BaseModel):
     dispatch_category: str
     oee_bucket: str
     started_at: datetime
+    started_at_utc: datetime | None = None
     ended_at: datetime | None = None
+    ended_at_utc: datetime | None = None
     reason_code: str | None = None
     notes: str | None = None
     is_active: bool
     created_at: datetime
+    created_at_utc: datetime | None = None
     updated_at: datetime
+    updated_at_utc: datetime | None = None
 
     model_config = {"from_attributes": True}
 
