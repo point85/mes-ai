@@ -527,45 +527,55 @@ function EquipmentStatusTable({ equipment }: { equipment: StepEquipmentStatus[] 
           </tr>
         </thead>
         <tbody>
-          {equipment.map((e) => (
+          {equipment.map((e) => {
+            // Dispatch blocking conditions
+            const categoryBlocked = e.dispatch_category != null && e.dispatch_category !== "available";
+            const capacityBlocked = !e.has_spare_capacity;
+            const materialBlocked = !e.material_setup;
+            const blocked = categoryBlocked || capacityBlocked || materialBlocked;
+            return (
             <tr key={e.equipment_id} className={`border-b ${e.is_assigned ? "bg-indigo-50 font-semibold" : ""}`}>
               <td className="py-1 px-2 font-mono">
                 {e.equipment_code}
                 {e.is_assigned && <span className="ml-1 text-xs text-indigo-600">(assigned)</span>}
+                {blocked && <span className="ml-1 text-xs text-red-500" title="Dispatch blocked">⊘</span>}
               </td>
-              <td className="py-1 px-2">
+              <td className={`py-1 px-2 ${categoryBlocked ? "bg-red-100" : ""}`}>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                   e.dispatch_category === "available"
                     ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-600"
+                    : categoryBlocked
+                      ? "bg-red-200 text-red-800"
+                      : "bg-gray-100 text-gray-600"
                 }`}>
-                  {e.dispatch_category ?? "—"}
+                  {e.dispatch_category ?? "no model"}
                 </span>
               </td>
               <td className="py-1 px-2">
                 {e.state ? `${e.state}` : "—"}
                 {e.state_model && <span className="text-xs text-gray-400 ml-1">({e.state_model})</span>}
               </td>
-              <td className="py-1 px-2 font-mono">
+              <td className={`py-1 px-2 font-mono ${capacityBlocked ? "bg-red-100" : ""}`}>
                 {e.queue_depth}{e.max_queue_depth != null ? ` / ${e.max_queue_depth}` : ""}
               </td>
-              <td className="py-1 px-2">
+              <td className={`py-1 px-2 ${capacityBlocked ? "bg-red-100" : ""}`}>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                   e.has_spare_capacity
                     ? "bg-green-100 text-green-700"
-                    : "bg-red-100 text-red-700"
+                    : "bg-red-200 text-red-800"
                 }`}>
                   {e.has_spare_capacity ? "Yes" : "Full"}
                 </span>
               </td>
-              <td className="py-1 px-2">
+              <td className={`py-1 px-2 ${materialBlocked ? "bg-red-100" : ""}`}>
                 {e.material_setup
                   ? <span className="text-green-600">✓</span>
-                  : <span className="text-red-500">✗</span>
+                  : <span className="text-red-700 font-medium">✗</span>
                 }
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
