@@ -12,8 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, ForeignKey, JSON, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -44,7 +43,7 @@ class QualityTest(BaseModel):
         comment="Test type: inline, offline, destructive",
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=True, index=True,
         comment="Optional route step where this test is performed",
     )
@@ -76,16 +75,16 @@ class TestResult(BaseModel):
     __tablename__ = "test_results"
 
     test_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("quality_tests.id"),
+        Uuid, ForeignKey("quality_tests.id"),
         nullable=False, index=True,
     )
     unit_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("units.id"),
+        Uuid, ForeignKey("units.id"),
         nullable=True, index=True,
         comment="Unit tested (null if lot-level test)",
     )
     lot_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("lots.id"),
+        Uuid, ForeignKey("lots.id"),
         nullable=True, index=True,
         comment="Lot tested (null if unit-level test)",
     )
@@ -98,11 +97,11 @@ class TestResult(BaseModel):
         comment="JSON of measured values (e.g. {\"dimension_a\": 10.5})",
     )
     operator_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"),
+        Uuid, ForeignKey("users.id"),
         nullable=True, index=True,
     )
     equipment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipment.id"),
+        Uuid, ForeignKey("equipment.id"),
         nullable=True, index=True,
         comment="Test equipment used",
     )
@@ -111,7 +110,7 @@ class TestResult(BaseModel):
         comment="When the test was performed",
     )
     tested_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="When the test was performed (UTC)",
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -140,15 +139,15 @@ class NonConformance(BaseModel):
     __tablename__ = "non_conformances"
 
     unit_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("units.id"),
+        Uuid, ForeignKey("units.id"),
         nullable=True, index=True,
     )
     lot_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("lots.id"),
+        Uuid, ForeignKey("lots.id"),
         nullable=True, index=True,
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=True, index=True,
         comment="Route step where the non-conformance was detected",
     )
@@ -172,10 +171,10 @@ class NonConformance(BaseModel):
         DateTime(timezone=True), nullable=True,
     )
     resolved_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
     )
     resolved_by_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"),
+        Uuid, ForeignKey("users.id"),
         nullable=True,
     )
 

@@ -275,7 +275,7 @@ class MaterialLotService:
             step_id=step_id,
             quantity_consumed=quantity_consumed,
             consumed_at=now,
-            consumed_at_utc=now,
+            consumed_at_utc=now.replace(tzinfo=None),
         )
         session.add(consumption)
         await session.flush()

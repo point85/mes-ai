@@ -11,8 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -59,7 +58,7 @@ class DataDefinition(BaseModel):
         comment="Unit of measure — FK to units_of_measure.symbol",
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=True, index=True,
         comment="Route step where this data is collected (null = any step)",
     )
@@ -110,16 +109,16 @@ class DataPoint(BaseModel):
     __tablename__ = "data_points"
 
     definition_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("data_definitions.id"),
+        Uuid, ForeignKey("data_definitions.id"),
         nullable=False, index=True,
     )
     unit_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("units.id"),
+        Uuid, ForeignKey("units.id"),
         nullable=True, index=True,
         comment="WIP unit this data was collected for (null if lot-based)",
     )
     lot_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("lots.id"),
+        Uuid, ForeignKey("lots.id"),
         nullable=True, index=True,
         comment="WIP lot this data was collected for (null if unit-based)",
     )
@@ -140,16 +139,16 @@ class DataPoint(BaseModel):
         comment="Timestamp when the data was collected",
     )
     collected_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="Timestamp when the data was collected (UTC)",
     )
     source_equipment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipment.id"),
+        Uuid, ForeignKey("equipment.id"),
         nullable=True, index=True,
         comment="Equipment that produced this data (null if manual entry)",
     )
     operator_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"),
+        Uuid, ForeignKey("users.id"),
         nullable=True, index=True,
         comment="Operator who entered/confirmed this data",
     )

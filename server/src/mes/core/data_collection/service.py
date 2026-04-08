@@ -233,7 +233,7 @@ class DataPointService:
             value_string=value_string,
             value_boolean=value_boolean,
             collected_at=now,
-            collected_at_utc=now,
+            collected_at_utc=now.replace(tzinfo=None),
             source_equipment_id=source_equipment_id,
             operator_id=operator_id,
         )

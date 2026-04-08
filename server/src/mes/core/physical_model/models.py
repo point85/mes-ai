@@ -13,8 +13,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text, JSON, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, JSON, Uuid, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -59,7 +58,7 @@ class Area(BaseModel):
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     site_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sites.id"), nullable=False, index=True,
+        Uuid, ForeignKey("sites.id"), nullable=False, index=True,
     )
 
     # Relationships
@@ -85,7 +84,7 @@ class ProductionLine(BaseModel):
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     area_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("areas.id"), nullable=False, index=True,
+        Uuid, ForeignKey("areas.id"), nullable=False, index=True,
     )
 
     # Relationships
@@ -112,7 +111,7 @@ class WorkCell(BaseModel):
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     line_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("production_lines.id"), nullable=False, index=True,
+        Uuid, ForeignKey("production_lines.id"), nullable=False, index=True,
     )
     wc_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="manual",
@@ -146,7 +145,7 @@ class Equipment(BaseModel):
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     work_cell_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("work_cells.id"), nullable=False, index=True,
+        Uuid, ForeignKey("work_cells.id"), nullable=False, index=True,
     )
     equipment_type: Mapped[str | None] = mapped_column(
         String(100), nullable=True,
@@ -194,10 +193,10 @@ class EquipmentMaterial(BaseModel):
     )
 
     equipment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False, index=True,
+        Uuid, ForeignKey("equipment.id"), nullable=False, index=True,
     )
     material_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("material_definitions.id"), nullable=False, index=True,
+        Uuid, ForeignKey("material_definitions.id"), nullable=False, index=True,
     )
     design_speed: Mapped[float] = mapped_column(
         Float, nullable=False,

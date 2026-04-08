@@ -72,7 +72,7 @@ async def local_login(
     # Update last login
     now = datetime.now(timezone.utc)
     user.last_login = now
-    user.last_login_utc = now
+    user.last_login_utc = now.replace(tzinfo=None)
     await session.commit()
 
     roles = AuthService.get_user_roles(user)

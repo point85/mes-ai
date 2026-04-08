@@ -166,7 +166,7 @@ class UnitService:
             step_id=unit.current_step_id,
             equipment_id=unit.current_equipment_id,
             entered_at=now,
-            entered_at_utc=now,
+            entered_at_utc=now.replace(tzinfo=None),
         )
         session.add(history)
         await session.flush()
@@ -213,7 +213,7 @@ class UnitService:
         if history is not None:
             now = datetime.now(timezone.utc)
             history.exited_at = now
-            history.exited_at_utc = now
+            history.exited_at_utc = now.replace(tzinfo=None)
             history.result = result
             history.data_snapshot = data_snapshot
 
@@ -496,7 +496,7 @@ class LotService:
             step_id=lot.current_step_id,
             equipment_id=lot.current_equipment_id,
             entered_at=now,
-            entered_at_utc=now,
+            entered_at_utc=now.replace(tzinfo=None),
             quantity_in=lot.quantity,
         )
         session.add(history)
@@ -543,7 +543,7 @@ class LotService:
         if history is not None:
             now = datetime.now(timezone.utc)
             history.exited_at = now
-            history.exited_at_utc = now
+            history.exited_at_utc = now.replace(tzinfo=None)
             history.quantity_out = quantity_out
             history.quantity_scrapped = quantity_scrapped
 

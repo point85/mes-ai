@@ -11,8 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mes.framework.db.base import BaseModel
@@ -53,7 +52,7 @@ class PluginConfig(BaseModel):
     )
 
     parameter_values: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSON,
         default=dict,
         server_default="{}",
         nullable=False,
@@ -61,7 +60,7 @@ class PluginConfig(BaseModel):
     )
 
     config_overrides: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSON,
         default=dict,
         server_default="{}",
         nullable=False,

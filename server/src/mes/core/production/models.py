@@ -11,8 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -37,11 +36,11 @@ class ProductionOrder(BaseModel):
         comment="Business-visible order number (may come from ERP)",
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("product_definitions.id"),
+        Uuid, ForeignKey("product_definitions.id"),
         nullable=False, index=True,
     )
     route_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("process_routes.id"),
+        Uuid, ForeignKey("process_routes.id"),
         nullable=True, index=True,
         comment="Assigned process route; null means use product's default route",
     )
@@ -84,16 +83,16 @@ class ProductionOrder(BaseModel):
 
     # ── UTC Timestamps ──────────────────────────────────────────────
     planned_start_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
     )
     planned_end_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
     )
     actual_start_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
     )
     actual_end_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
     )
 
     erp_reference: Mapped[str | None] = mapped_column(

@@ -124,7 +124,7 @@ class TestResultService:
     ) -> TestResult:
         """Record a quality test result and emit the appropriate event."""
         if "tested_at" in kwargs:
-            kwargs.setdefault("tested_at_utc", kwargs["tested_at"])
+            kwargs.setdefault("tested_at_utc", kwargs["tested_at"].replace(tzinfo=None))
         result_obj = TestResult(**kwargs)
         session.add(result_obj)
         await session.flush()
@@ -257,7 +257,7 @@ class NonConformanceService:
                     raise DispositionRequiredException()
                 now = datetime.now(timezone.utc)
                 nc.resolved_at = now
-                nc.resolved_at_utc = now
+                nc.resolved_at_utc = now.replace(tzinfo=None)
 
             nc.status = new_status
 

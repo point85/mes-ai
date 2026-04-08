@@ -12,8 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -98,7 +97,7 @@ class MaterialLot(BaseModel):
     __tablename__ = "material_lots"
 
     material_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("material_definitions.id"),
+        Uuid, ForeignKey("material_definitions.id"),
         nullable=False, index=True,
     )
     lot_number: Mapped[str] = mapped_column(
@@ -155,21 +154,21 @@ class MaterialConsumption(BaseModel):
     __tablename__ = "material_consumptions"
 
     material_lot_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("material_lots.id"),
+        Uuid, ForeignKey("material_lots.id"),
         nullable=False, index=True,
     )
     unit_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("units.id"),
+        Uuid, ForeignKey("units.id"),
         nullable=True, index=True,
         comment="WIP unit that consumed this material (null if lot-based)",
     )
     lot_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("lots.id"),
+        Uuid, ForeignKey("lots.id"),
         nullable=True, index=True,
         comment="WIP lot that consumed this material (null if unit-based)",
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=True, index=True,
         comment="Route step at which consumption occurred",
     )
@@ -182,7 +181,7 @@ class MaterialConsumption(BaseModel):
         comment="Timestamp when consumption was recorded",
     )
     consumed_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="Timestamp when consumption was recorded (UTC)",
     )
 

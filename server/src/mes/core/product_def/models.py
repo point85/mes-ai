@@ -18,8 +18,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -75,7 +74,7 @@ class BillOfMaterial(BaseModel):
     __tablename__ = "bills_of_material"
 
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("product_definitions.id"),
+        Uuid, ForeignKey("product_definitions.id"),
         nullable=False, index=True,
     )
     version: Mapped[str] = mapped_column(
@@ -107,7 +106,7 @@ class BOMItem(BaseModel):
     __tablename__ = "bom_items"
 
     bom_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("bills_of_material.id"),
+        Uuid, ForeignKey("bills_of_material.id"),
         nullable=False, index=True,
     )
     material_code: Mapped[str] = mapped_column(
@@ -127,7 +126,7 @@ class BOMItem(BaseModel):
         comment="Sort order within the BOM",
     )
     route_step_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=True, index=True,
         comment="Optional FK to route step where this material is consumed",
     )
@@ -152,7 +151,7 @@ class ProcessRoute(BaseModel):
     __tablename__ = "process_routes"
 
     product_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("product_definitions.id"),
+        Uuid, ForeignKey("product_definitions.id"),
         nullable=True, index=True,
         comment="Legacy 1:1 product FK. Nullable — use route_product_assignments for many:many.",
     )
@@ -195,7 +194,7 @@ class RouteStep(BaseModel):
     __tablename__ = "route_steps"
 
     route_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("process_routes.id"),
+        Uuid, ForeignKey("process_routes.id"),
         nullable=False, index=True,
     )
     sequence: Mapped[int] = mapped_column(
@@ -208,7 +207,7 @@ class RouteStep(BaseModel):
         comment="Step type: 'production', 'inspection', 'rework', or 'mrb'",
     )
     work_cell_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("work_cells.id"),
+        Uuid, ForeignKey("work_cells.id"),
         nullable=True, index=True,
         comment="Work cell where this step is performed (nullable for unassigned steps)",
     )
@@ -256,7 +255,7 @@ class StepParameter(BaseModel):
     __tablename__ = "step_parameters"
 
     step_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=False, index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -319,12 +318,12 @@ class StepTransition(BaseModel):
     __tablename__ = "step_transitions"
 
     from_step_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=False, index=True,
         comment="Source step this transition originates from",
     )
     to_step_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=False, index=True,
         comment="Target step this transition leads to",
     )
@@ -370,11 +369,11 @@ class RouteProductAssignment(BaseModel):
     __tablename__ = "route_product_assignments"
 
     route_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("process_routes.id"),
+        Uuid, ForeignKey("process_routes.id"),
         nullable=False, index=True,
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("product_definitions.id"),
+        Uuid, ForeignKey("product_definitions.id"),
         nullable=False, index=True,
     )
 
@@ -399,11 +398,11 @@ class RouteMaterialAssignment(BaseModel):
     __tablename__ = "route_material_assignments"
 
     route_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("process_routes.id"),
+        Uuid, ForeignKey("process_routes.id"),
         nullable=False, index=True,
     )
     material_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("material_definitions.id"),
+        Uuid, ForeignKey("material_definitions.id"),
         nullable=False, index=True,
     )
 

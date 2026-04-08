@@ -13,8 +13,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -39,25 +38,25 @@ class Unit(BaseModel):
         comment="Unique serial number for the unit",
     )
     order_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("production_orders.id"),
+        Uuid, ForeignKey("production_orders.id"),
         nullable=False, index=True,
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("product_definitions.id"),
+        Uuid, ForeignKey("product_definitions.id"),
         nullable=False, index=True,
     )
     material_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("material_definitions.id"),
+        Uuid, ForeignKey("material_definitions.id"),
         nullable=True, index=True,
         comment="Output material produced by this unit. Used for dispatch capability matching.",
     )
     current_step_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=True, index=True,
         comment="The route step where the unit currently sits (null if completed or not started)",
     )
     current_equipment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipment.id"),
+        Uuid, ForeignKey("equipment.id"),
         nullable=True, index=True,
         comment="Equipment currently processing the unit (null if queued/completed)",
     )
@@ -105,15 +104,15 @@ class Lot(BaseModel):
         comment="Unique lot identifier",
     )
     order_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("production_orders.id"),
+        Uuid, ForeignKey("production_orders.id"),
         nullable=False, index=True,
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("product_definitions.id"),
+        Uuid, ForeignKey("product_definitions.id"),
         nullable=False, index=True,
     )
     material_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("material_definitions.id"),
+        Uuid, ForeignKey("material_definitions.id"),
         nullable=True, index=True,
         comment="Output material produced by this lot. Used for dispatch capability matching.",
     )
@@ -122,11 +121,11 @@ class Lot(BaseModel):
         comment="Total quantity in this lot",
     )
     current_step_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=True, index=True,
     )
     current_equipment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipment.id"),
+        Uuid, ForeignKey("equipment.id"),
         nullable=True, index=True,
     )
     status: Mapped[str] = mapped_column(
@@ -169,15 +168,15 @@ class UnitHistory(BaseModel):
     __tablename__ = "unit_history"
 
     unit_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("units.id"),
+        Uuid, ForeignKey("units.id"),
         nullable=False, index=True,
     )
     step_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=False, index=True,
     )
     equipment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipment.id"),
+        Uuid, ForeignKey("equipment.id"),
         nullable=True, index=True,
     )
     entered_at: Mapped[datetime] = mapped_column(
@@ -193,7 +192,7 @@ class UnitHistory(BaseModel):
         comment="Step result: pass, fail, rework (null if still in-process)",
     )
     operator_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True,
+        Uuid, nullable=True,
         comment="User ID of the operator (from AUTH module)",
     )
     data_snapshot: Mapped[dict | None] = mapped_column(
@@ -203,11 +202,11 @@ class UnitHistory(BaseModel):
 
     # ── UTC Timestamps ──────────────────────────────────────────────
     entered_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="Timestamp when the unit entered this step (UTC)",
     )
     exited_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="Timestamp when the unit left this step (UTC)",
     )
 
@@ -232,15 +231,15 @@ class LotHistory(BaseModel):
     __tablename__ = "lot_history"
 
     lot_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("lots.id"),
+        Uuid, ForeignKey("lots.id"),
         nullable=False, index=True,
     )
     step_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("route_steps.id"),
         nullable=False, index=True,
     )
     equipment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipment.id"),
+        Uuid, ForeignKey("equipment.id"),
         nullable=True, index=True,
     )
     entered_at: Mapped[datetime] = mapped_column(
@@ -250,11 +249,11 @@ class LotHistory(BaseModel):
         DateTime(timezone=True), nullable=True,
     )
     entered_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="Timestamp when the lot entered this step (UTC)",
     )
     exited_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="Timestamp when the lot left this step (UTC)",
     )
     quantity_in: Mapped[int] = mapped_column(
@@ -270,7 +269,7 @@ class LotHistory(BaseModel):
         comment="Quantity scrapped at this step",
     )
     operator_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True,
+        Uuid, nullable=True,
     )
 
     # ── Relationships ───────────────────────────────────────────────

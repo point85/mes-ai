@@ -80,9 +80,9 @@ class ProductionOrderService:
         order = ProductionOrder(**kwargs)
         # Sync planned date _utc columns
         if order.planned_start is not None:
-            order.planned_start_utc = order.planned_start
+            order.planned_start_utc = order.planned_start.replace(tzinfo=None)
         if order.planned_end is not None:
-            order.planned_end_utc = order.planned_end
+            order.planned_end_utc = order.planned_end.replace(tzinfo=None)
         session.add(order)
         await session.flush()
 
@@ -170,7 +170,7 @@ class ProductionOrderService:
         order.status = "in_progress"
         now = datetime.now(timezone.utc)
         order.actual_start = now
-        order.actual_start_utc = now
+        order.actual_start_utc = now.replace(tzinfo=None)
         await session.flush()
 
         await event_bus.publish(order_started(str(order.id)))
@@ -187,7 +187,7 @@ class ProductionOrderService:
         order.status = "completed"
         now = datetime.now(timezone.utc)
         order.actual_end = now
-        order.actual_end_utc = now
+        order.actual_end_utc = now.replace(tzinfo=None)
         await session.flush()
 
         await event_bus.publish(
@@ -211,7 +211,7 @@ class ProductionOrderService:
         if order.actual_end is None:
             now = datetime.now(timezone.utc)
             order.actual_end = now
-            order.actual_end_utc = now
+            order.actual_end_utc = now.replace(tzinfo=None)
         await session.flush()
 
         logger.info("Closed production order %s (%s)", order.id, order.order_number)

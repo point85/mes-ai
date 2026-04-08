@@ -13,8 +13,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mes.framework.db import BaseModel
@@ -51,7 +50,7 @@ class Reason(BaseModel):
         comment="OEE loss bucket: downtime_planned, downtime_unplanned, uptime_non_value, etc.",
     )
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("reasons.id"),
+        Uuid, ForeignKey("reasons.id"),
         nullable=True, index=True,
         comment="Parent reason for hierarchical grouping (null = top-level)",
     )
@@ -119,7 +118,7 @@ class EquipmentStateLog(BaseModel):
     __tablename__ = "equipment_state_logs"
 
     equipment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipment.id"),
+        Uuid, ForeignKey("equipment.id"),
         nullable=False, index=True,
     )
     state_model: Mapped[str] = mapped_column(
@@ -151,11 +150,11 @@ class EquipmentStateLog(BaseModel):
         comment="When this state ended (null = current state)",
     )
     started_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="When this state began (UTC)",
     )
     ended_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="When this state ended (UTC)",
     )
     reason_code: Mapped[str | None] = mapped_column(
@@ -182,11 +181,11 @@ class ProductionCounter(BaseModel):
     __tablename__ = "production_counters"
 
     equipment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipment.id"),
+        Uuid, ForeignKey("equipment.id"),
         nullable=False, index=True,
     )
     order_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("production_orders.id"),
+        Uuid, ForeignKey("production_orders.id"),
         nullable=True, index=True,
     )
     shift_date: Mapped[date] = mapped_column(

@@ -114,7 +114,7 @@ class ERPInboundOrder(BaseModel):
         comment="Next retry timestamp (exponential backoff)",
     )
     next_retry_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="Next retry timestamp in UTC (exponential backoff)",
     )
     last_error: Mapped[str | None] = mapped_column(
@@ -126,7 +126,7 @@ class ERPInboundOrder(BaseModel):
         comment="Timestamp when successfully processed",
     )
     processed_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="Timestamp when successfully processed (UTC)",
     )
 
@@ -412,7 +412,7 @@ class ERPInboundQueueService:
                 item.processor_name = cls._processor.name
                 item.attempts += 1
                 item.processed_at = datetime.now(timezone.utc)
-                item.processed_at_utc = item.processed_at
+                item.processed_at_utc = item.processed_at.replace(tzinfo=None)
                 await session.flush()
                 processed += 1
 
@@ -442,7 +442,7 @@ class ERPInboundQueueService:
                     item.status = "retry"
                     backoff = cls.BACKOFF_BASE_SEC * (2 ** (item.attempts - 1))
                     item.next_retry_at = now + timedelta(seconds=backoff)
-                    item.next_retry_at_utc = item.next_retry_at
+                    item.next_retry_at_utc = item.next_retry_at.replace(tzinfo=None)
                     logger.warning(
                         "Inbound order %s attempt %d failed, retry at %s: %s",
                         item.erp_reference, item.attempts,

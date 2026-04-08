@@ -19,7 +19,6 @@ from typing import Any
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field
 from sqlalchemy import Column, DateTime, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mes.framework.db import BaseModel
@@ -63,7 +62,7 @@ class ERPOutboundQueueItem(BaseModel):
         comment="Next retry timestamp (exponential backoff)",
     )
     next_retry_at_utc: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=False), nullable=True,
         comment="Next retry timestamp in UTC (exponential backoff)",
     )
     last_error: Mapped[str | None] = mapped_column(
@@ -269,7 +268,7 @@ class ERPOutboundQueueService:
                     item.next_retry_at = datetime.fromtimestamp(
                         now.timestamp() + backoff, tz=timezone.utc,
                     )
-                    item.next_retry_at_utc = item.next_retry_at
+                    item.next_retry_at_utc = item.next_retry_at.replace(tzinfo=None)
                     logger.warning(
                         "ERP outbound %s (id=%s) retry %d/%d in %ds",
                         item.report_type, item.id, item.attempts, item.max_attempts, backoff,

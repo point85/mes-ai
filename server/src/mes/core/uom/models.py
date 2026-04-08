@@ -15,8 +15,7 @@ from __future__ import annotations
 
 import uuid as _uuid
 
-from sqlalchemy import Float, ForeignKey, String, Text, Boolean
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Float, ForeignKey, String, Text, Boolean, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -66,13 +65,13 @@ class UnitOfMeasure(BaseModel):
 
     # ── Rate UoM composition (self-referential) ─────────────────────
     numerator_uom_id: Mapped[_uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid,
         ForeignKey("units_of_measure.id"),
         nullable=True,
         comment="For rate UoMs: the numerator unit (e.g. EA in EA/h)",
     )
     denominator_uom_id: Mapped[_uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid,
         ForeignKey("units_of_measure.id"),
         nullable=True,
         comment="For rate UoMs: the denominator unit (e.g. h in EA/h)",

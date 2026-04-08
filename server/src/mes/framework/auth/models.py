@@ -14,8 +14,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -50,7 +49,7 @@ class User(BaseModel):
     )
 
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_login_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
 
     # Relationships
     user_roles: Mapped[list["UserRole"]] = relationship(
@@ -98,7 +97,7 @@ class Permission(BaseModel):
     __tablename__ = "permissions"
 
     role_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("roles.id"), nullable=False, index=True,
+        Uuid, ForeignKey("roles.id"), nullable=False, index=True,
     )
     permission: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True,
@@ -118,10 +117,10 @@ class UserRole(BaseModel):
     __tablename__ = "user_roles"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True,
+        Uuid, ForeignKey("users.id"), nullable=False, index=True,
     )
     role_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("roles.id"), nullable=False, index=True,
+        Uuid, ForeignKey("roles.id"), nullable=False, index=True,
     )
 
     # Relationships
@@ -145,7 +144,7 @@ class IdPGroupMapping(BaseModel):
         comment="Group name as it appears in the IdP 'groups' claim",
     )
     role_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("roles.id"), nullable=False, index=True,
+        Uuid, ForeignKey("roles.id"), nullable=False, index=True,
     )
 
     # Relationships
