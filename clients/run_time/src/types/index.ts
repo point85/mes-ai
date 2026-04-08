@@ -183,3 +183,17 @@ export interface MESEvent {
   timestamp: string;
   event_id: string;
 }
+
+export interface StepEquipmentStatus {
+  equipment_id: string;
+  equipment_code: string;
+  equipment_name: string | null;
+  dispatch_category: string | null;
+  state_model: string | null;
+  state: string | null;
+  queue_depth: number;
+  max_queue_depth: number | null;
+  has_spare_capacity: boolean;
+  material_setup: boolean;
+  is_assigned: boolean;
+}

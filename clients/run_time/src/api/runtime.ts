@@ -2,6 +2,7 @@ import axios from "axios";
 import type {
   Unit, Lot, UnitHistory, LotHistory,
   StepContext, ProductionOrder, Disposition,
+  StepEquipmentStatus,
 } from "../types";
 
 const api = axios.create({ baseURL: "/api/v1" });
@@ -89,6 +90,20 @@ export const scrapLot = (id: string, reason: string) =>
 
 export const fetchDispositions = (stepId: string) =>
   api.get(`/steps/${stepId}/dispositions`).then(unwrap<Disposition[]>);
+
+// ── Dispatch ─────────────────────────────────────────────────────
+
+export const fetchStepEquipment = (
+  stepId: string,
+  materialId?: string | null,
+  assignedEquipmentId?: string | null,
+) =>
+  api.get(`/dispatch/step-equipment/${stepId}`, {
+    params: {
+      ...(materialId ? { material_id: materialId } : {}),
+      ...(assignedEquipmentId ? { assigned_equipment_id: assignedEquipmentId } : {}),
+    },
+  }).then(unwrapList<StepEquipmentStatus>);
 
 // ── Data Collection ──────────────────────────────────────────────
 

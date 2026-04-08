@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import type { StepContext, Unit, Lot, DataDefinition } from "../types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus } from "../types";
 import {
   startUnit, completeUnit, moveUnit, holdUnit, releaseHoldUnit, scrapUnit,
   startLot, completeLot, moveLot, holdLot, releaseHoldLot, scrapLot,
-  collectDataBatch, recordQualityResult,
+  collectDataBatch, recordQualityResult, fetchStepEquipment,
 } from "../api/runtime";
 import RouteProgressBar from "./RouteProgressBar";
 
@@ -43,6 +43,17 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   // Complete result
   const [completeResult, setCompleteResult] = useState<"pass" | "fail" | "rework">("pass");
 
+  // Equipment override
+  const [equipmentOverride, setEquipmentOverride] = useState("");
+
+  // Fetch equipment status at this step
+  const { data: stepEquipment = [] } = useQuery<StepEquipmentStatus[]>({
+    queryKey: ["step-equipment", step?.id, wip.material_id, wip.current_equipment_id],
+    queryFn: () => fetchStepEquipment(step!.id, wip.material_id, wip.current_equipment_id),
+    enabled: !!step && (wip.status === "queued" || wip.status === "in_process"),
+    refetchInterval: 10_000,
+  });
+
   const runAction = async (fn: () => Promise<unknown>, msg: string) => {
     setActionLoading(true);
     setError(null);
@@ -67,7 +78,9 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
 
   const handleStart = () =>
     runAction(
-      () => isUnit ? startUnit(wip.id) : startLot(wip.id),
+      () => isUnit
+        ? startUnit(wip.id, equipmentOverride || undefined)
+        : startLot(wip.id, equipmentOverride || undefined),
       "Started processing",
     );
 
@@ -191,6 +204,29 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       {(wip.status === "queued") && (
         <div className="bg-white rounded-lg shadow p-5">
           <h4 className="font-semibold text-gray-700 mb-3">Start Processing</h4>
+
+          {/* Equipment at this step */}
+          {stepEquipment.length > 0 && (
+            <div className="mb-4">
+              <EquipmentStatusTable equipment={stepEquipment} />
+              <div className="mt-3">
+                <label className="block text-sm text-gray-600 mb-1">Equipment Override</label>
+                <select
+                  value={equipmentOverride}
+                  onChange={(e) => setEquipmentOverride(e.target.value)}
+                  className="input-field"
+                >
+                  <option value="">Auto (dispatch algorithm)</option>
+                  {stepEquipment.filter((e) => e.material_setup).map((e) => (
+                    <option key={e.equipment_id} value={e.equipment_id}>
+                      {e.equipment_code}{e.equipment_name ? ` — ${e.equipment_name}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           <button onClick={handleStart} disabled={actionLoading} className="btn-primary">
             Start
           </button>
@@ -199,6 +235,14 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
 
       {wip.status === "in_process" && (
         <>
+          {/* Equipment at this step */}
+          {stepEquipment.length > 0 && (
+            <div className="bg-white rounded-lg shadow p-5">
+              <h4 className="font-semibold text-gray-700 mb-3">Equipment at Step</h4>
+              <EquipmentStatusTable equipment={stepEquipment} />
+            </div>
+          )}
+
           {/* Data Collection */}
           {data_definitions.length > 0 && (
             <div className="bg-white rounded-lg shadow p-5">
@@ -464,6 +508,66 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function EquipmentStatusTable({ equipment }: { equipment: StepEquipmentStatus[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="border-b text-left text-gray-500">
+            <th className="py-1 px-2">Equipment</th>
+            <th className="py-1 px-2">Availability</th>
+            <th className="py-1 px-2">State</th>
+            <th className="py-1 px-2">Queue</th>
+            <th className="py-1 px-2">Capacity</th>
+            <th className="py-1 px-2">Material</th>
+          </tr>
+        </thead>
+        <tbody>
+          {equipment.map((e) => (
+            <tr key={e.equipment_id} className={`border-b ${e.is_assigned ? "bg-indigo-50 font-semibold" : ""}`}>
+              <td className="py-1 px-2 font-mono">
+                {e.equipment_code}
+                {e.is_assigned && <span className="ml-1 text-xs text-indigo-600">(assigned)</span>}
+              </td>
+              <td className="py-1 px-2">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  e.dispatch_category === "available"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-gray-100 text-gray-600"
+                }`}>
+                  {e.dispatch_category ?? "—"}
+                </span>
+              </td>
+              <td className="py-1 px-2">
+                {e.state ? `${e.state}` : "—"}
+                {e.state_model && <span className="text-xs text-gray-400 ml-1">({e.state_model})</span>}
+              </td>
+              <td className="py-1 px-2 font-mono">
+                {e.queue_depth}{e.max_queue_depth != null ? ` / ${e.max_queue_depth}` : ""}
+              </td>
+              <td className="py-1 px-2">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  e.has_spare_capacity
+                    ? "bg-green-100 text-green-700"
+                    : "bg-red-100 text-red-700"
+                }`}>
+                  {e.has_spare_capacity ? "Yes" : "Full"}
+                </span>
+              </td>
+              <td className="py-1 px-2">
+                {e.material_setup
+                  ? <span className="text-green-600">✓</span>
+                  : <span className="text-red-500">✗</span>
+                }
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

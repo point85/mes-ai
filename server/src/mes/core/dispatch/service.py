@@ -51,6 +51,7 @@ from .schemas import (
     DispatchQueueItem,
     DispatchStrategyInfo,
     EquipmentDispatchStatus,
+    StepEquipmentStatus,
     DISPATCH_STRATEGIES,
 )
 
@@ -507,6 +508,84 @@ class DispatchService:
         )
 
         return exec_result
+
+    @staticmethod
+    async def get_step_equipment(
+        session: AsyncSession,
+        step_id: UUID,
+        material_id: UUID | None = None,
+        assigned_equipment_id: UUID | None = None,
+    ) -> list[StepEquipmentStatus]:
+        """
+        Return status of all equipment at a step's work cell.
+
+        Includes dispatch_category, PackML state, queue depth, material setup,
+        and whether the WIP is currently assigned to that equipment.
+        """
+        # Resolve step → work_cell
+        step_result = await session.execute(
+            select(RouteStep).where(RouteStep.id == step_id)
+        )
+        step_obj = step_result.scalar_one_or_none()
+        if step_obj is None or step_obj.work_cell_id is None:
+            return []
+
+        # Get all active equipment in the work cell
+        equip_result = await session.execute(
+            select(Equipment).where(
+                Equipment.work_cell_id == step_obj.work_cell_id,
+                Equipment.is_active.is_(True),
+            ).order_by(Equipment.code)
+        )
+        equipment_list = equip_result.scalars().all()
+
+        statuses: list[StepEquipmentStatus] = []
+        for equip in equipment_list:
+            dispatch_cat = await _get_dispatch_category(session, equip.id)
+            queue_depth = await _get_queue_depth(session, equip.id)
+
+            # Current state log for PackML / SEMI-E10 state
+            state_log_result = await session.execute(
+                select(EquipmentStateLog)
+                .where(
+                    EquipmentStateLog.equipment_id == equip.id,
+                    EquipmentStateLog.ended_at.is_(None),
+                )
+                .order_by(EquipmentStateLog.started_at.desc())
+                .limit(1)
+            )
+            state_log = state_log_result.scalar_one_or_none()
+
+            # Material setup check
+            has_material = True
+            if material_id is not None:
+                has_material = await _has_material_setup(
+                    session, equip.id, material_id,
+                )
+
+            has_spare = (
+                equip.max_queue_depth is None
+                or queue_depth < equip.max_queue_depth
+            )
+
+            statuses.append(StepEquipmentStatus(
+                equipment_id=equip.id,
+                equipment_code=equip.code,
+                equipment_name=equip.name,
+                dispatch_category=dispatch_cat,
+                state_model=state_log.state_model if state_log else None,
+                state=state_log.state if state_log else None,
+                queue_depth=queue_depth,
+                max_queue_depth=equip.max_queue_depth,
+                has_spare_capacity=has_spare,
+                material_setup=has_material,
+                is_assigned=(
+                    assigned_equipment_id is not None
+                    and equip.id == assigned_equipment_id
+                ),
+            ))
+
+        return statuses
 
 
 # ── Helper functions ─────────────────────────────────────────────────

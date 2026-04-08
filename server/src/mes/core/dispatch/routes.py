@@ -8,13 +8,16 @@ Endpoints:
 - GET  /api/v1/dispatch/strategies                 List available dispatch strategies
 - GET  /api/v1/dispatch/queue/{work_cell_id}       Get dispatch queue for a work cell
 - GET  /api/v1/dispatch/equipment/{equipment_id}/status  Equipment dispatch status
+- GET  /api/v1/dispatch/step-equipment/{step_id}   Equipment status at a route step
 """
 
 from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.framework.api.responses import list_response, success_response
@@ -27,6 +30,7 @@ from .schemas import (
     DispatchExecuteRequest,
     DispatchQueueItem,
     DispatchStrategyInfo,
+    StepEquipmentStatus,
 )
 from .service import DispatchService
 
@@ -120,3 +124,21 @@ async def get_equipment_dispatch_status(
     """Get dispatch-level status for a single equipment (availability, queue depth, starved/at-capacity)."""
     status = await DispatchService.get_equipment_status(session, equipment_id)
     return success_response(status.model_dump())
+
+
+@router.get("/step-equipment/{step_id}")
+async def get_step_equipment(
+    step_id: UUID,
+    material_id: Optional[UUID] = Query(None),
+    assigned_equipment_id: Optional[UUID] = Query(None),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("dispatch.read")),
+):
+    """List equipment status at a route step's work cell for dispatch decisions."""
+    statuses = await DispatchService.get_step_equipment(
+        session,
+        step_id=step_id,
+        material_id=material_id,
+        assigned_equipment_id=assigned_equipment_id,
+    )
+    return list_response([s.model_dump() for s in statuses])

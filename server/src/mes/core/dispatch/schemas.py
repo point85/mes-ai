@@ -122,3 +122,19 @@ class EquipmentDispatchStatus(BaseModel):
     max_queue_depth: int | None = None
     is_starved: bool = False
     is_at_capacity: bool = False
+
+
+class StepEquipmentStatus(BaseModel):
+    """Equipment status details for display at a route step."""
+
+    equipment_id: UUID
+    equipment_code: str
+    equipment_name: str
+    dispatch_category: str
+    state_model: str | None = None
+    state: str | None = None
+    queue_depth: int = 0
+    max_queue_depth: int | None = None
+    has_spare_capacity: bool = True
+    material_setup: bool = True
+    is_assigned: bool = False
