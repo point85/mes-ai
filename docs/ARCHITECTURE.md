@@ -544,8 +544,8 @@ The data layer supports multiple RDBMS backends via SQLAlchemy's dialect system.
 
 **Portability Rules** (enforced in code review and CI):
 
-1. **ORM-only queries**: All data access uses SQLAlchemy ORM `select()`, `insert()`, `update()`, `delete()` — never `text()` with raw SQL
-2. **Generic column types**: Use `Uuid`, `JSON`, `DateTime(timezone=True)`, `Boolean`, `String`, `Integer`, `Numeric` — never PostgreSQL-specific types like `JSONB`, `ARRAY`, `INET`
+1. **SQLAlchemy generic types only**: All database column types **must** come from `sqlalchemy` top-level — e.g. `Uuid`, `JSON`, `DateTime`, `Boolean`, `String`, `Integer`, `Float`, `Numeric`, `Text`, `Date`. Imports from `sqlalchemy.dialects.*` (such as `postgresql.UUID`, `postgresql.JSONB`, `postgresql.ARRAY`, `mssql.BIT`, `oracle.RAW`, etc.) are **forbidden** in all model definitions and core modules. This ensures every table definition works unchanged on PostgreSQL, SQL Server, and Oracle.
+2. **ORM-only queries**: All data access uses SQLAlchemy ORM `select()`, `insert()`, `update()`, `delete()` — never `text()` with raw SQL
 3. **Alembic dialect awareness**: Alembic auto-generates correct DDL per target database; migrations tested against all supported RDBMS in CI
 4. **Database-specific features via plugins**: If an end user needs PostgreSQL full-text search or Oracle partitioning, they implement it as a plugin — not in core
 5. **CI matrix testing**: The test suite runs against PostgreSQL (primary), SQLite (fast/local), and optionally SQL Server and Oracle in the CI pipeline

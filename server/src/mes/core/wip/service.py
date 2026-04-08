@@ -303,7 +303,21 @@ class UnitService:
 
             unit.current_step_id = next_step.id
 
-        unit.current_equipment_id = None  # Reset equipment on move
+        # Only reset equipment if auto-dispatch hasn't already assigned
+        # equipment for this step (dispatch runs in a separate session and
+        # may have already moved + assigned equipment).
+        if unit.current_step_id != from_step_id:
+            # Step actually changed — check if dispatch already handled it
+            await session.refresh(unit, ["current_equipment_id"])
+            if unit.current_equipment_id is None:
+                pass  # already None, nothing to reset
+            elif target_step_id is not None:
+                # Explicit manual move overrides dispatch
+                unit.current_equipment_id = None
+            # else: auto-dispatch already assigned equipment — keep it
+        else:
+            unit.current_equipment_id = None
+
         unit.status = "queued"
         await session.flush()
 
@@ -631,7 +645,20 @@ class LotService:
 
             lot.current_step_id = next_step.id
 
-        lot.current_equipment_id = None
+        # Only reset equipment if auto-dispatch hasn't already assigned
+        # equipment for this step (dispatch runs in a separate session and
+        # may have already moved + assigned equipment).
+        if lot.current_step_id != from_step_id:
+            await session.refresh(lot, ["current_equipment_id"])
+            if lot.current_equipment_id is None:
+                pass  # already None, nothing to reset
+            elif target_step_id is not None:
+                # Explicit manual move overrides dispatch
+                lot.current_equipment_id = None
+            # else: auto-dispatch already assigned equipment — keep it
+        else:
+            lot.current_equipment_id = None
+
         lot.status = "queued"
         await session.flush()
 
