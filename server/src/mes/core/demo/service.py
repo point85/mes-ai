@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mes.core.material.models import MaterialDefinition, MaterialLot
 from mes.core.material.service import MaterialLotService, MaterialService
 from mes.core.product_def.models import (
-    BillOfMaterial, ProcessRoute, RouteStep,
+    BillOfMaterial, BOMItem, ProcessRoute, RouteStep,
 )
 from mes.core.product_def.service import ProductDefService
 from mes.core.production.models import ProductionOrder
@@ -125,6 +125,17 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                 item_kwargs["route_step_id"] = step_by_seq[step_seq].id
             await ProductDefService.create_bom_item(session, bom.id, **item_kwargs)
             summary["bom_items"] += 1
+    else:
+        # Patch existing BOM items that are missing route_step_id
+        result = await session.execute(
+            select(BOMItem).where(BOMItem.bom_id == bom.id, BOMItem.is_active.is_(True))
+        )
+        existing_items = {bi.material_code: bi for bi in result.scalars().all()}
+        for item in D.BOM_ITEMS:
+            bi = existing_items.get(item["material_code"])
+            step_seq = item.get("step_sequence")
+            if bi and step_seq and step_seq in step_by_seq and bi.route_step_id is None:
+                bi.route_step_id = step_by_seq[step_seq].id
 
     # ── 6. Transitions ────────────────────────────────────────────────
     if route_created:
@@ -310,6 +321,17 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
                 item_kwargs["route_step_id"] = step_by_seq[step_seq].id
             await ProductDefService.create_bom_item(session, bom.id, **item_kwargs)
             summary["bom_items"] += 1
+    else:
+        # Patch existing BOM items that are missing route_step_id
+        result = await session.execute(
+            select(BOMItem).where(BOMItem.bom_id == bom.id, BOMItem.is_active.is_(True))
+        )
+        existing_items = {bi.material_code: bi for bi in result.scalars().all()}
+        for item in E.BOM_ITEMS:
+            bi = existing_items.get(item["material_code"])
+            step_seq = item.get("step_sequence")
+            if bi and step_seq and step_seq in step_by_seq and bi.route_step_id is None:
+                bi.route_step_id = step_by_seq[step_seq].id
 
     # ── 6. Transitions ────────────────────────────────────────────────
     if route_created:
