@@ -12,6 +12,7 @@ Endpoints:
 - GET    /api/v1/performance/equipment/{equip_id}/current-state Current state + valid transitions
 - POST   /api/v1/performance/equipment/{equip_id}/transition    Trigger a state transition
 - POST   /api/v1/performance/equipment/{equip_id}/manual-transition  Manual transition with reason
+- POST   /api/v1/performance/equipment/{equip_id}/simulate-opcua-state  Simulate OPC-UA state change
 - GET    /api/v1/performance/oee                                Calculate OEE for equipment + time range
 - GET    /api/v1/performance/equipment-states                   Query equipment state history
 - POST   /api/v1/performance/equipment-states                   Record equipment state change
@@ -49,6 +50,7 @@ from .schemas import (
     EquipmentTransitionRequest,
     ManualTransitionRequest,
     OEEResult,
+    SimulateOpcuaStateRequest,
     ProductionCounterRead,
     ReasonCreate,
     ReasonRead,
@@ -230,6 +232,56 @@ async def transition_equipment(
         new_state=body.new_state,
         reason_code=body.reason_code,
         notes=body.notes,
+    )
+    await session.commit()
+    return success_response(EquipmentStateLogRead.model_validate(log).model_dump())
+
+
+@router.post("/equipment/{equip_id}/simulate-opcua-state", status_code=201)
+async def simulate_opcua_state(
+    equip_id: UUID,
+    body: SimulateOpcuaStateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """
+    Simulate an OPC-UA data-change event on a PackML CurrentState tag.
+
+    Accepts an integer value (OPC 40083 enum) or a state name string.
+    Maps the value to a PackML state name and triggers a transition
+    through the EquipmentStateEngine — the same path as a real
+    OPC-UA subscription callback.
+    """
+    # OPC 40083 \u00a76 integer-to-state mapping
+    packml_int_to_state: dict[int, str] = {
+        0: "Undefined", 1: "Clearing", 2: "Stopped", 3: "Starting",
+        4: "Idle", 5: "Suspended", 6: "Execute", 7: "Stopping",
+        8: "Aborting", 9: "Aborted", 10: "Holding", 11: "Held",
+        12: "Unholding", 13: "Suspending", 14: "Unsuspending",
+        15: "Resetting", 16: "Completing", 17: "Complete",
+    }
+
+    if body.value is not None:
+        state_name = packml_int_to_state.get(body.value)
+        if state_name is None:
+            from mes.framework.api.exceptions import ValidationException
+
+            raise ValidationException(
+                f"Unknown PackML integer state: {body.value}. "
+                f"Valid values: {sorted(packml_int_to_state.keys())}",
+            )
+    elif body.state:
+        state_name = body.state
+    else:
+        from mes.framework.api.exceptions import ValidationException
+
+        raise ValidationException("Either 'value' (integer) or 'state' (string) is required.")
+
+    log = await EquipmentStateEngine.transition_equipment(
+        session,
+        equipment_id=equip_id,
+        new_state=state_name,
+        notes=f"Simulated OPC-UA tag {body.tag} value={body.value if body.value is not None else state_name}",
     )
     await session.commit()
     return success_response(EquipmentStateLogRead.model_validate(log).model_dump())

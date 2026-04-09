@@ -197,3 +197,5 @@ npm run dev
 Then open http://localhost:5176.
 
 You can create a lot via the RT-CLIENT's Orders page (click an order → "Create Lot"),
+
+product name:  mes.ai, MES.ai, 

@@ -154,6 +154,26 @@ class ManualTransitionRequest(BaseModel):
     notes: str | None = None
 
 
+class SimulateOpcuaStateRequest(BaseModel):
+    """Schema for simulating an OPC-UA data-change event on a PackML state tag."""
+
+    tag: str = Field(
+        "ns=2;s=Equipment1/CurrentState",
+        description="OPC-UA node ID of the state tag",
+    )
+    value: int | None = Field(
+        None,
+        ge=0,
+        le=17,
+        description="PackML integer state per OPC 40083 (0-17)",
+    )
+    state: str | None = Field(
+        None,
+        max_length=50,
+        description="State name (alternative to integer value)",
+    )
+
+
 class EquipmentCurrentStateRead(BaseModel):
     """Schema for returning the current state of equipment (or default if no model)."""
 

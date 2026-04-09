@@ -73,6 +73,18 @@ export async function transitionEquipment(
   return res.data.data;
 }
 
+export async function simulateOpcuaState(
+  equipId: string,
+  value: number,
+  tag = "ns=2;s=Equipment1/CurrentState",
+): Promise<EquipmentStateLog> {
+  const res = await api.post<ApiResponse<EquipmentStateLog>>(
+    `/performance/equipment/${equipId}/simulate-opcua-state`,
+    { tag, value },
+  );
+  return res.data.data;
+}
+
 export async function fetchStateHistory(
   equipId: string,
   limit = 50,

@@ -9,6 +9,7 @@ import {
   fetchStateModels,
   fetchReasons,
   transitionEquipment,
+  simulateOpcuaState,
 } from "../api/endpoints";
 import { useEquipmentContext } from "../App";
 import DataTable, { type Column } from "../components/DataTable";
@@ -52,6 +53,13 @@ export default function EquipmentPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Reason[]>([]);
+
+  // OPC-UA simulation state
+  const [opcuaValue, setOpcuaValue] = useState<number>(4); // default Idle
+  const [opcuaTag, setOpcuaTag] = useState("ns=2;s=Equipment1/CurrentState");
+  const [opcuaBusy, setOpcuaBusy] = useState(false);
+  const [opcuaResult, setOpcuaResult] = useState<string | null>(null);
+  const [opcuaError, setOpcuaError] = useState<string | null>(null);
 
   // Load sites + state models + reasons on mount
   useEffect(() => {
@@ -142,6 +150,49 @@ export default function EquipmentPage() {
       setError(`Transition failed: ${msg}`);
     } finally {
       setBusy(false);
+    }
+  }
+
+  // PackML integer-to-state name mapping (OPC 40083)
+  const PACKML_STATES: { value: number; name: string }[] = [
+    { value: 0, name: "Undefined" },
+    { value: 1, name: "Clearing" },
+    { value: 2, name: "Stopped" },
+    { value: 3, name: "Starting" },
+    { value: 4, name: "Idle" },
+    { value: 5, name: "Suspended" },
+    { value: 6, name: "Execute" },
+    { value: 7, name: "Stopping" },
+    { value: 8, name: "Aborting" },
+    { value: 9, name: "Aborted" },
+    { value: 10, name: "Holding" },
+    { value: 11, name: "Held" },
+    { value: 12, name: "Unholding" },
+    { value: 13, name: "Suspending" },
+    { value: 14, name: "Unsuspending" },
+    { value: 15, name: "Resetting" },
+    { value: 16, name: "Completing" },
+    { value: 17, name: "Complete" },
+  ];
+
+  async function simulateOpcua() {
+    if (!selectedEquip) return;
+    setOpcuaBusy(true);
+    setOpcuaError(null);
+    setOpcuaResult(null);
+    try {
+      const log = await simulateOpcuaState(selectedEquip.id, opcuaValue, opcuaTag);
+      setOpcuaResult(
+        `OPC-UA → "${log.state}" (int=${opcuaValue}) at ${new Date(log.started_at).toLocaleTimeString()}`,
+      );
+      // Refresh the current state display
+      const st = await fetchCurrentState(selectedEquip.id);
+      setCurrent(st);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setOpcuaError(`Simulated OPC-UA event failed: ${msg}`);
+    } finally {
+      setOpcuaBusy(false);
     }
   }
 
@@ -383,6 +434,65 @@ export default function EquipmentPage() {
           {lastResult && (
             <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
               {lastResult}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── OPC-UA State Simulation Panel ────────────────────────── */}
+
+      {selectedEquip && current && (
+        <div className="bg-white rounded-lg border p-4 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-600 uppercase">
+            Simulate OPC-UA State Change — {selectedEquip.code}
+          </h2>
+          <p className="text-xs text-gray-500">
+            Simulates an OPC-UA data-change notification on a PackML CurrentState tag.
+            Select a PackML state (OPC 40083 integer) and fire the event.
+          </p>
+
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col text-xs font-medium text-gray-600">
+              OPC-UA Tag
+              <input
+                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-72"
+                value={opcuaTag}
+                onChange={(e) => setOpcuaTag(e.target.value)}
+              />
+            </label>
+
+            <label className="flex flex-col text-xs font-medium text-gray-600">
+              PackML State
+              <select
+                className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                value={opcuaValue}
+                onChange={(e) => setOpcuaValue(Number(e.target.value))}
+              >
+                {PACKML_STATES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.value} — {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50"
+              onClick={simulateOpcua}
+              disabled={opcuaBusy}
+            >
+              {opcuaBusy ? "Sending…" : "Send OPC-UA Event"}
+            </button>
+          </div>
+
+          {opcuaResult && (
+            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+              {opcuaResult}
+            </div>
+          )}
+          {opcuaError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+              {opcuaError}
             </div>
           )}
         </div>
