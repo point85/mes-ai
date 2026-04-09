@@ -85,6 +85,19 @@ export async function simulateOpcuaState(
   return res.data.data;
 }
 
+export async function simulateMqttState(
+  equipId: string,
+  state: number,
+  reasonCode?: string,
+  topic = "mes/equipment/{equipment_id}/state",
+): Promise<EquipmentStateLog> {
+  const res = await api.post<ApiResponse<EquipmentStateLog>>(
+    `/performance/equipment/${equipId}/simulate-mqtt-state`,
+    { topic, state, reason_code: reasonCode ?? null },
+  );
+  return res.data.data;
+}
+
 export async function fetchStateHistory(
   equipId: string,
   limit = 50,

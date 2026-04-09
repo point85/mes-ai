@@ -174,6 +174,26 @@ class SimulateOpcuaStateRequest(BaseModel):
     )
 
 
+class SimulateMqttStateRequest(BaseModel):
+    """Schema for simulating an MQTT message carrying PackML state + reason code."""
+
+    topic: str = Field(
+        "mes/equipment/{equipment_id}/state",
+        description="MQTT topic the message would arrive on",
+    )
+    state: int = Field(
+        ...,
+        ge=0,
+        le=17,
+        description="PackML integer state per OPC 40083 (0-17)",
+    )
+    reason_code: str | None = Field(
+        None,
+        max_length=100,
+        description="OEE reason code string (optional)",
+    )
+
+
 class EquipmentCurrentStateRead(BaseModel):
     """Schema for returning the current state of equipment (or default if no model)."""
 

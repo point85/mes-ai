@@ -10,6 +10,7 @@ import {
   fetchReasons,
   transitionEquipment,
   simulateOpcuaState,
+  simulateMqttState,
 } from "../api/endpoints";
 import { useEquipmentContext } from "../App";
 import DataTable, { type Column } from "../components/DataTable";
@@ -60,6 +61,14 @@ export default function EquipmentPage() {
   const [opcuaBusy, setOpcuaBusy] = useState(false);
   const [opcuaResult, setOpcuaResult] = useState<string | null>(null);
   const [opcuaError, setOpcuaError] = useState<string | null>(null);
+
+  // MQTT simulation state
+  const [mqttState, setMqttState] = useState<number>(4); // default Idle
+  const [mqttTopic, setMqttTopic] = useState("mes/equipment/{equipment_id}/state");
+  const [mqttReason, setMqttReason] = useState("");
+  const [mqttBusy, setMqttBusy] = useState(false);
+  const [mqttResult, setMqttResult] = useState<string | null>(null);
+  const [mqttError, setMqttError] = useState<string | null>(null);
 
   // Load sites + state models + reasons on mount
   useEffect(() => {
@@ -193,6 +202,33 @@ export default function EquipmentPage() {
       setOpcuaError(`Simulated OPC-UA event failed: ${msg}`);
     } finally {
       setOpcuaBusy(false);
+    }
+  }
+
+  async function simulateMqtt() {
+    if (!selectedEquip) return;
+    setMqttBusy(true);
+    setMqttError(null);
+    setMqttResult(null);
+    try {
+      const log = await simulateMqttState(
+        selectedEquip.id,
+        mqttState,
+        mqttReason || undefined,
+        mqttTopic,
+      );
+      const stateName = PACKML_STATES.find((s) => s.value === mqttState)?.name ?? String(mqttState);
+      setMqttResult(
+        `MQTT → "${log.state}" (int=${mqttState}, ${stateName})${mqttReason ? ` reason=${mqttReason}` : ""} at ${new Date(log.started_at).toLocaleTimeString()}`,
+      );
+      // Refresh the current state display
+      const st = await fetchCurrentState(selectedEquip.id);
+      setCurrent(st);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setMqttError(`Simulated MQTT message failed: ${msg}`);
+    } finally {
+      setMqttBusy(false);
     }
   }
 
@@ -493,6 +529,83 @@ export default function EquipmentPage() {
           {opcuaError && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
               {opcuaError}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── MQTT State Simulation Panel ──────────────────────────── */}
+
+      {selectedEquip && current && (
+        <div className="bg-white rounded-lg border p-4 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-600 uppercase">
+            Simulate MQTT State Message — {selectedEquip.code}
+          </h2>
+          <p className="text-xs text-gray-500">
+            Simulates an MQTT JSON message on a state topic.
+            Payload: <code className="bg-gray-100 px-1 rounded">
+            {`{"state": ${mqttState}, "reason_code": ${mqttReason ? `"${mqttReason}"` : "null"}}`}
+            </code>
+          </p>
+
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col text-xs font-medium text-gray-600">
+              MQTT Topic
+              <input
+                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
+                value={mqttTopic}
+                onChange={(e) => setMqttTopic(e.target.value)}
+              />
+            </label>
+
+            <label className="flex flex-col text-xs font-medium text-gray-600">
+              PackML State
+              <select
+                className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                value={mqttState}
+                onChange={(e) => setMqttState(Number(e.target.value))}
+              >
+                {PACKML_STATES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.value} — {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col text-xs font-medium text-gray-600">
+              Reason Code (optional)
+              <select
+                className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                value={mqttReason}
+                onChange={(e) => setMqttReason(e.target.value)}
+              >
+                <option value="">— none —</option>
+                {reasons.map((r) => (
+                  <option key={r.id} value={r.code}>
+                    {r.code} — {r.name} ({r.oee_bucket})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
+              onClick={simulateMqtt}
+              disabled={mqttBusy}
+            >
+              {mqttBusy ? "Sending…" : "Publish MQTT Message"}
+            </button>
+          </div>
+
+          {mqttResult && (
+            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+              {mqttResult}
+            </div>
+          )}
+          {mqttError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+              {mqttError}
             </div>
           )}
         </div>

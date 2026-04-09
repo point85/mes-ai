@@ -13,6 +13,7 @@ Endpoints:
 - POST   /api/v1/performance/equipment/{equip_id}/transition    Trigger a state transition
 - POST   /api/v1/performance/equipment/{equip_id}/manual-transition  Manual transition with reason
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-opcua-state  Simulate OPC-UA state change
+- POST   /api/v1/performance/equipment/{equip_id}/simulate-mqtt-state   Simulate MQTT state message
 - GET    /api/v1/performance/oee                                Calculate OEE for equipment + time range
 - GET    /api/v1/performance/equipment-states                   Query equipment state history
 - POST   /api/v1/performance/equipment-states                   Record equipment state change
@@ -50,6 +51,7 @@ from .schemas import (
     EquipmentTransitionRequest,
     ManualTransitionRequest,
     OEEResult,
+    SimulateMqttStateRequest,
     SimulateOpcuaStateRequest,
     ProductionCounterRead,
     ReasonCreate,
@@ -282,6 +284,52 @@ async def simulate_opcua_state(
         equipment_id=equip_id,
         new_state=state_name,
         notes=f"Simulated OPC-UA tag {body.tag} value={body.value if body.value is not None else state_name}",
+    )
+    await session.commit()
+    return success_response(EquipmentStateLogRead.model_validate(log).model_dump())
+
+
+@router.post("/equipment/{equip_id}/simulate-mqtt-state", status_code=201)
+async def simulate_mqtt_state(
+    equip_id: UUID,
+    body: SimulateMqttStateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """
+    Simulate an MQTT message carrying a PackML state and optional reason code.
+
+    Mimics a JSON payload arriving on an MQTT topic like
+    ``mes/equipment/{equipment_id}/state`` with body
+    ``{"state": <int>, "reason_code": "<string>"}``.
+
+    The integer is mapped via the OPC 40083 enum and the transition is
+    processed through ``EquipmentStateEngine.transition_equipment()``.
+    """
+    packml_int_to_state: dict[int, str] = {
+        0: "Undefined", 1: "Clearing", 2: "Stopped", 3: "Starting",
+        4: "Idle", 5: "Suspended", 6: "Execute", 7: "Stopping",
+        8: "Aborting", 9: "Aborted", 10: "Holding", 11: "Held",
+        12: "Unholding", 13: "Suspending", 14: "Unsuspending",
+        15: "Resetting", 16: "Completing", 17: "Complete",
+    }
+
+    state_name = packml_int_to_state.get(body.state)
+    if state_name is None:
+        from mes.framework.api.exceptions import ValidationException
+
+        raise ValidationException(
+            f"Unknown PackML integer state: {body.state}. "
+            f"Valid values: {sorted(packml_int_to_state.keys())}",
+        )
+
+    topic = body.topic.replace("{equipment_id}", str(equip_id))
+    log = await EquipmentStateEngine.transition_equipment(
+        session,
+        equipment_id=equip_id,
+        new_state=state_name,
+        reason_code=body.reason_code,
+        notes=f"Simulated MQTT topic={topic} payload={{\"state\": {body.state}, \"reason_code\": {body.reason_code!r}}}",
     )
     await session.commit()
     return success_response(EquipmentStateLogRead.model_validate(log).model_dump())
