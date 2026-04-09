@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus } from "../types";
+import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption } from "../types";
 import {
   startUnit, completeUnit, moveUnit, holdUnit, releaseHoldUnit, scrapUnit,
   startLot, completeLot, moveLot, holdLot, releaseHoldLot, scrapLot,
   collectDataBatch, recordQualityResult, fetchStepEquipment,
+  fetchStepBomItems, fetchMaterials, fetchMaterialLots, consumeMaterial, fetchConsumedMaterials,
 } from "../api/runtime";
 import RouteProgressBar from "./RouteProgressBar";
 
@@ -46,12 +47,45 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   // Equipment override
   const [equipmentOverride, setEquipmentOverride] = useState("");
 
+  // Material consumption — per-BOM-item lot selection and quantity
+  const [lotSelections, setLotSelections] = useState<Record<string, string>>({});
+  const [qtyInputs, setQtyInputs] = useState<Record<string, string>>({});
+  const [consumeLoading, setConsumeLoading] = useState<string | null>(null);
+
   // Fetch equipment status at this step
   const { data: stepEquipment = [] } = useQuery<StepEquipmentStatus[]>({
     queryKey: ["step-equipment", step?.id, wip.material_id, wip.current_equipment_id],
     queryFn: () => fetchStepEquipment(step!.id, wip.material_id, wip.current_equipment_id),
     enabled: !!step && (wip.status === "queued" || wip.status === "in_process"),
     refetchInterval: 10_000,
+  });
+
+  // Fetch BOM items for the current step
+  const { data: bomItems = [] } = useQuery<BOMItem[]>({
+    queryKey: ["step-bom-items", step?.id],
+    queryFn: () => fetchStepBomItems(step!.id),
+    enabled: !!step && wip.status === "in_process",
+  });
+
+  // Fetch material definitions (for code → id mapping)
+  const { data: materials = [] } = useQuery<Material[]>({
+    queryKey: ["materials"],
+    queryFn: () => fetchMaterials(),
+    enabled: wip.status === "in_process",
+  });
+
+  // Fetch available material lots for consumption
+  const { data: materialLots = [] } = useQuery<MaterialLot[]>({
+    queryKey: ["material-lots-available"],
+    queryFn: () => fetchMaterialLots(undefined, "available"),
+    enabled: wip.status === "in_process",
+  });
+
+  // Fetch already-consumed materials for this WIP
+  const { data: consumedMaterials = [], refetch: refetchConsumed } = useQuery<MaterialConsumption[]>({
+    queryKey: ["consumed-materials", wip_type, wip.id],
+    queryFn: () => fetchConsumedMaterials(wip_type, wip.id),
+    enabled: wip.status === "in_process",
   });
 
   const runAction = async (fn: () => Promise<unknown>, msg: string) => {
@@ -165,6 +199,32 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       () => isUnit ? scrapUnit(wip.id, scrapReason) : scrapLot(wip.id, scrapReason),
       "Scrapped",
     );
+
+  const handleConsumeLine = async (bomItem: BOMItem) => {
+    const lotId = lotSelections[bomItem.id];
+    const qty = qtyInputs[bomItem.id];
+    if (!lotId || !qty || parseFloat(qty) <= 0) return;
+    setConsumeLoading(bomItem.id);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      await consumeMaterial(lotId, {
+        ...(isUnit ? { unit_id: wip.id } : { lot_id: wip.id }),
+        step_id: step?.id,
+        quantity_consumed: parseFloat(qty),
+      });
+      setSuccessMsg(`Consumed ${qty} ${bomItem.uom} of ${bomItem.material_code}`);
+      setLotSelections((prev) => ({ ...prev, [bomItem.id]: "" }));
+      setQtyInputs((prev) => ({ ...prev, [bomItem.id]: "" }));
+      await refetchConsumed();
+      await queryClient.invalidateQueries({ queryKey: ["material-lots-available"] });
+    } catch (err: unknown) {
+      const m = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Consumption failed";
+      setError(m);
+    } finally {
+      setConsumeLoading(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -368,6 +428,117 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Material Consumption */}
+          {bomItems.length > 0 && (
+          <div className="bg-white rounded-lg shadow p-5">
+            <h4 className="font-semibold text-gray-700 mb-3">Material Consumption</h4>
+
+            <table className="min-w-full text-sm mb-4">
+              <thead>
+                <tr className="border-b text-left text-gray-500">
+                  <th className="py-1 px-2">Material</th>
+                  <th className="py-1 px-2">Required</th>
+                  <th className="py-1 px-2">UOM</th>
+                  <th className="py-1 px-2">Consumed</th>
+                  <th className="py-1 px-2 min-w-[180px]">Material Lot</th>
+                  <th className="py-1 px-2 w-28">Qty</th>
+                  <th className="py-1 px-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {bomItems.map((bi) => {
+                  // Find the material_id for this BOM item's material_code
+                  const mat = materials.find((m) => m.code === bi.material_code);
+                  const matId = mat?.id;
+                  // Filter lots to only those matching this material
+                  const matchingLots = matId
+                    ? materialLots.filter((ml) => ml.material_id === matId)
+                    : [];
+                  // Sum consumed quantity for this material at this step
+                  const matchingLotIds = new Set(matchingLots.map((ml) => ml.id));
+                  const totalConsumed = consumedMaterials
+                    .filter((c) => matchingLotIds.has(c.material_lot_id))
+                    .reduce((sum, c) => sum + c.quantity_consumed, 0);
+                  const selectedLotId = lotSelections[bi.id] ?? "";
+                  const qtyVal = qtyInputs[bi.id] ?? "";
+                  return (
+                    <tr key={bi.id} className="border-b">
+                      <td className="py-2 px-2 font-mono font-medium">{bi.material_code}</td>
+                      <td className="py-2 px-2 font-mono">{bi.quantity}</td>
+                      <td className="py-2 px-2">{bi.uom}</td>
+                      <td className={`py-2 px-2 font-mono ${totalConsumed >= bi.quantity ? "text-green-600" : "text-gray-500"}`}>
+                        {totalConsumed > 0 ? totalConsumed : "—"}
+                      </td>
+                      <td className="py-2 px-2">
+                        <select
+                          value={selectedLotId}
+                          onChange={(e) => setLotSelections({ ...lotSelections, [bi.id]: e.target.value })}
+                          className="input-field text-sm"
+                        >
+                          <option value="">Select lot…</option>
+                          {matchingLots.map((ml) => (
+                            <option key={ml.id} value={ml.id}>
+                              {ml.lot_number} (avail: {ml.quantity_on_hand})
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 px-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={qtyVal}
+                          onChange={(e) => setQtyInputs({ ...qtyInputs, [bi.id]: e.target.value })}
+                          placeholder={String(bi.quantity)}
+                          className="input-field text-sm w-full"
+                        />
+                      </td>
+                      <td className="py-2 px-2">
+                        <button
+                          onClick={() => handleConsumeLine(bi)}
+                          disabled={consumeLoading === bi.id || !selectedLotId || !qtyVal || parseFloat(qtyVal) <= 0}
+                          className="bg-amber-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+                        >
+                          {consumeLoading === bi.id ? "…" : "Consume"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Consumption history */}
+            {consumedMaterials.length > 0 && (
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-sm text-gray-500 mb-2">Consumption Log:</p>
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-gray-500">
+                      <th className="py-1 px-2">Material Lot</th>
+                      <th className="py-1 px-2">Qty</th>
+                      <th className="py-1 px-2">When</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consumedMaterials.map((c) => {
+                      const lot = materialLots.find((ml) => ml.id === c.material_lot_id);
+                      return (
+                        <tr key={c.id} className="border-b">
+                          <td className="py-1 px-2 font-mono">{lot?.lot_number ?? c.material_lot_id.slice(0, 8)}</td>
+                          <td className="py-1 px-2 font-mono">{c.quantity_consumed}</td>
+                          <td className="py-1 px-2 text-gray-500">{new Date(c.consumed_at).toLocaleString()}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
           )}
 
           {/* Complete Step */}

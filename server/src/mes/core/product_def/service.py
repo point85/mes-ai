@@ -194,6 +194,20 @@ class ProductDefService:
         return await paginate_query(session, stmt, BOMItem, params)
 
     @staticmethod
+    async def list_bom_items_for_step(
+        session: AsyncSession,
+        step_id: UUID,
+    ) -> Sequence[BOMItem]:
+        """Return BOM items linked to a specific route step."""
+        stmt = (
+            select(BOMItem)
+            .where(BOMItem.route_step_id == step_id, BOMItem.is_active.is_(True))
+            .order_by(BOMItem.position)
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
     async def create_bom_item(
         session: AsyncSession, bom_id: UUID, **kwargs: Any
     ) -> BOMItem:

@@ -28,6 +28,22 @@ MATERIALS: list[dict] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Material Lots  (initial inventory for demo)
+# ---------------------------------------------------------------------------
+
+MATERIAL_LOTS: list[dict] = [
+    {"material_code": "RM-OJ-CONC",    "lot_number": "OJC-2026-001",   "quantity_on_hand": 5000.0,   "supplier": "Florida Citrus Co."},
+    {"material_code": "RM-WATER",      "lot_number": "H2O-2026-001",   "quantity_on_hand": 20000.0,  "supplier": "AquaPure Inc."},
+    {"material_code": "RM-SUGAR",      "lot_number": "SUG-2026-001",   "quantity_on_hand": 2000.0,   "supplier": "CaneSweet Ltd."},
+    {"material_code": "RM-CITRIC",     "lot_number": "CIT-2026-001",   "quantity_on_hand": 100.0,    "supplier": "ChemSupply Co."},
+    {"material_code": "RM-VITC",       "lot_number": "VTC-2026-001",   "quantity_on_hand": 25.0,     "supplier": "NutriChem Inc."},
+    {"material_code": "PKG-BOTTLE-1L", "lot_number": "BTL-2026-001",   "quantity_on_hand": 50000.0,  "supplier": "PETpack Corp."},
+    {"material_code": "PKG-CAP",       "lot_number": "CAP-2026-001",   "quantity_on_hand": 50000.0,  "supplier": "PETpack Corp."},
+    {"material_code": "PKG-LABEL",     "lot_number": "LBL-2026-001",   "quantity_on_hand": 50000.0,  "supplier": "PrintWorks Ltd."},
+    {"material_code": "PKG-CASE",      "lot_number": "CSE-2026-001",   "quantity_on_hand": 5000.0,   "supplier": "BoxCo Packaging"},
+]
+
+# ---------------------------------------------------------------------------
 # Product
 # ---------------------------------------------------------------------------
 

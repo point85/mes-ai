@@ -13,6 +13,7 @@ Endpoints:
 - PATCH  /api/v1/material-lots/{lot_id}            Update a material lot
 - POST   /api/v1/material-lots/{lot_id}/consume    Consume material from lot
 - GET    /api/v1/units/{unit_id}/consumed-materials  Get consumed materials for a unit
+- GET    /api/v1/lots/{lot_id}/consumed-materials   Get consumed materials for a WIP lot
 """
 
 from __future__ import annotations
@@ -212,6 +213,19 @@ async def get_consumed_materials(
 ):
     """Get all materials consumed by a WIP unit (genealogy / traceability)."""
     items = await lot_svc.get_consumptions_for_unit(session, unit_id)
+    return success_response(
+        [ConsumptionRead.model_validate(c).model_dump() for c in items],
+    )
+
+
+@router.get("/lots/{lot_id}/consumed-materials")
+async def get_lot_consumed_materials(
+    lot_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("material.read")),
+):
+    """Get all materials consumed by a WIP lot (genealogy / traceability)."""
+    items = await lot_svc.get_consumptions_for_lot(session, lot_id)
     return success_response(
         [ConsumptionRead.model_validate(c).model_dump() for c in items],
     )

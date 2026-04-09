@@ -212,6 +212,19 @@ async def create_bom_item(
     return success_response(BOMItemRead.model_validate(item).model_dump())
 
 
+@router.get("/steps/{step_id}/bom-items")
+async def list_step_bom_items(
+    step_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """List BOM items assigned to a specific route step."""
+    items = await svc.list_bom_items_for_step(session, step_id)
+    return success_response(
+        [BOMItemRead.model_validate(i).model_dump() for i in items],
+    )
+
+
 # ─── Routes ───────────────────────────────────────────────────────────
 
 

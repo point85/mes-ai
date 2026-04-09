@@ -23,8 +23,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mes.core.material.models import MaterialDefinition
-from mes.core.material.service import MaterialService
+from mes.core.material.models import MaterialDefinition, MaterialLot
+from mes.core.material.service import MaterialLotService, MaterialService
 from mes.core.product_def.models import (
     BillOfMaterial, ProcessRoute, RouteStep,
 )
@@ -61,7 +61,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
                                 "route_steps": 0, "transitions": 0,
                                 "step_parameters": 0, "data_definitions": 0,
-                                "quality_tests": 0}
+                                "quality_tests": 0, "material_lots": 0}
 
     # ── 1. Materials ──────────────────────────────────────────────────
     mat_ids: dict[str, UUID] = {}
@@ -69,6 +69,20 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
         mat = await _get_or_create_material(session, m)
         mat_ids[m["code"]] = mat.id
         summary["materials"] += 1
+
+    # ── 1b. Material Lots (initial inventory) ─────────────────────────
+    for ml in D.MATERIAL_LOTS:
+        mat_id = mat_ids.get(ml["material_code"])
+        if mat_id:
+            created = await _get_or_create_material_lot(
+                session,
+                material_id=mat_id,
+                lot_number=ml["lot_number"],
+                quantity_on_hand=ml["quantity_on_hand"],
+                supplier=ml.get("supplier"),
+            )
+            if created:
+                summary["material_lots"] += 1
 
     # ── 2. Product ────────────────────────────────────────────────────
     product = await _get_or_create_product(session, D.PRODUCT)
@@ -431,6 +445,29 @@ async def _get_or_create_material(
     if existing:
         return existing
     return await MaterialService.create_material(session, **data)
+
+
+async def _get_or_create_material_lot(
+    session: AsyncSession,
+    material_id: UUID,
+    lot_number: str,
+    quantity_on_hand: float,
+    supplier: str | None = None,
+) -> bool:
+    """Return True if a new lot was created, False if it already existed."""
+    result = await session.execute(
+        select(MaterialLot).where(MaterialLot.lot_number == lot_number)
+    )
+    if result.scalar_one_or_none():
+        return False
+    await MaterialLotService.create_lot(
+        session,
+        material_id=material_id,
+        lot_number=lot_number,
+        quantity_on_hand=quantity_on_hand,
+        supplier=supplier,
+    )
+    return True
 
 
 async def _get_or_create_product(session: AsyncSession, data: dict):

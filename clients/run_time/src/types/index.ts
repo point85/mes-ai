@@ -197,3 +197,60 @@ export interface StepEquipmentStatus {
   material_setup: boolean;
   is_assigned: boolean;
 }
+
+// ── Material Management ──────────────────────────────────────────
+
+export interface BOMItem {
+  id: string;
+  bom_id: string;
+  material_code: string;
+  quantity: number;
+  uom: string;
+  position: number;
+  route_step_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Material {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  material_type: string;
+  uom: string;
+  revision: string | null;
+  shelf_life_days: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialLot {
+  id: string;
+  material_id: string;
+  lot_number: string;
+  quantity_on_hand: number;
+  quantity_reserved: number;
+  status: string;
+  received_date: string | null;
+  expiry_date: string | null;
+  supplier: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialConsumption {
+  id: string;
+  material_lot_id: string;
+  unit_id: string | null;
+  lot_id: string | null;
+  step_id: string | null;
+  quantity_consumed: number;
+  consumed_at: string;
+  consumed_at_utc: string | null;
+  created_at: string;
+  created_at_utc: string | null;
+}

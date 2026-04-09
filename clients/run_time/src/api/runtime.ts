@@ -2,7 +2,7 @@ import axios from "axios";
 import type {
   Unit, Lot, UnitHistory, LotHistory,
   StepContext, ProductionOrder, Disposition,
-  StepEquipmentStatus,
+  StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption,
 } from "../types";
 
 const api = axios.create({ baseURL: "/api/v1" });
@@ -169,3 +169,24 @@ export const fetchLineStatus = () =>
 
 export const fetchShiftSummary = (hours = 8) =>
   api.get("/dashboard/shift-summary", { params: { hours } }).then(unwrap<unknown>);
+
+// ── Material Consumption ─────────────────────────────────────────
+
+export const fetchStepBomItems = (stepId: string) =>
+  api.get(`/steps/${stepId}/bom-items`).then(unwrap<BOMItem[]>);
+
+export const fetchMaterials = () =>
+  api.get("/materials").then(unwrapList<Material>);
+
+export const fetchMaterialLots = (materialId?: string, status?: string) =>
+  api.get("/material-lots", { params: { ...(materialId ? { material_id: materialId } : {}), ...(status ? { status } : {}) } }).then(unwrapList<MaterialLot>);
+
+export const consumeMaterial = (materialLotId: string, payload: {
+  unit_id?: string;
+  lot_id?: string;
+  step_id?: string;
+  quantity_consumed: number;
+}) => api.post(`/material-lots/${materialLotId}/consume`, payload).then(unwrap<MaterialConsumption>);
+
+export const fetchConsumedMaterials = (wipType: "unit" | "lot", wipId: string) =>
+  api.get(`/${wipType === "unit" ? "units" : "lots"}/${wipId}/consumed-materials`).then(unwrap<MaterialConsumption[]>);
