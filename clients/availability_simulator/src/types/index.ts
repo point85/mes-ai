@@ -107,6 +107,20 @@ export interface Reason {
   is_active: boolean;
 }
 
+export interface ProductionCounterRead {
+  id: string;
+  equipment_id: string;
+  order_id?: string | null;
+  shift_date: string;
+  good_count: number;
+  reject_count: number;
+  rework_count: number;
+  ideal_cycle_time_sec?: number | null;
+  actual_run_time_sec?: number | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface OEEResult {
   equipment_id: string;
   period_start: string;

@@ -7,6 +7,7 @@ import type {
   EquipmentStateLog,
   ListResponse,
   OEEResult,
+  ProductionCounterRead,
   ProductionLine,
   Reason,
   Site,
@@ -98,6 +99,20 @@ export async function simulateMqttState(
   return res.data.data;
 }
 
+export async function simulateMqttCounts(
+  equipId: string,
+  processedCount: number,
+  defectiveCount: number,
+  reworkCount = 0,
+  topic = "mes/equipment/{equipment_id}/counts",
+): Promise<ProductionCounterRead> {
+  const res = await api.post<ApiResponse<ProductionCounterRead>>(
+    `/performance/equipment/${equipId}/simulate-mqtt-counts`,
+    { topic, processed_count: processedCount, defective_count: defectiveCount, rework_count: reworkCount },
+  );
+  return res.data.data;
+}
+
 export async function fetchStateHistory(
   equipId: string,
   limit = 50,
@@ -125,6 +140,40 @@ export async function fetchOEE(
   const res = await api.get<ApiResponse<OEEResult>>("/performance/oee", {
     params: { equipment_id: equipId, period_start: periodStart, period_end: periodEnd },
   });
+  return res.data.data;
+}
+
+// ── Bulk equipment fetch (all in a site) ─────────────────────────
+
+// ── Production Counters ──────────────────────────────────────────
+
+export async function incrementCounter(
+  equipmentId: string,
+  goodDelta: number,
+  rejectDelta: number,
+  reworkDelta = 0,
+  source = "simulator",
+): Promise<ProductionCounterRead> {
+  const res = await api.post<ApiResponse<ProductionCounterRead>>(
+    "/performance/counters/increment",
+    {
+      equipment_id: equipmentId,
+      good_delta: goodDelta,
+      reject_delta: rejectDelta,
+      rework_delta: reworkDelta,
+      source,
+    },
+  );
+  return res.data.data;
+}
+
+export async function fetchCounters(
+  equipmentId: string,
+): Promise<ProductionCounterRead[]> {
+  const res = await api.get<ListResponse<ProductionCounterRead>>(
+    "/performance/counters",
+    { params: { equipment_id: equipmentId, limit: 10 } },
+  );
   return res.data.data;
 }
 

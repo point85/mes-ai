@@ -14,6 +14,7 @@ Endpoints:
 - POST   /api/v1/performance/equipment/{equip_id}/manual-transition  Manual transition with reason
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-opcua-state  Simulate OPC-UA state change
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-mqtt-state   Simulate MQTT state message
+- POST   /api/v1/performance/equipment/{equip_id}/simulate-mqtt-counts  Simulate MQTT production counts
 - GET    /api/v1/performance/oee                                Calculate OEE for equipment + time range
 - GET    /api/v1/performance/equipment-states                   Query equipment state history
 - POST   /api/v1/performance/equipment-states                   Record equipment state change
@@ -51,6 +52,7 @@ from .schemas import (
     EquipmentTransitionRequest,
     ManualTransitionRequest,
     OEEResult,
+    SimulateMqttCountRequest,
     SimulateMqttStateRequest,
     SimulateOpcuaStateRequest,
     ProductionCounterRead,
@@ -333,6 +335,51 @@ async def simulate_mqtt_state(
     )
     await session.commit()
     return success_response(EquipmentStateLogRead.model_validate(log).model_dump())
+
+
+@router.post("/equipment/{equip_id}/simulate-mqtt-counts", status_code=201)
+async def simulate_mqtt_counts(
+    equip_id: UUID,
+    body: SimulateMqttCountRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """
+    Simulate an MQTT message carrying PackML production counts.
+
+    Mimics a JSON payload arriving on an MQTT topic like
+    ``mes/equipment/{equipment_id}/counts`` with body
+    ``{"processed_count": <int>, "defective_count": <int>, "rework_count": <int>}``.
+
+    Maps to the PackML PackTag nodes ``Admin.ProdProcessedCount`` (good)
+    and ``Admin.ProdDefectiveCount`` (rejected).  Counts are atomically
+    incremented on today's shift counter.
+    """
+    if body.processed_count == 0 and body.defective_count == 0 and body.rework_count == 0:
+        from mes.framework.api.exceptions import ValidationException
+
+        raise ValidationException(
+            "At least one count (processed_count, defective_count, rework_count) must be > 0.",
+        )
+
+    topic = body.topic.replace("{equipment_id}", str(equip_id))
+    counter = await ProductionCounterService.increment_counter(
+        session,
+        equipment_id=equip_id,
+        good_delta=body.processed_count,
+        reject_delta=body.defective_count,
+        rework_delta=body.rework_count,
+        source_plugin="mqtt-counter-simulator",
+    )
+    await session.commit()
+
+    import logging
+    logging.getLogger(__name__).info(
+        "Simulated MQTT count message: topic=%s equip=%s processed=+%d defective=+%d rework=+%d",
+        topic, equip_id, body.processed_count, body.defective_count, body.rework_count,
+    )
+
+    return success_response(ProductionCounterRead.model_validate(counter).model_dump())
 
 
 @router.post("/equipment/{equip_id}/manual-transition", status_code=201)

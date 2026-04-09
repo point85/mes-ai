@@ -194,6 +194,30 @@ class SimulateMqttStateRequest(BaseModel):
     )
 
 
+class SimulateMqttCountRequest(BaseModel):
+    """Schema for simulating an MQTT message carrying PackML production counts."""
+
+    topic: str = Field(
+        "mes/equipment/{equipment_id}/counts",
+        description="MQTT topic the count message would arrive on",
+    )
+    processed_count: int = Field(
+        0,
+        ge=0,
+        description="Good/processed units to add (Admin.ProdProcessedCount delta)",
+    )
+    defective_count: int = Field(
+        0,
+        ge=0,
+        description="Defective/rejected units to add (Admin.ProdDefectiveCount delta)",
+    )
+    rework_count: int = Field(
+        0,
+        ge=0,
+        description="Rework units to add (delta)",
+    )
+
+
 class EquipmentCurrentStateRead(BaseModel):
     """Schema for returning the current state of equipment (or default if no model)."""
 
