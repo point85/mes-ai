@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-06",
-  "lastSessionId": "S029",
+  "lastUpdated": "2026-04-09",
+  "lastSessionId": "S030",
 
   "phases": [
     {
@@ -204,6 +204,21 @@
           "id": "T5.16",
           "name": "RT-CLIENT: React 19 + Vite 8 + Tailwind v4 shop floor operator UI (scan, step processing, data collection, orders, live events)",
           "status": "complete"
+        },
+        {
+          "id": "T5.17",
+          "name": "Step Equipment Dispatch API + RT-CLIENT equipment table with blocking indicators and override dropdown",
+          "status": "complete"
+        },
+        {
+          "id": "T5.18",
+          "name": "RT-CLIENT OrdersPage: expandable rows with Create Lot / Create Unit forms",
+          "status": "complete"
+        },
+        {
+          "id": "T5.19",
+          "name": "Availability Simulator: OPC-UA + MQTT state simulation panels with PackML state mapping",
+          "status": "complete"
         }
       ]
     },
@@ -217,7 +232,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 DT-CLIENT + ERP Simulator + Availability Simulator + RT-CLIENT complete. S029: RT-CLIENT shop floor operator client (5 pages, step processing panel, WebSocket events, barcode scan), 5 new server endpoints + step_context builder, 10 new tests. 1621 unit tests passing. Next: start RT-CLIENT dev server & browser test, integration tests, P6 Testing & CI, or more vendor adapters.",
+  "currentTask": "P3 complete. P4 complete. P5 all 19 tasks complete. S030: step equipment dispatch API, RT-CLIENT equipment table with blocking indicators, OrdersPage Create Lot/Unit, OPC-UA + MQTT simulation panels in Availability Simulator, TM-100 state model fix. 1686 unit tests passing. Next: P6 Testing & CI, browser test all 4 clients, more vendor adapters, or SEMI E10 state model plugin.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",

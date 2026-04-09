@@ -2619,3 +2619,117 @@ Full scaffold at `clients/run_time/` on **port 5176**:
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
+
+## Session S030 — 2026-04-09
+
+**Phase**: P5 (MES Clients — Runtime Enhancements & Availability Simulator)
+**Objective**: Step equipment dispatch API, RT-CLIENT enhancements (equipment table, order CRUD), availability simulator protocol simulation (OPC-UA + MQTT)
+
+### What Happened
+
+#### 1. Step Equipment Dispatch API (Server + RT-CLIENT)
+
+Added a new dispatch endpoint that returns equipment status at a route step's work cell, enabling the operator UI to show which machines are available, blocked, or at capacity.
+
+- **`StepEquipmentStatus` schema** — 12-field Pydantic model: equipment_id, code, name, dispatch_category, state_model, state, queue_depth, max_queue_depth, has_spare_capacity, material_setup, is_assigned
+- **`DispatchService.get_step_equipment()`** — queries all equipment at step's work cell, joins state model + production counters, checks material compatibility and queue capacity
+- **`GET /api/v1/dispatch/step-equipment/{step_id}`** — REST endpoint with optional `material_id` and `assigned_equipment_id` query params
+- **RT-CLIENT `fetchStepEquipment()`** — API function in `runtime.ts`
+- **RT-CLIENT `StepEquipmentStatus` type** — TypeScript interface in `types/index.ts`
+
+#### 2. RT-CLIENT StepProcessingPanel — Equipment Table & Blocking Indicators
+
+Enhanced the operator step processing panel with a live equipment status table:
+
+- **`EquipmentStatusTable` component** — inline table showing all equipment at the current step's work cell
+- **Blocking indicators**: Three independent checks with red background highlighting:
+  - `categoryBlocked` — dispatch_category ≠ "available" (red-100 bg on category cell)
+  - `capacityBlocked` — queue depth ≥ max (red-100 bg on capacity cell)
+  - `materialBlocked` — material not set up (red-100 bg on material cell)
+- **Equipment override dropdown** — operator can select specific equipment for dispatch
+
+#### 3. RT-CLIENT OrdersPage — Create Lot & Create Unit
+
+Rewrote the Orders page with production WIP creation capability:
+
+- **Expandable rows** — click order to expand and see WIP (lots/units) for that order
+- **Create Lot form** — quantity input, optional lot number, creates via `POST /lots`
+- **Create Unit form** — optional serial number, batch count, creates via `POST /units`
+- **`createLot()` / `createUnit()`** — API functions in `runtime.ts`
+
+#### 4. OPC-UA State Simulation (Server + Availability Simulator)
+
+Added ability to simulate OPC-UA data-change events that trigger PackML state transitions:
+
+- **`SimulateOpcuaStateRequest` schema** — tag (OPC-UA node ID), value (PackML int 0–17), state (string alt)
+- **`POST /api/v1/performance/equipment/{equip_id}/simulate-opcua-state`** — maps OPC 40083 integer to PackML state name, calls `EquipmentStateEngine.transition_equipment()`, records tag + value in notes
+- **`simulateOpcuaState()`** — Availability Simulator API function
+- **OPC-UA Simulation Panel** (indigo theme) — OPC-UA tag input, PackML state dropdown (all 17 ISA-TR88 states), "Send OPC-UA Event" button with success/error feedback
+
+#### 5. MQTT State Simulation (Server + Availability Simulator)
+
+Added ability to simulate MQTT messages carrying PackML state + reason codes:
+
+- **`SimulateMqttStateRequest` schema** — topic, state (int 0–17, required), reason_code (optional)
+- **`POST /api/v1/performance/equipment/{equip_id}/simulate-mqtt-state`** — maps integer to state, passes reason_code, records simulated MQTT topic + JSON payload in notes
+- **`simulateMqttState()`** — Availability Simulator API function
+- **MQTT Simulation Panel** (purple theme) — MQTT topic input, PackML state dropdown, reason code dropdown (loaded from server reasons), live JSON payload preview, "Publish MQTT Message" button
+
+#### 6. Route Step Work Cell Data Fix
+
+Discovered that TM-100 equipment returned 404 on `/current-state` because its `state_model_id` was `semi_e10` but only the `packml` model was registered. Fixed via `PUT /equipment/{id}` to set `state_model_id = "packml"`. Also linked all 7 Juice Bottling Line route steps to their correct work cells (previously had null `work_cell_id`).
+
+#### PackML Integer Mapping (OPC 40083)
+
+Both simulation endpoints inline this mapping (not imported from plugin dir):
+| Int | State | Int | State |
+|-----|-------|-----|-------|
+| 0 | Undefined | 9 | Aborted |
+| 1 | Clearing | 10 | Holding |
+| 2 | Stopped | 11 | Held |
+| 3 | Starting | 12 | Unholding |
+| 4 | Idle | 13 | Suspending |
+| 5 | Suspended | 14 | Unsuspending |
+| 6 | Execute | 15 | Resetting |
+| 7 | Stopping | 16 | Completing |
+| 8 | Aborting | 17 | Complete |
+
+### Files Created
+_(No new files created this session)_
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/core/dispatch/schemas.py` | Added `StepEquipmentStatus` schema (12 fields) |
+| `server/src/mes/core/dispatch/service.py` | Added `DispatchService.get_step_equipment()` method |
+| `server/src/mes/core/dispatch/routes.py` | Added `GET /dispatch/step-equipment/{step_id}` endpoint |
+| `server/src/mes/core/performance/schemas.py` | Added `SimulateOpcuaStateRequest`, `SimulateMqttStateRequest` |
+| `server/src/mes/core/performance/routes.py` | Added `POST simulate-opcua-state`, `POST simulate-mqtt-state` endpoints |
+| `clients/run_time/src/types/index.ts` | Added `StepEquipmentStatus` interface |
+| `clients/run_time/src/api/runtime.ts` | Added `fetchStepEquipment()`, `createLot()`, `createUnit()` |
+| `clients/run_time/src/components/StepProcessingPanel.tsx` | Added `EquipmentStatusTable` with blocking indicators, equipment override dropdown |
+| `clients/run_time/src/pages/OrdersPage.tsx` | Full rewrite: expandable rows, Create Lot / Create Unit forms |
+| `clients/availability_simulator/src/api/endpoints.ts` | Added `simulateOpcuaState()`, `simulateMqttState()` |
+| `clients/availability_simulator/src/pages/EquipmentPage.tsx` | Added OPC-UA simulation panel (indigo), MQTT simulation panel (purple) |
+
+### Test Results
+- **1686 unit tests passing**, 12 warnings, 0 failures
+- 65 net new tests since S029 (1621 → 1686)
+
+### Where We Stopped
+- Step equipment dispatch API operational
+- RT-CLIENT equipment table with blocking indicators and override dropdown working
+- RT-CLIENT order expansion with lot/unit creation working
+- OPC-UA and MQTT state simulation panels fully functional in Availability Simulator
+- TM-100 state model corrected (semi_e10 → packml)
+- **1686 tests passing**
+- Next options:
+  1. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+  2. **Browser test** — start all 4 client dev servers and verify UI
+  3. **More vendor adapters** — Modbus TCP, D365 F&O
+  4. **SEMI E10 state model plugin** — only PackML currently registered
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
