@@ -142,6 +142,23 @@ export const recordQualityResult = (payload: {
 export const fetchOrders = (params?: { status?: string }) =>
   api.get("/orders", { params }).then(unwrapList<ProductionOrder>);
 
+// ── WIP Creation ─────────────────────────────────────────────────
+
+export const createLot = (payload: {
+  order_id: string;
+  product_id: string;
+  quantity: number;
+  lot_number?: string;
+  material_id?: string;
+}) => api.post("/lots", payload).then(unwrap<Lot>);
+
+export const createUnit = (payload: {
+  order_id: string;
+  product_id: string;
+  serial_number?: string;
+  material_id?: string;
+}) => api.post("/units", payload).then(unwrap<Unit>);
+
 // ── Dashboard ────────────────────────────────────────────────────
 
 export const fetchOrderProgress = (status?: string) =>
