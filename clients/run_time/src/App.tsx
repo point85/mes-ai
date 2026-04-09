@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import Layout, { type TabId } from "./components/Layout";
 import { useWebSocket } from "./hooks/useWebSocket";
 import type { MESEvent } from "./types";
@@ -20,19 +20,13 @@ export default function App() {
 
   const { connected } = useWebSocket(WS_TOPICS, handleEvent);
 
-  const page = useMemo(() => {
-    switch (activeTab) {
-      case "dashboard": return <DashboardPage events={events} />;
-      case "scan": return <ScanPage />;
-      case "active-wip": return <ActiveWipPage />;
-      case "orders": return <OrdersPage />;
-      case "events": return <EventsPage events={events} onClear={() => setEvents([])} />;
-    }
-  }, [activeTab, events]);
-
   return (
     <Layout activeTab={activeTab} onTabChange={setActiveTab} wsConnected={connected}>
-      {page}
+      {activeTab === "dashboard" && <DashboardPage events={events} />}
+      {activeTab === "scan" && <ScanPage />}
+      {activeTab === "active-wip" && <ActiveWipPage />}
+      {activeTab === "orders" && <OrdersPage />}
+      {activeTab === "events" && <EventsPage events={events} onClear={() => setEvents([])} />}
     </Layout>
   );
 }

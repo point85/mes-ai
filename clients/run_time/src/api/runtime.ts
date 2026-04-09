@@ -142,6 +142,9 @@ export const recordQualityResult = (payload: {
 export const fetchOrders = (params?: { status?: string }) =>
   api.get("/orders", { params }).then(unwrapList<ProductionOrder>);
 
+export const releaseOrder = (orderId: string) =>
+  api.post(`/orders/${orderId}/release`).then(unwrap<ProductionOrder>);
+
 // ── WIP Creation ─────────────────────────────────────────────────
 
 export const createLot = (payload: {

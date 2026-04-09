@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon } from "@heroicons/react/24/outline";
-import { fetchOrders, fetchUnits, fetchLots, createLot, createUnit } from "../api/runtime";
+import { fetchOrders, releaseOrder, fetchUnits, fetchLots, createLot, createUnit } from "../api/runtime";
 import type { ProductionOrder, Unit, Lot } from "../types";
 
 export default function OrdersPage() {
@@ -24,6 +24,13 @@ export default function OrdersPage() {
 
   const toggleExpand = (id: string) =>
     setExpandedOrderId((prev) => (prev === id ? null : id));
+
+  const handleRelease = async (id: string) => {
+    try {
+      await releaseOrder(id);
+      refresh();
+    } catch { /* ignore */ }
+  };
 
   return (
     <div className="space-y-6">
@@ -60,6 +67,7 @@ export default function OrdersPage() {
                 <th className="py-2 px-3 w-6"></th>
                 <th className="py-2 px-3">Order #</th>
                 <th className="py-2 px-3">Status</th>
+                <th className="py-2 px-3"></th>
                 <th className="py-2 px-3">Priority</th>
                 <th className="py-2 px-3">Ordered</th>
                 <th className="py-2 px-3">Completed</th>
@@ -72,7 +80,7 @@ export default function OrdersPage() {
               {orders.map((o) => {
                 const expanded = expandedOrderId === o.id;
                 return (
-                  <OrderRow key={o.id} order={o} expanded={expanded} onToggle={() => toggleExpand(o.id)} onRefresh={refresh} />
+                  <OrderRow key={o.id} order={o} expanded={expanded} onToggle={() => toggleExpand(o.id)} onRefresh={refresh} onRelease={handleRelease} />
                 );
               })}
             </tbody>
@@ -83,8 +91,8 @@ export default function OrdersPage() {
   );
 }
 
-function OrderRow({ order: o, expanded, onToggle, onRefresh }: {
-  order: ProductionOrder; expanded: boolean; onToggle: () => void; onRefresh: () => void;
+function OrderRow({ order: o, expanded, onToggle, onRefresh, onRelease }: {
+  order: ProductionOrder; expanded: boolean; onToggle: () => void; onRefresh: () => void; onRelease: (id: string) => void;
 }) {
   return (
     <>
@@ -96,6 +104,16 @@ function OrderRow({ order: o, expanded, onToggle, onRefresh }: {
         </td>
         <td className="py-2 px-3 font-mono">{o.order_number}</td>
         <td className="py-2 px-3"><StatusBadge status={o.status} /></td>
+        <td className="py-2 px-3">
+          {o.status === "created" && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRelease(o.id); }}
+              className="px-2 py-0.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded"
+            >
+              Release
+            </button>
+          )}
+        </td>
         <td className="py-2 px-3">{o.priority}</td>
         <td className="py-2 px-3">{o.quantity_ordered}</td>
         <td className="py-2 px-3">{o.quantity_completed}</td>
@@ -107,7 +125,7 @@ function OrderRow({ order: o, expanded, onToggle, onRefresh }: {
       </tr>
       {expanded && (
         <tr className="bg-gray-50">
-          <td colSpan={9} className="px-3 py-3">
+          <td colSpan={10} className="px-3 py-3">
             <OrderDetail order={o} onRefresh={onRefresh} />
           </td>
         </tr>
@@ -324,6 +342,21 @@ function CreateUnitForm({ order, onCreated }: { order: ProductionOrder; onCreate
       {error && <p className="text-xs text-red-600">{error}</p>}
       {success && <p className="text-xs text-green-600">{success}</p>}
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    created: "bg-gray-100 text-gray-700",
+    released: "bg-blue-100 text-blue-700",
+    in_progress: "bg-yellow-100 text-yellow-700",
+    completed: "bg-green-100 text-green-700",
+    closed: "bg-purple-100 text-purple-700",
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] ?? "bg-gray-100 text-gray-700"}`}>
+      {status.replace("_", " ")}
+    </span>
   );
 }
 

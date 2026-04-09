@@ -287,9 +287,25 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
             </div>
           )}
 
-          <button onClick={handleStart} disabled={actionLoading} className="btn-primary">
-            Start
-          </button>
+          {(() => {
+            // Check if any equipment is available for dispatch
+            const anyAvailable = stepEquipment.length === 0 || stepEquipment.some(
+              (e) => (e.dispatch_category === null || e.dispatch_category === "available")
+                && e.has_spare_capacity && e.material_setup,
+            );
+            return (
+              <>
+                <button onClick={handleStart} disabled={actionLoading || !anyAvailable} className="btn-primary">
+                  Start
+                </button>
+                {!anyAvailable && (
+                  <p className="mt-2 text-sm text-red-600">
+                    No equipment available — all machines are busy, at capacity, or not set up for this material.
+                  </p>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 
