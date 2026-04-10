@@ -9,3 +9,4 @@ export * from "./performance";
 export * from "./genealogy";
 export * from "./dispatch";
 export * from "./plugins";
+export * from "./inventory";

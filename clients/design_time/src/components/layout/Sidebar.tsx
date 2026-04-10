@@ -21,6 +21,7 @@ import {
   ArrowsRightLeftIcon,
   PuzzlePieceIcon,
   QueueListIcon,
+  ArchiveBoxIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -75,6 +76,7 @@ const sections: NavSection[] = [
       { label: "Performance", to: "/performance", icon: ChartBarIcon },
       { label: "Genealogy", to: "/genealogy", icon: LinkIcon },
       { label: "Dispatch", to: "/dispatch", icon: ArrowsRightLeftIcon },
+      { label: "Storage Locations", to: "/storage-locations", icon: ArchiveBoxIcon },
     ],
   },
   {
