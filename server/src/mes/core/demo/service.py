@@ -39,6 +39,10 @@ from mes.core.physical_model.service import PhysicalModelService
 from mes.core.physical_model.models import (
     Site, Area, ProductionLine, WorkCell, Equipment, EquipmentMaterial,
 )
+from mes.core.inventory.models import StorageLocation
+from mes.core.inventory.service import (
+    InventoryTransactionService, StorageLocationService,
+)
 from mes.core.uom.models import UnitOfMeasure
 from mes.framework.api.exceptions import MESException
 
@@ -251,6 +255,54 @@ async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
         )
         if created:
             summary["equipment_materials"] += 1
+
+    # ── 5. Storage Locations ──────────────────────────────────────────
+    summary["storage_locations"] = 0
+    summary["inventory_received"] = 0
+
+    loc_map: dict[str, UUID] = {}
+    for loc in D.STORAGE_LOCATIONS:
+        sl = await _get_or_create_storage_location(
+            session, site.id, **loc,
+        )
+        loc_map[loc["code"]] = sl.id
+        summary["storage_locations"] += 1
+
+    # ── 6. Receive existing material lots into warehouse storage ──────
+    #   For each material lot, do: receive → receiving dock, then putaway → storage
+    recv_loc_id = loc_map.get("SB-RECV-01")
+    if recv_loc_id:
+        lot_rows = await _material_lot_list(session)
+        for lot in lot_rows:
+            mat_code = lot["material_code"]
+            storage_code = D.MATERIAL_STORAGE_MAP.get(mat_code)
+            if storage_code is None or lot["quantity_on_hand"] <= 0:
+                continue
+            storage_loc_id = loc_map.get(storage_code)
+            if storage_loc_id is None:
+                continue
+            # Check if already received (idempotent)
+            if await _inventory_already_received(session, lot["lot_id"], storage_loc_id):
+                continue
+            qty = lot["quantity_on_hand"]
+            # Receive into receiving dock
+            await InventoryTransactionService.receive(
+                session,
+                material_lot_id=lot["lot_id"],
+                to_location_id=recv_loc_id,
+                quantity=qty,
+                reason="Demo seed — initial goods receipt",
+            )
+            # Putaway to warehouse storage
+            await InventoryTransactionService.putaway(
+                session,
+                material_lot_id=lot["lot_id"],
+                from_location_id=recv_loc_id,
+                to_location_id=storage_loc_id,
+                quantity=qty,
+                reason="Demo seed — initial putaway",
+            )
+            summary["inventory_received"] += 1
 
     await session.commit()
     logger.info("CPG plant demo data seeded: %s", summary)
@@ -728,3 +780,53 @@ async def _ensure_demo_uoms(session: AsyncSession) -> None:
                 is_builtin=False,
             ))
     await session.flush()
+
+
+async def _get_or_create_storage_location(
+    session: AsyncSession, site_id: UUID, **kwargs: Any,
+) -> StorageLocation:
+    """Get existing or create new storage location (idempotent by code)."""
+    code = kwargs["code"]
+    result = await session.execute(
+        select(StorageLocation).where(StorageLocation.code == code),
+    )
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        return existing
+    loc = StorageLocation(site_id=site_id, **kwargs)
+    session.add(loc)
+    await session.flush()
+    return loc
+
+
+async def _material_lot_list(
+    session: AsyncSession,
+) -> list[dict[str, Any]]:
+    """Return list of {lot_id, material_code, quantity_on_hand} for all active lots."""
+    result = await session.execute(
+        select(
+            MaterialLot.id,
+            MaterialDefinition.code,
+            MaterialLot.quantity_on_hand,
+        )
+        .join(MaterialDefinition, MaterialLot.material_id == MaterialDefinition.id)
+        .where(MaterialLot.is_active.is_(True)),
+    )
+    return [
+        {"lot_id": row[0], "material_code": row[1], "quantity_on_hand": row[2]}
+        for row in result.all()
+    ]
+
+
+async def _inventory_already_received(
+    session: AsyncSession, lot_id: UUID, location_id: UUID,
+) -> bool:
+    """Check if an inventory balance already exists for this lot+location pair."""
+    from mes.core.inventory.models import InventoryBalance
+    result = await session.execute(
+        select(InventoryBalance.id).where(
+            InventoryBalance.material_lot_id == lot_id,
+            InventoryBalance.location_id == location_id,
+        ),
+    )
+    return result.scalar_one_or_none() is not None

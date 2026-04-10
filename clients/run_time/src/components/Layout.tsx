@@ -4,16 +4,18 @@ import {
   WrenchScrewdriverIcon,
   ChartBarIcon,
   BellAlertIcon,
+  ArchiveBoxIcon,
 } from "@heroicons/react/24/outline";
 import type { ReactNode } from "react";
 
-export type TabId = "dashboard" | "scan" | "active-wip" | "orders" | "events";
+export type TabId = "dashboard" | "scan" | "active-wip" | "orders" | "inventory" | "events";
 
 const tabs: { id: TabId; label: string; icon: typeof QueueListIcon }[] = [
   { id: "dashboard", label: "Dashboard", icon: ChartBarIcon },
   { id: "scan", label: "Scan WIP", icon: MagnifyingGlassIcon },
   { id: "active-wip", label: "Active WIP", icon: WrenchScrewdriverIcon },
   { id: "orders", label: "Orders", icon: QueueListIcon },
+  { id: "inventory", label: "Inventory", icon: ArchiveBoxIcon },
   { id: "events", label: "Live Events", icon: BellAlertIcon },
 ];
 

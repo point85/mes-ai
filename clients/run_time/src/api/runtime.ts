@@ -3,6 +3,7 @@ import type {
   Unit, Lot, UnitHistory, LotHistory,
   StepContext, ProductionOrder, Disposition,
   StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption,
+  InventoryTransaction, StorageLocation,
 } from "../types";
 
 const api = axios.create({ baseURL: "/api/v1" });
@@ -193,3 +194,16 @@ export const consumeMaterial = (materialLotId: string, payload: {
 
 export const fetchConsumedMaterials = (wipType: "unit" | "lot", wipId: string) =>
   api.get(`/${wipType === "unit" ? "units" : "lots"}/${wipId}/consumed-materials`).then(unwrap<MaterialConsumption[]>);
+
+// ── Inventory ────────────────────────────────────────────────────
+
+export const fetchInventoryTransactions = (params?: {
+  material_lot_id?: string;
+  location_id?: string;
+  transaction_type?: string;
+  limit?: number;
+}) =>
+  api.get("/inventory/transactions", { params: { limit: 200, ...params } }).then(unwrapList<InventoryTransaction>);
+
+export const fetchStorageLocations = () =>
+  api.get("/storage-locations", { params: { limit: 200 } }).then(unwrapList<StorageLocation>);

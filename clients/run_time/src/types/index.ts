@@ -254,3 +254,36 @@ export interface MaterialConsumption {
   created_at: string;
   created_at_utc: string | null;
 }
+
+// ── Inventory Management ─────────────────────────────────────────
+
+export interface InventoryTransaction {
+  id: string;
+  transaction_type: string;
+  material_lot_id: string;
+  from_location_id: string | null;
+  to_location_id: string | null;
+  quantity: number;
+  reference_id: string | null;
+  reference_type: string | null;
+  reason: string | null;
+  performed_at: string;
+  performed_at_utc: string | null;
+  created_at: string;
+}
+
+export interface StorageLocation {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  location_type: string;
+  aisle: string | null;
+  bay: string | null;
+  tier: string | null;
+  site_id: string | null;
+  capacity: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}

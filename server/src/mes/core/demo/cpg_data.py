@@ -307,3 +307,37 @@ EQUIPMENT_MATERIALS: list[dict] = [
     {"equipment_code": "LP-500",  "material_code": "FG-OJ-1L", "design_speed": 350.0, "design_speed_uom": "EA", "reject_uom": "EA", "target_oee": 93.0},
     {"equipment_code": "RW-600",  "material_code": "FG-OJ-1L", "design_speed": 100.0, "design_speed_uom": "EA", "reject_uom": "EA", "target_oee": 80.0},
 ]
+
+# ---------------------------------------------------------------------------
+# Storage Locations  (inventory module)
+# ---------------------------------------------------------------------------
+
+STORAGE_LOCATIONS: list[dict] = [
+    # Receiving dock
+    {"code": "SB-RECV-01", "name": "Receiving Dock 1",         "location_type": "receiving", "description": "Inbound goods receipt area"},
+    # Warehouse storage — one per material group (aisle / bay / tier)
+    {"code": "SB-WH-A01",  "name": "Raw Liquids A-01-01",     "location_type": "storage",  "aisle": "A", "bay": "01", "tier": "01", "description": "OJ concentrate, water"},
+    {"code": "SB-WH-A02",  "name": "Raw Dry Goods A-01-02",   "location_type": "storage",  "aisle": "A", "bay": "01", "tier": "02", "description": "Sugar, citric acid, vitamin C"},
+    {"code": "SB-WH-B01",  "name": "Packaging Stock B-01-01",  "location_type": "storage",  "aisle": "B", "bay": "01", "tier": "01", "description": "Bottles, caps, labels, cases"},
+    # Staging area (picked material awaiting line delivery)
+    {"code": "SB-STG-01",  "name": "Staging Area 1",           "location_type": "staging",  "description": "Pre-production staging"},
+    # Raw-and-In-Process locations at the line (one per consumption point)
+    {"code": "SB-RIP-BLEND", "name": "RIP — Blending",        "location_type": "rip",      "description": "Line-side for blending step (seq 10)"},
+    {"code": "SB-RIP-FILL",  "name": "RIP — Filling",         "location_type": "rip",      "description": "Line-side for filling step (seq 40)"},
+    {"code": "SB-RIP-PACK",  "name": "RIP — Packing",         "location_type": "rip",      "description": "Line-side for labeling/packing step (seq 50)"},
+    # Finished goods shipping
+    {"code": "SB-SHIP-01",  "name": "Shipping Dock 1",         "location_type": "shipping", "description": "Outbound finished goods"},
+]
+
+# Map material codes → which warehouse storage location they go into after receiving
+MATERIAL_STORAGE_MAP: dict[str, str] = {
+    "RM-OJ-CONC":    "SB-WH-A01",
+    "RM-WATER":      "SB-WH-A01",
+    "RM-SUGAR":      "SB-WH-A02",
+    "RM-CITRIC":     "SB-WH-A02",
+    "RM-VITC":       "SB-WH-A02",
+    "PKG-BOTTLE-1L": "SB-WH-B01",
+    "PKG-CAP":       "SB-WH-B01",
+    "PKG-LABEL":     "SB-WH-B01",
+    "PKG-CASE":      "SB-WH-B01",
+}
