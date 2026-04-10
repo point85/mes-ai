@@ -17,6 +17,8 @@ import {
   useRouteSteps,
   useStepTransitions,
   useDeleteStepTransition,
+  useBOMs,
+  useBOMItems,
 } from "../../hooks/useProductDef";
 import { fetchProduct } from "../../api/productDef";
 import { useQuery } from "@tanstack/react-query";
@@ -24,6 +26,7 @@ import type {
   ProcessRoute,
   RouteStep,
   StepTransition,
+  BOMItem,
 } from "../../types";
 import RouteFormDialog from "./RouteFormDialog";
 import StepFormDialog from "./StepFormDialog";
@@ -72,6 +75,23 @@ export default function ProductDetailPage() {
   const { data: transitionsData, isLoading: transitionsLoading } =
     useStepTransitions(selectedStep?.id ?? "");
   const transitions = transitionsData?.data ?? [];
+
+  // BOM items for step-material display
+  const { data: bomsData } = useBOMs(productId ?? "");
+  const boms = bomsData?.data ?? [];
+  const defaultBomId = boms.length > 0 ? boms[0].id : "";
+  const { data: bomItemsData } = useBOMItems(defaultBomId);
+  const bomItems = bomItemsData?.data ?? [];
+
+  // Group BOM items by route_step_id for quick lookup
+  const stepMaterialsMap = new Map<string, BOMItem[]>();
+  for (const item of bomItems) {
+    if (item.route_step_id) {
+      const list = stepMaterialsMap.get(item.route_step_id) ?? [];
+      list.push(item);
+      stepMaterialsMap.set(item.route_step_id, list);
+    }
+  }
 
   // Step name lookup for transitions display
   const stepNameMap = new Map(steps.map((s) => [s.id, `${s.sequence}. ${s.name}`]));
@@ -209,6 +229,9 @@ export default function ProductDetailPage() {
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Cycle Time
                       </th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Consumed Materials
+                      </th>
                       <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Actions
                       </th>
@@ -239,6 +262,23 @@ export default function ProductDetailPage() {
                             ? `${s.expected_cycle_time_sec}s`
                             : "—"}
                         </td>
+                        <td className="px-4 py-2">
+                          {(stepMaterialsMap.get(s.id) ?? []).length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {stepMaterialsMap.get(s.id)!.map((item) => (
+                                <span
+                                  key={item.id}
+                                  className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20"
+                                  title={`${item.quantity} ${item.uom}`}
+                                >
+                                  {item.material_code} ({item.quantity} {item.uom})
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2 text-right">
                           <button
                             onClick={(e) => {
@@ -257,7 +297,7 @@ export default function ProductDetailPage() {
                     {steps.length === 0 && (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className="px-4 py-6 text-center text-sm text-gray-400"
                         >
                           No steps defined yet.

@@ -6,6 +6,7 @@
 
 import { NavLink } from "react-router-dom";
 import {
+  HomeIcon,
   ScaleIcon,
   CubeIcon,
   Cog6ToothIcon,
@@ -90,10 +91,15 @@ export default function Sidebar() {
     <aside className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col">
       {/* Logo / Title */}
       <div className="px-4 py-4 border-b border-gray-200">
-        <h1 className="text-lg font-bold text-gray-800 tracking-tight">
-          MES AI
-        </h1>
-        <p className="text-xs text-gray-500">Configuration</p>
+        <NavLink to="/" className="flex items-center gap-2 group">
+          <HomeIcon className="h-5 w-5 text-indigo-600 group-hover:text-indigo-700 transition-colors" />
+          <div>
+            <h1 className="text-lg font-bold text-gray-800 tracking-tight group-hover:text-indigo-700 transition-colors">
+              MES AI
+            </h1>
+            <p className="text-xs text-gray-500">Dashboard</p>
+          </div>
+        </NavLink>
       </div>
 
       {/* Nav sections */}

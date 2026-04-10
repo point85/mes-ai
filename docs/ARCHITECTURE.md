@@ -240,6 +240,7 @@ mes_ai/
 │   │       │   ├── material/          # MAT-MGMT
 │   │       │   ├── data_collection/   # DATA-COLLECT
 │   │       │   ├── product_def/       # PROD-DEF
+│   │       │   ├── inventory/          # INVENTORY
 │   │       │   ├── quality/           # QUAL-MGMT
 │   │       │   ├── performance/       # PERF-ANALYSIS
 │   │       │   ├── genealogy/         # GENEALOGY
@@ -397,6 +398,14 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
 
+┌──────────────────── Inventory ────────────────────────────────┐
+│                                                               │
+│  StorageLocation ──▶ Site                                    │
+│  InventoryBalance ──▶ MaterialLot + StorageLocation          │
+│  InventoryTransaction ──▶ StorageLocation (from/to)          │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+
 ┌──────────────────── Performance ─────────────────────────────┐
 │                                                               │
 │  EquipmentStateLog ──▶ Equipment (state machine state)      │
@@ -478,6 +487,16 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **MaterialDefinition** | `id`, `name`, `code`, `description`, `material_type` (raw/intermediate/finished), `uom`, `shelf_life_days` | → MaterialLots |
 | **MaterialLot** | `id`, `material_id`, `lot_number`, `quantity_on_hand`, `quantity_reserved`, `status` (available/reserved/consumed/expired), `received_date`, `expiry_date`, `supplier` | → MaterialDefinition |
 | **MaterialConsumption** | `id`, `unit_id`/`lot_id`, `material_lot_id`, `quantity_consumed`, `consumed_at`, `step_id` | → Unit/Lot, → MaterialLot, → RouteStep |
+
+#### Inventory Management (INVENTORY)
+
+| Entity | Fields | Relations |
+|---|---|---|
+| **StorageLocation** | `id`, `name`, `code` (unique), `description`, `location_type` (receiving/storage/rip/staging/shipping), `aisle`, `bay`, `tier`, `site_id`, `capacity` | → Site |
+| **InventoryBalance** | `id`, `material_lot_id`, `location_id`, `quantity_on_hand`, `quantity_reserved` | → MaterialLot, → StorageLocation. UniqueConstraint on (`material_lot_id`, `location_id`). |
+| **InventoryTransaction** | `id`, `transaction_type` (receive/putaway/pick/move/consume/adjust), `material_lot_id`, `from_location_id`, `to_location_id`, `quantity`, `reference_id`, `reference_type` (production_order/unit/lot), `reason`, `performed_at`, `performed_at_utc` | → MaterialLot, → StorageLocation (from), → StorageLocation (to). Immutable audit trail. |
+
+> **Inventory Flow:** Material arrives via `receive` into a receiving location, is `putaway` to a warehouse storage location (aisle/bay/tier), `picked` to a staging area, `moved` to a raw-and-in-process (RIP) location at the production line, and finally `consumed` by WIP. Each step creates an `InventoryTransaction` and updates `InventoryBalance` atomically.
 
 #### Quality Management (QUAL-MGMT)
 
@@ -2439,6 +2458,24 @@ step and what the result was each time.
 | `POST` | `/api/v1/performance/counters` | Record/update production counter |
 | `POST` | `/api/v1/performance/counters/increment` | Atomically increment counters (delta-based) |
 
+#### Inventory Management (INVENTORY)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/storage-locations` | List storage locations (filter by `location_type`, `site_id`) |
+| `POST` | `/api/v1/storage-locations` | Create a storage location |
+| `GET` | `/api/v1/storage-locations/{location_id}` | Get storage location by ID |
+| `PATCH` | `/api/v1/storage-locations/{location_id}` | Update a storage location |
+| `DELETE` | `/api/v1/storage-locations/{location_id}` | Soft-delete a storage location |
+| `GET` | `/api/v1/inventory/balances` | List inventory balances (filter by `material_lot_id`, `location_id`) |
+| `GET` | `/api/v1/inventory/transactions` | List inventory transactions (filter by `material_lot_id`, `transaction_type`) |
+| `POST` | `/api/v1/inventory/receive` | Receive material into a receiving location |
+| `POST` | `/api/v1/inventory/putaway` | Put away from receiving to a storage location |
+| `POST` | `/api/v1/inventory/pick` | Pick material from storage to staging |
+| `POST` | `/api/v1/inventory/move` | Move material between locations |
+| `POST` | `/api/v1/inventory/consume` | Consume inventory for WIP |
+| `POST` | `/api/v1/inventory/adjust` | Manual inventory adjustment |
+
 #### Auth (AUTH)
 
 | Method | Path | Description |
@@ -3050,6 +3087,12 @@ class MESEvent:
 | `quality.test.failed` | QUAL-MGMT | `{test_id, unit_id, result_id}` |
 | `quality.nc.created` | QUAL-MGMT | `{nc_id, unit_id, nc_type}` |
 | `material.consumed` | MAT-MGMT | `{material_lot_id, unit_id, quantity}` |
+| `inventory.received` | INVENTORY | `{material_lot_id, location_id, quantity}` |
+| `inventory.putaway` | INVENTORY | `{material_lot_id, from_location_id, to_location_id, quantity}` |
+| `inventory.picked` | INVENTORY | `{material_lot_id, from_location_id, to_location_id, quantity}` |
+| `inventory.moved` | INVENTORY | `{material_lot_id, from_location_id, to_location_id, quantity}` |
+| `inventory.consumed` | INVENTORY | `{material_lot_id, location_id, quantity}` |
+| `inventory.adjusted` | INVENTORY | `{material_lot_id, location_id, old_quantity, new_quantity}` |
 | `dispatch.evaluated` | DISPATCH | `{unit_id, strategy, recommendation}` |
 | `dispatch.executed` | DISPATCH | `{unit_id, destination_step_id, destination_equipment_id}` |
 | `dispatch.blocked` | DISPATCH | `{unit_id, lot_id, step_id, reason}` |

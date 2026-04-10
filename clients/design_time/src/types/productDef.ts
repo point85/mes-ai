@@ -70,6 +70,7 @@ export interface BOMItem {
   quantity: number;
   uom: string;
   position: number;
+  route_step_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
