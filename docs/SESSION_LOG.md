@@ -2733,3 +2733,81 @@ _(No new files created this session)_
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
+
+## Session S031 — 2026-04-10
+
+**Phase**: P3/P5 — Inventory Management Module  
+**Objective**: Implement inventory module for WIP consumption — receive → put-away → pick → move → consume flow
+
+### What Happened
+1. Resumed from S030 by reading `PROJECT_STATE.json`, `SESSION_LOG.md`, and repo memory.
+2. Explored existing Material Management, WIP Tracking, and Physical Model modules to understand patterns.
+3. Designed and implemented the **INVENTORY** module (`server/src/mes/core/inventory/`):
+   - **StorageLocation model**: Warehouse locations with aisle/bay/tier address system, location_type (receiving, storage, rip, staging, shipping), optional site FK and capacity.
+   - **InventoryBalance model**: Denormalized current quantity per material lot per location. Unique constraint on (lot, location). Tracks quantity_on_hand and quantity_reserved.
+   - **InventoryTransaction model**: Immutable audit trail for all inventory movements. Six transaction types: receive, putaway, pick, move, consume, adjust. Optional reference to production orders/WIP for traceability.
+4. Implemented full service layer:
+   - `StorageLocationService`: CRUD with duplicate code detection and soft delete.
+   - `InventoryBalanceService`: Balance queries and internal get-or-create helper.
+   - `InventoryTransactionService`: Six transactional operations — `receive()`, `putaway()`, `pick()`, `move()`, `consume()`, `adjust()`. Each validates locations, updates balances atomically, creates audit record, and publishes events. Shared `_transfer()` helper for putaway/pick/move.
+5. Implemented 18 REST API endpoints under `/api/v1/`:
+   - Storage locations: GET/POST/PATCH/DELETE `/storage-locations`
+   - Balances: GET `/inventory/balances`
+   - Transactions: GET `/inventory/transactions`
+   - Operations: POST `/inventory/receive`, `/inventory/putaway`, `/inventory/pick`, `/inventory/move`, `/inventory/consume`, `/inventory/adjust`
+6. Created 6 event types: `inventory.received`, `inventory.putaway`, `inventory.picked`, `inventory.moved`, `inventory.consumed`, `inventory.adjusted`.
+7. Created 4 domain exceptions: `DuplicateLocationCodeException`, `LocationNotFoundException`, `InsufficientInventoryException`, `InvalidTransactionException`.
+8. Created Alembic migration for 3 new tables: `storage_locations`, `inventory_balances`, `inventory_transactions`.
+9. Registered inventory router in `main.py` and model imports in `alembic/env.py`.
+10. Wrote **54 unit tests** covering models, schemas, events, exceptions, and action validation.
+11. Full test suite: **1740 tests passing** (54 new + 1686 existing, 0 failures).
+
+### Inventory Flow (as designed)
+```
+Supplier delivery
+    ↓
+[1] RECEIVE → material lot arrives at receiving dock location
+    ↓
+[2] PUT-AWAY → moved to storage location (aisle/bay/tier)
+    ↓
+[3] PICK → pulled from storage for a production order
+    ↓
+[4] MOVE → transferred to RIP (raw & in-process) location near production
+    ↓
+[5] CONSUME → consumed by WIP at a route step (decrements balance)
+```
+
+### Files Created
+| File | Module |
+|------|--------|
+| `core/inventory/__init__.py` | INVENTORY |
+| `core/inventory/models.py` | INVENTORY |
+| `core/inventory/schemas.py` | INVENTORY |
+| `core/inventory/service.py` | INVENTORY |
+| `core/inventory/routes.py` | INVENTORY |
+| `core/inventory/events.py` | INVENTORY |
+| `core/inventory/exceptions.py` | INVENTORY |
+| `alembic/versions/20260410_..._add_inventory_module_tables.py` | Migration |
+| `tests/unit/test_inventory.py` | Testing |
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D050 | Inventory tracked as balances per (material_lot, location) pair with transaction audit trail |
+| D051 | Storage locations use aisle/bay/tier addressing; location_type classifies purpose (receiving, storage, rip, staging, shipping) |
+| D052 | Six transaction types cover the full inventory lifecycle: receive, putaway, pick, move, consume, adjust |
+
+### Where We Stopped
+- **INVENTORY module fully implemented** (server-side)
+- DB migration ready (run `alembic upgrade head` when PostgreSQL is available)
+- **1740 tests passing**
+- Next options:
+  1. **DT-CLIENT inventory pages** — storage location editor, balance viewer
+  2. **RT-CLIENT inventory operations** — receive/putaway/pick/move/consume UI
+  3. **Integration with existing material consumption** — bridge inventory.consume to MaterialLotService.consume
+  4. **P6: Testing & CI**
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.

@@ -25,6 +25,7 @@ from mes.core.wip.routes import router as wip_router
 # Layer 3 routers
 from mes.core.material.routes import router as material_router
 from mes.core.data_collection.routes import router as data_collection_router
+from mes.core.inventory.routes import router as inventory_router
 
 # Layer 4 routers
 from mes.core.quality.routes import router as quality_router
@@ -228,6 +229,7 @@ def create_app() -> FastAPI:
     # Layer 3 routers
     app.include_router(material_router)
     app.include_router(data_collection_router)
+    app.include_router(inventory_router)
 
     # Layer 4 routers
     app.include_router(quality_router)

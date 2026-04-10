@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-09",
-  "lastSessionId": "S030",
+  "lastUpdated": "2026-04-10",
+  "lastSessionId": "S031",
 
   "phases": [
     {
@@ -232,7 +232,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 all 19 tasks complete. S030: step equipment dispatch API, RT-CLIENT equipment table with blocking indicators, OrdersPage Create Lot/Unit, OPC-UA + MQTT simulation panels in Availability Simulator, TM-100 state model fix. 1686 unit tests passing. Next: P6 Testing & CI, browser test all 4 clients, more vendor adapters, or SEMI E10 state model plugin.",
+  "currentTask": "P3 complete. P4 complete. P5 all 19 tasks complete. S031: INVENTORY module — StorageLocation (aisle/bay/tier), InventoryBalance, InventoryTransaction with receive/putaway/pick/move/consume/adjust flow. 18 REST endpoints, 6 event types, 54 new tests (1740 total). Alembic migration for 3 new tables. Next: P6 Testing & CI, RT-CLIENT inventory pages, DT-CLIENT inventory editor.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -280,7 +280,8 @@
       "AUTH":          { "name": "Authentication & Authorization", "phase": "P3", "status": "implemented" },
       "UOM":           { "name": "Units of Measure",               "phase": "P3", "status": "implemented" },
       "UOM-MAPPING":   { "name": "ERP UOM Normalization Utility",  "phase": "P4", "status": "implemented" },
-      "SESSION-META":  { "name": "AI Session Metadata",            "phase": "P3", "status": "planned" }
+      "SESSION-META":  { "name": "AI Session Metadata",            "phase": "P3", "status": "planned" },
+      "INVENTORY":     { "name": "Inventory Management (WIP Consumption)", "phase": "P3", "status": "implemented" }
     }
   },
 
