@@ -50,8 +50,11 @@ redis = [
 stomp = [
     "stomp-py>=8.1.0",
 ]
+aveva = [
+    "httpx-ntlm>=2.0.0",
+]
 all = [
-    "mes-ai[opcua,mqtt,sap,oracle,modbus,kafka,nats,rabbitmq,redis,stomp]",
+    "mes-ai[opcua,mqtt,sap,oracle,modbus,kafka,nats,rabbitmq,redis,stomp,aveva]",
 ]
 dev = [
     "pytest>=8.1.1",

@@ -258,6 +258,11 @@ mes_ai/
 │   │           ├── __init__.py
 │   │           ├── erp/               # ERP-IBOUND + ERP-OBOUND
 │   │           ├── equipment/         # EQUIP-INTFC
+│   │           ├── historian/          # Historian adapters
+│   │           │   └── aveva/          # AVEVA Historian REST API v2
+│   │           │       ├── config.py   # AVEVAHistorianSettings (pydantic-settings)
+│   │           │       ├── client.py   # AVEVAHistorianClient (httpx + OData)
+│   │           │       └── adapter.py  # AVEVAHistorianAdapter (EquipmentAdapter)
 │   │           ├── messaging/         # JMS/STOMP messaging bridge
 │   │           │   └── stomp/         # STOMP adapter (stomp.py)
 │   │           │       ├── config.py  # STOMPSettings (pydantic-settings)
@@ -307,6 +312,9 @@ mes_ai/
 │   │   │   │   ├── manifest.yaml
 │   │   │   │   └── plugin.py
 │   │   │   ├── stomp_jms/             # STOMP JMS messaging bridge plugin
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── aveva_historian/        # AVEVA Historian REST API adapter plugin
 │   │   │   │   ├── manifest.yaml
 │   │   │   │   └── plugin.py
 │   │   │   └── availability_simulator/ # Availability simulator companion plugin
@@ -3041,6 +3049,7 @@ class MockERPPlugin(MESPlugin):
 | `opcua-equipment` | equipment | `equipment_driver` | `adapters.equipment.opcua_adapter` |
 | `mqtt-equipment` | equipment | `equipment_driver` | `adapters.equipment.mqtt_adapter` |
 | `stomp-jms` | messaging | `event_handler` | `adapters.messaging.stomp` |
+| `aveva-historian` | equipment | `equipment_driver` | `adapters.historian.aveva` |
 
 ## 8. Event Bus (EVENT-BUS)
 
@@ -4639,6 +4648,171 @@ pip install mes-ai[stomp]
 ```
 
 This pulls in `stomp-py >= 8.1.0`. The plugin gracefully fails to load if the library is not installed.
+
+### 9.7 AVEVA Historian REST API Adapter (AVEVA-HISTORIAN)
+
+Read-only equipment adapter that integrates with the AVEVA Historian Data REST API v2 (OData-based) for process data retrieval, analog summaries, state summaries, and event queries. Particularly useful for OEE calculations and historical trend analysis.
+
+> **Note:** The Historian REST API is read-only for process data. Equipment writes (tag writes to PLCs) should go through OPC-UA or MQTT adapters. The API has no push/WebSocket capability, so tag "subscriptions" are implemented as periodic polls.
+
+#### 9.7.1 Architecture
+
+```
+┌──────────────────────┐          ┌──────────────────────┐          ┌──────────────────────┐
+│   AVEVA Historian     │          │   iHistory Web       │          │   MES Server          │
+│   Server              │◄────────►│   Service (REST)     │◄────────►│                       │
+│   (SQL Server)        │          │   Port 32569         │   HTTP   │  AVEVAHistorianAdapter │
+└──────────────────────┘          └──────────────────────┘          │    │                   │
+                                                                    │    ├── Client (httpx)   │
+                                                                    │    ├── OData v2 queries │
+                                                                    │    └── Poll-based subs  │
+                                                                    └──────────────────────┘
+```
+
+**Data flow — Tag Read:**
+```
+adapter.read_tag("tank_level")
+    ──resolve FQN──►  "Baytown.tank_level"
+    ──GET /v2/ProcessValues?$filter=FQN eq 'Baytown.tank_level'──►  Historian REST API
+    ──OData JSON──►  parse VTQ (Value, Time, Quality)
+    ──return──►  TagValue(value=72.5, quality="good", timestamp=...)
+```
+
+**Data flow — Polling Subscription:**
+```
+adapter.subscribe_tag("Baytown.tank_level", callback, interval_ms=5000)
+    ──background task──►  poll GET /v2/ProcessValues every 5s
+    ──on value change──►  callback(TagValue)
+    ──if state_tag──►  EquipmentStateEngine.transition_equipment()
+```
+
+#### 9.7.2 Components
+
+| Component | Location | Responsibility |
+|---|---|---|
+| `AVEVAHistorianSettings` | `adapters/historian/aveva/config.py` | Pydantic-settings config (env prefix `MES_AVEVA_*`) |
+| `AVEVAHistorianClient` | `adapters/historian/aveva/client.py` | Async httpx wrapper for OData v2 endpoints: ProcessValues, AnalogSummary, StateSummary, Tags, Events |
+| `AVEVAHistorianAdapter` | `adapters/historian/aveva/adapter.py` | EquipmentAdapter implementation — tag read, poll-based subscribe, browse, state, plus extended methods (analog/state summary, historical) |
+| `AVEVAHistorianPlugin` | `plugins/system/aveva_historian/plugin.py` | Plugin wrapper — maps manifest parameters to settings, manages adapter lifecycle and state tag polling |
+
+#### 9.7.3 Plugin Configuration
+
+```yaml
+# plugins/system/aveva_historian/manifest.yaml
+id: aveva-historian
+name: AVEVA Historian Equipment Adapter
+version: "1.0.0"
+category: equipment
+
+parameters:
+  - name: base_url
+    type: string
+    required: true           # e.g. http://historian:32569/Historian/v2
+  - name: datasource
+    type: string
+    required: true           # Default data source (e.g. "Baytown")
+  - name: equipment_id
+    type: string
+    required: true           # MES equipment UUID
+  - name: auth_mode
+    type: string
+    default: negotiate       # negotiate | bearer | basic
+  - name: username
+    type: string
+  - name: password
+    type: string
+    secret: true
+  - name: bearer_token
+    type: string
+    secret: true             # OpenID Connect token for AVEVA Insight (cloud)
+  - name: verify_ssl
+    type: boolean
+    default: true
+  - name: timeout_sec
+    type: integer
+    default: 30
+  - name: tag_prefix
+    type: string             # FQN prefix to scope browse results
+  - name: state_tag_fqn
+    type: string             # FQN for equipment state monitoring
+  - name: state_model_id
+    type: string             # packml | semi_e10
+  - name: poll_interval_sec
+    type: integer
+    default: 5               # Polling interval for subscriptions
+
+extension_points:
+  - type: equipment_driver
+    name: aveva_historian
+```
+
+**Install via REST API:**
+```json
+POST /api/v1/plugins/aveva-historian/install
+{
+  "parameter_values": {
+    "base_url": "http://historian.factory.com:32569/Historian/v2",
+    "datasource": "Baytown",
+    "equipment_id": "550e8400-e29b-41d4-a716-446655440000",
+    "auth_mode": "negotiate",
+    "username": "FACTORY\\mes_service",
+    "password": "s3cret",
+    "state_tag_fqn": "Baytown.Line1_State",
+    "state_model_id": "packml",
+    "poll_interval_sec": 5
+  }
+}
+```
+
+#### 9.7.4 AVEVA Historian REST API v2 Resources
+
+The adapter uses OData v2 endpoints on the iHistory web service:
+
+| Resource | Endpoint | Description |
+|---|---|---|
+| ProcessValues | `GET /v2/ProcessValues` | Value-Time-Quality records with RetrievalMode and Resolution |
+| AnalogSummary | `GET /v2/AnalogSummary` | Time-weighted aggregates: Average, StdDev, Min, Max, Integral, PercentGood |
+| StateSummary | `GET /v2/StateSummary` | State duration analysis: state name, Count, Total, Average, Min, Max |
+| Tags | `GET /v2/Tags` | Tag metadata: FQN, Source, TagName, TagType, Description, EngUnit |
+| Events | `GET /v2/Events` | Event records |
+
+**OData Query Patterns:**
+- FQN addressing: `datasource.tagname` (e.g. `Baytown.tank_level`)
+- `$filter`: `FQN eq 'Baytown.tank_level' and DateTime ge 2025-06-15T00:00:00Z`
+- `RetrievalMode`: Average | Cyclic | Full | Interpolated | BestFit | Delta | Minimum | Maximum | Counter | Integral | Slope
+- `Resolution`: milliseconds (e.g. `3600000` = 1 hour)
+- `TagFilter`: `startswith(FQN,'Baytown.Line1_')` for multi-tag queries
+- OPC Quality: 192=good, 64=uncertain, 0=bad
+
+#### 9.7.5 Authentication Modes
+
+| Mode | Use Case | Mechanism |
+|---|---|---|
+| `negotiate` | On-premises (default) | Windows NTLM/Kerberos via `httpx-ntlm` |
+| `basic` | Simple deployments | HTTP Basic Auth (username/password) |
+| `bearer` | AVEVA Insight (cloud) | OpenID Connect bearer token in Authorization header |
+
+The negotiate mode requires the `httpx-ntlm` package. If not installed, the adapter falls back to basic auth with a warning.
+
+#### 9.7.6 Extended Capabilities
+
+Beyond the standard `EquipmentAdapter` interface, the AVEVA adapter exposes historian-specific methods:
+
+| Method | Description |
+|---|---|
+| `get_analog_summary(fqn, start, end, ...)` | Time-weighted aggregates with configurable resolution and slicing |
+| `get_state_summary(fqn, start, end, ...)` | State duration totals — directly useful for OEE Availability |
+| `get_historical(fqn, start, end, ...)` | Historical process values with full RetrievalMode control |
+
+#### 9.7.7 Library Dependency
+
+The AVEVA adapter uses `httpx` (already a base dependency) and optionally `httpx-ntlm` for Windows Negotiate authentication:
+
+```bash
+pip install mes-ai[aveva]
+```
+
+This pulls in `httpx-ntlm >= 2.0.0`. The plugin works without it if using `bearer` or `basic` auth modes.
 
 ## 10. Dispatching Engine (DISPATCH)
 

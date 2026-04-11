@@ -1,0 +1,102 @@
+id: aveva-historian
+name: AVEVA Historian Equipment Adapter
+version: "1.0.0"
+description: >
+  AVEVA Historian REST API v2 (OData) integration for reading
+  process values, analog summaries, state summaries, and events.
+  Supports Windows Negotiate (NTLM/Kerberos), Bearer token, and
+  Basic authentication modes.
+author: MES AI Contributors
+comment: >
+  Requires httpx-ntlm for Windows Negotiate auth.
+  Install with: pip install mes-ai[aveva]
+  Configure via MES_AVEVA_* environment variables.
+category: equipment
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: base_url
+    type: string
+    description: >
+      Historian REST API base URL
+      (e.g. http://historian-server:32569/Historian/v2)
+    required: true
+  - name: datasource
+    type: string
+    description: >
+      Default data source name for FQN resolution
+      (e.g. "Baytown"). Tags without a dot are prefixed with
+      datasource.tagname automatically.
+    required: true
+  - name: equipment_id
+    type: string
+    description: Equipment identifier for state tracking
+    required: true
+  - name: auth_mode
+    type: string
+    description: >
+      Authentication mode: negotiate (Windows NTLM/Kerberos),
+      bearer (OpenID Connect token), or basic
+    required: false
+    default: negotiate
+  - name: username
+    type: string
+    description: Username for negotiate or basic authentication
+    required: false
+  - name: password
+    type: string
+    description: Password for negotiate or basic authentication
+    required: false
+    secret: true
+  - name: bearer_token
+    type: string
+    description: Bearer token for cloud/AVEVA Insight authentication
+    required: false
+    secret: true
+  - name: verify_ssl
+    type: boolean
+    description: Verify SSL/TLS certificates
+    required: false
+    default: true
+  - name: timeout_sec
+    type: integer
+    description: HTTP request timeout in seconds
+    required: false
+    default: 30
+  - name: tag_prefix
+    type: string
+    description: >
+      FQN prefix to scope browse_tags results
+      (e.g. "Baytown.Line1_")
+    required: false
+  - name: state_tag_fqn
+    type: string
+    description: >
+      Fully qualified name of the tag that represents equipment state
+      (e.g. "Baytown.Line1_State"). Requires state_model_id.
+    required: false
+  - name: state_model_id
+    type: string
+    description: >
+      State model to use for transitions driven by state_tag changes
+      (e.g. "packml", "semi_e10"). Requires state_tag_fqn.
+    required: false
+  - name: poll_interval_sec
+    type: integer
+    description: >
+      Default polling interval in seconds for tag subscriptions.
+      The Historian REST API has no push capability so subscriptions
+      are polled at this rate.
+    required: false
+    default: 5
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: equipment_driver
+    name: aveva_historian
+
+event_subscriptions: []
+dependencies: []
