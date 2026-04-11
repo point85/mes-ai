@@ -18,7 +18,7 @@ parameters:
   - name: broker_host
     type: string
     description: STOMP broker hostname
-    required: true
+    required: false
     default: localhost
   - name: broker_port
     type: integer

@@ -258,6 +258,11 @@ mes_ai/
 │   │           ├── __init__.py
 │   │           ├── erp/               # ERP-IBOUND + ERP-OBOUND
 │   │           ├── equipment/         # EQUIP-INTFC
+│   │           ├── messaging/         # JMS/STOMP messaging bridge
+│   │           │   └── stomp/         # STOMP adapter (stomp.py)
+│   │           │       ├── config.py  # STOMPSettings (pydantic-settings)
+│   │           │       ├── client.py  # STOMPClient + STOMPListener
+│   │           │       └── adapter.py # STOMPMessagingAdapter
 │   │           └── test_equipment/    # TEST-INTFC
 │   │
 │   ├── plugins/                       # Plugin directories
@@ -299,6 +304,9 @@ mes_ai/
 │   │   │   │   ├── manifest.yaml
 │   │   │   │   └── plugin.py
 │   │   │   ├── mqtt_counters/         # MQTT production counter collector
+│   │   │   │   ├── manifest.yaml
+│   │   │   │   └── plugin.py
+│   │   │   ├── stomp_jms/             # STOMP JMS messaging bridge plugin
 │   │   │   │   ├── manifest.yaml
 │   │   │   │   └── plugin.py
 │   │   │   └── availability_simulator/ # Availability simulator companion plugin
@@ -3032,6 +3040,7 @@ class MockERPPlugin(MESPlugin):
 | `oracle-cloud-erp` | erp | `erp_inbound`, `erp_outbound` | `adapters.erp.oracle_cloud` |
 | `opcua-equipment` | equipment | `equipment_driver` | `adapters.equipment.opcua_adapter` |
 | `mqtt-equipment` | equipment | `equipment_driver` | `adapters.equipment.mqtt_adapter` |
+| `stomp-jms` | messaging | `event_handler` | `adapters.messaging.stomp` |
 
 ## 8. Event Bus (EVENT-BUS)
 
@@ -3126,6 +3135,8 @@ async def on_any_quality_event(event: MESEvent) -> None:
 ### 8.5 Future: Distributed Event Bus
 
 For multi-server deployments, the in-process event bus can be replaced with an external message-oriented middleware (MOM) by swapping the transport layer. The `MESEvent` schema and handler interface remain identical.
+
+> **Note:** For bridging to external JMS brokers *without* replacing the in-process event bus, see §9.6 — the STOMP JMS Messaging Adapter plugin forwards selected MES events to (and receives events from) STOMP-compatible brokers while keeping the in-process bus as the primary transport.
 
 **Supported MOM Transports:**
 
@@ -4461,6 +4472,173 @@ End users can implement additional counter collection plugins for other protocol
 5. Implementing `MESPlugin.stop()` to clean up connections/tasks
 
 The `packml_opcua_counters` and `mqtt_counters` plugins serve as reference implementations.
+
+### 9.6 JMS/STOMP Messaging Adapter (STOMP-JMS)
+
+Bidirectional messaging bridge between the MES in-process event bus and a STOMP-compatible JMS message broker (Apache ActiveMQ, ActiveMQ Artemis, RabbitMQ with STOMP plugin, TIBCO EMS, etc.).
+
+> **Note on JMS:** JMS is a Java *API* specification, not a wire protocol. Python clients access JMS brokers via the **STOMP** text protocol (supported by every major JMS broker on port 61613). The `stomp.py` library provides a mature, production-proven STOMP 1.2 client for Python.
+
+#### 9.6.1 Architecture
+
+```
+┌──────────────────────┐          ┌───────────────────┐          ┌──────────────────────┐
+│   External System    │          │   STOMP Broker     │          │   MES Server          │
+│   (ERP / SCADA /     │◄────────►│   (ActiveMQ,       │◄────────►│                       │
+│    other MES)        │  STOMP   │    Artemis,        │  STOMP   │  STOMPMessagingAdapter │
+└──────────────────────┘          │    RabbitMQ)       │          │    │                   │
+                                  └───────────────────┘          │    ├── STOMPClient      │
+                                                                 │    │   (stomp.py)        │
+                                                                 │    ├── STOMPListener     │
+                                                                 │    │   (thread→asyncio)  │
+                                                                 │    └── EventBus bridge   │
+                                                                 └──────────────────────┘
+```
+
+**Data flow — Inbound (broker → MES):**
+```
+Broker queue/topic  ──STOMP frame──►  STOMPListener.on_message()
+    ──run_coroutine_threadsafe──►  STOMPMessagingAdapter._on_broker_message()
+    ──JSON parse──►  MESEvent(event_type, source, payload, correlation_id)
+    ──EventBus.publish()──►  all subscribed MES handlers
+```
+
+**Data flow — Outbound (MES → broker):**
+```
+MES event bus  ──subscription callback──►  STOMPMessagingAdapter._on_mes_event()
+    ──JSON serialize──►  STOMPClient.send(destination, body)
+    ──STOMP SEND frame──►  broker outbound destination
+```
+
+#### 9.6.2 Components
+
+| Component | Location | Responsibility |
+|---|---|---|
+| `STOMPSettings` | `adapters/messaging/stomp/config.py` | Pydantic-settings config (env prefix `MES_`) |
+| `STOMPListener` | `adapters/messaging/stomp/client.py` | Bridges stomp.py's thread-based callbacks to asyncio event loop via `run_coroutine_threadsafe` |
+| `STOMPClient` | `adapters/messaging/stomp/client.py` | Async-friendly wrapper around `stomp.Connection` — connect, disconnect, subscribe, send |
+| `STOMPMessagingAdapter` | `adapters/messaging/stomp/adapter.py` | High-level bidirectional bridge: subscribes to broker destinations and MES event topics |
+| `STOMPJMSPlugin` | `plugins/system/stomp_jms/plugin.py` | Plugin wrapper — maps manifest parameters to `STOMPSettings`, manages adapter lifecycle |
+
+#### 9.6.3 Plugin Configuration
+
+```yaml
+# plugins/system/stomp_jms/manifest.yaml
+id: stomp-jms
+name: STOMP JMS Messaging Adapter
+version: "1.0.0"
+category: messaging
+
+parameters:
+  - name: broker_host
+    type: string
+    default: localhost
+  - name: broker_port
+    type: integer
+    default: 61613          # Standard STOMP port for ActiveMQ/Artemis
+  - name: username
+    type: string
+  - name: password
+    type: string
+    secret: true
+  - name: vhost
+    type: string
+    default: /
+  - name: use_ssl
+    type: boolean
+    default: false
+  - name: heartbeat_send_ms
+    type: integer
+    default: 10000
+  - name: heartbeat_recv_ms
+    type: integer
+    default: 10000
+  - name: reconnect_attempts
+    type: integer
+    default: 10
+  - name: reconnect_delay_sec
+    type: integer
+    default: 5
+  - name: inbound_subscriptions
+    type: string
+    default: /queue/mes.inbound  # Comma-separated broker destinations
+  - name: outbound_destination
+    type: string
+    default: /topic/mes.events   # Where MES events are forwarded
+  - name: event_subscriptions
+    type: string
+    default: "*"                 # MES event topics to forward (wildcards supported)
+
+extension_points:
+  - type: event_handler
+    name: stomp_jms_bridge
+```
+
+**Install via REST API:**
+```json
+POST /api/v1/plugins/stomp-jms/install
+{
+  "parameter_values": {
+    "broker_host": "activemq.factory.com",
+    "broker_port": 61613,
+    "username": "mes_service",
+    "password": "s3cret",
+    "inbound_subscriptions": "/queue/mes.inbound,/topic/erp.events",
+    "outbound_destination": "/topic/mes.events",
+    "event_subscriptions": "wip.*,production.*,inventory.*"
+  }
+}
+```
+
+#### 9.6.4 Inbound Message Format
+
+Messages arriving from broker destinations must be JSON with at least an `event_type` field:
+
+```json
+{
+  "event_type": "erp.order.released",
+  "source": "sap-erp-01",
+  "payload": {
+    "order_id": "ORD-2025-001",
+    "product_id": "PROD-A",
+    "quantity": 500
+  },
+  "correlation_id": "txn-abc-123"
+}
+```
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `event_type` | **Yes** | — | Dot-notation event type (becomes the MES event topic) |
+| `source` | No | `stomp:{destination}` | Originating system identifier |
+| `payload` | No | `{}` | Event-specific data |
+| `correlation_id` | No | `""` | Tracing correlation ID |
+
+Messages with invalid JSON or missing `event_type` are logged and skipped (no crash).
+
+#### 9.6.5 Thread-Safety: stomp.py → asyncio Bridge
+
+The `stomp.py` library is thread-based: its receiver thread invokes listener callbacks directly. Since the MES event bus is async, the `STOMPListener` bridges between worlds using `asyncio.run_coroutine_threadsafe()`. This dispatches incoming messages from the stomp.py receiver thread into the MES asyncio event loop safely, without blocking either side.
+
+#### 9.6.6 Supported Brokers
+
+| Broker | STOMP Port | Notes |
+|---|---|---|
+| Apache ActiveMQ Classic | 61613 | Default STOMP connector |
+| Apache ActiveMQ Artemis | 61613 | STOMP acceptor on `acceptors` config |
+| RabbitMQ | 61613 | Requires `rabbitmq_stomp` plugin enabled |
+| TIBCO EMS | 7222 | Supports STOMP natively |
+| Any STOMP 1.2 broker | — | Should work with standard STOMP frames |
+
+#### 9.6.7 Library Dependency
+
+The STOMP adapter requires the `stomp-py` package, installed via the optional extra:
+
+```bash
+pip install mes-ai[stomp]
+```
+
+This pulls in `stomp-py >= 8.1.0`. The plugin gracefully fails to load if the library is not installed.
 
 ## 10. Dispatching Engine (DISPATCH)
 
