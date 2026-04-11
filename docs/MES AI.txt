@@ -178,7 +178,8 @@ python -m mes.cli --server http://localhost:8082 plugin enable packml-availabili
 python -m mes.cli --server http://localhost:8082 plugin install semi-e10-availability
 python -m mes.cli --server http://localhost:8082 plugin enable semi-e10-availability
 
-python -m mes.cli --server http://localhost:8082 plugin install stomp-jms
+python -m mes.cli --server http://localhost:8082 plugin install stomp-jms (with defaults)
+python -m mes.cli --server http://localhost:8082 plugin install stomp-jms --param broker_host=mybroker --param broker_port=61613 --param username=admin --param password=secret
 python -m mes.cli --server http://localhost:8082 plugin enable stomp-jms
 
 python -m mes.cli --server http://localhost:8082 plugin install aveva-historian --param base_url=http://historian:32569/Historian/v2 --param datasource=RuntimeData --param equipment_id=EQ-001
