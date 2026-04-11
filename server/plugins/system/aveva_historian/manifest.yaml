@@ -14,7 +14,8 @@ comment: >
 category: equipment
 origin: system
 min_mes_version: "0.1.0"
-pip_extra: aveva
+pip_dependencies:
+  - "httpx-ntlm>=1.4.0"
 
 parameters:
   - name: base_url

@@ -12,7 +12,8 @@ comment: >
 category: equipment
 origin: system
 min_mes_version: "0.1.0"
-pip_extra: mqtt
+pip_dependencies:
+  - "aiomqtt>=2.0.0"
 
 parameters:
   - name: broker_host

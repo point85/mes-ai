@@ -346,25 +346,19 @@ async def install_plugin(
     param_values = body.parameter_values if body else {}
     notes = body.notes if body else None
 
-    # Validate required parameters
-    errors = plugin_manager.validate_parameters(info.manifest, param_values)
-    if errors:
-        raise HTTPException(status_code=422, detail={"errors": errors})
-
-    # Auto-install Python dependencies if pip_extra is declared
-    pip_extra = info.manifest.pip_extra
-    if pip_extra:
-        extra_spec = f"mes-ai[{pip_extra}]"
-        logger.info("Installing Python dependency: %s", extra_spec)
+    # Auto-install Python dependencies declared in manifest
+    pip_deps = info.manifest.pip_dependencies
+    if pip_deps:
+        logger.info("Installing Python dependencies: %s", pip_deps)
         try:
             subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", extra_spec, "--quiet"],
+                [sys.executable, "-m", "pip", "install", *pip_deps, "--quiet"],
                 timeout=120,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to install Python dependency '{extra_spec}': {exc}",
+                detail=f"Failed to install Python dependencies {pip_deps}: {exc}",
             )
 
     db_cfg = await _get_or_create_plugin_config(session, plugin_id)
@@ -456,6 +450,13 @@ async def enable_plugin_route(
             status_code=422,
             detail=f"Plugin '{plugin_id}' must be installed before enabling",
         )
+
+    # Validate required parameters before enabling
+    errors = plugin_manager.validate_parameters(
+        info.manifest, db_cfg.parameter_values,
+    )
+    if errors:
+        raise HTTPException(status_code=422, detail={"errors": errors})
 
     db_cfg.enabled = True
     if body and body.notes is not None:

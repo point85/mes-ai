@@ -154,6 +154,7 @@ python scripts/seed_uom.py
 For Windows PowerShell, there's no combined script — you start each separately:
 # Terminal 1: MES server
 cd c:\dev\mes_ai\server
+c:\dev\mes_ai\.venv\Scripts\Activate.ps1
 # alembic upgrade head (if schema change)
 # python scripts/seed_uom.py (for new data)
 $env:MES_AUTH_MODE = "none"
@@ -161,7 +162,8 @@ uvicorn mes.main:app --reload --port 8082
 
 Terminal 2 — Register plugins (one time) and enable/disable
 cd c:\dev\mes_ai\server
-c:\dev\mes_ai\.venv\Scripts\Activate.ps1
+c:\dev\mes_ai\.venv\Scripts\Activate.ps1 for (.venv) environment
+# maybe need pip install -e ".[dev]" --quiet
 python -m mes.cli --server http://localhost:8082 plugin install sap-erp-simulator
 python -m mes.cli --server http://localhost:8082 plugin enable sap-erp-simulator
 python -m mes.cli --server http://localhost:8082 plugin disable sap-erp-simulator
@@ -179,8 +181,12 @@ python -m mes.cli --server http://localhost:8082 plugin enable semi-e10-availabi
 python -m mes.cli --server http://localhost:8082 plugin install stomp-jms
 python -m mes.cli --server http://localhost:8082 plugin enable stomp-jms
 
-python -m mes.cli --server http://localhost:8082 plugin install aveva-historian
+python -m mes.cli --server http://localhost:8082 plugin install aveva-historian --param base_url=http://historian:32569/Historian/v2 --param datasource=RuntimeData --param equipment_id=EQ-001
 python -m mes.cli --server http://localhost:8082 plugin enable aveva-historian
+
+Install accepts the plugin with no parameters — plugin install aveva-historian will succeed
+Configure parameters later (via DT-CLIENT UI or --param flags)
+Enable validates that all required parameters are present before starting
 
 Terminal 3 — ERP Simulator GUI:
 cd c:\dev\mes_ai\clients\erp_simulator

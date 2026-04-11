@@ -13,7 +13,8 @@ comment: >
 category: erp
 origin: system
 min_mes_version: "0.1.0"
-pip_extra: oracle
+pip_dependencies:
+  - "oracledb>=2.1.0"
 
 parameters:
   - name: base_url
