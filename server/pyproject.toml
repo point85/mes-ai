@@ -47,8 +47,11 @@ rabbitmq = [
 redis = [
     "redis[hiredis]>=5.0.0",
 ]
+stomp = [
+    "stomp-py>=8.1.0",
+]
 all = [
-    "mes-ai[opcua,mqtt,sap,oracle,modbus,kafka,nats,rabbitmq,redis]",
+    "mes-ai[opcua,mqtt,sap,oracle,modbus,kafka,nats,rabbitmq,redis,stomp]",
 ]
 dev = [
     "pytest>=8.1.1",

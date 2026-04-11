@@ -176,6 +176,9 @@ python -m mes.cli --server http://localhost:8082 plugin enable packml-availabili
 python -m mes.cli --server http://localhost:8082 plugin install semi-e10-availability
 python -m mes.cli --server http://localhost:8082 plugin enable semi-e10-availability
 
+python -m mes.cli --server http://localhost:8082 plugin install stomp-jms
+python -m mes.cli --server http://localhost:8082 plugin enable stomp-jms
+
 Terminal 3 — ERP Simulator GUI:
 cd c:\dev\mes_ai\clients\erp_simulator
 npm install

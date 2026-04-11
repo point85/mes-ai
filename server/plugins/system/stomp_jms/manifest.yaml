@@ -1,0 +1,97 @@
+id: stomp-jms
+name: STOMP JMS Messaging Adapter
+version: "1.0.0"
+description: >
+  Bidirectional messaging bridge between the MES event bus and a
+  STOMP-compatible JMS message broker (ActiveMQ, Artemis, RabbitMQ, etc.).
+  Inbound messages from broker queues/topics are published to the MES event
+  bus; MES events are forwarded to broker destinations as JSON.
+author: MES AI Contributors
+comment: >
+  Requires stomp.py library. Install with: pip install mes-ai[stomp]
+  Tested with Apache ActiveMQ Artemis and RabbitMQ (with STOMP plugin).
+category: messaging
+origin: system
+min_mes_version: "0.1.0"
+
+parameters:
+  - name: broker_host
+    type: string
+    description: STOMP broker hostname
+    required: true
+    default: localhost
+  - name: broker_port
+    type: integer
+    description: STOMP broker port (default 61613 for ActiveMQ/Artemis)
+    required: false
+    default: 61613
+  - name: username
+    type: string
+    description: Broker authentication username
+    required: false
+  - name: password
+    type: string
+    description: Broker authentication password
+    required: false
+    secret: true
+  - name: vhost
+    type: string
+    description: Virtual host (default /)
+    required: false
+    default: /
+  - name: use_ssl
+    type: boolean
+    description: Whether to use SSL/TLS encryption
+    required: false
+    default: false
+  - name: heartbeat_send_ms
+    type: integer
+    description: Heartbeat send interval in milliseconds (0 to disable)
+    required: false
+    default: 10000
+  - name: heartbeat_recv_ms
+    type: integer
+    description: Heartbeat receive interval in milliseconds (0 to disable)
+    required: false
+    default: 10000
+  - name: reconnect_attempts
+    type: integer
+    description: Maximum number of reconnection attempts
+    required: false
+    default: 10
+  - name: reconnect_delay_sec
+    type: integer
+    description: Delay in seconds between reconnection attempts
+    required: false
+    default: 5
+  - name: inbound_subscriptions
+    type: string
+    description: >
+      Comma-separated list of broker destinations to subscribe to for
+      inbound messages (e.g. /queue/mes.inbound,/topic/erp.events)
+    required: false
+    default: /queue/mes.inbound
+  - name: outbound_destination
+    type: string
+    description: >
+      Default broker destination for outbound MES event messages
+      (e.g. /topic/mes.events or /queue/mes.outbound)
+    required: false
+    default: /topic/mes.events
+  - name: event_subscriptions
+    type: string
+    description: >
+      Comma-separated list of MES event topics to forward to the broker.
+      Supports wildcards (e.g. *, wip.*, inventory.received).
+    required: false
+    default: "*"
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: event_handler
+    name: stomp_jms_bridge
+
+event_subscriptions: []
+dependencies: []
