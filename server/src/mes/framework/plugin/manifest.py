@@ -106,6 +106,9 @@ class PluginManifest(BaseModel):
     # Companion bindings — other plugins or client apps bundled with this plugin
     companions: list[ManifestCompanion] = Field(default_factory=list)
 
+    # Optional pip extra name to auto-install Python dependencies (e.g. "stomp" → pip install mes-ai[stomp])
+    pip_extra: str = Field("", description="Optional pip extra name for auto-installing Python dependencies at plugin install time")
+
     # Legacy config_schema kept for backward compatibility; prefer `parameters`
     config_schema: dict[str, Any] = Field(default_factory=dict)
 

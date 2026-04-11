@@ -14,6 +14,7 @@ comment: >
 category: equipment
 origin: system
 min_mes_version: "0.1.0"
+pip_extra: aveva
 
 parameters:
   - name: base_url

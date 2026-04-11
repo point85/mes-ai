@@ -10,6 +10,7 @@ description: >
 category: performance
 origin: system
 min_mes_version: "0.1.0"
+pip_extra: opcua
 
 parameters:
   - name: poll_interval_sec

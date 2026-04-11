@@ -17,6 +17,8 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import subprocess
+import sys
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -348,6 +350,22 @@ async def install_plugin(
     errors = plugin_manager.validate_parameters(info.manifest, param_values)
     if errors:
         raise HTTPException(status_code=422, detail={"errors": errors})
+
+    # Auto-install Python dependencies if pip_extra is declared
+    pip_extra = info.manifest.pip_extra
+    if pip_extra:
+        extra_spec = f"mes-ai[{pip_extra}]"
+        logger.info("Installing Python dependency: %s", extra_spec)
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", extra_spec, "--quiet"],
+                timeout=120,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to install Python dependency '{extra_spec}': {exc}",
+            )
 
     db_cfg = await _get_or_create_plugin_config(session, plugin_id)
     db_cfg.installed = True

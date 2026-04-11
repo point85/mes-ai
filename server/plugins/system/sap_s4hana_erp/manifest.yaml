@@ -13,6 +13,7 @@ comment: >
 category: erp
 origin: system
 min_mes_version: "0.1.0"
+pip_extra: sap
 
 parameters:
   - name: base_url

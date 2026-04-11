@@ -179,6 +179,9 @@ python -m mes.cli --server http://localhost:8082 plugin enable semi-e10-availabi
 python -m mes.cli --server http://localhost:8082 plugin install stomp-jms
 python -m mes.cli --server http://localhost:8082 plugin enable stomp-jms
 
+python -m mes.cli --server http://localhost:8082 plugin install aveva-historian
+python -m mes.cli --server http://localhost:8082 plugin enable aveva-historian
+
 Terminal 3 — ERP Simulator GUI:
 cd c:\dev\mes_ai\clients\erp_simulator
 npm install

@@ -12,6 +12,7 @@ comment: >
 category: equipment
 origin: system
 min_mes_version: "0.1.0"
+pip_extra: opcua
 
 parameters:
   - name: endpoint_url

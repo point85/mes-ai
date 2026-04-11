@@ -22,6 +22,7 @@ comment: >
 category: performance
 origin: system
 min_mes_version: "0.1.0"
+pip_extra: mqtt
 
 extension_points:
   - type: data_processor

@@ -13,6 +13,7 @@ comment: >
 category: messaging
 origin: system
 min_mes_version: "0.1.0"
+pip_extra: stomp
 
 parameters:
   - name: broker_host
