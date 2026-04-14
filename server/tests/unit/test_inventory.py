@@ -385,6 +385,27 @@ class TestActionSchemas:
         )
         assert r.quantity == 10.0
 
+    def test_consume_request_with_step_id(self):
+        step = uuid.uuid4()
+        r = ConsumeInventoryRequest(
+            material_lot_id=uuid.uuid4(),
+            from_location_id=uuid.uuid4(),
+            quantity=5.0,
+            reference_id=uuid.uuid4(),
+            reference_type="unit",
+            step_id=step,
+        )
+        assert r.step_id == step
+        assert r.reference_type == "unit"
+
+    def test_consume_request_step_id_defaults_none(self):
+        r = ConsumeInventoryRequest(
+            material_lot_id=uuid.uuid4(),
+            from_location_id=uuid.uuid4(),
+            quantity=10.0,
+        )
+        assert r.step_id is None
+
     def test_consume_request_rejects_invalid_reference_type(self):
         with pytest.raises(ValidationError):
             ConsumeInventoryRequest(

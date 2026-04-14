@@ -286,6 +286,7 @@ async def consume_inventory(
         reason=body.reason,
         reference_id=body.reference_id,
         reference_type=body.reference_type,
+        step_id=body.step_id,
     )
     await session.commit()
     return success_response(InventoryTransactionRead.model_validate(txn).model_dump())

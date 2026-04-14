@@ -3,7 +3,7 @@ import type {
   Unit, Lot, UnitHistory, LotHistory,
   StepContext, ProductionOrder, Disposition,
   StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption,
-  InventoryTransaction, StorageLocation,
+  InventoryTransaction, InventoryBalance, StorageLocation,
 } from "../types";
 
 const api = axios.create({ baseURL: "/api/v1" });
@@ -205,5 +205,63 @@ export const fetchInventoryTransactions = (params?: {
 }) =>
   api.get("/inventory/transactions", { params: { limit: 200, ...params } }).then(unwrapList<InventoryTransaction>);
 
+export const fetchInventoryBalances = (params?: {
+  material_lot_id?: string;
+  location_id?: string;
+}) =>
+  api.get("/inventory/balances", { params: { limit: 200, ...params } }).then(unwrapList<InventoryBalance>);
+
 export const fetchStorageLocations = () =>
   api.get("/storage-locations", { params: { limit: 200 } }).then(unwrapList<StorageLocation>);
+
+export const receiveInventory = (payload: {
+  material_lot_id: string;
+  to_location_id: string;
+  quantity: number;
+  reason?: string;
+  reference_id?: string;
+  reference_type?: string;
+}) => api.post("/inventory/receive", payload).then(unwrap<InventoryTransaction>);
+
+export const putawayInventory = (payload: {
+  material_lot_id: string;
+  from_location_id: string;
+  to_location_id: string;
+  quantity: number;
+  reason?: string;
+}) => api.post("/inventory/putaway", payload).then(unwrap<InventoryTransaction>);
+
+export const pickInventory = (payload: {
+  material_lot_id: string;
+  from_location_id: string;
+  to_location_id: string;
+  quantity: number;
+  reason?: string;
+  reference_id?: string;
+  reference_type?: string;
+}) => api.post("/inventory/pick", payload).then(unwrap<InventoryTransaction>);
+
+export const moveInventory = (payload: {
+  material_lot_id: string;
+  from_location_id: string;
+  to_location_id: string;
+  quantity: number;
+  reason?: string;
+}) => api.post("/inventory/move", payload).then(unwrap<InventoryTransaction>);
+
+export const consumeInventory = (payload: {
+  material_lot_id: string;
+  from_location_id: string;
+  quantity: number;
+  reason?: string;
+  reference_id?: string;
+  reference_type?: string;
+  step_id?: string;
+}) => api.post("/inventory/consume", payload).then(unwrap<InventoryTransaction>);
+
+export const adjustInventory = (payload: {
+  material_lot_id: string;
+  location_id: string;
+  quantity: number;
+  reason: string;
+}) => api.post("/inventory/adjust", payload).then(unwrap<InventoryTransaction>);

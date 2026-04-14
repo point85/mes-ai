@@ -5549,13 +5549,15 @@ clients/design_time/
 │   │   ├── quality.ts                 # QUAL-MGMT API functions
 │   │   ├── data-collection.ts         # DATA-COLLECT API functions
 │   │   ├── auth.ts                    # AUTH API functions
-│   │   └── plugins.ts                 # PLUGIN-FW API functions
+│   │   ├── plugins.ts                 # PLUGIN-FW API functions
+│   │   └── inventory.ts               # INVENTORY API functions
 │   │
 │   ├── hooks/                         # TanStack Query hooks (one file per domain)
 │   │   ├── use-sites.ts
 │   │   ├── use-equipment.ts
 │   │   ├── use-products.ts
 │   │   ├── use-routes.ts
+│   │   ├── useInventory.ts
 │   │   └── ...
 │   │
 │   ├── pages/                         # Route-level page components
@@ -5595,6 +5597,11 @@ clients/design_time/
 │   │   ├── plugins/
 │   │   │   ├── PluginListPage.tsx
 │   │   │   └── PluginConfigPage.tsx
+│   │   │
+│   │   ├── inventory/
+│   │   │   ├── InventoryBalancesPage.tsx    # On-hand balance viewer
+│   │   │   ├── InventoryTransactionsPage.tsx # Transaction audit log
+│   │   │   └── index.ts                     # Barrel export
 │   │   │
 │   │   └── import-export/
 │   │       ├── ImportPage.tsx
@@ -6012,6 +6019,10 @@ const routes = [
   // Plugins
   { path: "/plugins",               element: <PluginListPage /> },
   { path: "/plugins/:pluginId",     element: <PluginConfigPage /> },
+
+  // Inventory
+  { path: "/inventory/balances",    element: <InventoryBalancesPage /> },
+  { path: "/inventory/transactions", element: <InventoryTransactionsPage /> },
 
   // Import/Export
   { path: "/import",                element: <ImportPage /> },
@@ -6882,10 +6893,13 @@ The **Runtime Client** is a shop-floor operator client for real-time WIP process
 │  │Dashboard │ │ Scan WIP │ │Active WIP│ │  Orders   │  │
 │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────┬─────┘  │
 │       │             │            │              │        │
-│  ┌────┴─────────────┴────────────┴──────────────┴────┐  │
-│  │           StepProcessingPanel                     │  │
-│  │  (data collect · quality · complete · move · hold)│  │
-│  └───────────────────────┬───────────────────────────┘  │
+│  ┌────┴──────┐  ┌───┴────────────┴──────────────┴────┐  │
+│  │ Inventory │  │         StepProcessingPanel         │  │
+│  │ (ops,     │  │  (data collect · quality · complete │  │
+│  │  balance, │  │   · move · hold)                    │  │
+│  │  log)     │  └───────────────────┬─────────────────┘  │
+│  └────┬──────┘                      │                    │
+│       │                             │                    │
 │                          │                              │
 │  ┌───────────┐   ┌──────┴──────┐   ┌────────────────┐  │
 │  │ useWebSocket│   │ api/runtime │   │ Live Events   │  │
@@ -6928,13 +6942,13 @@ clients/run_time/
     ├── index.css             # Tailwind import + .btn-primary, .input-field
     ├── vite-env.d.ts
     ├── types/
-    │   └── index.ts          # Unit, Lot, StepContext, MESEvent, …
+    │   └── index.ts          # Unit, Lot, StepContext, MESEvent, InventoryBalance, …
     ├── api/
-    │   └── runtime.ts        # ~30 API functions (units, lots, routing, quality, …)
+    │   └── runtime.ts        # ~38 API functions (units, lots, routing, quality, inventory, …)
     ├── hooks/
     │   └── useWebSocket.ts   # Auto-reconnect, topic subscription
     ├── components/
-    │   ├── Layout.tsx         # Header + 5-tab nav + WS status
+    │   ├── Layout.tsx         # Header + 6-tab nav + WS status
     │   ├── StepProcessingPanel.tsx  # Core operator work screen
     │   └── RouteProgressBar.tsx     # Visual step progress
     └── pages/
@@ -6942,6 +6956,7 @@ clients/run_time/
         ├── ScanPage.tsx       # Barcode scan → step context
         ├── ActiveWipPage.tsx  # WIP list with status filter
         ├── OrdersPage.tsx     # Production order table
+        ├── InventoryPage.tsx  # Inventory ops, balances, transaction log
         └── EventsPage.tsx     # Live WebSocket event stream
 ```
 
@@ -6955,6 +6970,7 @@ The RT-CLIENT uses a **flat tab layout** (no nested routing) optimized for shop-
 | **Scan WIP** | `ScanPage` | Enter serial number or lot number (keyboard / barcode gun), loads composite step context, renders `StepProcessingPanel` |
 | **Active WIP** | `ActiveWipPage` | List all units or lots with status filter. Open any item → `StepProcessingPanel` |
 | **Orders** | `OrdersPage` | Production orders with status filter, priority badges, ERP reference, qty progress |
+| **Inventory** | `InventoryPage` | Three sub-tabs: **Operations** (receive, putaway, pick, move, consume, adjust forms), **Balances** (on-hand/reserved/available by material+location), **Log** (transaction audit trail with color-coded type badges) |
 | **Live Events** | `EventsPage` | Real-time WebSocket feed with category filter (WIP, Orders, Quality, Dispatch, Data, Equipment) |
 
 ### 18.6 StepProcessingPanel — Core Operator Work Screen
@@ -7057,6 +7073,7 @@ The `useWebSocket` hook handles auto-reconnection (3-second delay) and exposes a
 | **Data Collection** | `collectDataPoint`, `collectDataBatch` |
 | **Quality** | `recordQualityResult` |
 | **Orders** | `fetchOrders` |
+| **Inventory** | `fetchInventoryBalances`, `receiveInventory`, `putawayInventory`, `pickInventory`, `moveInventory`, `consumeInventory`, `adjustInventory`, `fetchInventoryTransactions` |
 | **Dashboard** | `fetchOrderProgress`, `fetchLineStatus`, `fetchShiftSummary` |
 
 All functions use an `unwrap<T>()` helper to extract `response.data.data` from the MES API response envelope (§6.2).
@@ -7364,4 +7381,4 @@ Each module implementation will include:
 
 ---
 
-*Last updated: 2026-04-07 — Session S029 (RT-CLIENT operator client §18: barcode scan, step processing, data collection, quality tests, live events; 5 new server endpoints; composite step-context builder; renamed RT-GUI→RT-CLIENT, runtime_gui→run_time)*
+*Last updated: 2026-04-15 — Session S033 (§15 DT-CLIENT: inventory balances & transactions pages; §18 RT-CLIENT: Inventory tab with 6 operation forms, balance viewer, transaction log; inventory.consume → MaterialLotService.consume bridge for WIP genealogy)*

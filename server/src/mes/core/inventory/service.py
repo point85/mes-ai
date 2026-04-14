@@ -34,6 +34,17 @@ from .exceptions import (
 )
 from .models import InventoryBalance, InventoryTransaction, StorageLocation
 
+# Lazy import to avoid circular dependency; resolved at call-time.
+_material_lot_svc = None
+
+
+def _get_material_lot_svc():  # noqa: ANN202
+    global _material_lot_svc  # noqa: PLW0603
+    if _material_lot_svc is None:
+        from mes.core.material.service import MaterialLotService
+        _material_lot_svc = MaterialLotService
+    return _material_lot_svc
+
 logger = logging.getLogger("mes.inventory")
 
 
@@ -373,10 +384,16 @@ class InventoryTransactionService:
         reason: str | None = None,
         reference_id: UUID | None = None,
         reference_type: str | None = None,
+        step_id: UUID | None = None,
     ) -> InventoryTransaction:
         """
         Consume inventory from a location (typically RIP) for WIP.
         Decrements the balance at the source location; no destination.
+
+        When *reference_type* is ``"unit"`` or ``"lot"``, this also creates
+        a :class:`MaterialConsumption` genealogy record via
+        :meth:`MaterialLotService.consume` so that traceability is
+        maintained in a single API call.
         """
         await StorageLocationService.get_location(session, from_location_id)
 
@@ -407,6 +424,18 @@ class InventoryTransactionService:
         )
         session.add(txn)
         await session.flush()
+
+        # ── Bridge: also record material genealogy for WIP references ──
+        if reference_id and reference_type in ("unit", "lot"):
+            lot_svc = _get_material_lot_svc()
+            await lot_svc.consume(
+                session,
+                material_lot_id,
+                unit_id=reference_id if reference_type == "unit" else None,
+                lot_wip_id=reference_id if reference_type == "lot" else None,
+                step_id=step_id,
+                quantity_consumed=quantity,
+            )
 
         await event_bus.publish(
             inventory_consumed(str(material_lot_id), str(from_location_id), quantity),

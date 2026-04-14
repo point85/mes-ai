@@ -257,6 +257,17 @@ export interface MaterialConsumption {
 
 // ── Inventory Management ─────────────────────────────────────────
 
+export interface InventoryBalance {
+  id: string;
+  material_lot_id: string;
+  location_id: string;
+  quantity_on_hand: number;
+  quantity_reserved: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface InventoryTransaction {
   id: string;
   transaction_type: string;

@@ -224,6 +224,7 @@ class ConsumeInventoryRequest(BaseModel):
     quantity: float = Field(..., gt=0)
     reference_id: UUID | None = Field(None, description="WIP unit, lot, or production order reference")
     reference_type: str | None = None
+    step_id: UUID | None = Field(None, description="Route step where consumption occurs (for genealogy)")
     reason: str | None = Field(None, max_length=255)
 
     @field_validator("reference_type")

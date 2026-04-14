@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-10",
-  "lastSessionId": "S031",
+  "lastUpdated": "2026-04-14",
+  "lastSessionId": "S032",
 
   "phases": [
     {
@@ -219,6 +219,21 @@
           "id": "T5.19",
           "name": "Availability Simulator: OPC-UA + MQTT state simulation panels with PackML state mapping",
           "status": "complete"
+        },
+        {
+          "id": "T5.20",
+          "name": "DT-CLIENT: Inventory pages (Balances viewer + Transaction Log)",
+          "status": "complete"
+        },
+        {
+          "id": "T5.21",
+          "name": "RT-CLIENT: Inventory operations UI (receive/putaway/pick/move/consume/adjust forms, balances tab, transaction log)",
+          "status": "complete"
+        },
+        {
+          "id": "T5.22",
+          "name": "Bridge inventory.consume → MaterialLotService.consume for WIP genealogy",
+          "status": "complete"
         }
       ]
     },
@@ -232,7 +247,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P3 complete. P4 complete. P5 all 19 tasks complete. S031: INVENTORY module — StorageLocation (aisle/bay/tier), InventoryBalance, InventoryTransaction with receive/putaway/pick/move/consume/adjust flow. 18 REST endpoints, 6 event types, 54 new tests (1740 total). Alembic migration for 3 new tables. Next: P6 Testing & CI, RT-CLIENT inventory pages, DT-CLIENT inventory editor.",
+  "currentTask": "P5 22/22 tasks complete. S032: DT-CLIENT inventory pages, RT-CLIENT inventory operator UI (receive/putaway/pick/move/consume/adjust with balances & transaction log), bridge inventory.consume → MaterialLotService.consume for WIP genealogy. 1844 tests, 0 failures.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",

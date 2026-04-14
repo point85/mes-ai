@@ -2811,3 +2811,96 @@ Supplier delivery
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
+
+## Session S032 — 2026-04-14
+
+**Phase**: P5 — Client Front-Ends & Plugin Framework Polish  
+**Objective**: DT-CLIENT inventory pages, RT-CLIENT inventory operations UI, inventory→WIP genealogy bridge, plugin framework fixes
+
+### What Happened
+
+#### Plugin Framework Fixes
+1. Replaced `pip_extra: str` manifest field with `pip_dependencies: list[str]` across all 8 plugin manifests. `pip install -e ".[aveva]"` does not work for editable installs — explicit dependency lists are more reliable.
+2. Corrected `httpx-ntlm` version in `pyproject.toml` from `>=2.0.0` (doesn't exist) to `>=1.4.0`.
+3. Moved required-parameter validation from plugin **install** to plugin **enable** — parameters should only be required when the plugin is activated.
+
+#### DT-CLIENT Inventory Pages (T5.20)
+4. Created `clients/design_time/src/types/inventory.ts` — `InventoryBalance`, `InventoryTransaction`, `TransactionType` interfaces.
+5. Created `clients/design_time/src/api/inventory.ts` — `fetchInventoryBalances()`, `fetchInventoryTransactions()` with `limit=200` (server max).
+6. Created `clients/design_time/src/hooks/useInventory.ts` — `useInventoryBalances()`, `useInventoryTransactions()` TanStack Query hooks.
+7. Created `clients/design_time/src/pages/inventory/InventoryBalancesPage.tsx` — Read-only balance table with lot/location resolution, search filter, on-hand/reserved/available columns.
+8. Created `clients/design_time/src/pages/inventory/InventoryTransactionsPage.tsx` — Transaction audit log with color-coded type badges (green=receive, blue=putaway, amber=pick, purple=move, red=consume, gray=adjust), date/type filters.
+9. Created `clients/design_time/src/pages/inventory/index.ts` — Barrel export.
+10. Added `/inventory/balances` and `/inventory/transactions` routes to `App.tsx`, nav items to `Sidebar.tsx`.
+
+#### RT-CLIENT Inventory Operations (T5.21)
+11. Rewrote `clients/run_time/src/pages/InventoryPage.tsx` with three sub-tabs:
+    - **Operations** — Six action forms (Receive, Putaway, Pick, Move, Consume, Adjust) with material lot ID, location, quantity, and optional reference/notes fields. Each form calls the corresponding POST endpoint.
+    - **Balances** — On-hand/reserved/available table with search filter.
+    - **Log** — Transaction audit trail with color-coded type badges and timestamp sorting.
+12. Added `InventoryBalance` interface to `types/index.ts`.
+13. Added 8 API functions to `api/runtime.ts`: `fetchInventoryBalances()`, `receiveInventory()`, `putawayInventory()`, `pickInventory()`, `moveInventory()`, `consumeInventory()`, `adjustInventory()`, `fetchInventoryTransactions()`.
+14. Fixed 422 error: DT-CLIENT was sending `limit=500` but server max is 200 — corrected to `limit=200`.
+
+#### Inventory → WIP Genealogy Bridge (T5.22)
+15. Added `step_id: UUID | None` field to `ConsumeInventoryRequest` schema — allows operators to specify the route step where consumption occurs.
+16. Updated `InventoryTransactionService.consume()` to optionally call `MaterialLotService.consume()` when `reference_type` is `"unit"` or `"lot"` — bridges inventory tracking with WIP genealogy records.
+17. Added lazy import of `MaterialLotService` in `inventory/service.py` to avoid circular imports.
+18. Passed `step_id=body.step_id` through `inventory/routes.py`.
+19. Added 2 unit tests: `test_consume_request_with_step_id`, `test_consume_request_step_id_defaults_none`.
+
+### Files Created
+| File | Module |
+|------|--------|
+| `clients/design_time/src/types/inventory.ts` | DT-CLIENT |
+| `clients/design_time/src/api/inventory.ts` | DT-CLIENT |
+| `clients/design_time/src/hooks/useInventory.ts` | DT-CLIENT |
+| `clients/design_time/src/pages/inventory/InventoryBalancesPage.tsx` | DT-CLIENT |
+| `clients/design_time/src/pages/inventory/InventoryTransactionsPage.tsx` | DT-CLIENT |
+| `clients/design_time/src/pages/inventory/index.ts` | DT-CLIENT |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/core/inventory/schemas.py` | Added `step_id: UUID \| None` to `ConsumeInventoryRequest` |
+| `server/src/mes/core/inventory/service.py` | Bridge: `consume()` → `MaterialLotService.consume()` for unit/lot refs |
+| `server/src/mes/core/inventory/routes.py` | Pass `step_id=body.step_id` to consume call |
+| `server/src/mes/framework/plugin/manifest.py` | `pip_extra: str` → `pip_dependencies: list[str]` |
+| `server/src/mes/framework/plugin/routes.py` | Updated pip install logic; moved param validation to enable |
+| `server/pyproject.toml` | httpx-ntlm `>=2.0.0` → `>=1.4.0` |
+| 8× `plugins/*/manifest.yaml` | `pip_extra` → `pip_dependencies` |
+| `clients/design_time/src/App.tsx` | Added inventory routes |
+| `clients/design_time/src/components/layout/Sidebar.tsx` | Added inventory nav items |
+| `clients/run_time/src/types/index.ts` | Added `InventoryBalance` interface |
+| `clients/run_time/src/api/runtime.ts` | Added 8 inventory API functions |
+| `clients/run_time/src/pages/InventoryPage.tsx` | Complete rewrite: 3-tab inventory UI |
+| `server/tests/unit/test_inventory.py` | Added 2 bridge schema tests (→ 56 total) |
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D053 | `pip_dependencies: list[str]` replaces `pip_extra` in plugin manifests — explicit deps are more reliable than setuptools extras for editable installs |
+| D054 | Required plugin parameter validation runs at **enable** time, not install — params only matter when plugin is active |
+| D055 | `inventory.consume()` bridges to `MaterialLotService.consume()` when reference_type is "unit" or "lot", creating WIP genealogy records alongside inventory decrements |
+
+### Test Results
+- **1844 unit tests passing**, 12 warnings, 0 failures
+- 104 net new tests since S031 (1740 → 1844)
+
+### Where We Stopped
+- P5 **22/22 tasks complete** — all client front-end and plugin work done
+- DT-CLIENT has inventory balance viewer and transaction log
+- RT-CLIENT has full inventory operations UI (6 forms + balance table + audit log)
+- Inventory consume → WIP genealogy bridge operational
+- Plugin framework cleaned up (pip_dependencies, param validation at enable)
+- **1844 tests passing**
+- Next options:
+  1. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+  2. **Browser test** — start all 4 client dev servers and verify UI
+  3. **More vendor adapters** — Modbus TCP, D365 F&O
+  4. **Documentation update** — update ARCHITECTURE.md and SESSION_LOG.md
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
