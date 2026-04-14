@@ -160,7 +160,7 @@ c:\dev\mes_ai\.venv\Scripts\Activate.ps1
 $env:MES_AUTH_MODE = "none"
 uvicorn mes.main:app --reload --port 8082
 
-Terminal 2 — Register plugins (one time) and enable/disable
+Terminal 2 — Now use DT-CLIENT Register plugins (one time) and enable/disable
 cd c:\dev\mes_ai\server
 c:\dev\mes_ai\.venv\Scripts\Activate.ps1 for (.venv) environment
 # maybe need pip install -e ".[dev]" --quiet
@@ -215,3 +215,8 @@ Release a created order
 For a released order, create a lot via the RT-CLIENT's Orders page (click an order → "Create Lot"),
 
 product name:  mes.ai, MES.ai, MES.AI
+
+No — the simulator does not use the real adapter. They are independent implementations of the same abstract base classes (ERPInboundAdapter / ERPOutboundAdapter).
+The simulator's in-memory data in sap_data.py uses the same field names (AUFNR, MATNR, WERKS, etc.) as real SAP OData responses, so the shared transform layer processes them identically. This means the simulator exercises the full field-mapping pipeline without needing a live ERP.
+
+The Oracle pair (oracle_cloud_erp / oracle_erp_simulator) follows the exact same pattern — independent adapters sharing OracleTransformLayer.

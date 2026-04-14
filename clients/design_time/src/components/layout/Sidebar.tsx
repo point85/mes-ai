@@ -24,6 +24,9 @@ import {
   ArchiveBoxIcon,
   Square3Stack3DIcon,
   ClipboardDocumentIcon,
+  ServerIcon,
+  InboxArrowDownIcon,
+  PaperAirplaneIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -88,6 +91,27 @@ const sections: NavSection[] = [
     items: [
       { label: "Plugins", to: "/plugins", icon: PuzzlePieceIcon },
       { label: "Settings", to: "/settings", icon: Cog6ToothIcon },
+    ],
+  },
+  {
+    title: "ERP Simulator — Inbound",
+    items: [
+      { label: "ERP Dashboard", to: "/erp-simulator", icon: ServerIcon },
+      { label: "ERP Orders", to: "/erp-simulator/orders", icon: ClipboardDocumentCheckIcon },
+      { label: "ERP Materials", to: "/erp-simulator/materials", icon: BeakerIcon },
+      { label: "ERP Products", to: "/erp-simulator/products", icon: CubeIcon },
+    ],
+  },
+  {
+    title: "ERP Simulator — Outbound",
+    items: [
+      { label: "Report Completion", to: "/erp-simulator/completion", icon: InboxArrowDownIcon },
+      { label: "Report Consumption", to: "/erp-simulator/consumption", icon: InboxArrowDownIcon },
+      { label: "Report Scrap", to: "/erp-simulator/scrap", icon: InboxArrowDownIcon },
+      { label: "Report Labor", to: "/erp-simulator/labor", icon: InboxArrowDownIcon },
+      { label: "Report Downtime", to: "/erp-simulator/downtime", icon: InboxArrowDownIcon },
+      { label: "Report Quality", to: "/erp-simulator/quality", icon: InboxArrowDownIcon },
+      { label: "Confirmations", to: "/erp-simulator/confirmations", icon: PaperAirplaneIcon },
     ],
   },
 ];

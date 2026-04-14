@@ -1,0 +1,11 @@
+export { default as ERPDashboardPage } from "./ERPDashboardPage";
+export { default as ERPOrdersPage } from "./ERPOrdersPage";
+export { default as ERPMaterialsPage } from "./ERPMaterialsPage";
+export { default as ERPProductsPage } from "./ERPProductsPage";
+export { default as ERPCompletionPage } from "./ERPCompletionPage";
+export { default as ERPConsumptionPage } from "./ERPConsumptionPage";
+export { default as ERPScrapPage } from "./ERPScrapPage";
+export { default as ERPLaborPage } from "./ERPLaborPage";
+export { default as ERPDowntimePage } from "./ERPDowntimePage";
+export { default as ERPQualityPage } from "./ERPQualityPage";
+export { default as ERPConfirmationsPage } from "./ERPConfirmationsPage";

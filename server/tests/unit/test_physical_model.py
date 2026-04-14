@@ -431,3 +431,32 @@ class TestEquipmentMaterialSchemas:
     def test_update_speed_validation(self):
         with pytest.raises(Exception):
             EquipmentMaterialUpdate(design_speed=-5)
+
+
+# ─── Route registration tests ────────────────────────────────────────
+
+
+class TestEquipmentRouteRegistration:
+    """Verify the flat GET /equipment route is registered."""
+
+    def test_list_all_equipment_route_exists(self):
+        from mes.core.physical_model.routes import router
+
+        paths = [r.path for r in router.routes if hasattr(r, "path")]
+        assert "/api/v1/equipment" in paths
+
+    def test_list_all_equipment_is_get(self):
+        from mes.core.physical_model.routes import router
+
+        for route in router.routes:
+            if hasattr(route, "path") and route.path == "/api/v1/equipment":
+                assert "GET" in route.methods
+                break
+        else:
+            pytest.fail("GET /api/v1/equipment route not found")
+
+    def test_service_has_list_all_equipment(self):
+        from mes.core.physical_model.service import PhysicalModelService
+
+        assert hasattr(PhysicalModelService, "list_all_equipment")
+        assert callable(PhysicalModelService.list_all_equipment)

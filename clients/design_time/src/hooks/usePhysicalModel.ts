@@ -21,6 +21,7 @@ import {
   fetchWorkCell,
   createWorkCell,
   updateWorkCell,
+  fetchAllEquipment,
   fetchEquipment,
   createEquipment,
   updateEquipment,
@@ -41,6 +42,7 @@ const KEYS = {
   workCells: (lineId: string) => ["workCells", lineId] as const,
   workCellDetail: (id: string) => ["workCell", id] as const,
   equipment: (wcId: string) => ["equipment", wcId] as const,
+  allEquipment: ["equipment", "all"] as const,
   equipmentMaterials: (equipId: string) => ["equipmentMaterials", equipId] as const,
 };
 
@@ -190,6 +192,13 @@ export function useUpdateWorkCell() {
 }
 
 // ─── Equipment ────────────────────────────────────────────────────────
+
+export function useAllEquipment() {
+  return useQuery({
+    queryKey: KEYS.allEquipment,
+    queryFn: fetchAllEquipment,
+  });
+}
 
 export function useEquipment(wcId: string) {
   return useQuery({

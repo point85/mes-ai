@@ -1,8 +1,12 @@
 /**
  * Plugin Detail Page — shows full plugin info, parameters, config editor, and lifecycle controls.
+ *
+ * For plugins with typed parameters (e.g. AVEVA Historian), the config editor
+ * renders proper GUI controls: dropdowns for equipment/auth_mode/state_model,
+ * checkboxes for booleans, number inputs for integers, password inputs for secrets.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeftIcon,
@@ -19,7 +23,23 @@ import {
   useEnablePlugin,
   useDisablePlugin,
 } from "../../hooks/usePlugins";
+import { useAllEquipment } from "../../hooks/usePhysicalModel";
+import { useStateModels } from "../../hooks/usePerformance";
 import type { ParameterSchema } from "../../types";
+
+/** Known enum values for select controls. */
+const AUTH_MODE_OPTIONS = ["negotiate", "bearer", "basic"];
+
+/** Resolve the current value for a parameter from config_values or parameter_values. */
+function resolveValue(
+  plugin: { parameter_values: Record<string, unknown>; config_values: Record<string, unknown> },
+  param: ParameterSchema,
+): unknown {
+  // config_overrides win over install-time parameter_values
+  if (param.name in plugin.config_values) return plugin.config_values[param.name];
+  if (param.name in plugin.parameter_values) return plugin.parameter_values[param.name];
+  return param.default ?? "";
+}
 
 export default function PluginDetailPage() {
   const { pluginId } = useParams<{ pluginId: string }>();
@@ -31,33 +51,59 @@ export default function PluginDetailPage() {
   const enableMut = useEnablePlugin();
   const disableMut = useDisablePlugin();
 
-  // Parameter values for install form
-  const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  // Reference data for dropdowns
+  const { data: equipmentResp } = useAllEquipment();
+  const { data: stateModels } = useStateModels();
 
-  // Config JSON editor
-  const [configJson, setConfigJson] = useState<string | null>(null);
-  const [configError, setConfigError] = useState<string | null>(null);
+  const equipmentList = equipmentResp?.data ?? [];
+  const stateModelList = stateModels ?? [];
 
-  const configText =
-    configJson ?? (plugin ? JSON.stringify(plugin.config_values, null, 2) : "{}");
+  // Parameter values (used for both install and post-install editing)
+  const [paramValues, setParamValues] = useState<Record<string, unknown>>({});
+  const [dirty, setDirty] = useState(false);
+
+  // Seed paramValues when plugin data loads or changes
+  useEffect(() => {
+    if (!plugin) return;
+    if (plugin.installed) {
+      // For installed plugins, seed from resolved values
+      const resolved: Record<string, unknown> = {};
+      for (const p of plugin.parameters) {
+        resolved[p.name] = resolveValue(plugin, p);
+      }
+      setParamValues(resolved);
+    } else {
+      // For pre-install, seed from defaults only
+      const defaults: Record<string, unknown> = {};
+      for (const p of plugin.parameters) {
+        if (p.default != null) defaults[p.name] = p.default;
+      }
+      setParamValues(defaults);
+    }
+    setDirty(false);
+  }, [plugin]);
+
+  function setParam(name: string, value: unknown) {
+    setParamValues((prev) => ({ ...prev, [name]: value }));
+    setDirty(true);
+  }
 
   function handleSaveConfig() {
     if (!pluginId) return;
-    try {
-      const parsed = JSON.parse(configText);
-      setConfigError(null);
-      updateConfigMut.mutate(
-        { pluginId, config_overrides: parsed },
-        { onSuccess: () => setConfigJson(null) },
-      );
-    } catch {
-      setConfigError("Invalid JSON");
-    }
+    updateConfigMut.mutate(
+      { pluginId, config_overrides: paramValues },
+      { onSuccess: () => setDirty(false) },
+    );
   }
 
   function handleInstall() {
     if (!pluginId) return;
-    installMut.mutate({ pluginId, parameter_values: paramValues });
+    // Convert all values to strings for the install endpoint
+    const strValues: Record<string, string> = {};
+    for (const [k, v] of Object.entries(paramValues)) {
+      if (v != null && v !== "") strValues[k] = String(v);
+    }
+    installMut.mutate({ pluginId, parameter_values: strValues });
   }
 
   if (isLoading) {
@@ -132,13 +178,15 @@ export default function PluginDetailPage() {
         </span>
 
         {!plugin.installed ? (
-          <button
-            onClick={handleInstall}
-            disabled={installMut.isPending}
-            className="inline-flex items-center gap-1 rounded-md border border-indigo-300 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 transition-colors"
-          >
-            <ArrowDownTrayIcon className="h-3.5 w-3.5" /> Install
-          </button>
+          plugin.parameters.length === 0 ? (
+            <button
+              onClick={handleInstall}
+              disabled={installMut.isPending}
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-300 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 transition-colors"
+            >
+              <ArrowDownTrayIcon className="h-3.5 w-3.5" /> Install
+            </button>
+          ) : null
         ) : (
           <>
             {plugin.enabled ? (
@@ -199,91 +247,43 @@ export default function PluginDetailPage() {
         />
       </div>
 
-      {/* Parameters section (for install or view) */}
+      {/* Parameters section — typed form for both install and post-install editing */}
       {plugin.parameters.length > 0 && (
         <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700">Plugin Parameters</h2>
-          {!plugin.installed ? (
-            // Editable form for pre-install
-            <div className="space-y-2">
-              {plugin.parameters.map((param: ParameterSchema) => (
-                <div key={param.name} className="flex items-start gap-3">
-                  <div className="w-40">
-                    <label className="text-sm font-medium text-gray-700">
-                      {param.name}
-                      {param.required && <span className="text-red-500 ml-0.5">*</span>}
-                    </label>
-                    <p className="text-xs text-gray-400">{param.description}</p>
-                  </div>
-                  <input
-                    type={param.secret ? "password" : "text"}
-                    placeholder={param.default != null ? String(param.default) : ""}
-                    value={paramValues[param.name] ?? ""}
-                    onChange={(e) =>
-                      setParamValues((prev) => ({ ...prev, [param.name]: e.target.value }))
-                    }
-                    className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            // Read-only view for installed plugins
-            <div className="space-y-1">
-              {plugin.parameters.map((param: ParameterSchema) => (
-                <div key={param.name} className="flex items-baseline gap-2 text-sm">
-                  <span className="font-medium text-gray-700 w-40">
-                    {param.name}
-                    {param.required && <span className="text-red-500 ml-0.5">*</span>}
-                  </span>
-                  <span className="text-gray-500">
-                    {param.secret
-                      ? "••••••"
-                      : plugin.parameter_values[param.name] != null
-                        ? String(plugin.parameter_values[param.name])
-                        : param.default != null
-                          ? String(param.default)
-                          : "—"}
-                  </span>
-                  <span className="text-xs text-gray-400">({param.type})</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+          <h2 className="text-sm font-semibold text-gray-700">
+            {plugin.installed ? "Configuration" : "Plugin Parameters"}
+          </h2>
+          <div className="space-y-3">
+            {plugin.parameters.map((param: ParameterSchema) => (
+              <ParameterField
+                key={param.name}
+                param={param}
+                value={paramValues[param.name]}
+                onChange={(v) => setParam(param.name, v)}
+                equipmentList={equipmentList}
+                stateModelList={stateModelList}
+              />
+            ))}
+          </div>
 
-      {/* Config editor (only for installed plugins) */}
-      {plugin.installed && (
-        <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700">Configuration</h2>
-          {plugin.config_schema?.properties ? (
-            <div className="text-xs text-gray-400">
-              Schema keys:{" "}
-              {Object.keys(
-                plugin.config_schema.properties as Record<string, unknown>,
-              ).join(", ")}
-            </div>
-          ) : null}
-          <textarea
-            value={configText}
-            onChange={(e) => {
-              setConfigJson(e.target.value);
-              setConfigError(null);
-            }}
-            rows={8}
-            className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-sm text-gray-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-          />
-          {configError && (
-            <p className="text-xs text-red-600">{configError}</p>
+          {!plugin.installed ? (
+            <button
+              onClick={handleInstall}
+              disabled={installMut.isPending}
+              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors disabled:opacity-50"
+            >
+              <ArrowDownTrayIcon className="h-4 w-4" />
+              {installMut.isPending ? "Installing…" : "Install"}
+            </button>
+          ) : (
+            <button
+              onClick={handleSaveConfig}
+              disabled={updateConfigMut.isPending || !dirty}
+              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors disabled:opacity-50"
+            >
+              {updateConfigMut.isPending ? "Saving…" : "Save Configuration"}
+            </button>
           )}
-          <button
-            onClick={handleSaveConfig}
-            disabled={updateConfigMut.isPending}
-            className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors disabled:opacity-50"
-          >
-            {updateConfigMut.isPending ? "Saving…" : "Save Configuration"}
-          </button>
         </div>
       )}
 
@@ -326,4 +326,170 @@ function InfoCard({ label, value }: { label: string; value: string }) {
       <dd className="mt-1 text-sm text-gray-700">{value}</dd>
     </div>
   );
+}
+
+// ─── Typed Parameter Field ───────────────────────────────────────────
+
+interface EquipmentOption {
+  id: string;
+  name: string;
+  code: string;
+}
+
+interface StateModelOption {
+  model_id: string;
+  name: string;
+}
+
+interface ParameterFieldProps {
+  param: ParameterSchema;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  equipmentList: EquipmentOption[];
+  stateModelList: StateModelOption[];
+}
+
+const INPUT_CLS =
+  "flex-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500";
+const SELECT_CLS =
+  "flex-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500";
+
+function ParameterField({
+  param,
+  value,
+  onChange,
+  equipmentList,
+  stateModelList,
+}: ParameterFieldProps) {
+  const strVal = value != null ? String(value) : "";
+
+  // Determine control type based on parameter name, type, and semantic hints
+  const control = resolveControl(param);
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className="w-48 shrink-0">
+        <label className="text-sm font-medium text-gray-700">
+          {formatLabel(param.name)}
+          {param.required && <span className="text-red-500 ml-0.5">*</span>}
+        </label>
+        <p className="text-xs text-gray-400 mt-0.5">{param.description}</p>
+      </div>
+
+      {control === "equipment_select" ? (
+        <select
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={SELECT_CLS}
+        >
+          <option value="">— Select equipment —</option>
+          {equipmentList.map((eq) => (
+            <option key={eq.id} value={eq.id}>
+              {eq.name} ({eq.code})
+            </option>
+          ))}
+        </select>
+      ) : control === "auth_mode_select" ? (
+        <select
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={SELECT_CLS}
+        >
+          <option value="">— Select auth mode —</option>
+          {AUTH_MODE_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      ) : control === "state_model_select" ? (
+        <select
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={SELECT_CLS}
+        >
+          <option value="">— Select state model —</option>
+          {stateModelList.map((sm) => (
+            <option key={sm.model_id} value={sm.model_id}>
+              {sm.name} ({sm.model_id})
+            </option>
+          ))}
+        </select>
+      ) : control === "boolean_checkbox" ? (
+        <label className="flex items-center gap-2 py-1.5">
+          <input
+            type="checkbox"
+            checked={value === true || value === "true"}
+            onChange={(e) => onChange(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          <span className="text-sm text-gray-600">
+            {value === true || value === "true" ? "Enabled" : "Disabled"}
+          </span>
+        </label>
+      ) : control === "number_input" ? (
+        <input
+          type="number"
+          value={strVal}
+          onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+          placeholder={param.default != null ? String(param.default) : ""}
+          className={INPUT_CLS}
+        />
+      ) : control === "password_input" ? (
+        <input
+          type="password"
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="••••••"
+          autoComplete="off"
+          className={INPUT_CLS}
+        />
+      ) : (
+        <input
+          type="text"
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={param.default != null ? String(param.default) : ""}
+          className={INPUT_CLS}
+        />
+      )}
+    </div>
+  );
+}
+
+type ControlType =
+  | "equipment_select"
+  | "auth_mode_select"
+  | "state_model_select"
+  | "boolean_checkbox"
+  | "number_input"
+  | "password_input"
+  | "text_input";
+
+function resolveControl(param: ParameterSchema): ControlType {
+  // Secret fields always get password input
+  if (param.secret) return "password_input";
+
+  // Semantic matching by parameter name
+  if (param.name === "equipment_id") return "equipment_select";
+  if (param.name === "auth_mode") return "auth_mode_select";
+  if (param.name === "state_model_id") return "state_model_select";
+
+  // Type-based matching
+  if (param.type === "boolean") return "boolean_checkbox";
+  if (param.type === "integer" || param.type === "number") return "number_input";
+
+  return "text_input";
+}
+
+/** Convert snake_case parameter name to a readable label. */
+function formatLabel(name: string): string {
+  return name
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\bId\b/, "ID")
+    .replace(/\bUrl\b/, "URL")
+    .replace(/\bFqn\b/, "FQN")
+    .replace(/\bSsl\b/, "SSL")
+    .replace(/\bSec\b/, "(sec)");
 }

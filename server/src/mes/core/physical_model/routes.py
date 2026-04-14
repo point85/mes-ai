@@ -289,6 +289,22 @@ async def update_work_cell(
 # ─── Equipment ────────────────────────────────────────────────────────
 
 
+@router.get("/equipment")
+async def list_all_equipment(
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """List all active equipment across all work cells."""
+    items, cursor, has_more = await svc.list_all_equipment(session, params)
+    return list_response(
+        [EquipmentRead.model_validate(e).model_dump() for e in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
+
+
 @router.get("/work-cells/{wc_id}/equipment")
 async def list_equipment(
     wc_id: UUID,

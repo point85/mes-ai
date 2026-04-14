@@ -160,6 +160,14 @@ export async function updateWorkCell(
 
 // ─── Equipment ────────────────────────────────────────────────────────
 
+export async function fetchAllEquipment(): Promise<ApiListResponse<Equipment>> {
+  const { data } = await api.get<ApiListResponse<Equipment>>(
+    "/equipment",
+    { params: { limit: "200" } },
+  );
+  return data;
+}
+
 export async function fetchEquipment(
   wcId: string,
 ): Promise<ApiListResponse<Equipment>> {

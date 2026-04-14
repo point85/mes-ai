@@ -311,6 +311,15 @@ class PhysicalModelService:
     # ─── Equipment operations ────────────────────────────────────────
 
     @staticmethod
+    async def list_all_equipment(
+        session: AsyncSession,
+        params: PaginationParams,
+    ) -> tuple[Sequence[Equipment], str | None, bool]:
+        """List all active equipment across all work cells."""
+        stmt = select(Equipment).where(Equipment.is_active.is_(True))
+        return await paginate_query(session, stmt, Equipment, params)
+
+    @staticmethod
     async def list_equipment_in_work_cell(
         session: AsyncSession,
         wc_id: UUID,
