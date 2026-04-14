@@ -8,6 +8,8 @@ import {
   createStorageLocation,
   updateStorageLocation,
   deleteStorageLocation,
+  fetchInventoryBalances,
+  fetchInventoryTransactions,
 } from "../api/inventory";
 import type { StorageLocationCreate, StorageLocationUpdate } from "../types";
 
@@ -15,6 +17,12 @@ const KEYS = {
   locations: ["storageLocations"] as const,
   locationList: (type?: string, siteId?: string) =>
     ["storageLocations", "list", type, siteId] as const,
+  balances: ["inventoryBalances"] as const,
+  balanceList: (lotId?: string, locId?: string) =>
+    ["inventoryBalances", "list", lotId, locId] as const,
+  transactions: ["inventoryTransactions"] as const,
+  transactionList: (lotId?: string, locId?: string, txnType?: string) =>
+    ["inventoryTransactions", "list", lotId, locId, txnType] as const,
 };
 
 export function useStorageLocations(locationType?: string, siteId?: string) {
@@ -46,5 +54,27 @@ export function useDeleteStorageLocation() {
   return useMutation({
     mutationFn: (id: string) => deleteStorageLocation(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.locations }),
+  });
+}
+
+// ─── Inventory Balances ───────────────────────────────────────────────
+
+export function useInventoryBalances(materialLotId?: string, locationId?: string) {
+  return useQuery({
+    queryKey: KEYS.balanceList(materialLotId, locationId),
+    queryFn: () => fetchInventoryBalances(materialLotId, locationId),
+  });
+}
+
+// ─── Inventory Transactions ───────────────────────────────────────────
+
+export function useInventoryTransactions(
+  materialLotId?: string,
+  locationId?: string,
+  transactionType?: string,
+) {
+  return useQuery({
+    queryKey: KEYS.transactionList(materialLotId, locationId, transactionType),
+    queryFn: () => fetchInventoryTransactions(materialLotId, locationId, transactionType),
   });
 }

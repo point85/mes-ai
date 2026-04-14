@@ -7,6 +7,8 @@ import type {
   StorageLocation,
   StorageLocationCreate,
   StorageLocationUpdate,
+  InventoryBalance,
+  InventoryTransaction,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -59,4 +61,38 @@ export async function updateStorageLocation(
 
 export async function deleteStorageLocation(id: string): Promise<void> {
   await api.delete(`/storage-locations/${id}`);
+}
+
+// ─── Inventory Balances ───────────────────────────────────────────────
+
+export async function fetchInventoryBalances(
+  materialLotId?: string,
+  locationId?: string,
+): Promise<ApiListResponse<InventoryBalance>> {
+  const params: Record<string, string> = { limit: "200" };
+  if (materialLotId) params.material_lot_id = materialLotId;
+  if (locationId) params.location_id = locationId;
+  const { data } = await api.get<ApiListResponse<InventoryBalance>>(
+    "/inventory/balances",
+    { params },
+  );
+  return data;
+}
+
+// ─── Inventory Transactions ───────────────────────────────────────────
+
+export async function fetchInventoryTransactions(
+  materialLotId?: string,
+  locationId?: string,
+  transactionType?: string,
+): Promise<ApiListResponse<InventoryTransaction>> {
+  const params: Record<string, string> = { limit: "200" };
+  if (materialLotId) params.material_lot_id = materialLotId;
+  if (locationId) params.location_id = locationId;
+  if (transactionType) params.transaction_type = transactionType;
+  const { data } = await api.get<ApiListResponse<InventoryTransaction>>(
+    "/inventory/transactions",
+    { params },
+  );
+  return data;
 }

@@ -24,6 +24,7 @@ import { DispatchPage } from "./pages/dispatch";
 import { PluginListPage, PluginDetailPage } from "./pages/plugins";
 import { ReasonListPage } from "./pages/reasons";
 import { StorageLocationListPage } from "./pages/storage-locations";
+import { InventoryBalancesPage, InventoryTransactionsPage } from "./pages/inventory";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +64,8 @@ export default function App() {
             <Route path="/genealogy" element={<GenealogyViewerPage />} />
             <Route path="/dispatch" element={<DispatchPage />} />
             <Route path="/storage-locations" element={<StorageLocationListPage />} />
+            <Route path="/inventory/balances" element={<InventoryBalancesPage />} />
+            <Route path="/inventory/transactions" element={<InventoryTransactionsPage />} />
             {/* Plugin Management */}
             <Route path="/plugins" element={<PluginListPage />} />
             <Route path="/plugins/:pluginId" element={<PluginDetailPage />} />
