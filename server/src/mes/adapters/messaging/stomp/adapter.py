@@ -54,7 +54,16 @@ class STOMPMessagingAdapter:
 
     async def connect(self) -> None:
         """Connect to broker, subscribe to inbound destinations and MES events."""
-        await self._client.connect()
+        try:
+            await self._client.connect()
+        except Exception:
+            logger.warning(
+                "STOMP broker not reachable at %s:%d — plugin will remain inactive. "
+                "Disable the stomp-jms plugin or start a broker, then restart.",
+                self._settings.STOMP_BROKER_HOST,
+                self._settings.STOMP_BROKER_PORT,
+            )
+            return
         self._connected = True
 
         # Subscribe to inbound broker destinations

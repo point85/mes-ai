@@ -120,7 +120,7 @@ class STOMPClient:
                     self._settings.STOMP_HEARTBEAT_SEND_MS,
                     self._settings.STOMP_HEARTBEAT_RECV_MS,
                 ),
-                reconnect_attempts_max=self._settings.STOMP_RECONNECT_ATTEMPTS,
+                reconnect_attempts_max=0,
                 reconnect_sleep_initial=self._settings.STOMP_RECONNECT_DELAY_SEC,
             )
             self._conn.set_ssl(host_and_port)
@@ -131,7 +131,7 @@ class STOMPClient:
                     self._settings.STOMP_HEARTBEAT_SEND_MS,
                     self._settings.STOMP_HEARTBEAT_RECV_MS,
                 ),
-                reconnect_attempts_max=self._settings.STOMP_RECONNECT_ATTEMPTS,
+                reconnect_attempts_max=0,
                 reconnect_sleep_initial=self._settings.STOMP_RECONNECT_DELAY_SEC,
             )
 
