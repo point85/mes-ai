@@ -288,6 +288,17 @@ async def get_plugin_detail(
             required=p.required,
             default=p.default,
             secret=p.secret,
+            items=[
+                ParameterSchema(
+                    name=item.name,
+                    type=item.type,
+                    description=item.description,
+                    required=item.required,
+                    default=item.default,
+                    secret=item.secret,
+                )
+                for item in p.items
+            ],
         ).model_dump()
         for p in info.manifest.parameters
     ]

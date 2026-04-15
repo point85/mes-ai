@@ -46,11 +46,12 @@ class ManifestParameter(BaseModel):
     """
 
     name: str = Field(..., description="Parameter key (e.g. 'broker_url')")
-    type: str = Field("string", description="Data type: string, number, boolean, integer")
+    type: str = Field("string", description="Data type: string, number, boolean, integer, array")
     description: str = Field("", description="Human-readable description")
     required: bool = Field(False, description="Must be provided at install time")
     default: Any = Field(None, description="Default value (only for optional parameters)")
     secret: bool = Field(False, description="Whether to mask this value in UI (e.g. passwords)")
+    items: list[ManifestParameter] = Field(default_factory=list, description="Schema for each element when type=array")
 
 
 class ManifestCompanion(BaseModel):

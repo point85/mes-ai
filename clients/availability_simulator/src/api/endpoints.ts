@@ -99,6 +99,18 @@ export async function simulateMqttState(
   return res.data.data;
 }
 
+export async function simulateHistorianState(
+  equipId: string,
+  state: string,
+  tagFqn = "Simulated.StateTag",
+): Promise<EquipmentStateLog> {
+  const res = await api.post<ApiResponse<EquipmentStateLog>>(
+    `/performance/equipment/${equipId}/simulate-historian-state`,
+    { tag_fqn: tagFqn, state },
+  );
+  return res.data.data;
+}
+
 export async function simulateMqttCounts(
   equipId: string,
   processedCount: number,

@@ -218,6 +218,21 @@ class SimulateMqttCountRequest(BaseModel):
     )
 
 
+class SimulateHistorianStateRequest(BaseModel):
+    """Schema for simulating an AVEVA Historian tag data-change event."""
+
+    tag_fqn: str = Field(
+        ...,
+        max_length=255,
+        description="Fully qualified tag name (e.g. 'Baytown.Line1_State')",
+    )
+    state: str = Field(
+        ...,
+        max_length=50,
+        description="State name string (e.g. 'Execute', 'Idle', 'Stopped')",
+    )
+
+
 class EquipmentCurrentStateRead(BaseModel):
     """Schema for returning the current state of equipment (or default if no model)."""
 

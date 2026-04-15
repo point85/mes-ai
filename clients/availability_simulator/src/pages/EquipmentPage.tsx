@@ -11,6 +11,7 @@ import {
   transitionEquipment,
   simulateOpcuaState,
   simulateMqttState,
+  simulateHistorianState,
   simulateMqttCounts,
   incrementCounter,
   fetchCounters,
@@ -91,6 +92,13 @@ export default function EquipmentPage() {
   const [mqttCountBusy, setMqttCountBusy] = useState(false);
   const [mqttCountResult, setMqttCountResult] = useState<string | null>(null);
   const [mqttCountError, setMqttCountError] = useState<string | null>(null);
+
+  // Historian simulation state
+  const [histTagFqn, setHistTagFqn] = useState("Simulated.StateTag");
+  const [histState, setHistState] = useState("");
+  const [histBusy, setHistBusy] = useState(false);
+  const [histResult, setHistResult] = useState<string | null>(null);
+  const [histError, setHistError] = useState<string | null>(null);
 
   // Load sites + state models + reasons on mount
   useEffect(() => {
@@ -266,6 +274,26 @@ export default function EquipmentPage() {
       setMqttError(`Simulated MQTT message failed: ${msg}`);
     } finally {
       setMqttBusy(false);
+    }
+  }
+
+  async function simulateHistorian() {
+    if (!selectedEquip || !histState) return;
+    setHistBusy(true);
+    setHistError(null);
+    setHistResult(null);
+    try {
+      const log = await simulateHistorianState(selectedEquip.id, histState, histTagFqn);
+      setHistResult(
+        `Historian → "${log.state}" (tag=${histTagFqn}) at ${new Date(log.started_at).toLocaleTimeString()}`,
+      );
+      const st = await fetchCurrentState(selectedEquip.id);
+      setCurrent(st);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setHistError(`Simulated Historian event failed: ${msg}`);
+    } finally {
+      setHistBusy(false);
     }
   }
 
@@ -703,6 +731,75 @@ export default function EquipmentPage() {
           {mqttError && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
               {mqttError}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Historian State Simulation Panel ─────────────────────── */}
+
+      {selectedEquip && current && (
+        <div className="bg-white rounded-lg border p-4 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-600 uppercase">
+            Simulate Historian State Change — {selectedEquip.code}
+          </h2>
+          <p className="text-xs text-gray-500">
+            Simulates an AVEVA Historian tag value change. Select a state from
+            the equipment's state model and provide the fully-qualified tag name.
+          </p>
+
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col text-xs font-medium text-gray-600">
+              Tag FQN
+              <input
+                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-72"
+                value={histTagFqn}
+                onChange={(e) => setHistTagFqn(e.target.value)}
+              />
+            </label>
+
+            <label className="flex flex-col text-xs font-medium text-gray-600">
+              State
+              {fullModel ? (
+                <select
+                  className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                  value={histState}
+                  onChange={(e) => setHistState(e.target.value)}
+                >
+                  <option value="">— select —</option>
+                  {fullModel.states.map((s) => (
+                    <option key={s.name} value={s.name}>
+                      {s.name} ({s.dispatch_category})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-40"
+                  value={histState}
+                  onChange={(e) => setHistState(e.target.value)}
+                  placeholder="e.g. Running"
+                />
+              )}
+            </label>
+
+            <button
+              className="px-4 py-1.5 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
+              onClick={simulateHistorian}
+              disabled={histBusy || !histState}
+            >
+              {histBusy ? "Sending…" : "Send Historian Event"}
+            </button>
+          </div>
+
+          {histResult && (
+            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+              {histResult}
+            </div>
+          )}
+          {histError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+              {histError}
             </div>
           )}
         </div>

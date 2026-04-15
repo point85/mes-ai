@@ -11,6 +11,7 @@ export interface ParameterSchema {
   required: boolean;
   default: unknown;
   secret: boolean;
+  items?: ParameterSchema[];
 }
 
 // ─── Plugin summary (list view) ────────────────────────────────────────

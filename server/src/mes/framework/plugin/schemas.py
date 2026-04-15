@@ -23,6 +23,7 @@ class ParameterSchema(BaseModel):
     required: bool = False
     default: Any = None
     secret: bool = False
+    items: list[ParameterSchema] = Field(default_factory=list)
 
 
 # ─── Response schemas ──────────────────────────────────────────────────

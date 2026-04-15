@@ -5,13 +5,25 @@ All settings are read from environment variables with MES_ prefix.
 The Historian Data REST API v2 is OData-based and uses FQN
 (datasource.tagname) addressing.
 
+Supports multiple equipment mappings per historian instance — a single
+historian server typically has tags from many pieces of equipment.
+
 Ref: https://docs.aveva.com/bundle/sp-historian/page/338478.html
 """
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class EquipmentMapping(BaseModel):
+    """One equipment-to-tag mapping within a historian instance."""
+
+    equipment_id: str = ""
+    state_tag_fqn: str = ""
+    state_model_id: str = ""
+    tag_prefix: str = ""
 
 
 class AVEVAHistorianSettings(BaseSettings):
@@ -27,10 +39,6 @@ class AVEVAHistorianSettings(BaseSettings):
         MES_AVEVA_VERIFY_SSL        verify SSL certificate
         MES_AVEVA_TIMEOUT_SEC       HTTP request timeout
         MES_AVEVA_DATASOURCE        default data source name (e.g. Baytown)
-        MES_AVEVA_EQUIPMENT_ID      MES equipment UUID this historian maps to
-        MES_AVEVA_TAG_PREFIX        FQN prefix for tag filtering
-        MES_AVEVA_STATE_TAG_FQN     FQN for equipment state monitoring
-        MES_AVEVA_STATE_MODEL_ID    state model (packml, semi_e10)
         MES_AVEVA_POLL_INTERVAL_SEC polling interval for subscriptions
     """
 
@@ -43,17 +51,14 @@ class AVEVAHistorianSettings(BaseSettings):
     AVEVA_VERIFY_SSL: bool = True
     AVEVA_TIMEOUT_SEC: int = Field(default=30, ge=1)
 
-    # Data source and equipment identity
+    # Data source
     AVEVA_DATASOURCE: str = ""  # Default historian data source
-    AVEVA_EQUIPMENT_ID: str = ""  # MES equipment id this historian maps to
-    AVEVA_TAG_PREFIX: str = ""  # Filter prefix for FQN browsing
-
-    # State monitoring
-    AVEVA_STATE_TAG_FQN: str = ""  # FQN for equipment state tag
-    AVEVA_STATE_MODEL_ID: str = ""  # packml | semi_e10
 
     # Polling
     AVEVA_POLL_INTERVAL_SEC: int = Field(default=5, ge=1)
+
+    # Equipment mappings (populated from plugin config, not env vars)
+    AVEVA_EQUIPMENT_MAPPINGS: list[EquipmentMapping] = Field(default_factory=list)
 
     model_config = SettingsConfigDict(
         env_prefix="MES_",

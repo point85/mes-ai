@@ -14,6 +14,8 @@ import {
   StopIcon,
   ArrowDownTrayIcon,
   TrashIcon,
+  PlusIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
   usePlugin,
@@ -254,16 +256,27 @@ export default function PluginDetailPage() {
             {plugin.installed ? "Configuration" : "Plugin Parameters"}
           </h2>
           <div className="space-y-3">
-            {plugin.parameters.map((param: ParameterSchema) => (
-              <ParameterField
-                key={param.name}
-                param={param}
-                value={paramValues[param.name]}
-                onChange={(v) => setParam(param.name, v)}
-                equipmentList={equipmentList}
-                stateModelList={stateModelList}
-              />
-            ))}
+            {plugin.parameters.map((param: ParameterSchema) =>
+              param.type === "array" && param.items?.length ? (
+                <ParameterArrayField
+                  key={param.name}
+                  param={param}
+                  value={paramValues[param.name]}
+                  onChange={(v) => setParam(param.name, v)}
+                  equipmentList={equipmentList}
+                  stateModelList={stateModelList}
+                />
+              ) : (
+                <ParameterField
+                  key={param.name}
+                  param={param}
+                  value={paramValues[param.name]}
+                  onChange={(v) => setParam(param.name, v)}
+                  equipmentList={equipmentList}
+                  stateModelList={stateModelList}
+                />
+              ),
+            )}
           </div>
 
           {!plugin.installed ? (
@@ -453,6 +466,106 @@ function ParameterField({
           className={INPUT_CLS}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Typed Array Parameter Field ─────────────────────────────────────
+
+function ParameterArrayField({
+  param,
+  value,
+  onChange,
+  equipmentList,
+  stateModelList,
+}: ParameterFieldProps) {
+  // Value is stored as a JSON string or an array
+  const items: Record<string, unknown>[] = (() => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string" && value) {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        /* not JSON */
+      }
+    }
+    return [];
+  })();
+
+  const itemSchemas = param.items ?? [];
+
+  function updateItem(index: number, field: string, fieldValue: unknown) {
+    const next = items.map((item, i) =>
+      i === index ? { ...item, [field]: fieldValue } : item,
+    );
+    onChange(JSON.stringify(next));
+  }
+
+  function addItem() {
+    const blank: Record<string, unknown> = {};
+    for (const s of itemSchemas) {
+      blank[s.name] = s.default ?? "";
+    }
+    onChange(JSON.stringify([...items, blank]));
+  }
+
+  function removeItem(index: number) {
+    onChange(JSON.stringify(items.filter((_, i) => i !== index)));
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <label className="text-sm font-medium text-gray-700">
+            {formatLabel(param.name)}
+          </label>
+          <p className="text-xs text-gray-400">{param.description}</p>
+        </div>
+        <button
+          type="button"
+          onClick={addItem}
+          className="inline-flex items-center gap-1 rounded-md border border-indigo-300 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 transition-colors"
+        >
+          <PlusIcon className="h-3.5 w-3.5" /> Add mapping
+        </button>
+      </div>
+
+      {items.length === 0 && (
+        <p className="text-xs text-gray-400 italic">No mappings configured yet.</p>
+      )}
+
+      {items.map((item, idx) => (
+        <div
+          key={idx}
+          className="relative rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2"
+        >
+          <button
+            type="button"
+            onClick={() => removeItem(idx)}
+            className="absolute top-2 right-2 rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+            title="Remove mapping"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </button>
+
+          <span className="text-xs font-semibold text-gray-500 uppercase">
+            Mapping {idx + 1}
+          </span>
+
+          {itemSchemas.map((itemParam) => (
+            <ParameterField
+              key={itemParam.name}
+              param={itemParam}
+              value={item[itemParam.name]}
+              onChange={(v) => updateItem(idx, itemParam.name, v)}
+              equipmentList={equipmentList}
+              stateModelList={stateModelList}
+            />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

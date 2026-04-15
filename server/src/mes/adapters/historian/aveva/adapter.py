@@ -13,6 +13,10 @@ Subscriptions are poll-based: a background task reads current values
 at a configurable interval since the REST API has no push/WebSocket
 capability.
 
+A single adapter instance connects to one historian server and can
+serve tags for many pieces of equipment. Per-equipment state tracking
+is handled by the plugin layer via ``equipment_mappings``.
+
 Ref: https://docs.aveva.com/bundle/sp-historian/page/338478.html
 """
 
@@ -104,6 +108,10 @@ class AVEVAHistorianAdapter(EquipmentAdapter):
     tag-based read/subscribe operations following the EquipmentAdapter
     interface contract.
 
+    A single adapter instance connects to one historian server. Multiple
+    pieces of equipment can share the same connection — per-equipment
+    state monitoring is managed at the plugin level.
+
     Extended methods (``get_analog_summary``, ``get_state_summary``,
     ``get_historical``) expose historian-specific capabilities beyond
     the standard EquipmentAdapter interface.
@@ -126,8 +134,9 @@ class AVEVAHistorianAdapter(EquipmentAdapter):
         self._poll_task: asyncio.Task[None] | None = None
 
     @property
-    def equipment_id(self) -> str:
-        return self._settings.AVEVA_EQUIPMENT_ID
+    def equipment_mappings(self) -> list:
+        """Return configured equipment mappings."""
+        return self._settings.AVEVA_EQUIPMENT_MAPPINGS
 
     # ── Lifecycle ─────────────────────────────────────────────
 
@@ -226,23 +235,30 @@ class AVEVAHistorianAdapter(EquipmentAdapter):
         if removed:
             logger.info("Unsubscribed from %s", removed.fqn)
 
-    async def get_equipment_state(self) -> EquipmentState:
+    async def get_equipment_state(
+        self,
+        equipment_id: str = "",
+        state_tag_fqn: str = "",
+    ) -> EquipmentState:
         """
-        Read equipment state from the configured state tag FQN.
+        Read equipment state from a state tag FQN.
 
-        If no state tag is configured, returns "unknown" state.
+        Args:
+            equipment_id: MES equipment UUID string.
+            state_tag_fqn: Fully qualified historian tag for the state.
+
+        If no state tag is provided, returns "unknown" state.
         """
-        state_fqn = self._settings.AVEVA_STATE_TAG_FQN
-        if not state_fqn:
+        if not state_tag_fqn:
             return EquipmentState(
-                equipment_id=self.equipment_id,
+                equipment_id=equipment_id,
                 state="unknown",
             )
 
-        result = await self._client.get_current_value(state_fqn)
+        result = await self._client.get_current_value(state_tag_fqn)
         if result is None:
             return EquipmentState(
-                equipment_id=self.equipment_id,
+                equipment_id=equipment_id,
                 state="unknown",
                 dispatch_category="unavailable_unplanned",
                 oee_bucket="downtime_unplanned",
@@ -253,7 +269,7 @@ class AVEVAHistorianAdapter(EquipmentAdapter):
         state = state_raw.strip().lower()
 
         return EquipmentState(
-            equipment_id=self.equipment_id,
+            equipment_id=equipment_id,
             state=state,
             dispatch_category=_STATE_DISPATCH_MAP.get(state, "available"),
             oee_bucket=_STATE_OEE_MAP.get(state, "uptime_non_value"),
@@ -266,7 +282,7 @@ class AVEVAHistorianAdapter(EquipmentAdapter):
         Args:
             root: Data source name or FQN prefix to filter by.
         """
-        prefix = root or self._settings.AVEVA_TAG_PREFIX
+        prefix = root or ""
         if prefix:
             tag_filter = f"startswith(FQN,'{prefix}')"
             raw_tags = await self._client.get_tags(tag_filter=tag_filter)

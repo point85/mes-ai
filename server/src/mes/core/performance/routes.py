@@ -15,6 +15,7 @@ Endpoints:
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-opcua-state  Simulate OPC-UA state change
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-mqtt-state   Simulate MQTT state message
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-mqtt-counts  Simulate MQTT production counts
+- POST   /api/v1/performance/equipment/{equip_id}/simulate-historian-state  Simulate AVEVA Historian tag change
 - GET    /api/v1/performance/oee                                Calculate OEE for equipment + time range
 - GET    /api/v1/performance/equipment-states                   Query equipment state history
 - POST   /api/v1/performance/equipment-states                   Record equipment state change
@@ -52,6 +53,7 @@ from .schemas import (
     EquipmentTransitionRequest,
     ManualTransitionRequest,
     OEEResult,
+    SimulateHistorianStateRequest,
     SimulateMqttCountRequest,
     SimulateMqttStateRequest,
     SimulateOpcuaStateRequest,
@@ -380,6 +382,30 @@ async def simulate_mqtt_counts(
     )
 
     return success_response(ProductionCounterRead.model_validate(counter).model_dump())
+
+
+@router.post("/equipment/{equip_id}/simulate-historian-state", status_code=201)
+async def simulate_historian_state(
+    equip_id: UUID,
+    body: SimulateHistorianStateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """
+    Simulate an AVEVA Historian tag data-change event.
+
+    Accepts a tag FQN and state name string. Triggers a transition
+    through the EquipmentStateEngine — the same path as a real
+    historian polling callback from the AVEVA Historian plugin.
+    """
+    log = await EquipmentStateEngine.transition_equipment(
+        session,
+        equipment_id=equip_id,
+        new_state=body.state,
+        notes=f"Simulated AVEVA Historian tag {body.tag_fqn} value={body.state}",
+    )
+    await session.commit()
+    return success_response(EquipmentStateLogRead.model_validate(log).model_dump())
 
 
 @router.post("/equipment/{equip_id}/manual-transition", status_code=201)

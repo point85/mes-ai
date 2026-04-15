@@ -31,10 +31,6 @@ parameters:
       (e.g. "Baytown"). Tags without a dot are prefixed with
       datasource.tagname automatically.
     required: true
-  - name: equipment_id
-    type: string
-    description: Equipment identifier for state tracking
-    required: true
   - name: auth_mode
     type: string
     description: >
@@ -66,24 +62,6 @@ parameters:
     description: HTTP request timeout in seconds
     required: false
     default: 30
-  - name: tag_prefix
-    type: string
-    description: >
-      FQN prefix to scope browse_tags results
-      (e.g. "Baytown.Line1_")
-    required: false
-  - name: state_tag_fqn
-    type: string
-    description: >
-      Fully qualified name of the tag that represents equipment state
-      (e.g. "Baytown.Line1_State"). Requires state_model_id.
-    required: false
-  - name: state_model_id
-    type: string
-    description: >
-      State model to use for transitions driven by state_tag changes
-      (e.g. "packml", "semi_e10"). Requires state_tag_fqn.
-    required: false
   - name: poll_interval_sec
     type: integer
     description: >
@@ -92,6 +70,36 @@ parameters:
       are polled at this rate.
     required: false
     default: 5
+  - name: equipment_mappings
+    type: array
+    description: >
+      List of equipment-to-tag mappings. Each entry binds one MES
+      equipment to its historian state tag for automatic state
+      transition tracking. A single historian instance typically
+      serves tags from multiple pieces of equipment.
+    required: false
+    items:
+      - name: equipment_id
+        type: string
+        description: MES equipment UUID
+        required: true
+      - name: state_tag_fqn
+        type: string
+        description: >
+          Fully qualified name of the tag that represents equipment
+          state (e.g. "Baytown.Line1_State")
+        required: true
+      - name: state_model_id
+        type: string
+        description: >
+          State model for transitions (e.g. "packml", "semi_e10")
+        required: true
+      - name: tag_prefix
+        type: string
+        description: >
+          FQN prefix to scope browse_tags for this equipment
+          (e.g. "Baytown.Line1_")
+        required: false
 
 permissions: []
 required_core_permissions: []

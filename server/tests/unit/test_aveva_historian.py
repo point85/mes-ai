@@ -38,14 +38,14 @@ class TestAVEVAHistorianSettings:
         assert s.AVEVA_VERIFY_SSL is True
         assert s.AVEVA_TIMEOUT_SEC == 30
         assert s.AVEVA_DATASOURCE == ""
-        assert s.AVEVA_EQUIPMENT_ID == ""
-        assert s.AVEVA_TAG_PREFIX == ""
-        assert s.AVEVA_STATE_TAG_FQN == ""
-        assert s.AVEVA_STATE_MODEL_ID == ""
+        assert s.AVEVA_EQUIPMENT_MAPPINGS == []
         assert s.AVEVA_POLL_INTERVAL_SEC == 5
 
     def test_custom_values(self):
-        from mes.adapters.historian.aveva.config import AVEVAHistorianSettings
+        from mes.adapters.historian.aveva.config import (
+            AVEVAHistorianSettings,
+            EquipmentMapping,
+        )
 
         s = AVEVAHistorianSettings(
             _env_file=None,
@@ -57,10 +57,14 @@ class TestAVEVAHistorianSettings:
             AVEVA_VERIFY_SSL=False,
             AVEVA_TIMEOUT_SEC=60,
             AVEVA_DATASOURCE="Baytown",
-            AVEVA_EQUIPMENT_ID="abc-123",
-            AVEVA_TAG_PREFIX="Baytown.Line1_",
-            AVEVA_STATE_TAG_FQN="Baytown.Line1_State",
-            AVEVA_STATE_MODEL_ID="packml",
+            AVEVA_EQUIPMENT_MAPPINGS=[
+                EquipmentMapping(
+                    equipment_id="abc-123",
+                    state_tag_fqn="Baytown.Line1_State",
+                    state_model_id="packml",
+                    tag_prefix="Baytown.Line1_",
+                ),
+            ],
             AVEVA_POLL_INTERVAL_SEC=10,
         )
         assert s.AVEVA_BASE_URL == "http://historian:32569/Historian/v2"
@@ -70,10 +74,11 @@ class TestAVEVAHistorianSettings:
         assert s.AVEVA_VERIFY_SSL is False
         assert s.AVEVA_TIMEOUT_SEC == 60
         assert s.AVEVA_DATASOURCE == "Baytown"
-        assert s.AVEVA_EQUIPMENT_ID == "abc-123"
-        assert s.AVEVA_TAG_PREFIX == "Baytown.Line1_"
-        assert s.AVEVA_STATE_TAG_FQN == "Baytown.Line1_State"
-        assert s.AVEVA_STATE_MODEL_ID == "packml"
+        assert len(s.AVEVA_EQUIPMENT_MAPPINGS) == 1
+        assert s.AVEVA_EQUIPMENT_MAPPINGS[0].equipment_id == "abc-123"
+        assert s.AVEVA_EQUIPMENT_MAPPINGS[0].state_tag_fqn == "Baytown.Line1_State"
+        assert s.AVEVA_EQUIPMENT_MAPPINGS[0].state_model_id == "packml"
+        assert s.AVEVA_EQUIPMENT_MAPPINGS[0].tag_prefix == "Baytown.Line1_"
         assert s.AVEVA_POLL_INTERVAL_SEC == 10
 
     def test_timeout_minimum_validation(self):
@@ -159,7 +164,6 @@ def _mock_settings(**overrides):
         "AVEVA_USERNAME": "testuser",
         "AVEVA_PASSWORD": "testpass",
         "AVEVA_DATASOURCE": "TestSource",
-        "AVEVA_EQUIPMENT_ID": "equip-001",
     }
     defaults.update(overrides)
     return AVEVAHistorianSettings(_env_file=None, **defaults)
@@ -581,9 +585,16 @@ class TestAVEVAHistorianAdapter:
         return adapter
 
     @pytest.mark.asyncio
-    async def test_equipment_id(self):
-        adapter = self._make_adapter(AVEVA_EQUIPMENT_ID="equip-abc")
-        assert adapter.equipment_id == "equip-abc"
+    async def test_equipment_mappings(self):
+        from mes.adapters.historian.aveva.config import EquipmentMapping
+
+        adapter = self._make_adapter(
+            AVEVA_EQUIPMENT_MAPPINGS=[
+                EquipmentMapping(equipment_id="equip-abc", state_tag_fqn="TestSource.state", state_model_id="packml"),
+            ],
+        )
+        assert len(adapter.equipment_mappings) == 1
+        assert adapter.equipment_mappings[0].equipment_id == "equip-abc"
 
     @pytest.mark.asyncio
     async def test_connect_disconnect(self):
@@ -711,10 +722,7 @@ class TestAVEVAHistorianAdapter:
 
     @pytest.mark.asyncio
     async def test_get_equipment_state_with_state_tag(self):
-        adapter = self._make_adapter(
-            AVEVA_STATE_TAG_FQN="TestSource.machine_state",
-            AVEVA_EQUIPMENT_ID="equip-001",
-        )
+        adapter = self._make_adapter()
         adapter._client = AsyncMock()
         adapter._client.get_current_value.return_value = {
             "FQN": "TestSource.machine_state",
@@ -724,7 +732,10 @@ class TestAVEVAHistorianAdapter:
             "DateTime": "2025-06-15T12:00:00Z",
         }
 
-        state = await adapter.get_equipment_state()
+        state = await adapter.get_equipment_state(
+            equipment_id="equip-001",
+            state_tag_fqn="TestSource.machine_state",
+        )
 
         assert state.equipment_id == "equip-001"
         assert state.state == "running"
@@ -733,28 +744,29 @@ class TestAVEVAHistorianAdapter:
 
     @pytest.mark.asyncio
     async def test_get_equipment_state_no_tag(self):
-        adapter = self._make_adapter(AVEVA_STATE_TAG_FQN="")
+        adapter = self._make_adapter()
 
-        state = await adapter.get_equipment_state()
+        state = await adapter.get_equipment_state(equipment_id="equip-001", state_tag_fqn="")
 
         assert state.state == "unknown"
 
     @pytest.mark.asyncio
     async def test_get_equipment_state_tag_returns_none(self):
-        adapter = self._make_adapter(AVEVA_STATE_TAG_FQN="TestSource.state")
+        adapter = self._make_adapter()
         adapter._client = AsyncMock()
         adapter._client.get_current_value.return_value = None
 
-        state = await adapter.get_equipment_state()
+        state = await adapter.get_equipment_state(
+            equipment_id="equip-001",
+            state_tag_fqn="TestSource.state",
+        )
 
         assert state.state == "unknown"
         assert state.dispatch_category == "unavailable_unplanned"
 
     @pytest.mark.asyncio
     async def test_get_equipment_state_fault(self):
-        adapter = self._make_adapter(
-            AVEVA_STATE_TAG_FQN="TestSource.state",
-        )
+        adapter = self._make_adapter()
         adapter._client = AsyncMock()
         adapter._client.get_current_value.return_value = {
             "Value": 8,
@@ -763,7 +775,10 @@ class TestAVEVAHistorianAdapter:
             "DateTime": "2025-06-15T12:00:00Z",
         }
 
-        state = await adapter.get_equipment_state()
+        state = await adapter.get_equipment_state(
+            equipment_id="equip-001",
+            state_tag_fqn="TestSource.state",
+        )
 
         assert state.state == "fault"
         assert state.dispatch_category == "unavailable_unplanned"
@@ -1002,16 +1017,23 @@ class TestAVEVAHistorianPlugin:
         config = {
             "base_url": "http://historian:32569/Historian/v2",
             "datasource": "TestSource",
-            "equipment_id": "equip-001",
             "auth_mode": "basic",
             "username": "user",
             "password": "pass",
+            "equipment_mappings": [
+                {
+                    "equipment_id": "equip-001",
+                    "state_tag_fqn": "TestSource.state",
+                    "state_model_id": "packml",
+                },
+            ],
         }
 
         await plugin.initialize(config)
 
         assert plugin._adapter is not None
-        assert plugin._adapter.equipment_id == "equip-001"
+        assert len(plugin._adapter.equipment_mappings) == 1
+        assert plugin._adapter.equipment_mappings[0].equipment_id == "equip-001"
 
     @pytest.mark.asyncio
     async def test_start_connects_adapter(self):
@@ -1019,7 +1041,8 @@ class TestAVEVAHistorianPlugin:
 
         plugin = AVEVAHistorianPlugin()
         plugin._adapter = AsyncMock()
-        plugin._config = {"equipment_id": "equip-001"}
+        plugin._config = {}
+        plugin._trackers = []
 
         await plugin.start()
 
@@ -1027,16 +1050,27 @@ class TestAVEVAHistorianPlugin:
 
     @pytest.mark.asyncio
     async def test_start_subscribes_to_state_tag(self):
-        from plugins.system.aveva_historian.plugin import AVEVAHistorianPlugin
+        from plugins.system.aveva_historian.plugin import AVEVAHistorianPlugin, _EquipmentTracker
 
         plugin = AVEVAHistorianPlugin()
         plugin._adapter = AsyncMock()
         plugin._config = {
-            "state_tag_fqn": "TestSource.state",
-            "state_model_id": "packml",
-            "equipment_id": "equip-001",
             "poll_interval_sec": 5,
+            "equipment_mappings": [
+                {
+                    "state_tag_fqn": "TestSource.state",
+                    "state_model_id": "packml",
+                    "equipment_id": "equip-001",
+                },
+            ],
         }
+        plugin._trackers = [
+            _EquipmentTracker({
+                "state_tag_fqn": "TestSource.state",
+                "state_model_id": "packml",
+                "equipment_id": "equip-001",
+            }),
+        ]
 
         await plugin.start()
 
@@ -1047,12 +1081,18 @@ class TestAVEVAHistorianPlugin:
 
     @pytest.mark.asyncio
     async def test_stop_disconnects(self):
-        from plugins.system.aveva_historian.plugin import AVEVAHistorianPlugin
+        from plugins.system.aveva_historian.plugin import AVEVAHistorianPlugin, _EquipmentTracker
 
         plugin = AVEVAHistorianPlugin()
         plugin._adapter = AsyncMock()
         mock_handle = MagicMock()
-        plugin._subscription_handle = mock_handle
+        tracker = _EquipmentTracker({
+            "equipment_id": "equip-001",
+            "state_tag_fqn": "TestSource.state",
+            "state_model_id": "packml",
+        })
+        tracker.subscription_handle = mock_handle
+        plugin._trackers = [tracker]
 
         await plugin.stop()
 
@@ -1133,15 +1173,21 @@ class TestManifest:
         param_names = [p["name"] for p in manifest["parameters"]]
         assert "base_url" in param_names
         assert "datasource" in param_names
-        assert "equipment_id" in param_names
+        assert "equipment_mappings" in param_names
         assert "auth_mode" in param_names
-        assert "state_tag_fqn" in param_names
 
         # Check required flags
         required_params = {p["name"] for p in manifest["parameters"] if p.get("required")}
         assert "base_url" in required_params
         assert "datasource" in required_params
-        assert "equipment_id" in required_params
+
+        # Verify equipment_mappings is an array with items
+        eq_map_param = next(p for p in manifest["parameters"] if p["name"] == "equipment_mappings")
+        assert eq_map_param["type"] == "array"
+        item_names = [i["name"] for i in eq_map_param["items"]]
+        assert "equipment_id" in item_names
+        assert "state_tag_fqn" in item_names
+        assert "state_model_id" in item_names
 
     def test_manifest_extension_point(self):
         import pathlib
