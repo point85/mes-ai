@@ -111,6 +111,34 @@ export async function simulateHistorianState(
   return res.data.data;
 }
 
+/**
+ * Look up the AVEVA Historian equipment_mappings for a given equipment ID.
+ * Returns the matching mapping object or null if not configured.
+ */
+export async function fetchHistorianMapping(
+  equipId: string,
+): Promise<{ equipment_id: string; state_tag_fqn: string; state_model_id: string; tag_prefix?: string } | null> {
+  try {
+    const res = await api.get<ApiResponse<{
+      config_values: Record<string, unknown>;
+      parameter_values: Record<string, unknown>;
+    }>>("/plugins/aveva-historian");
+    const detail = res.data.data;
+    const raw =
+      detail.config_values?.equipment_mappings ??
+      detail.parameter_values?.equipment_mappings;
+    let mappings: Array<Record<string, string>> = [];
+    if (typeof raw === "string") {
+      try { mappings = JSON.parse(raw); } catch { /* ignore */ }
+    } else if (Array.isArray(raw)) {
+      mappings = raw;
+    }
+    return mappings.find((m) => m.equipment_id === equipId) ?? null;
+  } catch {
+    return null; // Plugin not installed or not accessible
+  }
+}
+
 export async function simulateMqttCounts(
   equipId: string,
   processedCount: number,

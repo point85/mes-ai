@@ -12,6 +12,7 @@ import {
   simulateOpcuaState,
   simulateMqttState,
   simulateHistorianState,
+  fetchHistorianMapping,
   simulateMqttCounts,
   incrementCounter,
   fetchCounters,
@@ -178,6 +179,13 @@ export default function EquipmentPage() {
       setTodayCounter(match ?? null);
     } catch {
       // non-critical — panel will show zeros
+    }
+    // Look up historian tag FQN from plugin config
+    const mapping = await fetchHistorianMapping(eq.id);
+    if (mapping?.state_tag_fqn) {
+      setHistTagFqn(mapping.state_tag_fqn);
+    } else {
+      setHistTagFqn("Simulated.StateTag");
     }
   }
 
@@ -366,6 +374,14 @@ export default function EquipmentPage() {
       targetOeeBuckets[s.name] = s.oee_bucket;
     }
   }
+
+  // Valid destination state names from the current state
+  const validNextStates = new Set(
+    (current?.valid_transitions ?? []).map((t) => t.to_state),
+  );
+
+  // PackML states filtered to only valid transitions for OPC-UA / MQTT dropdowns
+  const validPackmlStates = PACKML_STATES.filter((s) => validNextStates.has(s.name));
 
   // Set of OEE buckets reachable via valid transitions from current state
   const reachableBuckets = new Set(
@@ -629,7 +645,10 @@ export default function EquipmentPage() {
                 value={opcuaValue}
                 onChange={(e) => setOpcuaValue(Number(e.target.value))}
               >
-                {PACKML_STATES.map((s) => (
+                {validPackmlStates.length === 0 && (
+                  <option value="">— no valid transitions —</option>
+                )}
+                {validPackmlStates.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.value} — {s.name}
                   </option>
@@ -640,7 +659,7 @@ export default function EquipmentPage() {
             <button
               className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50"
               onClick={simulateOpcua}
-              disabled={opcuaBusy}
+              disabled={opcuaBusy || validPackmlStates.length === 0}
             >
               {opcuaBusy ? "Sending…" : "Send OPC-UA Event"}
             </button>
@@ -690,7 +709,10 @@ export default function EquipmentPage() {
                 value={mqttState}
                 onChange={(e) => setMqttState(Number(e.target.value))}
               >
-                {PACKML_STATES.map((s) => (
+                {validPackmlStates.length === 0 && (
+                  <option value="">— no valid transitions —</option>
+                )}
+                {validPackmlStates.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.value} — {s.name}
                   </option>
@@ -744,8 +766,9 @@ export default function EquipmentPage() {
             Simulate Historian State Change — {selectedEquip.code}
           </h2>
           <p className="text-xs text-gray-500">
-            Simulates an AVEVA Historian tag value change. Select a state from
-            the equipment's state model and provide the fully-qualified tag name.
+            Simulates an AVEVA Historian tag value change. The tag FQN is
+            auto-populated from the AVEVA Historian plugin configuration
+            when a mapping exists for this equipment.
           </p>
 
           <div className="flex flex-wrap items-end gap-4">
@@ -767,11 +790,13 @@ export default function EquipmentPage() {
                   onChange={(e) => setHistState(e.target.value)}
                 >
                   <option value="">— select —</option>
-                  {fullModel.states.map((s) => (
-                    <option key={s.name} value={s.name}>
-                      {s.name} ({s.dispatch_category})
-                    </option>
-                  ))}
+                  {fullModel.states
+                    .filter((s) => validNextStates.has(s.name))
+                    .map((s) => (
+                      <option key={s.name} value={s.name}>
+                        {s.name} ({s.dispatch_category})
+                      </option>
+                    ))}
                 </select>
               ) : (
                 <input

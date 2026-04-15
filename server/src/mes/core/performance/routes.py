@@ -397,7 +397,17 @@ async def simulate_historian_state(
     Accepts a tag FQN and state name string. Triggers a transition
     through the EquipmentStateEngine — the same path as a real
     historian polling callback from the AVEVA Historian plugin.
+
+    If the equipment is already in the requested state the current
+    log entry is returned (idempotent, no 409).
     """
+    # Check current state — skip duplicate (mirrors plugin duplicate guard)
+    current = await EquipmentStateService.get_current_state(session, equip_id)
+    if current is not None and current.state == body.state:
+        return success_response(
+            EquipmentStateLogRead.model_validate(current).model_dump(),
+        )
+
     log = await EquipmentStateEngine.transition_equipment(
         session,
         equipment_id=equip_id,
