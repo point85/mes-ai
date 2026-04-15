@@ -25,20 +25,6 @@ import { PluginListPage, PluginDetailPage } from "./pages/plugins";
 import { ReasonListPage } from "./pages/reasons";
 import { StorageLocationListPage } from "./pages/storage-locations";
 import { InventoryBalancesPage, InventoryTransactionsPage } from "./pages/inventory";
-import {
-  ERPDashboardPage,
-  ERPOrdersPage,
-  ERPMaterialsPage,
-  ERPProductsPage,
-  ERPCompletionPage,
-  ERPConsumptionPage,
-  ERPScrapPage,
-  ERPLaborPage,
-  ERPDowntimePage,
-  ERPQualityPage,
-  ERPConfirmationsPage,
-} from "./pages/erp-simulator";
-import { ERPProvider } from "./hooks/useERPType";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,7 +37,6 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
-    <ERPProvider>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
@@ -84,23 +69,10 @@ export default function App() {
             {/* Plugin Management */}
             <Route path="/plugins" element={<PluginListPage />} />
             <Route path="/plugins/:pluginId" element={<PluginDetailPage />} />
-            {/* ERP Simulator */}
-            <Route path="/erp-simulator" element={<ERPDashboardPage />} />
-            <Route path="/erp-simulator/orders" element={<ERPOrdersPage />} />
-            <Route path="/erp-simulator/materials" element={<ERPMaterialsPage />} />
-            <Route path="/erp-simulator/products" element={<ERPProductsPage />} />
-            <Route path="/erp-simulator/completion" element={<ERPCompletionPage />} />
-            <Route path="/erp-simulator/consumption" element={<ERPConsumptionPage />} />
-            <Route path="/erp-simulator/scrap" element={<ERPScrapPage />} />
-            <Route path="/erp-simulator/labor" element={<ERPLaborPage />} />
-            <Route path="/erp-simulator/downtime" element={<ERPDowntimePage />} />
-            <Route path="/erp-simulator/quality" element={<ERPQualityPage />} />
-            <Route path="/erp-simulator/confirmations" element={<ERPConfirmationsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
-    </ERPProvider>
   );
 }
