@@ -4,8 +4,10 @@ import type {
   Area,
   Equipment,
   EquipmentCurrentState,
+  EquipmentMaterialSetup,
   EquipmentStateLog,
   ListResponse,
+  MaterialSetupRead,
   OEEResult,
   ProductionCounterRead,
   ProductionLine,
@@ -252,4 +254,43 @@ export async function fetchAllEquipment(): Promise<Equipment[]> {
     }
   }
   return allEquipment;
+}
+
+// ── Equipment Material Setups ────────────────────────────────────
+
+export async function fetchEquipmentMaterials(
+  equipId: string,
+): Promise<EquipmentMaterialSetup[]> {
+  const res = await api.get<ListResponse<EquipmentMaterialSetup>>(
+    `/equipment/${equipId}/materials`,
+    { params: { limit: 200 } },
+  );
+  return res.data.data;
+}
+
+export async function fetchMaterialSetup(
+  equipId: string,
+): Promise<MaterialSetupRead> {
+  const res = await api.get<ApiResponse<MaterialSetupRead>>(
+    `/equipment/${equipId}/material-setup`,
+  );
+  return res.data.data;
+}
+
+export async function setMaterialSetup(
+  equipId: string,
+  equipmentMaterialId: string,
+  jobNumber?: string | null,
+): Promise<MaterialSetupRead> {
+  const res = await api.post<ApiResponse<MaterialSetupRead>>(
+    `/equipment/${equipId}/material-setup`,
+    { equipment_material_id: equipmentMaterialId, job_number: jobNumber ?? null },
+  );
+  return res.data.data;
+}
+
+export async function clearMaterialSetup(
+  equipId: string,
+): Promise<void> {
+  await api.delete(`/equipment/${equipId}/material-setup`);
 }

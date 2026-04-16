@@ -77,17 +77,16 @@ export default function ProductsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    setDeleting(id);
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    setDeleting(selectedId);
     setError(null);
     try {
-      await deleteProduct(id);
-      setData((prev) => prev.filter((p) => p.id !== id));
-      if (selectedId === id) {
-        setSelectedId(null);
-        setBoms([]);
-        setRoutes([]);
-      }
+      await deleteProduct(selectedId);
+      setData((prev) => prev.filter((p) => p.id !== selectedId));
+      setSelectedId(null);
+      setBoms([]);
+      setRoutes([]);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Delete failed");
     } finally {
@@ -302,9 +301,13 @@ export default function ProductsPage() {
         >
           Clone
         </button>
-        {data.length > 0 && (
-          <span className="text-sm text-gray-500">{data.length} products</span>
-        )}
+        <button
+          onClick={handleDelete}
+          disabled={!selectedId || deleting !== null}
+          className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+        >
+          {deleting ? "Deleting…" : "Delete"}
+        </button>
       </div>
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">{error}</div>
@@ -319,14 +322,13 @@ export default function ProductsPage() {
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Code", "Name", "Type", "Version", "UoM", "Description", "Actions"].map((h) => (
+                  {["#", "Code", "Name", "Type", "Version", "UoM", "Description"].map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {data.map((row) => {
-                  const busy = deleting === row.id;
+                {data.map((row, idx) => {
                   const selected = selectedId === row.id;
                   return (
                     <tr
@@ -334,21 +336,13 @@ export default function ProductsPage() {
                       onClick={() => handleSelectProduct(row.id)}
                       className={`cursor-pointer ${selected ? "bg-blue-50 border-l-2 border-blue-400" : "hover:bg-gray-50"}`}
                     >
+                      <td className="px-3 py-2 whitespace-nowrap text-gray-400">{idx + 1}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{row.code}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{row.name}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{row.product_type}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{row.version}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{row.uom}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{row.description ?? ""}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(row.id); }}
-                          disabled={busy}
-                          className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50"
-                        >
-                          {busy ? "…" : "Delete"}
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}

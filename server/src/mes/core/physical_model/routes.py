@@ -33,6 +33,8 @@ from .schemas import (
     EquipmentMaterialUpdate,
     EquipmentRead,
     EquipmentUpdate,
+    MaterialSetupRead,
+    MaterialSetupRequest,
     ProductionLineCreate,
     ProductionLineRead,
     ProductionLineUpdate,
@@ -374,8 +376,14 @@ async def list_equipment_materials(
 ):
     """List material setups for a piece of equipment."""
     items, cursor, has_more = await svc.list_equipment_materials(session, equip_id, params)
+    data = []
+    for em in items:
+        d = EquipmentMaterialRead.model_validate(em).model_dump()
+        d["material_name"] = em.material.name if em.material else None
+        d["material_code"] = em.material.code if em.material else None
+        data.append(d)
     return list_response(
-        [EquipmentMaterialRead.model_validate(em).model_dump() for em in items],
+        data,
         cursor=cursor,
         limit=params.limit,
         has_more=has_more,
@@ -429,4 +437,68 @@ async def delete_equipment_material(
 ):
     """Soft-delete an equipment-material setup."""
     await svc.delete_equipment_material(session, em_id)
+    await session.commit()
+
+
+# ─── Material Setup (current running material) ──────────────────────
+
+
+@router.get("/equipment/{equip_id}/material-setup")
+async def get_material_setup(
+    equip_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """Get the current material setup on equipment."""
+    equip = await svc.get_material_setup(session, equip_id)
+    em = equip.active_material_setup
+    data = MaterialSetupRead(
+        equipment_material_id=equip.current_material_id,
+        material_id=em.material_id if em else None,
+        material_name=em.material.name if em and em.material else None,
+        material_code=em.material.code if em and em.material else None,
+        design_speed=em.design_speed if em else None,
+        design_speed_uom=em.design_speed_uom if em else None,
+        job_number=equip.current_job_number,
+        setup_at=equip.material_setup_at,
+    )
+    return success_response(data.model_dump())
+
+
+@router.post("/equipment/{equip_id}/material-setup")
+async def set_material_setup(
+    equip_id: UUID,
+    body: MaterialSetupRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """Switch the current material setup on equipment."""
+    equip = await svc.set_material_setup(
+        session, equip_id, body.equipment_material_id, body.job_number,
+    )
+    await session.commit()
+    # Re-fetch to get the relationship loaded
+    equip = await svc.get_material_setup(session, equip_id)
+    em = equip.active_material_setup
+    data = MaterialSetupRead(
+        equipment_material_id=equip.current_material_id,
+        material_id=em.material_id if em else None,
+        material_name=em.material.name if em and em.material else None,
+        material_code=em.material.code if em and em.material else None,
+        design_speed=em.design_speed if em else None,
+        design_speed_uom=em.design_speed_uom if em else None,
+        job_number=equip.current_job_number,
+        setup_at=equip.material_setup_at,
+    )
+    return success_response(data.model_dump())
+
+
+@router.delete("/equipment/{equip_id}/material-setup", status_code=204)
+async def clear_material_setup(
+    equip_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """Clear the current material setup on equipment."""
+    await svc.clear_material_setup(session, equip_id)
     await session.commit()

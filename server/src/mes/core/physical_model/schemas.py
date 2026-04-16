@@ -222,6 +222,8 @@ class EquipmentMaterialRead(BaseModel):
     id: UUID
     equipment_id: UUID
     material_id: UUID
+    material_name: str | None = None
+    material_code: str | None = None
     design_speed: float
     design_speed_uom: str
     reject_uom: str
@@ -240,3 +242,26 @@ class EquipmentMaterialUpdate(BaseModel):
     design_speed_uom: str | None = Field(None, min_length=1, max_length=20)
     reject_uom: str | None = Field(None, min_length=1, max_length=20)
     target_oee: float | None = Field(None, ge=0.0, le=100.0)
+
+
+# ─── Material Setup (current running material) ──────────────────────
+
+
+class MaterialSetupRequest(BaseModel):
+    """Schema for switching the current material on equipment."""
+
+    equipment_material_id: UUID = Field(..., description="ID of the equipment-material configuration to activate")
+    job_number: str | None = Field(None, max_length=64, description="Job / batch identifier")
+
+
+class MaterialSetupRead(BaseModel):
+    """Schema for returning the current material setup on equipment."""
+
+    equipment_material_id: UUID | None = None
+    material_id: UUID | None = None
+    material_name: str | None = None
+    material_code: str | None = None
+    design_speed: float | None = None
+    design_speed_uom: str | None = None
+    job_number: str | None = None
+    setup_at: datetime | None = None

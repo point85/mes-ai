@@ -18,6 +18,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
 
+import datetime as _dt
+
 
 class Site(BaseModel):
     """
@@ -163,6 +165,18 @@ class Equipment(BaseModel):
         Integer, nullable=True, default=None,
         comment="Max WIP items (units + lots) allowed in input queue. Null = unlimited.",
     )
+    current_material_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("equipment_materials.id"), nullable=True, default=None,
+        comment="Currently running equipment-material setup. Null = no material set up.",
+    )
+    current_job_number: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, default=None,
+        comment="Job / batch identifier for the current material run.",
+    )
+    material_setup_at: Mapped[_dt.datetime | None] = mapped_column(
+        nullable=True, default=None,
+        comment="UTC timestamp when the current material was set up.",
+    )
 
     # Relationships
     work_cell: Mapped["WorkCell"] = relationship(
@@ -170,6 +184,10 @@ class Equipment(BaseModel):
     )
     material_setups: Mapped[list["EquipmentMaterial"]] = relationship(
         "EquipmentMaterial", back_populates="equipment", cascade="all, delete-orphan",
+        foreign_keys="EquipmentMaterial.equipment_id",
+    )
+    active_material_setup: Mapped["EquipmentMaterial | None"] = relationship(
+        "EquipmentMaterial", foreign_keys=[current_material_id], lazy="selectin",
     )
 
     def __repr__(self) -> str:

@@ -12,11 +12,17 @@ import {
   simulateMqttCounts,
   incrementCounter,
   fetchCounters,
+  fetchEquipmentMaterials,
+  fetchMaterialSetup,
+  setMaterialSetup,
+  clearMaterialSetup,
 } from "../api/endpoints";
 import { useEquipmentContext } from "../App";
 import StateBadge from "../components/StateBadge";
 import type {
   EquipmentCurrentState,
+  EquipmentMaterialSetup,
+  MaterialSetupRead,
   StateModel,
   TransitionDefinition,
   Reason,
@@ -83,7 +89,15 @@ export default function EquipmentPage() {
   const [histCountError, setHistCountError] = useState<string | null>(null);
 
   // Simulation tab
-  const [simTab, setSimTab] = useState<"availability" | "production">("availability");
+  const [simTab, setSimTab] = useState<"availability" | "production" | "material_setup">("availability");
+
+  // Material setup state
+  const [materialSetup, setMaterialSetup_] = useState<MaterialSetupRead | null>(null);
+  const [configuredMaterials, setConfiguredMaterials] = useState<EquipmentMaterialSetup[]>([]);
+  const [selectedEmId, setSelectedEmId] = useState("");
+  const [jobNumber, setJobNumber] = useState("");
+  const [setupBusy, setSetupBusy] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   // Historian simulation state
   const [histTagFqn, setHistTagFqn] = useState("Simulated.StateTag");
@@ -108,6 +122,11 @@ export default function EquipmentPage() {
     setTodayCounter(null);
     setCounterResult(null);
     setCounterError(null);
+    setMaterialSetup_(null);
+    setConfiguredMaterials([]);
+    setSelectedEmId("");
+    setJobNumber("");
+    setSetupError(null);
 
     if (!equipmentId) return;
 
@@ -141,6 +160,19 @@ export default function EquipmentPage() {
         } else {
           setHistTagFqn("Simulated.StateTag");
         }
+      }
+      // Load material setup
+      try {
+        const [ms, mats] = await Promise.all([
+          fetchMaterialSetup(equipmentId),
+          fetchEquipmentMaterials(equipmentId),
+        ]);
+        if (!cancelled) {
+          setMaterialSetup_(ms);
+          setConfiguredMaterials(mats.filter((m) => m.is_active));
+        }
+      } catch {
+        // non-critical
       }
     })();
 
@@ -411,7 +443,7 @@ export default function EquipmentPage() {
         <div>
           {/* Tab bar */}
           <div className="flex border-b border-gray-200">
-            {(["availability", "production"] as const).map((tab) => (
+            {(["availability", "production", "material_setup"] as const).map((tab) => (
               <button
                 key={tab}
                 className={`px-5 py-2 text-sm font-medium border-b-2 -mb-px ${
@@ -421,7 +453,7 @@ export default function EquipmentPage() {
                 }`}
                 onClick={() => setSimTab(tab)}
               >
-                {tab === "availability" ? "Availability" : "Production"}
+                {tab === "availability" ? "Availability" : tab === "production" ? "Production" : "Material Setup"}
               </button>
             ))}
           </div>
@@ -1005,6 +1037,144 @@ export default function EquipmentPage() {
                 {histCountError && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
                     {histCountError}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── Material Setup tab ──────────────────────────────────── */}
+          {simTab === "material_setup" && (
+            <>
+              {/* Current Material Setup */}
+              <div className="bg-white rounded-lg border p-4 space-y-3">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Current Material Setup
+                </h2>
+                {materialSetup?.equipment_material_id ? (
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">Material:</span>{" "}
+                      <span className="font-medium">{materialSetup.material_name ?? "—"}</span>
+                      {materialSetup.material_code && (
+                        <span className="text-gray-400 ml-1">({materialSetup.material_code})</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Job Number:</span>{" "}
+                      <span className="font-medium">{materialSetup.job_number || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Design Speed:</span>{" "}
+                      <span className="font-medium">
+                        {materialSetup.design_speed != null ? materialSetup.design_speed : "—"}
+                        {materialSetup.design_speed_uom ? ` ${materialSetup.design_speed_uom}` : ""}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Setup At:</span>{" "}
+                      <span className="font-medium">
+                        {materialSetup.setup_at
+                          ? new Date(materialSetup.setup_at).toLocaleString()
+                          : "—"}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">No material is currently set up.</p>
+                )}
+                {materialSetup?.equipment_material_id && (
+                  <button
+                    className="text-xs text-red-600 hover:text-red-800 font-medium"
+                    onClick={async () => {
+                      if (!equipmentId) return;
+                      setSetupBusy(true);
+                      setSetupError(null);
+                      try {
+                        await clearMaterialSetup(equipmentId);
+                        setMaterialSetup_(null);
+                      } catch (err: unknown) {
+                        setSetupError(err instanceof Error ? err.message : String(err));
+                      } finally {
+                        setSetupBusy(false);
+                      }
+                    }}
+                    disabled={setupBusy}
+                  >
+                    Clear Setup
+                  </button>
+                )}
+              </div>
+
+              {/* Switch Material */}
+              <div className="bg-white rounded-lg border p-4 space-y-3">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Switch Material
+                </h2>
+                {configuredMaterials.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic">
+                    No materials configured for this equipment. Add material setups in the Design-Time client.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-end gap-3">
+                    <label className="flex flex-col text-xs font-medium text-gray-600">
+                      Material
+                      <select
+                        className="mt-0.5 rounded border border-gray-300 px-2 py-1.5 text-sm min-w-[220px]"
+                        value={selectedEmId}
+                        onChange={(e) => setSelectedEmId(e.target.value)}
+                      >
+                        <option value="">— Select material —</option>
+                        {configuredMaterials.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.material_name ?? m.material_code ?? m.material_id} (speed: {m.design_speed} {m.design_speed_uom})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="flex flex-col text-xs font-medium text-gray-600">
+                      Job Number
+                      <input
+                        type="text"
+                        className="mt-0.5 rounded border border-gray-300 px-2 py-1.5 text-sm w-40"
+                        placeholder="Optional"
+                        value={jobNumber}
+                        onChange={(e) => setJobNumber(e.target.value)}
+                      />
+                    </label>
+
+                    <button
+                      className="px-4 py-1.5 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50"
+                      disabled={!selectedEmId || setupBusy}
+                      onClick={async () => {
+                        if (!equipmentId || !selectedEmId) return;
+                        setSetupBusy(true);
+                        setSetupError(null);
+                        try {
+                          const result = await setMaterialSetup(
+                            equipmentId,
+                            selectedEmId,
+                            jobNumber || null,
+                          );
+                          setMaterialSetup_(result);
+                          setSelectedEmId("");
+                          setJobNumber("");
+                        } catch (err: unknown) {
+                          setSetupError(err instanceof Error ? err.message : String(err));
+                        } finally {
+                          setSetupBusy(false);
+                        }
+                      }}
+                    >
+                      {setupBusy ? "Switching…" : "Switch Material"}
+                    </button>
+                  </div>
+                )}
+
+                {setupError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {setupError}
                   </div>
                 )}
               </div>

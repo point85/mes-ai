@@ -7,6 +7,7 @@ All write operations emit domain events via the global event bus.
 
 from __future__ import annotations
 
+import datetime as _dt
 import logging
 from typing import Any, Sequence
 from uuid import UUID
@@ -399,9 +400,13 @@ class PhysicalModelService:
     ) -> tuple[Sequence[EquipmentMaterial], str | None, bool]:
         """List active equipment-material setups for a given equipment."""
         await PhysicalModelService.get_equipment(session, equip_id)
-        stmt = select(EquipmentMaterial).where(
-            EquipmentMaterial.equipment_id == equip_id,
-            EquipmentMaterial.is_active.is_(True),
+        stmt = (
+            select(EquipmentMaterial)
+            .options(selectinload(EquipmentMaterial.material))
+            .where(
+                EquipmentMaterial.equipment_id == equip_id,
+                EquipmentMaterial.is_active.is_(True),
+            )
         )
         return await paginate_query(session, stmt, EquipmentMaterial, params)
 
@@ -410,8 +415,12 @@ class PhysicalModelService:
         session: AsyncSession, em_id: UUID,
     ) -> EquipmentMaterial:
         """Get an equipment-material setup by ID."""
-        stmt = select(EquipmentMaterial).where(
-            EquipmentMaterial.id == em_id, EquipmentMaterial.is_active.is_(True),
+        stmt = (
+            select(EquipmentMaterial)
+            .options(selectinload(EquipmentMaterial.material))
+            .where(
+                EquipmentMaterial.id == em_id, EquipmentMaterial.is_active.is_(True),
+            )
         )
         result = await session.execute(stmt)
         em = result.scalar_one_or_none()
@@ -472,3 +481,64 @@ class PhysicalModelService:
         em.is_active = False
         await session.flush()
         logger.info("Soft-deleted equipment-material setup %s", em_id)
+
+    # ─── Material Setup (current running material) ───────────────────
+
+    @staticmethod
+    async def get_material_setup(
+        session: AsyncSession, equip_id: UUID,
+    ) -> Equipment:
+        """Get equipment with its current material setup eagerly loaded."""
+        stmt = (
+            select(Equipment)
+            .options(
+                selectinload(Equipment.active_material_setup).selectinload(
+                    EquipmentMaterial.material
+                ),
+            )
+            .where(Equipment.id == equip_id, Equipment.is_active.is_(True))
+        )
+        result = await session.execute(stmt)
+        equip = result.scalar_one_or_none()
+        if equip is None:
+            raise NotFoundException(resource="Equipment", resource_id=str(equip_id))
+        return equip
+
+    @staticmethod
+    async def set_material_setup(
+        session: AsyncSession,
+        equip_id: UUID,
+        equipment_material_id: UUID,
+        job_number: str | None = None,
+    ) -> Equipment:
+        """Switch the current material setup on equipment."""
+        equip = await PhysicalModelService.get_equipment(session, equip_id)
+        # Validate the equipment_material_id belongs to this equipment
+        em = await PhysicalModelService.get_equipment_material(session, equipment_material_id)
+        if em.equipment_id != equip_id:
+            raise NotFoundException(
+                resource="EquipmentMaterial",
+                resource_id=f"{equipment_material_id} (not configured for equipment {equip_id})",
+            )
+        equip.current_material_id = equipment_material_id
+        equip.current_job_number = job_number
+        equip.material_setup_at = _dt.datetime.now(_dt.timezone.utc)
+        await session.flush()
+        logger.info(
+            "Material setup on equipment %s: material_setup=%s job=%s",
+            equip_id, equipment_material_id, job_number,
+        )
+        return equip
+
+    @staticmethod
+    async def clear_material_setup(
+        session: AsyncSession, equip_id: UUID,
+    ) -> Equipment:
+        """Clear the current material setup on equipment."""
+        equip = await PhysicalModelService.get_equipment(session, equip_id)
+        equip.current_material_id = None
+        equip.current_job_number = None
+        equip.material_setup_at = None
+        await session.flush()
+        logger.info("Cleared material setup on equipment %s", equip_id)
+        return equip

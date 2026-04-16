@@ -133,6 +133,30 @@ export interface OEEResult {
   six_big_losses?: Record<string, unknown> | null;
 }
 
+export interface EquipmentMaterialSetup {
+  id: string;
+  equipment_id: string;
+  material_id: string;
+  material_name: string | null;
+  material_code: string | null;
+  design_speed: number;
+  design_speed_uom: string;
+  reject_uom: string;
+  target_oee: number;
+  is_active: boolean;
+}
+
+export interface MaterialSetupRead {
+  equipment_material_id: string | null;
+  material_id: string | null;
+  material_name: string | null;
+  material_code: string | null;
+  design_speed: number | null;
+  design_speed_uom: string | null;
+  job_number: string | null;
+  setup_at: string | null;
+}
+
 /** Standard MES API envelope. */
 export interface ApiResponse<T> {
   data: T;
