@@ -399,144 +399,9 @@ export default function EquipmentPage() {
         </div>
       )}
 
-      {/* ── Transition Control Panel ──────────────────────────────── */}
-
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
           {error}
-        </div>
-      )}
-
-      {selectedEquip && current && (
-        <div className="bg-white rounded-lg border p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-600 uppercase">
-              Transition Control — {selectedEquip.code} ({selectedEquip.name})
-            </h2>
-            <div className="flex items-center gap-2">
-              <button
-                className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
-                onClick={() => navigateTo("history")}
-              >
-                History →
-              </button>
-              <button
-                className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
-                onClick={() => navigateTo("oee")}
-              >
-                OEE →
-              </button>
-              <button
-                className="text-xs text-gray-400 hover:text-gray-600"
-                onClick={() => setEquipment(null, null)}
-              >
-                ✕ close
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500 text-xs">State Model</span>
-              <p className="font-medium">{current.state_model}</p>
-            </div>
-            <div>
-              <span className="text-gray-500 text-xs">State</span>
-              <p className="font-medium">{current.state}</p>
-            </div>
-            <div>
-              <span className="text-gray-500 text-xs">Dispatch</span>
-              <p><StateBadge category={current.dispatch_category} /></p>
-            </div>
-            <div>
-              <span className="text-gray-500 text-xs">OEE Bucket</span>
-              <p className="font-medium text-xs">{current.oee_bucket}</p>
-            </div>
-          </div>
-
-          {current.started_at && (
-            <p className="text-xs text-gray-500">
-              Since: {new Date(current.started_at).toLocaleString()}
-            </p>
-          )}
-
-          {/* Optional metadata */}
-          <div className="flex gap-3">
-            <label className="flex flex-col text-xs font-medium text-gray-600 flex-1">
-              Reason Code (optional)
-              <select
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm bg-white"
-                value={reasonCode}
-                onChange={(e) => setReasonCode(e.target.value)}
-              >
-                <option value="">— none —</option>
-                {compatibleReasons.map((r) => (
-                  <option key={r.id} value={r.code}>
-                    {r.code} — {r.name} ({r.oee_bucket})
-                  </option>
-                ))}
-              </select>
-              {compatibleReasons.length === 0 && reasons.length > 0 && (
-                <span className="text-xs text-amber-600 mt-0.5">
-                  No reasons match the reachable states
-                </span>
-              )}
-            </label>
-            <label className="flex flex-col text-xs font-medium text-gray-600 flex-1">
-              Notes (optional)
-              <input
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="free text"
-              />
-            </label>
-          </div>
-
-          {/* Valid transitions */}
-          <h3 className="text-xs font-semibold text-gray-500 uppercase">Valid Transitions</h3>
-          {current.valid_transitions.length === 0 ? (
-            <p className="text-sm text-gray-500">No valid transitions from this state.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {current.valid_transitions.map((t) => {
-                const targetDef = fullModel?.states.find((s) => s.name === t.to_state);
-                const compatible = isTransitionCompatible(t);
-                return (
-                  <button
-                    key={`${t.from_state}-${t.to_state}`}
-                    className={`px-3 py-1.5 rounded border text-sm flex items-center gap-2 ${
-                      compatible
-                        ? "hover:bg-gray-50 disabled:opacity-50"
-                        : "opacity-40 cursor-not-allowed"
-                    }`}
-                    onClick={() => doTransition(t)}
-                    disabled={busy || !compatible}
-                    title={
-                      compatible
-                        ? undefined
-                        : `Reason "${selectedReason?.name}" (${selectedReason?.oee_bucket}) ≠ target "${t.to_state}" (${targetOeeBuckets[t.to_state]})`
-                    }
-                  >
-                    <span className="font-medium">{t.to_state}</span>
-                    {t.trigger && (
-                      <span className="text-xs text-gray-400">({t.trigger})</span>
-                    )}
-                    {targetDef && (
-                      <StateBadge category={targetDef.dispatch_category} />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Last result */}
-          {lastResult && (
-            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
-              {lastResult}
-            </div>
-          )}
         </div>
       )}
 
@@ -567,6 +432,138 @@ export default function EquipmentPage() {
           {/* ── Availability tab ──────────────────────────────────── */}
           {simTab === "availability" && (
             <>
+              {/* ── Transition Control Panel ──────────────────────────────── */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                    Transition Control — {selectedEquip.code} ({selectedEquip.name})
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+                      onClick={() => navigateTo("history")}
+                    >
+                      History →
+                    </button>
+                    <button
+                      className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+                      onClick={() => navigateTo("oee")}
+                    >
+                      OEE →
+                    </button>
+                    <button
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                      onClick={() => setEquipment(null, null)}
+                    >
+                      ✕ close
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500 text-xs">State Model</span>
+                    <p className="font-medium">{current.state_model}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-xs">State</span>
+                    <p className="font-medium">{current.state}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-xs">Dispatch</span>
+                    <p><StateBadge category={current.dispatch_category} /></p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-xs">OEE Bucket</span>
+                    <p className="font-medium text-xs">{current.oee_bucket}</p>
+                  </div>
+                </div>
+
+                {current.started_at && (
+                  <p className="text-xs text-gray-500">
+                    Since: {new Date(current.started_at).toLocaleString()}
+                  </p>
+                )}
+
+                {/* Optional metadata */}
+                <div className="flex gap-3">
+                  <label className="flex flex-col text-xs font-medium text-gray-600 flex-1">
+                    Reason Code (optional)
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm bg-white"
+                      value={reasonCode}
+                      onChange={(e) => setReasonCode(e.target.value)}
+                    >
+                      <option value="">— none —</option>
+                      {compatibleReasons.map((r) => (
+                        <option key={r.id} value={r.code}>
+                          {r.code} — {r.name} ({r.oee_bucket})
+                        </option>
+                      ))}
+                    </select>
+                    {compatibleReasons.length === 0 && reasons.length > 0 && (
+                      <span className="text-xs text-amber-600 mt-0.5">
+                        No reasons match the reachable states
+                      </span>
+                    )}
+                  </label>
+                  <label className="flex flex-col text-xs font-medium text-gray-600 flex-1">
+                    Notes (optional)
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="free text"
+                    />
+                  </label>
+                </div>
+
+                {/* Valid transitions */}
+                <h3 className="text-xs font-semibold text-gray-500 uppercase">Valid Transitions</h3>
+                {current.valid_transitions.length === 0 ? (
+                  <p className="text-sm text-gray-500">No valid transitions from this state.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {current.valid_transitions.map((t) => {
+                      const targetDef = fullModel?.states.find((s) => s.name === t.to_state);
+                      const compatible = isTransitionCompatible(t);
+                      return (
+                        <button
+                          key={`${t.from_state}-${t.to_state}`}
+                          className={`px-3 py-1.5 rounded border text-sm flex items-center gap-2 ${
+                            compatible
+                              ? "hover:bg-gray-50 disabled:opacity-50"
+                              : "opacity-40 cursor-not-allowed"
+                          }`}
+                          onClick={() => doTransition(t)}
+                          disabled={busy || !compatible}
+                          title={
+                            compatible
+                              ? undefined
+                              : `Reason "${selectedReason?.name}" (${selectedReason?.oee_bucket}) ≠ target "${t.to_state}" (${targetOeeBuckets[t.to_state]})`
+                          }
+                        >
+                          <span className="font-medium">{t.to_state}</span>
+                          {t.trigger && (
+                            <span className="text-xs text-gray-400">({t.trigger})</span>
+                          )}
+                          {targetDef && (
+                            <StateBadge category={targetDef.dispatch_category} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Last result */}
+                {lastResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {lastResult}
+                  </div>
+                )}
+              </div>
+
               {/* OPC-UA State Simulation */}
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
