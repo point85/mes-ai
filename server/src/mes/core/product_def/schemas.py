@@ -16,6 +16,15 @@ from pydantic import BaseModel, Field
 # ─── ProductDefinition ────────────────────────────────────────────────
 
 
+class ProductClone(BaseModel):
+    """Schema for cloning a product with new identity fields."""
+
+    code: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=255)
+    version: str = Field("1.0", max_length=50)
+    description: str | None = None
+
+
 class ProductCreate(BaseModel):
     """Schema for creating a new product definition."""
 

@@ -119,6 +119,168 @@ class ProductDefService:
         await session.flush()
         logger.info("Soft-deleted product %s (%s v%s)", product.id, product.code, product.version)
 
+    @staticmethod
+    async def clone_product(
+        session: AsyncSession,
+        source_id: UUID,
+        code: str,
+        name: str,
+        version: str = "1.0",
+        description: str | None = None,
+    ) -> ProductDefinition:
+        """Deep-clone a product: copies BOMs (with items) and routes (with steps, parameters, transitions)."""
+        source = await ProductDefService.get_product(session, source_id)
+
+        # Check uniqueness of new code+version
+        existing = await session.execute(
+            select(ProductDefinition).where(
+                ProductDefinition.code == code,
+                ProductDefinition.version == version,
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            from .exceptions import DuplicateProductException
+            raise DuplicateProductException(code, version)
+
+        # Create new product
+        new_product = ProductDefinition(
+            code=code,
+            name=name,
+            version=version,
+            description=description,
+            uom=source.uom,
+            product_type=source.product_type,
+        )
+        session.add(new_product)
+        await session.flush()
+
+        # Clone BOMs
+        bom_rows = await session.execute(
+            select(BillOfMaterial).where(
+                BillOfMaterial.product_id == source_id,
+                BillOfMaterial.is_active.is_(True),
+            )
+        )
+        for src_bom in bom_rows.scalars().all():
+            new_bom = BillOfMaterial(
+                product_id=new_product.id,
+                version=src_bom.version,
+                effective_date=src_bom.effective_date,
+                expiry_date=src_bom.expiry_date,
+            )
+            session.add(new_bom)
+            await session.flush()
+
+            item_rows = await session.execute(
+                select(BOMItem).where(
+                    BOMItem.bom_id == src_bom.id,
+                    BOMItem.is_active.is_(True),
+                )
+            )
+            for src_item in item_rows.scalars().all():
+                new_item = BOMItem(
+                    bom_id=new_bom.id,
+                    material_code=src_item.material_code,
+                    quantity=src_item.quantity,
+                    uom=src_item.uom,
+                    position=src_item.position,
+                )
+                session.add(new_item)
+            await session.flush()
+
+        # Clone routes
+        route_rows = await session.execute(
+            select(ProcessRoute).where(
+                ProcessRoute.product_id == source_id,
+                ProcessRoute.is_active.is_(True),
+            )
+        )
+        for src_route in route_rows.scalars().all():
+            new_route = ProcessRoute(
+                product_id=new_product.id,
+                name=src_route.name,
+                version=src_route.version,
+                description=src_route.description,
+                is_default=src_route.is_default,
+            )
+            session.add(new_route)
+            await session.flush()
+
+            # Clone steps, building old_step_id → new_step_id map for transitions
+            step_id_map: dict[UUID, UUID] = {}
+            step_rows = await session.execute(
+                select(RouteStep).where(
+                    RouteStep.route_id == src_route.id,
+                    RouteStep.is_active.is_(True),
+                )
+            )
+            for src_step in step_rows.scalars().all():
+                new_step = RouteStep(
+                    route_id=new_route.id,
+                    sequence=src_step.sequence,
+                    name=src_step.name,
+                    step_type=src_step.step_type,
+                    work_cell_id=src_step.work_cell_id,
+                    expected_cycle_time_sec=src_step.expected_cycle_time_sec,
+                    erp_operation_number=src_step.erp_operation_number,
+                )
+                session.add(new_step)
+                await session.flush()
+                step_id_map[src_step.id] = new_step.id
+
+                # Clone step parameters
+                param_rows = await session.execute(
+                    select(StepParameter).where(
+                        StepParameter.step_id == src_step.id,
+                        StepParameter.is_active.is_(True),
+                    )
+                )
+                for src_param in param_rows.scalars().all():
+                    new_param = StepParameter(
+                        step_id=new_step.id,
+                        name=src_param.name,
+                        data_type=src_param.data_type,
+                        uom=src_param.uom,
+                        target_value=src_param.target_value,
+                        lower_limit=src_param.lower_limit,
+                        upper_limit=src_param.upper_limit,
+                        is_required=src_param.is_required,
+                    )
+                    session.add(new_param)
+                await session.flush()
+
+            # Clone step transitions (now that all steps exist with mapped IDs)
+            for old_step_id, new_step_id in step_id_map.items():
+                trans_rows = await session.execute(
+                    select(StepTransition).where(
+                        StepTransition.from_step_id == old_step_id,
+                        StepTransition.is_active.is_(True),
+                    )
+                )
+                for src_trans in trans_rows.scalars().all():
+                    new_to_id = step_id_map.get(src_trans.to_step_id)
+                    if new_to_id is None:
+                        continue
+                    new_trans = StepTransition(
+                        from_step_id=new_step_id,
+                        to_step_id=new_to_id,
+                        condition=src_trans.condition,
+                        is_default=src_trans.is_default,
+                        priority=src_trans.priority,
+                        label=src_trans.label,
+                    )
+                    session.add(new_trans)
+                await session.flush()
+
+        await event_bus.publish(
+            product_created(str(new_product.id), new_product.code, new_product.version)
+        )
+        logger.info(
+            "Cloned product %s → %s (code=%s v=%s)",
+            source_id, new_product.id, new_product.code, new_product.version,
+        )
+        return new_product
+
     # ─── BillOfMaterial operations ───────────────────────────────────
 
     @staticmethod

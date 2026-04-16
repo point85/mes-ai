@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   readProducts,
   deleteProduct,
+  cloneProduct,
   readProductBoms,
   readBomItems,
   readProductRoutes,
@@ -34,6 +35,32 @@ export default function ProductsPage() {
   const [boms, setBoms] = useState<BomWithItems[]>([]);
   const [routes, setRoutes] = useState<RouteWithSteps[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Clone dialog state
+  const [showClone, setShowClone] = useState(false);
+  const [cloneDraft, setCloneDraft] = useState({ code: "", name: "", version: "1.0", description: "" });
+  const [cloning, setCloning] = useState(false);
+
+  const handleClone = async () => {
+    if (!selectedId) return;
+    setCloning(true);
+    setError(null);
+    try {
+      const cloned = await cloneProduct(selectedId, {
+        code: cloneDraft.code,
+        name: cloneDraft.name,
+        version: cloneDraft.version,
+        description: cloneDraft.description || null,
+      });
+      setData((prev) => [...prev, cloned]);
+      setShowClone(false);
+      setCloneDraft({ code: "", name: "", version: "1.0", description: "" });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Clone failed");
+    } finally {
+      setCloning(false);
+    }
+  };
 
   const handleRead = async () => {
     setLoading(true);
@@ -189,6 +216,68 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-4">
+      {/* ── Clone Dialog ── */}
+      {showClone && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold">Clone Product</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col text-sm font-medium text-gray-700">
+                Code *
+                <input
+                  className="mt-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
+                  value={cloneDraft.code}
+                  onChange={(e) => setCloneDraft((d) => ({ ...d, code: e.target.value }))}
+                />
+              </label>
+              <label className="flex flex-col text-sm font-medium text-gray-700">
+                Version *
+                <input
+                  className="mt-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
+                  value={cloneDraft.version}
+                  onChange={(e) => setCloneDraft((d) => ({ ...d, version: e.target.value }))}
+                />
+              </label>
+              <label className="col-span-2 flex flex-col text-sm font-medium text-gray-700">
+                Name *
+                <input
+                  className="mt-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
+                  value={cloneDraft.name}
+                  onChange={(e) => setCloneDraft((d) => ({ ...d, name: e.target.value }))}
+                />
+              </label>
+              <label className="col-span-2 flex flex-col text-sm font-medium text-gray-700">
+                Description
+                <textarea
+                  className="mt-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
+                  rows={2}
+                  value={cloneDraft.description}
+                  onChange={(e) => setCloneDraft((d) => ({ ...d, description: e.target.value }))}
+                />
+              </label>
+            </div>
+            {error && (
+              <div className="p-2 bg-red-50 border border-red-200 text-red-700 rounded text-sm">{error}</div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowClone(false); setError(null); }}
+                className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClone}
+                disabled={cloning || !cloneDraft.code.trim() || !cloneDraft.name.trim() || !cloneDraft.version.trim()}
+                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {cloning ? "Cloning…" : "Clone"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <button
           onClick={handleRead}
@@ -196,6 +285,22 @@ export default function ProductsPage() {
           className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? "Reading…" : "Read Products"}
+        </button>
+        <button
+          onClick={() => {
+            const sel = data.find((p) => p.id === selectedId);
+            setCloneDraft({
+              code: sel ? sel.code + "-COPY" : "",
+              name: sel ? sel.name + " (Copy)" : "",
+              version: sel?.version ?? "1.0",
+              description: sel?.description ?? "",
+            });
+            setShowClone(true);
+          }}
+          disabled={!selectedId}
+          className="px-4 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50"
+        >
+          Clone
         </button>
         {data.length > 0 && (
           <span className="text-sm text-gray-500">{data.length} products</span>

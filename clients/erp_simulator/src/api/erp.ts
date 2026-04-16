@@ -236,6 +236,17 @@ export async function deleteProduct(id: string): Promise<void> {
   await api.delete(`/products/${encodeURIComponent(id)}`);
 }
 
+export interface ProductClonePayload {
+  code: string;
+  name: string;
+  version: string;
+  description: string | null;
+}
+
+export async function cloneProduct(id: string, payload: ProductClonePayload): Promise<DBProduct> {
+  return unwrapData(await api.post(`/products/${encodeURIComponent(id)}/clone`, payload));
+}
+
 export interface DBBom {
   id: string;
   product_id: string;

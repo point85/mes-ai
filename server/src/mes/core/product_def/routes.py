@@ -29,6 +29,7 @@ from .schemas import (
     BOMItemRead,
     BOMRead,
     BOMUpdate,
+    ProductClone,
     ProductCreate,
     ProductRead,
     ProductUpdate,
@@ -120,6 +121,19 @@ async def delete_product(
     """Soft-delete a product definition."""
     await svc.delete_product(session, product_id)
     await session.commit()
+
+
+@router.post("/products/{product_id}/clone", status_code=201)
+async def clone_product(
+    product_id: UUID,
+    body: ProductClone,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.create")),
+):
+    """Deep-clone a product with its BOMs and routes."""
+    product = await svc.clone_product(session, product_id, **body.model_dump())
+    await session.commit()
+    return success_response(ProductRead.model_validate(product).model_dump())
 
 
 # ─── BOMs ─────────────────────────────────────────────────────────────
