@@ -72,6 +72,9 @@ export default function EquipmentPage() {
   const [mqttCountResult, setMqttCountResult] = useState<string | null>(null);
   const [mqttCountError, setMqttCountError] = useState<string | null>(null);
 
+  // Simulation tab
+  const [simTab, setSimTab] = useState<"availability" | "production">("availability");
+
   // Historian simulation state
   const [histTagFqn, setHistTagFqn] = useState("Simulated.StateTag");
   const [histState, setHistState] = useState("");
@@ -497,384 +500,407 @@ export default function EquipmentPage() {
         </div>
       )}
 
-      {/* ── OPC-UA State Simulation Panel ────────────────────────── */}
+      {/* ── Simulation Tabs ──────────────────────────────────── */}
 
       {selectedEquip && current && (
-        <div className="bg-white rounded-lg border p-4 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-600 uppercase">
-            Simulate OPC-UA State Change — {selectedEquip.code}
-          </h2>
-          <p className="text-xs text-gray-500">
-            Simulates an OPC-UA data-change notification on a PackML CurrentState tag.
-            Select a PackML state (OPC 40083 integer) and fire the event.
-          </p>
-
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              OPC-UA Tag
-              <input
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-72"
-                value={opcuaTag}
-                onChange={(e) => setOpcuaTag(e.target.value)}
-              />
-            </label>
-
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              PackML State
-              <select
-                className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
-                value={opcuaValue}
-                onChange={(e) => setOpcuaValue(Number(e.target.value))}
+        <div>
+          {/* Tab bar */}
+          <div className="flex border-b border-gray-200">
+            {(["availability", "production"] as const).map((tab) => (
+              <button
+                key={tab}
+                className={`px-5 py-2 text-sm font-medium border-b-2 -mb-px ${
+                  simTab === tab
+                    ? "border-emerald-500 text-emerald-700"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+                onClick={() => setSimTab(tab)}
               >
-                {validPackmlStates.length === 0 && (
-                  <option value="">— no valid transitions —</option>
+                {tab === "availability" ? "Availability" : "Production"}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div className="space-y-4 pt-4">
+
+          {/* ── Availability tab ──────────────────────────────────── */}
+          {simTab === "availability" && (
+            <>
+              {/* OPC-UA State Simulation */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate OPC-UA State Change — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates an OPC-UA data-change notification on a PackML CurrentState tag.
+                  Select a PackML state (OPC 40083 integer) and fire the event.
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    OPC-UA Tag
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-72"
+                      value={opcuaTag}
+                      onChange={(e) => setOpcuaTag(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    PackML State
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                      value={opcuaValue}
+                      onChange={(e) => setOpcuaValue(Number(e.target.value))}
+                    >
+                      {validPackmlStates.length === 0 && (
+                        <option value="">— no valid transitions —</option>
+                      )}
+                      {validPackmlStates.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.value} — {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50"
+                    onClick={simulateOpcua}
+                    disabled={opcuaBusy || validPackmlStates.length === 0}
+                  >
+                    {opcuaBusy ? "Sending…" : "Send OPC-UA Event"}
+                  </button>
+                </div>
+
+                {opcuaResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {opcuaResult}
+                  </div>
                 )}
-                {validPackmlStates.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.value} — {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <button
-              className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50"
-              onClick={simulateOpcua}
-              disabled={opcuaBusy || validPackmlStates.length === 0}
-            >
-              {opcuaBusy ? "Sending…" : "Send OPC-UA Event"}
-            </button>
-          </div>
-
-          {opcuaResult && (
-            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
-              {opcuaResult}
-            </div>
-          )}
-          {opcuaError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
-              {opcuaError}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── MQTT State Simulation Panel ──────────────────────────── */}
-
-      {selectedEquip && current && (
-        <div className="bg-white rounded-lg border p-4 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-600 uppercase">
-            Simulate MQTT State Message — {selectedEquip.code}
-          </h2>
-          <p className="text-xs text-gray-500">
-            Simulates an MQTT JSON message on a state topic.
-            Payload: <code className="bg-gray-100 px-1 rounded">
-            {`{"state": ${mqttState}, "reason_code": ${mqttReason ? `"${mqttReason}"` : "null"}}`}
-            </code>
-          </p>
-
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              MQTT Topic
-              <input
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
-                value={mqttTopic}
-                onChange={(e) => setMqttTopic(e.target.value)}
-              />
-            </label>
-
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              PackML State
-              <select
-                className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
-                value={mqttState}
-                onChange={(e) => setMqttState(Number(e.target.value))}
-              >
-                {validPackmlStates.length === 0 && (
-                  <option value="">— no valid transitions —</option>
+                {opcuaError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {opcuaError}
+                  </div>
                 )}
-                {validPackmlStates.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.value} — {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              </div>
 
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              Reason Code (optional)
-              <select
-                className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
-                value={mqttReason}
-                onChange={(e) => setMqttReason(e.target.value)}
-              >
-                <option value="">— none —</option>
-                {reasons.map((r) => (
-                  <option key={r.id} value={r.code}>
-                    {r.code} — {r.name} ({r.oee_bucket})
-                  </option>
-                ))}
-              </select>
-            </label>
+              {/* MQTT State Simulation */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate MQTT State Message — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates an MQTT JSON message on a state topic.
+                  Payload: <code className="bg-gray-100 px-1 rounded">
+                  {`{"state": ${mqttState}, "reason_code": ${mqttReason ? `"${mqttReason}"` : "null"}}`}
+                  </code>
+                </p>
 
-            <button
-              className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
-              onClick={simulateMqtt}
-              disabled={mqttBusy}
-            >
-              {mqttBusy ? "Sending…" : "Publish MQTT Message"}
-            </button>
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    MQTT Topic
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
+                      value={mqttTopic}
+                      onChange={(e) => setMqttTopic(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    PackML State
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                      value={mqttState}
+                      onChange={(e) => setMqttState(Number(e.target.value))}
+                    >
+                      {validPackmlStates.length === 0 && (
+                        <option value="">— no valid transitions —</option>
+                      )}
+                      {validPackmlStates.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.value} — {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Reason Code (optional)
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                      value={mqttReason}
+                      onChange={(e) => setMqttReason(e.target.value)}
+                    >
+                      <option value="">— none —</option>
+                      {reasons.map((r) => (
+                        <option key={r.id} value={r.code}>
+                          {r.code} — {r.name} ({r.oee_bucket})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
+                    onClick={simulateMqtt}
+                    disabled={mqttBusy}
+                  >
+                    {mqttBusy ? "Sending…" : "Publish MQTT Message"}
+                  </button>
+                </div>
+
+                {mqttResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {mqttResult}
+                  </div>
+                )}
+                {mqttError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {mqttError}
+                  </div>
+                )}
+              </div>
+
+              {/* Historian State Simulation */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate Historian State Change — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates an AVEVA Historian tag value change. The tag FQN is
+                  auto-populated from the AVEVA Historian plugin configuration
+                  when a mapping exists for this equipment.
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Tag FQN
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-72"
+                      value={histTagFqn}
+                      onChange={(e) => setHistTagFqn(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    State
+                    {fullModel ? (
+                      <select
+                        className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                        value={histState}
+                        onChange={(e) => setHistState(e.target.value)}
+                      >
+                        <option value="">— select —</option>
+                        {fullModel.states
+                          .filter((s) => validNextStates.has(s.name))
+                          .map((s) => (
+                            <option key={s.name} value={s.name}>
+                              {s.name} ({s.dispatch_category})
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <input
+                        className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-40"
+                        value={histState}
+                        onChange={(e) => setHistState(e.target.value)}
+                        placeholder="e.g. Running"
+                      />
+                    )}
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
+                    onClick={simulateHistorian}
+                    disabled={histBusy || !histState}
+                  >
+                    {histBusy ? "Sending…" : "Send Historian Event"}
+                  </button>
+                </div>
+
+                {histResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {histResult}
+                  </div>
+                )}
+                {histError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {histError}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── Production tab ────────────────────────────────────── */}
+          {simTab === "production" && (
+            <>
+              {/* Production Counts */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Production Counts — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Enter processed (good), defective (reject), and rework counts.
+                  Values are added as deltas to today's shift counter via the
+                  PackML <code className="bg-gray-100 px-1 rounded">Admin.ProdProcessedCount</code>
+                  {" / "}
+                  <code className="bg-gray-100 px-1 rounded">Admin.ProdDefectiveCount</code> model.
+                </p>
+
+                {/* Today's running totals */}
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-xs text-green-600 font-medium uppercase">Good</p>
+                    <p className="text-2xl font-bold text-green-700">{todayCounter?.good_count ?? 0}</p>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-xs text-red-600 font-medium uppercase">Reject</p>
+                    <p className="text-2xl font-bold text-red-700">{todayCounter?.reject_count ?? 0}</p>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p className="text-xs text-amber-600 font-medium uppercase">Rework</p>
+                    <p className="text-2xl font-bold text-amber-700">{todayCounter?.rework_count ?? 0}</p>
+                  </div>
+                </div>
+
+                {/* Delta inputs */}
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Processed (Good)
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={goodDelta}
+                      onChange={(e) => setGoodDelta(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Defective (Reject)
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={rejectDelta}
+                      onChange={(e) => setRejectDelta(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Rework
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={reworkDelta}
+                      onChange={(e) => setReworkDelta(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-teal-600 text-white text-sm rounded hover:bg-teal-700 disabled:opacity-50"
+                    onClick={submitCounts}
+                    disabled={counterBusy || (goodDelta === 0 && rejectDelta === 0 && reworkDelta === 0)}
+                  >
+                    {counterBusy ? "Submitting…" : "Submit Counts"}
+                  </button>
+                </div>
+
+                {counterResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {counterResult}
+                  </div>
+                )}
+                {counterError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {counterError}
+                  </div>
+                )}
+              </div>
+
+              {/* MQTT Production Counts Simulation */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate MQTT Production Counts — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates an MQTT JSON message on a count topic carrying PackML PackTag deltas.
+                  Payload: <code className="bg-gray-100 px-1 rounded">
+                  {`{"processed_count": ${mqttProcessed}, "defective_count": ${mqttDefective}, "rework_count": ${mqttRework}}`}
+                  </code>
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    MQTT Topic
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
+                      value={mqttCountTopic}
+                      onChange={(e) => setMqttCountTopic(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Processed (Good)
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={mqttProcessed}
+                      onChange={(e) => setMqttProcessed(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Defective (Reject)
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={mqttDefective}
+                      onChange={(e) => setMqttDefective(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Rework
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={mqttRework}
+                      onChange={(e) => setMqttRework(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
+                    onClick={submitMqttCounts}
+                    disabled={mqttCountBusy || (mqttProcessed === 0 && mqttDefective === 0 && mqttRework === 0)}
+                  >
+                    {mqttCountBusy ? "Sending…" : "Publish MQTT Counts"}
+                  </button>
+                </div>
+
+                {mqttCountResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {mqttCountResult}
+                  </div>
+                )}
+                {mqttCountError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {mqttCountError}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
           </div>
-
-          {mqttResult && (
-            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
-              {mqttResult}
-            </div>
-          )}
-          {mqttError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
-              {mqttError}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Historian State Simulation Panel ─────────────────────── */}
-
-      {selectedEquip && current && (
-        <div className="bg-white rounded-lg border p-4 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-600 uppercase">
-            Simulate Historian State Change — {selectedEquip.code}
-          </h2>
-          <p className="text-xs text-gray-500">
-            Simulates an AVEVA Historian tag value change. The tag FQN is
-            auto-populated from the AVEVA Historian plugin configuration
-            when a mapping exists for this equipment.
-          </p>
-
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              Tag FQN
-              <input
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-72"
-                value={histTagFqn}
-                onChange={(e) => setHistTagFqn(e.target.value)}
-              />
-            </label>
-
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              State
-              {fullModel ? (
-                <select
-                  className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
-                  value={histState}
-                  onChange={(e) => setHistState(e.target.value)}
-                >
-                  <option value="">— select —</option>
-                  {fullModel.states
-                    .filter((s) => validNextStates.has(s.name))
-                    .map((s) => (
-                      <option key={s.name} value={s.name}>
-                        {s.name} ({s.dispatch_category})
-                      </option>
-                    ))}
-                </select>
-              ) : (
-                <input
-                  className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-40"
-                  value={histState}
-                  onChange={(e) => setHistState(e.target.value)}
-                  placeholder="e.g. Running"
-                />
-              )}
-            </label>
-
-            <button
-              className="px-4 py-1.5 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
-              onClick={simulateHistorian}
-              disabled={histBusy || !histState}
-            >
-              {histBusy ? "Sending…" : "Send Historian Event"}
-            </button>
-          </div>
-
-          {histResult && (
-            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
-              {histResult}
-            </div>
-          )}
-          {histError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
-              {histError}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Production Counts Panel ──────────────────────────────── */}
-
-      {selectedEquip && current && (
-        <div className="bg-white rounded-lg border p-4 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-600 uppercase">
-            Production Counts — {selectedEquip.code}
-          </h2>
-          <p className="text-xs text-gray-500">
-            Enter processed (good), defective (reject), and rework counts.
-            Values are added as deltas to today's shift counter via the
-            PackML <code className="bg-gray-100 px-1 rounded">Admin.ProdProcessedCount</code>
-            {" / "}
-            <code className="bg-gray-100 px-1 rounded">Admin.ProdDefectiveCount</code> model.
-          </p>
-
-          {/* Today's running totals */}
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <p className="text-xs text-green-600 font-medium uppercase">Good</p>
-              <p className="text-2xl font-bold text-green-700">{todayCounter?.good_count ?? 0}</p>
-            </div>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-xs text-red-600 font-medium uppercase">Reject</p>
-              <p className="text-2xl font-bold text-red-700">{todayCounter?.reject_count ?? 0}</p>
-            </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-              <p className="text-xs text-amber-600 font-medium uppercase">Rework</p>
-              <p className="text-2xl font-bold text-amber-700">{todayCounter?.rework_count ?? 0}</p>
-            </div>
-          </div>
-
-          {/* Delta inputs */}
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              Processed (Good)
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
-                value={goodDelta}
-                onChange={(e) => setGoodDelta(Math.max(0, Number(e.target.value)))}
-              />
-            </label>
-
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              Defective (Reject)
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
-                value={rejectDelta}
-                onChange={(e) => setRejectDelta(Math.max(0, Number(e.target.value)))}
-              />
-            </label>
-
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              Rework
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
-                value={reworkDelta}
-                onChange={(e) => setReworkDelta(Math.max(0, Number(e.target.value)))}
-              />
-            </label>
-
-            <button
-              className="px-4 py-1.5 bg-teal-600 text-white text-sm rounded hover:bg-teal-700 disabled:opacity-50"
-              onClick={submitCounts}
-              disabled={counterBusy || (goodDelta === 0 && rejectDelta === 0 && reworkDelta === 0)}
-            >
-              {counterBusy ? "Submitting…" : "Submit Counts"}
-            </button>
-          </div>
-
-          {counterResult && (
-            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
-              {counterResult}
-            </div>
-          )}
-          {counterError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
-              {counterError}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── MQTT Production Counts Simulation Panel ──────────────── */}
-
-      {selectedEquip && current && (
-        <div className="bg-white rounded-lg border p-4 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-600 uppercase">
-            Simulate MQTT Production Counts — {selectedEquip.code}
-          </h2>
-          <p className="text-xs text-gray-500">
-            Simulates an MQTT JSON message on a count topic carrying PackML PackTag deltas.
-            Payload: <code className="bg-gray-100 px-1 rounded">
-            {`{"processed_count": ${mqttProcessed}, "defective_count": ${mqttDefective}, "rework_count": ${mqttRework}}`}
-            </code>
-          </p>
-
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              MQTT Topic
-              <input
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
-                value={mqttCountTopic}
-                onChange={(e) => setMqttCountTopic(e.target.value)}
-              />
-            </label>
-
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              Processed (Good)
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
-                value={mqttProcessed}
-                onChange={(e) => setMqttProcessed(Math.max(0, Number(e.target.value)))}
-              />
-            </label>
-
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              Defective (Reject)
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
-                value={mqttDefective}
-                onChange={(e) => setMqttDefective(Math.max(0, Number(e.target.value)))}
-              />
-            </label>
-
-            <label className="flex flex-col text-xs font-medium text-gray-600">
-              Rework
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
-                value={mqttRework}
-                onChange={(e) => setMqttRework(Math.max(0, Number(e.target.value)))}
-              />
-            </label>
-
-            <button
-              className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
-              onClick={submitMqttCounts}
-              disabled={mqttCountBusy || (mqttProcessed === 0 && mqttDefective === 0 && mqttRework === 0)}
-            >
-              {mqttCountBusy ? "Sending…" : "Publish MQTT Counts"}
-            </button>
-          </div>
-
-          {mqttCountResult && (
-            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
-              {mqttCountResult}
-            </div>
-          )}
-          {mqttCountError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
-              {mqttCountError}
-            </div>
-          )}
         </div>
       )}
     </div>
