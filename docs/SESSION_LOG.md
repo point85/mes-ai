@@ -2904,3 +2904,41 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
+
+## Session S033 — 2026-04-16
+
+**Phase**: Documentation  
+**Objective**: Refresh ARCHITECTURE.md with all S031-S032 additions
+
+### What Happened
+1. Resumed from S032 by reading `PROJECT_STATE.json`, `SESSION_LOG.md`, and repo memory.
+2. Audited `ARCHITECTURE.md` against S031 and S032 session changes. Most INVENTORY content (§4, §5, §6.3, §8.3, §15, §18) was already present from prior updates. Identified 6 gaps.
+3. Updated **§1 Overview status line** — "1621 unit tests" → "1844 unit tests"; added inventory module, DT-CLIENT inventory pages, RT-CLIENT inventory UI, pip_dependencies (D053), parameter validation at enable (D054) to the status summary.
+4. Updated **§5.2 Inventory Management** — Added `step_id` field to `InventoryTransaction` entity. Added WIP Genealogy Bridge (D055) documentation explaining how `inventory.consume()` bridges to `MaterialLotService.consume()` for as-built genealogy records.
+5. Updated **§7.2 Manifest Fields Summary** — Added `pip_dependencies` row to the table.
+6. Updated **§7.3 Plugin Parameters** — Changed "Validation at install time" to "Validation at enable time (D054)". Install now always succeeds; required parameters are validated only when enabling.
+7. Updated **§7.9 CLI Plugin Commands** — Note now references D053 `pip_dependencies` field in `manifest.yaml` instead of `pip install mes-ai[opcua]` extras.
+8. Updated **§7.10 PluginManifest** model — Added `pip_dependencies: list[str] = []` with D053 reference.
+9. Updated **§7.10 Parameter Validation section** — Renamed heading to "Parameter Validation at Enable Time (D054)" with updated explanation matching the actual behavior.
+10. Updated **§15.1 DT-CLIENT scope table** — Added "Inventory Visibility" row (balance viewer, transaction audit log).
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `docs/ARCHITECTURE.md` | 6 updates reflecting S031-S032 changes (test count, inventory bridge, pip_dependencies, param validation timing, DT-CLIENT scope) |
+| `docs/PROJECT_STATE.json` | Updated lastUpdated, lastSessionId, currentTask to S033 |
+| `docs/SESSION_LOG.md` | Added S033 entry |
+
+### Where We Stopped
+- **ARCHITECTURE.md fully refreshed** with all S031-S032 additions
+- **1844 tests passing** (unchanged — documentation-only session)
+- Next options:
+  1. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+  2. **Browser smoke test** — start all 4 dev servers, verify UIs work end-to-end
+  3. **More vendor adapters** — Modbus TCP, D365 F&O
+  4. **TODO.txt items** — UOM editor UX fixes, Material editor filter
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.

@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-14",
-  "lastSessionId": "S032",
+  "lastUpdated": "2026-04-16",
+  "lastSessionId": "S033",
 
   "phases": [
     {
@@ -247,7 +247,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P5 22/22 tasks complete. S032: DT-CLIENT inventory pages, RT-CLIENT inventory operator UI (receive/putaway/pick/move/consume/adjust with balances & transaction log), bridge inventory.consume → MaterialLotService.consume for WIP genealogy. 1844 tests, 0 failures.",
+  "currentTask": "P5 22/22 tasks complete. S033: ARCHITECTURE.md refreshed with S031-S032 additions (inventory module §5.2, pip_dependencies D053, parameter validation at enable D054, WIP genealogy bridge D055, test count 1844). Ready for P6 or next feature work.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",

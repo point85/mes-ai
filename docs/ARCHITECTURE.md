@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), 1621 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), 1844 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -510,9 +510,11 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 |---|---|---|
 | **StorageLocation** | `id`, `name`, `code` (unique), `description`, `location_type` (receiving/storage/rip/staging/shipping), `aisle`, `bay`, `tier`, `site_id`, `capacity` | → Site |
 | **InventoryBalance** | `id`, `material_lot_id`, `location_id`, `quantity_on_hand`, `quantity_reserved` | → MaterialLot, → StorageLocation. UniqueConstraint on (`material_lot_id`, `location_id`). |
-| **InventoryTransaction** | `id`, `transaction_type` (receive/putaway/pick/move/consume/adjust), `material_lot_id`, `from_location_id`, `to_location_id`, `quantity`, `reference_id`, `reference_type` (production_order/unit/lot), `reason`, `performed_at`, `performed_at_utc` | → MaterialLot, → StorageLocation (from), → StorageLocation (to). Immutable audit trail. |
+| **InventoryTransaction** | `id`, `transaction_type` (receive/putaway/pick/move/consume/adjust), `material_lot_id`, `from_location_id`, `to_location_id`, `quantity`, `reference_id`, `reference_type` (production_order/unit/lot), `step_id` (nullable — route step for consume operations), `reason`, `performed_at`, `performed_at_utc` | → MaterialLot, → StorageLocation (from), → StorageLocation (to). Immutable audit trail. |
 
 > **Inventory Flow:** Material arrives via `receive` into a receiving location, is `putaway` to a warehouse storage location (aisle/bay/tier), `picked` to a staging area, `moved` to a raw-and-in-process (RIP) location at the production line, and finally `consumed` by WIP. Each step creates an `InventoryTransaction` and updates `InventoryBalance` atomically.
+>
+> **WIP Genealogy Bridge (D055):** When `inventory.consume()` is called with `reference_type` of `"unit"` or `"lot"`, the service also calls `MaterialLotService.consume()` to create a `MaterialConsumption` genealogy record. This bridges inventory tracking with WIP traceability — a single consume operation decrements the inventory balance *and* records the consumption against the WIP item for as-built genealogy.
 
 #### Quality Management (QUAL-MGMT)
 
@@ -2672,6 +2674,7 @@ config_schema:
 | `origin` | No | `system` or `user` (default: `user`) |
 | `min_mes_version` | No | Minimum compatible MES version |
 | `parameters` | No | List of `ManifestParameter` declarations |
+| `pip_dependencies` | No | Python packages to pip-install at plugin install time (e.g. `["asyncua>=1.1.0"]`) |
 | `permissions` | No | Custom permissions introduced by the plugin |
 | `required_core_permissions` | No | Core permissions the plugin needs |
 | `extension_points` | No | List of extension point registrations |
@@ -2693,8 +2696,9 @@ class ManifestParameter(BaseModel):
     secret: bool       # Masked in UI (passwords, API keys)
 ```
 
-**Validation at install time:**
-- All parameters with `required: true` must have values in the install request
+**Validation at enable time (D054):**
+- All parameters with `required: true` must have values before the plugin can be **enabled**
+- Install accepts a plugin with no parameters — parameters can be configured later via DT-CLIENT UI or `--param` CLI flags
 - Type validation is performed against the declared type
 - Secret values are stored in `parameter_values` JSONB but masked in API responses
 
@@ -2862,9 +2866,10 @@ mes plugin enable <plugin-id>    # Enable an installed plugin
 mes plugin disable <plugin-id>   # Disable a running plugin
 ```
 
-> **Note (D037):** The previous `mes adapter install` and `mes adapter extras` subcommands
-> have been removed. Adapter pip extras (e.g., `opcua`, `mqtt`, `oracle`) are now installed
-> directly via `pip install mes-ai[opcua]`. Adapters are managed exclusively through the
+> **Note (D037, D053):** The previous `mes adapter install` and `mes adapter extras` subcommands
+> have been removed. Adapter Python dependencies are declared in `manifest.yaml` via the
+> `pip_dependencies` field (e.g., `pip_dependencies: ["asyncua>=1.1.0"]`). These are installed
+> automatically when the plugin is installed. Adapters are managed exclusively through the
 > plugin commands above.
 
 ### 7.10 Plugin Metadata Contract Enforcement
@@ -2887,6 +2892,7 @@ class PluginManifest(BaseModel):
     origin: str = "user"
     min_mes_version: str = "0.1.0"
     parameters: list[ManifestParameter] = []
+    pip_dependencies: list[str] = []       # Python packages to pip-install (D053)
     permissions: list[ManifestPermission] = []
     extension_points: list[ManifestExtensionPoint] = []
     event_subscriptions: list[str] = []
@@ -2906,9 +2912,10 @@ When a plugin is loaded (enabled), the `PluginManager`:
 
 If any step fails, the plugin is marked with an error and remains unloaded. The server continues operating.
 
-#### Parameter Validation at Install Time
+#### Parameter Validation at Enable Time (D054)
 
-Before a plugin can be enabled, **required parameters** must be provided. The `validate_parameters()` method checks:
+Required parameters are validated when a plugin is **enabled**, not at install time. This allows
+installing a plugin first and configuring parameters later (via DT-CLIENT UI or CLI `--param` flags).
 
 ```python
 def validate_parameters(self, manifest: PluginManifest, parameter_values: dict) -> list[str]:
@@ -2919,7 +2926,8 @@ def validate_parameters(self, manifest: PluginManifest, parameter_values: dict) 
     return errors
 ```
 
-If any required parameters are missing, the install/enable request is rejected with the list of errors.
+If any required parameters are missing, the **enable** request is rejected with the list of errors.
+Install always succeeds — parameters can be provided at install time or added afterwards.
 
 #### Config Resolution Pipeline
 
@@ -5401,6 +5409,7 @@ The DT-CLIENT handles **definition-time** activities — everything that happens
 | **Data Collection Setup** | Data definitions (what to collect at each step), sources, limits |
 | **Auth Administration** | Users, roles, permissions, IdP group mappings |
 | **Plugin Management** | Install/uninstall/enable/disable plugins, plugin configuration |
+| **Inventory Visibility** | Inventory balance viewer, transaction audit log (read-only — operations belong to RT-CLIENT) |
 | **System Configuration** | Environment settings, adapter configuration, event bus settings |
 | **Import/Export** | Bulk import from CSV/JSON, export configuration snapshots |
 
