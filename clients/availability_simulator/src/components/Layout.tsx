@@ -16,9 +16,10 @@ interface LayoutProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
   children: ReactNode;
+  treePanel?: ReactNode;
 }
 
-export default function Layout({ activeTab, onTabChange, children }: LayoutProps) {
+export default function Layout({ activeTab, onTabChange, children, treePanel }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const sections = [...new Set(tabs.map((t) => t.section))];
@@ -65,6 +66,18 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
           ))}
         </nav>
       </aside>
+
+      {/* Equipment tree panel */}
+      {treePanel && (
+        <div className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+          <div className="px-3 py-3 border-b border-gray-200">
+            <h2 className="text-xs font-semibold uppercase text-gray-500">Equipment</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2">
+            {treePanel}
+          </div>
+        </div>
+      )}
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">

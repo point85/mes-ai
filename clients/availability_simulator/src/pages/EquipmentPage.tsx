@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  fetchSites,
-  fetchAreas,
-  fetchLines,
-  fetchWorkCells,
-  fetchEquipmentInWorkCell,
   fetchCurrentState,
   fetchStateModels,
   fetchReasons,
@@ -18,14 +13,8 @@ import {
   fetchCounters,
 } from "../api/endpoints";
 import { useEquipmentContext } from "../App";
-import DataTable, { type Column } from "../components/DataTable";
 import StateBadge from "../components/StateBadge";
 import type {
-  Site,
-  Area,
-  ProductionLine,
-  WorkCell,
-  Equipment,
   EquipmentCurrentState,
   StateModel,
   TransitionDefinition,
@@ -33,26 +22,14 @@ import type {
   ProductionCounterRead,
 } from "../types";
 
-interface Selection {
-  siteId?: string;
-  areaId?: string;
-  lineId?: string;
-  wcId?: string;
-}
-
 export default function EquipmentPage() {
-  const { setEquipment: setContextEquipment, navigateTo } = useEquipmentContext();
-  const [sites, setSites] = useState<Site[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [lines, setLines] = useState<ProductionLine[]>([]);
-  const [workCells, setWorkCells] = useState<WorkCell[]>([]);
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
-  const [sel, setSel] = useState<Selection>({});
-  const [loading, setLoading] = useState(false);
+  const { equipmentId, equipmentCode, equipmentName, setEquipment, navigateTo } = useEquipmentContext();
+  // Derive a selection object from context for use in handlers / JSX
+  const selectedEquip = equipmentId
+    ? { id: equipmentId, code: equipmentCode ?? "", name: equipmentName ?? "" }
+    : null;
 
   // Transition control state
-  const [selectedEquip, setSelectedEquip] = useState<Equipment | null>(null);
-  const [current, setCurrent] = useState<EquipmentCurrentState | null>(null);
   const [models, setModels] = useState<StateModel[]>([]);
   const [reasonCode, setReasonCode] = useState("");
   const [notes, setNotes] = useState("");
@@ -101,61 +78,14 @@ export default function EquipmentPage() {
   const [histResult, setHistResult] = useState<string | null>(null);
   const [histError, setHistError] = useState<string | null>(null);
 
-  // Load sites + state models + reasons on mount
+  // Load state models + reasons on mount
   useEffect(() => {
-    fetchSites().then(setSites).catch(() => {});
     fetchStateModels().then(setModels).catch(() => {});
     fetchReasons().then(setReasons).catch(() => {});
   }, []);
 
-  // Load areas when site changes
+  // Load equipment state whenever the context equipmentId changes
   useEffect(() => {
-    setAreas([]); setLines([]); setWorkCells([]); setEquipment([]);
-    clearSelection();
-    if (!sel.siteId) return;
-    fetchAreas(sel.siteId).then(setAreas).catch(() => {});
-  }, [sel.siteId]);
-
-  // Load lines when area changes
-  useEffect(() => {
-    setLines([]); setWorkCells([]); setEquipment([]);
-    clearSelection();
-    if (!sel.areaId) return;
-    fetchLines(sel.areaId).then(setLines).catch(() => {});
-  }, [sel.areaId]);
-
-  // Load work cells when line changes
-  useEffect(() => {
-    setWorkCells([]); setEquipment([]);
-    clearSelection();
-    if (!sel.lineId) return;
-    fetchWorkCells(sel.lineId).then(setWorkCells).catch(() => {});
-  }, [sel.lineId]);
-
-  // Load equipment when work cell changes
-  useEffect(() => {
-    setEquipment([]);
-    clearSelection();
-    if (!sel.wcId) return;
-    setLoading(true);
-    fetchEquipmentInWorkCell(sel.wcId)
-      .then(setEquipment)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [sel.wcId]);
-
-  function clearSelection() {
-    setSelectedEquip(null);
-    setCurrent(null);
-    setError(null);
-    setLastResult(null);
-    setTodayCounter(null);
-    setCounterResult(null);
-    setCounterError(null);
-  }
-
-  async function selectEquipment(eq: Equipment) {
-    setSelectedEquip(eq);
     setCurrent(null);
     setError(null);
     setLastResult(null);
@@ -164,30 +94,44 @@ export default function EquipmentPage() {
     setTodayCounter(null);
     setCounterResult(null);
     setCounterError(null);
-    try {
-      const st = await fetchCurrentState(eq.id);
-      setCurrent(st);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(`Failed to load state: ${msg}`);
-    }
-    // Load today's production counter
-    try {
-      const counters = await fetchCounters(eq.id);
-      const today = new Date().toISOString().slice(0, 10);
-      const match = counters.find((c) => c.shift_date === today);
-      setTodayCounter(match ?? null);
-    } catch {
-      // non-critical — panel will show zeros
-    }
-    // Look up historian tag FQN from plugin config
-    const mapping = await fetchHistorianMapping(eq.id);
-    if (mapping?.state_tag_fqn) {
-      setHistTagFqn(mapping.state_tag_fqn);
-    } else {
-      setHistTagFqn("Simulated.StateTag");
-    }
-  }
+
+    if (!equipmentId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const st = await fetchCurrentState(equipmentId);
+        if (!cancelled) setCurrent(st);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setError(`Failed to load state: ${msg}`);
+        }
+      }
+      // Load today's production counter
+      try {
+        const counters = await fetchCounters(equipmentId);
+        if (!cancelled) {
+          const today = new Date().toISOString().slice(0, 10);
+          const match = counters.find((c) => c.shift_date === today);
+          setTodayCounter(match ?? null);
+        }
+      } catch {
+        // non-critical
+      }
+      // Look up historian tag FQN from plugin config
+      const mapping = await fetchHistorianMapping(equipmentId);
+      if (!cancelled) {
+        if (mapping?.state_tag_fqn) {
+          setHistTagFqn(mapping.state_tag_fqn);
+        } else {
+          setHistTagFqn("Simulated.StateTag");
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [equipmentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function doTransition(t: TransitionDefinition) {
     if (!selectedEquip) return;
@@ -402,70 +346,12 @@ export default function EquipmentPage() {
     return targetBucket === selectedReason.oee_bucket;
   }
 
-  const equipColumns: Column<Equipment>[] = [
-    { key: "code", header: "Code" },
-    { key: "name", header: "Name" },
-    { key: "equipment_type", header: "Type", render: (r) => r.equipment_type ?? "—" },
-    {
-      key: "state_model_id",
-      header: "State Model",
-      render: (r) => r.state_model_id ?? <span className="text-gray-400">none</span>,
-    },
-  ];
-
   return (
     <div className="space-y-4">
-      {/* Hierarchy selectors */}
-      <div className="flex flex-wrap gap-3">
-        <Select
-          label="Site"
-          value={sel.siteId ?? ""}
-          options={sites.map((s) => ({ value: s.id, label: `${s.code} — ${s.name}` }))}
-          onChange={(v) => setSel({ siteId: v || undefined })}
-        />
-        <Select
-          label="Area"
-          value={sel.areaId ?? ""}
-          options={areas.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` }))}
-          onChange={(v) => setSel((p) => ({ ...p, areaId: v || undefined, lineId: undefined, wcId: undefined }))}
-          disabled={!sel.siteId}
-        />
-        <Select
-          label="Line"
-          value={sel.lineId ?? ""}
-          options={lines.map((l) => ({ value: l.id, label: `${l.code} — ${l.name}` }))}
-          onChange={(v) => setSel((p) => ({ ...p, lineId: v || undefined, wcId: undefined }))}
-          disabled={!sel.areaId}
-        />
-        <Select
-          label="Work Cell"
-          value={sel.wcId ?? ""}
-          options={workCells.map((wc) => ({ value: wc.id, label: `${wc.code} — ${wc.name}` }))}
-          onChange={(v) => setSel((p) => ({ ...p, wcId: v || undefined }))}
-          disabled={!sel.lineId}
-        />
-      </div>
-
-      {/* Equipment table */}
-      {loading ? (
-        <p className="text-gray-500 text-sm">Loading equipment…</p>
-      ) : (
-        <DataTable
-          columns={equipColumns}
-          data={equipment}
-          emptyMessage={sel.wcId ? "No equipment in this work cell" : "Select a work cell above"}
-          onRowClick={selectEquipment}
-        />
-      )}
-
-      {/* Quick summary */}
-      {equipment.length > 0 && (
-        <div className="flex gap-4 text-sm text-gray-600">
-          <span>Total: <strong>{equipment.length}</strong></span>
-          <span>
-            With state model:{" "}
-            <strong>{equipment.filter((e) => e.state_model_id).length}</strong>
-          </span>
+      {/* Prompt when nothing is selected */}
+      {!equipmentId && (
+        <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
+          <p className="text-sm">Select equipment from the tree to begin.</p>
         </div>
       )}
 
@@ -486,25 +372,19 @@ export default function EquipmentPage() {
             <div className="flex items-center gap-2">
               <button
                 className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
-                onClick={() => {
-                  setContextEquipment(selectedEquip.id, selectedEquip.code);
-                  navigateTo("history");
-                }}
+                onClick={() => navigateTo("history")}
               >
                 History →
               </button>
               <button
                 className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
-                onClick={() => {
-                  setContextEquipment(selectedEquip.id, selectedEquip.code);
-                  navigateTo("oee");
-                }}
+                onClick={() => navigateTo("oee")}
               >
                 OEE →
               </button>
               <button
                 className="text-xs text-gray-400 hover:text-gray-600"
-                onClick={clearSelection}
+                onClick={() => setEquipment(null, null)}
               >
                 ✕ close
               </button>
@@ -997,40 +877,5 @@ export default function EquipmentPage() {
         </div>
       )}
     </div>
-  );
-}
-
-/* ── Tiny select helper ─────────────────────────────────────────── */
-
-function Select({
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="flex flex-col text-xs font-medium text-gray-600">
-      {label}
-      <select
-        className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm disabled:opacity-50"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-      >
-        <option value="">— select —</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }

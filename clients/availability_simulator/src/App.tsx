@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import Layout, { type TabId } from "./components/Layout";
+import EquipmentTree from "./components/EquipmentTree";
 import DashboardPage from "./pages/DashboardPage";
 import EquipmentPage from "./pages/EquipmentPage";
 import HistoryPage from "./pages/HistoryPage";
@@ -11,13 +12,15 @@ import ModelsPage from "./pages/ModelsPage";
 interface EquipmentContextValue {
   equipmentId: string | null;
   equipmentCode: string | null;
-  setEquipment: (id: string | null, code: string | null) => void;
+  equipmentName: string | null;
+  setEquipment: (id: string | null, code: string | null, name?: string | null) => void;
   navigateTo: (tab: TabId) => void;
 }
 
 const EquipmentContext = createContext<EquipmentContextValue>({
   equipmentId: null,
   equipmentCode: null,
+  equipmentName: null,
   setEquipment: () => {},
   navigateTo: () => {},
 });
@@ -35,14 +38,18 @@ const pages: Record<TabId, React.FC> = {
   models: ModelsPage,
 };
 
+const operationsTabs: TabId[] = ["equipment", "history", "oee"];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [equipmentId, setEquipmentId] = useState<string | null>(null);
   const [equipmentCode, setEquipmentCode] = useState<string | null>(null);
+  const [equipmentName, setEquipmentName] = useState<string | null>(null);
 
-  const setEquipment = useCallback((id: string | null, code: string | null) => {
+  const setEquipment = useCallback((id: string | null, code: string | null, name?: string | null) => {
     setEquipmentId(id);
     setEquipmentCode(code);
+    setEquipmentName(name ?? null);
   }, []);
 
   const navigateTo = useCallback((tab: TabId) => {
@@ -51,9 +58,16 @@ export default function App() {
 
   const Page = pages[activeTab];
 
+  const treePanel = operationsTabs.includes(activeTab) ? (
+    <EquipmentTree
+      selectedEquipmentId={equipmentId}
+      onSelectEquipment={(id, code, name) => setEquipment(id, code, name)}
+    />
+  ) : undefined;
+
   return (
-    <EquipmentContext.Provider value={{ equipmentId, equipmentCode, setEquipment, navigateTo }}>
-      <Layout activeTab={activeTab} onTabChange={setActiveTab}>
+    <EquipmentContext.Provider value={{ equipmentId, equipmentCode, equipmentName, setEquipment, navigateTo }}>
+      <Layout activeTab={activeTab} onTabChange={setActiveTab} treePanel={treePanel}>
         <Page />
       </Layout>
     </EquipmentContext.Provider>
