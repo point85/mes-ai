@@ -1,0 +1,18 @@
+version: "1.0"
+providers:
+  - id: openai
+    model: gpt-4o # High visual reasoning is best for UI/UX
+agents:
+  - id: ui-auditor
+    name: "QA Specialist"
+    soul: ./.openclaw/souls/qa_tester.md
+    tools:
+      - name: browser
+        config:
+          headless: true
+      - name: terminal
+        config:
+          workdir: ./tests
+    memory:
+      type: local
+      path: ./.openclaw/memory

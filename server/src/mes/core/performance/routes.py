@@ -53,6 +53,7 @@ from .schemas import (
     EquipmentTransitionRequest,
     ManualTransitionRequest,
     OEEResult,
+    SimulateHistorianCountRequest,
     SimulateHistorianStateRequest,
     SimulateMqttCountRequest,
     SimulateMqttStateRequest,
@@ -379,6 +380,46 @@ async def simulate_mqtt_counts(
     logging.getLogger(__name__).info(
         "Simulated MQTT count message: topic=%s equip=%s processed=+%d defective=+%d rework=+%d",
         topic, equip_id, body.processed_count, body.defective_count, body.rework_count,
+    )
+
+    return success_response(ProductionCounterRead.model_validate(counter).model_dump())
+
+
+@router.post("/equipment/{equip_id}/simulate-historian-counts", status_code=201)
+async def simulate_historian_counts(
+    equip_id: UUID,
+    body: SimulateHistorianCountRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """
+    Simulate an AVEVA Historian tag carrying production count deltas.
+
+    Mimics a historian data-change callback delivering count
+    increments.  Counts are atomically incremented on today's shift
+    counter in the same way as the real historian polling plugin.
+    """
+    if body.processed_count == 0 and body.defective_count == 0 and body.rework_count == 0:
+        from mes.framework.api.exceptions import ValidationException
+
+        raise ValidationException(
+            "At least one count (processed_count, defective_count, rework_count) must be > 0.",
+        )
+
+    counter = await ProductionCounterService.increment_counter(
+        session,
+        equipment_id=equip_id,
+        good_delta=body.processed_count,
+        reject_delta=body.defective_count,
+        rework_delta=body.rework_count,
+        source_plugin="historian-counter-simulator",
+    )
+    await session.commit()
+
+    import logging
+    logging.getLogger(__name__).info(
+        "Simulated Historian count tag=%s equip=%s processed=+%d defective=+%d rework=+%d",
+        body.tag_fqn, equip_id, body.processed_count, body.defective_count, body.rework_count,
     )
 
     return success_response(ProductionCounterRead.model_validate(counter).model_dump())

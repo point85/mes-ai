@@ -7,6 +7,7 @@ import {
   simulateOpcuaState,
   simulateMqttState,
   simulateHistorianState,
+  simulateHistorianCounts,
   fetchHistorianMapping,
   simulateMqttCounts,
   incrementCounter,
@@ -71,6 +72,15 @@ export default function EquipmentPage() {
   const [mqttCountBusy, setMqttCountBusy] = useState(false);
   const [mqttCountResult, setMqttCountResult] = useState<string | null>(null);
   const [mqttCountError, setMqttCountError] = useState<string | null>(null);
+
+  // Historian production counts simulation state
+  const [histCountTagFqn, setHistCountTagFqn] = useState("Simulated.CountTag");
+  const [histCountProcessed, setHistCountProcessed] = useState(1);
+  const [histCountDefective, setHistCountDefective] = useState(0);
+  const [histCountRework, setHistCountRework] = useState(0);
+  const [histCountBusy, setHistCountBusy] = useState(false);
+  const [histCountResult, setHistCountResult] = useState<string | null>(null);
+  const [histCountError, setHistCountError] = useState<string | null>(null);
 
   // Simulation tab
   const [simTab, setSimTab] = useState<"availability" | "production">("availability");
@@ -310,6 +320,36 @@ export default function EquipmentPage() {
       setMqttCountError(`Simulated MQTT count message failed: ${msg}`);
     } finally {
       setMqttCountBusy(false);
+    }
+  }
+
+  async function submitHistorianCounts() {
+    if (!selectedEquip) return;
+    if (histCountProcessed === 0 && histCountDefective === 0 && histCountRework === 0) return;
+    setHistCountBusy(true);
+    setHistCountError(null);
+    setHistCountResult(null);
+    try {
+      const counter = await simulateHistorianCounts(
+        selectedEquip.id,
+        histCountProcessed,
+        histCountDefective,
+        histCountRework,
+        histCountTagFqn,
+      );
+      setTodayCounter(counter);
+      const parts: string[] = [];
+      if (histCountProcessed > 0) parts.push(`+${histCountProcessed} processed`);
+      if (histCountDefective > 0) parts.push(`+${histCountDefective} defective`);
+      if (histCountRework > 0) parts.push(`+${histCountRework} rework`);
+      setHistCountResult(
+        `Historian → tag=${histCountTagFqn} ${parts.join(", ")} — totals: ${counter.good_count} good, ${counter.reject_count} reject, ${counter.rework_count} rework`,
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setHistCountError(`Simulated Historian count failed: ${msg}`);
+    } finally {
+      setHistCountBusy(false);
     }
   }
 
@@ -894,6 +934,80 @@ export default function EquipmentPage() {
                 {mqttCountError && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
                     {mqttCountError}
+                  </div>
+                )}
+              </div>
+
+              {/* AVEVA Historian Production Counts Simulation */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate Historian Production Counts — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates an AVEVA Historian tag data-change event carrying production count deltas,
+                  as if the historian polling plugin detected incremented count tags.
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Tag FQN
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
+                      value={histCountTagFqn}
+                      onChange={(e) => setHistCountTagFqn(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Processed (Good)
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={histCountProcessed}
+                      onChange={(e) => setHistCountProcessed(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Defective (Reject)
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={histCountDefective}
+                      onChange={(e) => setHistCountDefective(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Rework
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={histCountRework}
+                      onChange={(e) => setHistCountRework(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50"
+                    onClick={submitHistorianCounts}
+                    disabled={histCountBusy || (histCountProcessed === 0 && histCountDefective === 0 && histCountRework === 0)}
+                  >
+                    {histCountBusy ? "Sending…" : "Submit Historian Counts"}
+                  </button>
+                </div>
+
+                {histCountResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {histCountResult}
+                  </div>
+                )}
+                {histCountError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {histCountError}
                   </div>
                 )}
               </div>

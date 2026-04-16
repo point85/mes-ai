@@ -111,6 +111,20 @@ export async function simulateHistorianState(
   return res.data.data;
 }
 
+export async function simulateHistorianCounts(
+  equipId: string,
+  processedCount: number,
+  defectiveCount: number,
+  reworkCount = 0,
+  tagFqn = "Simulated.CountTag",
+): Promise<ProductionCounterRead> {
+  const res = await api.post<ApiResponse<ProductionCounterRead>>(
+    `/performance/equipment/${equipId}/simulate-historian-counts`,
+    { tag_fqn: tagFqn, processed_count: processedCount, defective_count: defectiveCount, rework_count: reworkCount },
+  );
+  return res.data.data;
+}
+
 /**
  * Look up the AVEVA Historian equipment_mappings for a given equipment ID.
  * Returns the matching mapping object or null if not configured.

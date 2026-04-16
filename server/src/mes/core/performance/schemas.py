@@ -233,6 +233,31 @@ class SimulateHistorianStateRequest(BaseModel):
     )
 
 
+class SimulateHistorianCountRequest(BaseModel):
+    """Schema for simulating an AVEVA Historian tag carrying production count deltas."""
+
+    tag_fqn: str = Field(
+        ...,
+        max_length=255,
+        description="Fully qualified tag name (e.g. 'Baytown.Line1_ProdCount')",
+    )
+    processed_count: int = Field(
+        0,
+        ge=0,
+        description="Good/processed units to add (delta)",
+    )
+    defective_count: int = Field(
+        0,
+        ge=0,
+        description="Defective/rejected units to add (delta)",
+    )
+    rework_count: int = Field(
+        0,
+        ge=0,
+        description="Rework units to add (delta)",
+    )
+
+
 class EquipmentCurrentStateRead(BaseModel):
     """Schema for returning the current state of equipment (or default if no model)."""
 
