@@ -1,43 +1,15 @@
 import { useEffect, useState } from "react";
-import {
-  fetchSites,
-  fetchAreas,
-  fetchLines,
-  fetchWorkCells,
-  fetchEquipmentInWorkCell,
-  fetchOEE,
-} from "../api/endpoints";
+import { fetchOEE } from "../api/endpoints";
 import { useEquipmentContext } from "../App";
-import type {
-  Site,
-  Area,
-  ProductionLine,
-  WorkCell,
-  Equipment,
-  OEEResult,
-} from "../types";
+import type { OEEResult } from "../types";
 
 function toLocalDateTimeInput(d: Date): string {
-  // Format as yyyy-MM-ddTHH:mm for datetime-local input
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export default function OEEPage() {
   const { equipmentId, equipmentCode } = useEquipmentContext();
-
-  // Hierarchy pickers
-  const [sites, setSites] = useState<Site[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [lines, setLines] = useState<ProductionLine[]>([]);
-  const [workCells, setWorkCells] = useState<WorkCell[]>([]);
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
-  const [siteId, setSiteId] = useState("");
-  const [areaId, setAreaId] = useState("");
-  const [lineId, setLineId] = useState("");
-  const [wcId, setWcId] = useState("");
-  const [selectedEquipId, setSelectedEquipId] = useState("");
-  const [, setSelectedEquipCode] = useState("");
 
   // Period
   const now = new Date();
@@ -51,53 +23,21 @@ export default function OEEPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Clear result when equipment changes
   useEffect(() => {
-    fetchSites().then(setSites).catch(() => {});
-  }, []);
-
-  // Context-based equipment
-  useEffect(() => {
-    if (equipmentId) {
-      setSelectedEquipId(equipmentId);
-      setSelectedEquipCode(equipmentCode ?? equipmentId);
-    }
-  }, [equipmentId, equipmentCode]);
-
-  // Hierarchy cascades
-  useEffect(() => {
-    setAreas([]); setLines([]); setWorkCells([]); setEquipment([]);
-    if (!siteId) return;
-    fetchAreas(siteId).then(setAreas).catch(() => {});
-  }, [siteId]);
-
-  useEffect(() => {
-    setLines([]); setWorkCells([]); setEquipment([]);
-    if (!areaId) return;
-    fetchLines(areaId).then(setLines).catch(() => {});
-  }, [areaId]);
-
-  useEffect(() => {
-    setWorkCells([]); setEquipment([]);
-    if (!lineId) return;
-    fetchWorkCells(lineId).then(setWorkCells).catch(() => {});
-  }, [lineId]);
-
-  useEffect(() => {
-    setEquipment([]);
-    if (!wcId) return;
-    fetchEquipmentInWorkCell(wcId).then(setEquipment).catch(() => {});
-  }, [wcId]);
+    setResult(null);
+    setError(null);
+  }, [equipmentId]);
 
   async function calculate() {
-    const eqId = selectedEquipId || equipmentId;
-    if (!eqId || !periodStart || !periodEnd) return;
+    if (!equipmentId || !periodStart || !periodEnd) return;
     setLoading(true);
     setError(null);
     setResult(null);
     try {
       const startISO = new Date(periodStart).toISOString();
       const endISO = new Date(periodEnd).toISOString();
-      const r = await fetchOEE(eqId, startISO, endISO);
+      const r = await fetchOEE(equipmentId, startISO, endISO);
       setResult(r);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -117,53 +57,49 @@ export default function OEEPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      {/* Equipment selector or context indicator */}
-      {equipmentId ? (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm">
-          Equipment: <strong>{equipmentCode}</strong>
-          <span className="ml-2 text-xs text-gray-500 font-mono">({equipmentId})</span>
+      {/* No equipment selected */}
+      {!equipmentId ? (
+        <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
+          <p className="text-sm">Select equipment from the tree to calculate OEE.</p>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-3 items-end">
-          <HierarchySelect label="Site" value={siteId} options={sites.map((s) => ({ value: s.id, label: `${s.code} — ${s.name}` }))} onChange={(v) => { setSiteId(v); setAreaId(""); setLineId(""); setWcId(""); }} />
-          <HierarchySelect label="Area" value={areaId} options={areas.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` }))} onChange={(v) => { setAreaId(v); setLineId(""); setWcId(""); }} disabled={!siteId} />
-          <HierarchySelect label="Line" value={lineId} options={lines.map((l) => ({ value: l.id, label: `${l.code} — ${l.name}` }))} onChange={(v) => { setLineId(v); setWcId(""); }} disabled={!areaId} />
-          <HierarchySelect label="Work Cell" value={wcId} options={workCells.map((wc) => ({ value: wc.id, label: `${wc.code} — ${wc.name}` }))} onChange={(v) => setWcId(v)} disabled={!lineId} />
-          <HierarchySelect label="Equipment" value={selectedEquipId} options={equipment.map((e) => ({ value: e.id, label: `${e.code} — ${e.name}` }))} onChange={(v) => { setSelectedEquipId(v); setSelectedEquipCode(equipment.find((e) => e.id === v)?.code ?? v); }} disabled={!wcId} />
-        </div>
-      )}
+        <>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm">
+            Equipment: <strong>{equipmentCode}</strong>
+            <span className="ml-2 text-xs text-gray-500 font-mono">({equipmentId})</span>
+          </div>
 
-      {/* Period selection + calculate */}
-      <div className="bg-white border rounded-lg p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-600 uppercase">Time Period</h2>
-        <div className="flex flex-wrap gap-4 items-end">
-          <label className="flex flex-col text-xs font-medium text-gray-600">
-            Start
-            <input
-              type="datetime-local"
-              className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm"
-              value={periodStart}
-              onChange={(e) => setPeriodStart(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col text-xs font-medium text-gray-600">
-            End
-            <input
-              type="datetime-local"
-              className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm"
-              value={periodEnd}
-              onChange={(e) => setPeriodEnd(e.target.value)}
-            />
-          </label>
-          <button
-            className="px-4 py-1.5 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50"
-            onClick={calculate}
-            disabled={!(selectedEquipId || equipmentId) || loading}
-          >
-            {loading ? "Calculating…" : "Calculate OEE"}
-          </button>
-        </div>
-      </div>
+          {/* Period selection + calculate */}
+          <div className="bg-white border rounded-lg p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-gray-600 uppercase">Time Period</h2>
+            <div className="flex flex-wrap gap-4 items-end">
+              <label className="flex flex-col text-xs font-medium text-gray-600">
+                Start
+                <input
+                  type="datetime-local"
+                  className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm"
+                  value={periodStart}
+                  onChange={(e) => setPeriodStart(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col text-xs font-medium text-gray-600">
+                End
+                <input
+                  type="datetime-local"
+                  className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm"
+                  value={periodEnd}
+                  onChange={(e) => setPeriodEnd(e.target.value)}
+                />
+              </label>
+              <button
+                className="px-4 py-1.5 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50"
+                onClick={calculate}
+                disabled={loading}
+              >
+                {loading ? "Calculating…" : "Calculate OEE"}
+              </button>
+            </div>
+          </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
@@ -213,6 +149,8 @@ export default function OEEPage() {
           )}
         </div>
       )}
+        </>
+      )}
     </div>
   );
 }
@@ -239,31 +177,4 @@ function GaugeCard({
   );
 }
 
-/* ── Mini select helper ──────────────────────────────────────────── */
 
-function HierarchySelect({
-  label, value, options, onChange, disabled,
-}: {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="flex flex-col text-xs font-medium text-gray-600">
-      {label}
-      <select
-        className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm disabled:opacity-50"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-      >
-        <option value="">— select —</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-    </label>
-  );
-}

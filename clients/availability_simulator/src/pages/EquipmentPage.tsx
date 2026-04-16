@@ -30,6 +30,7 @@ export default function EquipmentPage() {
     : null;
 
   // Transition control state
+  const [current, setCurrent] = useState<EquipmentCurrentState | null>(null);
   const [models, setModels] = useState<StateModel[]>([]);
   const [reasonCode, setReasonCode] = useState("");
   const [notes, setNotes] = useState("");
