@@ -510,8 +510,12 @@ class PhysicalModelService:
         equip_id: UUID,
         equipment_material_id: UUID,
         job_number: str | None = None,
-    ) -> Equipment:
-        """Switch the current material setup on equipment."""
+    ) -> tuple[Equipment, EquipmentMaterial]:
+        """Switch the current material setup on equipment.
+
+        Returns the (equipment, equipment_material) tuple so that callers
+        can build the response without a lazy-load round-trip.
+        """
         equip = await PhysicalModelService.get_equipment(session, equip_id)
         # Validate the equipment_material_id belongs to this equipment
         em = await PhysicalModelService.get_equipment_material(session, equipment_material_id)
@@ -522,13 +526,15 @@ class PhysicalModelService:
             )
         equip.current_material_id = equipment_material_id
         equip.current_job_number = job_number
-        equip.material_setup_at = _dt.datetime.now(_dt.timezone.utc)
+        now = _dt.datetime.now(_dt.timezone.utc)
+        equip.material_setup_at = now
+        equip.material_setup_at_utc = now.replace(tzinfo=None)
         await session.flush()
         logger.info(
             "Material setup on equipment %s: material_setup=%s job=%s",
             equip_id, equipment_material_id, job_number,
         )
-        return equip
+        return equip, em
 
     @staticmethod
     async def clear_material_setup(
@@ -539,6 +545,7 @@ class PhysicalModelService:
         equip.current_material_id = None
         equip.current_job_number = None
         equip.material_setup_at = None
+        equip.material_setup_at_utc = None
         await session.flush()
         logger.info("Cleared material setup on equipment %s", equip_id)
         return equip

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text, JSON, Uuid, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, JSON, Uuid, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -174,7 +174,11 @@ class Equipment(BaseModel):
         comment="Job / batch identifier for the current material run.",
     )
     material_setup_at: Mapped[_dt.datetime | None] = mapped_column(
-        nullable=True, default=None,
+        DateTime(timezone=True), nullable=True, default=None,
+        comment="Local timestamp when the current material was set up.",
+    )
+    material_setup_at_utc: Mapped[_dt.datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True, default=None,
         comment="UTC timestamp when the current material was set up.",
     )
 
@@ -236,6 +240,7 @@ class EquipmentMaterial(BaseModel):
     # Relationships
     equipment: Mapped["Equipment"] = relationship(
         "Equipment", back_populates="material_setups",
+        foreign_keys=[equipment_id],
     )
     material: Mapped["MaterialDefinition"] = relationship(
         "MaterialDefinition", back_populates="equipment_setups",

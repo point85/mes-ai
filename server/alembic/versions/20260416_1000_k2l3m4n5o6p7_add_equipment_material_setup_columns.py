@@ -41,7 +41,16 @@ def upgrade() -> None:
         "equipment",
         sa.Column(
             "material_setup_at",
-            sa.DateTime(),
+            sa.DateTime(timezone=True),
+            nullable=True,
+            comment="Local timestamp when the current material was set up.",
+        ),
+    )
+    op.add_column(
+        "equipment",
+        sa.Column(
+            "material_setup_at_utc",
+            sa.DateTime(timezone=False),
             nullable=True,
             comment="UTC timestamp when the current material was set up.",
         ),
@@ -49,6 +58,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_column("equipment", "material_setup_at_utc")
     op.drop_column("equipment", "material_setup_at")
     op.drop_column("equipment", "current_job_number")
     op.drop_column("equipment", "current_material_id")

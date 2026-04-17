@@ -473,23 +473,22 @@ async def set_material_setup(
     _user: User = Depends(require_permission("physical_model.update")),
 ):
     """Switch the current material setup on equipment."""
-    equip = await svc.set_material_setup(
+    equip, em = await svc.set_material_setup(
         session, equip_id, body.equipment_material_id, body.job_number,
     )
-    await session.commit()
-    # Re-fetch to get the relationship loaded
-    equip = await svc.get_material_setup(session, equip_id)
-    em = equip.active_material_setup
+    # Build response before commit so eagerly-loaded relationships are
+    # still accessible (avoids MissingGreenlet on lazy loads after commit).
     data = MaterialSetupRead(
         equipment_material_id=equip.current_material_id,
-        material_id=em.material_id if em else None,
-        material_name=em.material.name if em and em.material else None,
-        material_code=em.material.code if em and em.material else None,
-        design_speed=em.design_speed if em else None,
-        design_speed_uom=em.design_speed_uom if em else None,
+        material_id=em.material_id,
+        material_name=em.material.name if em.material else None,
+        material_code=em.material.code if em.material else None,
+        design_speed=em.design_speed,
+        design_speed_uom=em.design_speed_uom,
         job_number=equip.current_job_number,
         setup_at=equip.material_setup_at,
     )
+    await session.commit()
     return success_response(data.model_dump())
 
 
