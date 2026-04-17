@@ -147,8 +147,12 @@ TRANSITIONS: list[dict] = [
     {"from_seq": 40, "to_seq": 70, "condition": "on_fail",     "priority": 10, "is_default": False, "label": "AOI Failed — Rework"},
     # AOI → MRB (on_rework — escalation for repeated failure)
     {"from_seq": 40, "to_seq": 80, "condition": "on_rework",   "priority": 20, "is_default": False, "label": "Repeat Fail — MRB"},
-    # TH & Coat → Functional Test (always)
-    {"from_seq": 50, "to_seq": 60, "condition": "always",      "priority": 0,  "is_default": True,  "label": None},
+    # TH & Coat → Functional Test (on_pass)
+    {"from_seq": 50, "to_seq": 60, "condition": "on_pass",     "priority": 0,  "is_default": True,  "label": "Passed"},
+    # TH & Coat → Rework (on_fail)
+    {"from_seq": 50, "to_seq": 70, "condition": "on_fail",     "priority": 10, "is_default": False, "label": "Failed — Rework"},
+    # TH & Coat → MRB (on_rework — escalation for repeated failure)
+    {"from_seq": 50, "to_seq": 80, "condition": "on_rework",   "priority": 20, "is_default": False, "label": "Repeat Fail — MRB"},
     # Functional Test → Rework (on_fail)
     {"from_seq": 60, "to_seq": 70, "condition": "on_fail",     "priority": 10, "is_default": False, "label": "Func Test Failed — Rework"},
     # Rework → AOI (rework loop back to inspection)

@@ -37,3 +37,7 @@ __pycache__/
 
 # PostgreSQL data directory
 server/pgdata/
+/tmp_routes.json
+/tmp_smt.json
+/tmp_steps.json
+/tmp_trans50.json
