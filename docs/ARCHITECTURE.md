@@ -206,6 +206,30 @@ Clients subscribe to dot-notation event topics (e.g., `wip.unit.completed`, `equ
 | **CI** | GitHub Actions |
 | **Code Coverage** | pytest-cov |
 
+### 3.5 Operating System Compatibility
+
+MES AI runs on any desktop operating system — **Windows**, **macOS**, and **Linux**. The core application code contains no OS-specific logic.
+
+**Core code (OS-agnostic):**
+
+| Layer | OS Dependencies | Notes |
+|---|---|---|
+| Server Python (`server/src/mes/`) | **None** | Uses `pathlib`, `sys.executable`, `os.environ` — all cross-platform standard library APIs |
+| Client TypeScript (`clients/`) | **None** | Pure browser-side React; no `process.platform` or path separator assumptions |
+| Plugin code (`server/plugins/`) | **None** | Uses `pathlib` and `shutil` — cross-platform by design |
+| Docker configuration | **None** | Standard containerized PostgreSQL; works on any Docker host |
+
+**Developer utility scripts (OS-specific by design):**
+
+| Script | Target OS | Purpose |
+|---|---|---|
+| `server/scripts/dev-setup.sh` | Linux / macOS | Dev bootstrap & service launcher (detects Windows venv paths as fallback) |
+| `server/scripts/pg-service.ps1` | Windows | Manage PostgreSQL as a Windows service; no Unix equivalent (uses Docker instead) |
+| `SQA/run-audit.sh` | Linux / macOS | Run SQA UI audit |
+| `SQA/run-audit.ps1` | Windows | Run SQA UI audit (paired with `.sh`) |
+
+These scripts are developer tooling only and are not required at runtime. The server and all clients start with standard cross-platform commands (`uvicorn`, `npm run dev`).
+
 ## 4. Project Structure
 
 ```
@@ -557,7 +581,9 @@ Genealogy is built from the relationships between `Unit/Lot`, `UnitHistory/LotHi
 
 ### 5.3 Database Conventions
 
-- **Primary keys**: UUIDs (uuid4), using SQLAlchemy's `Uuid` type (maps to `UUID` on PostgreSQL, `UNIQUEIDENTIFIER` on SQL Server, `RAW(16)` on Oracle)
+- **Primary keys**: UUIDs (uuid4), using SQLAlchemy's `Uuid` type (maps to `UUID` on PostgreSQL, `UNIQUEIDENTIFIER` on SQL Server, `RAW(16)` on Oracle). UUIDs are chosen over auto-increment integers for two key reasons:
+  - **Cross-database portability**: Records can be exported from one MES database and imported into another without primary-key collisions, enabling multi-site deployments, database migrations, and data consolidation. UUIDv4's 122 random bits make accidental collision astronomically improbable (~1 in 2⁶¹ after 1 billion keys).
+  - **Decentralized generation**: IDs can be assigned client-side or in application code before a database round-trip, simplifying batch inserts, offline scenarios, and distributed architectures.
 - **Timestamps**: All `created_at`/`updated_at` use SQLAlchemy's `DateTime(timezone=True)`, defaults to UTC
 - **Soft deletes**: `is_active` boolean flag (no physical deletes)
 - **Naming**: `snake_case` for all table and column names
