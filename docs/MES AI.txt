@@ -200,8 +200,8 @@ Then open http://localhost:5174 — click Dashboard → "Check Health" → both 
 cd c:\dev\mes_ai\clients\design_time
 npm run dev
 
-# Terminal 5: Equipment availability simulator
-cd c:\dev\mes_ai\clients\availability_simulator
+# Terminal 5: Equipment Simulator
+cd c:\dev\mes_ai\clients\equipment_simulator
 npm install
 npm run dev
 serves on http://localhost:5175

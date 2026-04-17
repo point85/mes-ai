@@ -1,8 +1,8 @@
 """
-Equipment Availability Simulator Plugin.
+Equipment Simulator Plugin.
 
 A thin plugin that exists solely to register a companion React client
-(clients/availability_simulator) with the MES plugin framework.  All
+(clients/equipment_simulator) with the MES plugin framework.  All
 actual equipment-state operations are served by the existing Performance
 Analysis REST API (/api/v1/performance/*) and Physical Model REST API
 (/api/v1/*).

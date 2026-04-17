@@ -1,5 +1,5 @@
-id: availability-simulator
-name: Equipment Availability Simulator
+id: equipment-simulator
+name: Equipment Simulator
 version: "1.0.0"
 description: >
   Interactive GUI for driving equipment state transitions using registered
@@ -24,10 +24,10 @@ event_subscriptions: []
 dependencies: []
 
 companions:
-  - id: availability-simulator-gui
+  - id: equipment-simulator-gui
     type: client
-    name: Equipment Availability Simulator
-    path: clients/availability_simulator
+    name: Equipment Simulator
+    path: clients/equipment_simulator
     dev_port: 5175
     description: >
       React GUI for browsing equipment, viewing state models, triggering

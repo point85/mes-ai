@@ -152,7 +152,7 @@
         },
         {
           "id": "T5.6",
-          "name": "Equipment Availability Simulator: 6-tab React+Vite GUI (port 5175) for state transitions, OEE, auto-simulation",
+          "name": "Equipment Simulator: 6-tab React+Vite GUI (port 5175) for state transitions, OEE, auto-simulation",
           "status": "complete"
         },
         {
@@ -217,7 +217,7 @@
         },
         {
           "id": "T5.19",
-          "name": "Availability Simulator: OPC-UA + MQTT state simulation panels with PackML state mapping",
+          "name": "Equipment Simulator: OPC-UA + MQTT state simulation panels with PackML state mapping",
           "status": "complete"
         },
         {
@@ -279,7 +279,7 @@
       "EXAMPLE-PLUGIN": { "name": "File-Drop Test Results Example Plugin", "phase": "P5", "status": "implemented" },
       "SAP-SIMULATOR": { "name": "SAP ERP Simulator Plugin",         "phase": "P4", "status": "implemented" },
       "ERP-SIM-GUI":   { "name": "ERP Simulator GUI Client",         "phase": "P5", "status": "implemented" },
-      "AVAIL-SIM":    { "name": "Equipment Availability Simulator GUI", "phase": "P5", "status": "implemented" },
+      "EQUIP-SIM":   { "name": "Equipment Simulator GUI", "phase": "P5", "status": "implemented" },
       "STEP-TRANS":   { "name": "Step Transitions (Graph Routing)",     "phase": "P3", "status": "implemented" },
       "WS-GATEWAY":  { "name": "WebSocket Event Gateway",              "phase": "P5", "status": "implemented" },
       "SERIAL-GEN":  { "name": "Serial/Lot Number Auto-Generation",    "phase": "P5", "status": "implemented" },

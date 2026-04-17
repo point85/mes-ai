@@ -1811,12 +1811,12 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 ## Session S024 — 2026-04-02
 
 **Phase**: P5 — Client Implementations (continued)
-**Objective**: Finish the Equipment Availability Simulator client
+**Objective**: Finish the Equipment Simulator client
 
 ### What Happened
 
 #### 1. Assessed Existing Scaffold
-The availability simulator at `clients/availability_simulator/` had a working 4-tab skeleton (Dashboard, Equipment, History, Models) with API layer, types, and core components. Key gaps identified:
+The equipment simulator at `clients/equipment_simulator/` had a working 4-tab skeleton (Dashboard, Equipment, History, Models) with API layer, types, and core components. Key gaps identified:
 - **HistoryPage** required manual UUID paste — no usable equipment picker
 - **No OEE page** — server has `/performance/oee` endpoint but client didn't expose it
 - **No auto-simulation** — no way to demo random state transitions across equipment
@@ -1880,11 +1880,11 @@ Added React Context (`EquipmentContext`) in `App.tsx` to share selected equipmen
 | `src/api/endpoints.ts` | Added fetchOEE(), fetchAllEquipment() |
 | `src/pages/EquipmentPage.tsx` | Added context + History/OEE navigation buttons |
 | `src/pages/HistoryPage.tsx` | Full hierarchy picker, context-aware, duration column |
-| `docs/PROJECT_STATE.json` | S024, T5.6, AVAIL-SIM module |
+| `docs/PROJECT_STATE.json` | S024, T5.6, EQUIP-SIM module |
 | `docs/SESSION_LOG.md` | This session entry |
 
 ### Where We Stopped
-- Equipment Availability Simulator fully implemented and building cleanly
+- Equipment Simulator fully implemented and building cleanly
 - **1338 tests passing**, no regressions
 - Next options:
   1. **RT-GUI** — Runtime operator client
@@ -2624,8 +2624,8 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 
 ## Session S030 — 2026-04-09
 
-**Phase**: P5 (MES Clients — Runtime Enhancements & Availability Simulator)
-**Objective**: Step equipment dispatch API, RT-CLIENT enhancements (equipment table, order CRUD), availability simulator protocol simulation (OPC-UA + MQTT)
+**Phase**: P5 (MES Clients — Runtime Enhancements & Equipment Simulator)
+**Objective**: Step equipment dispatch API, RT-CLIENT enhancements (equipment table, order CRUD), equipment simulator protocol simulation (OPC-UA + MQTT)
 
 ### What Happened
 
@@ -2659,22 +2659,22 @@ Rewrote the Orders page with production WIP creation capability:
 - **Create Unit form** — optional serial number, batch count, creates via `POST /units`
 - **`createLot()` / `createUnit()`** — API functions in `runtime.ts`
 
-#### 4. OPC-UA State Simulation (Server + Availability Simulator)
+#### 4. OPC-UA State Simulation (Server + Equipment Simulator)
 
 Added ability to simulate OPC-UA data-change events that trigger PackML state transitions:
 
 - **`SimulateOpcuaStateRequest` schema** — tag (OPC-UA node ID), value (PackML int 0–17), state (string alt)
 - **`POST /api/v1/performance/equipment/{equip_id}/simulate-opcua-state`** — maps OPC 40083 integer to PackML state name, calls `EquipmentStateEngine.transition_equipment()`, records tag + value in notes
-- **`simulateOpcuaState()`** — Availability Simulator API function
+- **`simulateOpcuaState()`** — Equipment Simulator API function
 - **OPC-UA Simulation Panel** (indigo theme) — OPC-UA tag input, PackML state dropdown (all 17 ISA-TR88 states), "Send OPC-UA Event" button with success/error feedback
 
-#### 5. MQTT State Simulation (Server + Availability Simulator)
+#### 5. MQTT State Simulation (Server + Equipment Simulator)
 
 Added ability to simulate MQTT messages carrying PackML state + reason codes:
 
 - **`SimulateMqttStateRequest` schema** — topic, state (int 0–17, required), reason_code (optional)
 - **`POST /api/v1/performance/equipment/{equip_id}/simulate-mqtt-state`** — maps integer to state, passes reason_code, records simulated MQTT topic + JSON payload in notes
-- **`simulateMqttState()`** — Availability Simulator API function
+- **`simulateMqttState()`** — Equipment Simulator API function
 - **MQTT Simulation Panel** (purple theme) — MQTT topic input, PackML state dropdown, reason code dropdown (loaded from server reasons), live JSON payload preview, "Publish MQTT Message" button
 
 #### 6. Route Step Work Cell Data Fix
@@ -2711,8 +2711,8 @@ _(No new files created this session)_
 | `clients/run_time/src/api/runtime.ts` | Added `fetchStepEquipment()`, `createLot()`, `createUnit()` |
 | `clients/run_time/src/components/StepProcessingPanel.tsx` | Added `EquipmentStatusTable` with blocking indicators, equipment override dropdown |
 | `clients/run_time/src/pages/OrdersPage.tsx` | Full rewrite: expandable rows, Create Lot / Create Unit forms |
-| `clients/availability_simulator/src/api/endpoints.ts` | Added `simulateOpcuaState()`, `simulateMqttState()` |
-| `clients/availability_simulator/src/pages/EquipmentPage.tsx` | Added OPC-UA simulation panel (indigo), MQTT simulation panel (purple) |
+| `clients/equipment_simulator/src/api/endpoints.ts` | Added `simulateOpcuaState()`, `simulateMqttState()` |
+| `clients/equipment_simulator/src/pages/EquipmentPage.tsx` | Added OPC-UA simulation panel (indigo), MQTT simulation panel (purple) |
 
 ### Test Results
 - **1686 unit tests passing**, 12 warnings, 0 failures
@@ -2722,7 +2722,7 @@ _(No new files created this session)_
 - Step equipment dispatch API operational
 - RT-CLIENT equipment table with blocking indicators and override dropdown working
 - RT-CLIENT order expansion with lot/unit creation working
-- OPC-UA and MQTT state simulation panels fully functional in Availability Simulator
+- OPC-UA and MQTT state simulation panels fully functional in Equipment Simulator
 - TM-100 state model corrected (semi_e10 → packml)
 - **1686 tests passing**
 - Next options:

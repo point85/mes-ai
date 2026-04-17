@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), availability simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), 1844 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), 1844 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -341,7 +341,7 @@ mes_ai/
 │   │   │   ├── aveva_historian/        # AVEVA Historian REST API adapter plugin
 │   │   │   │   ├── manifest.yaml
 │   │   │   │   └── plugin.py
-│   │   │   └── availability_simulator/ # Availability simulator companion plugin
+│   │   │   └── equipment_simulator/    # Equipment simulator companion plugin
 │   │   │       ├── manifest.yaml
 │   │   │       └── plugin.py
 │   │   └── user/                      # End-user plugins (copied here)
@@ -357,7 +357,7 @@ mes_ai/
 │   ├── runtime_headless/              # RT-HEADLESS (Python)
 │   ├── design_time/                   # DT-CLIENT (React)
 │   ├── erp_simulator/                 # ERP Simulator GUI (React)
-│   ├── availability_simulator/        # Availability Simulator GUI (React)
+│   ├── equipment_simulator/           # Equipment Simulator GUI (React)
 │   └── test_client/                   # TEST-CLIENT (Python TUI)
 │
 ├── docker/
@@ -6912,7 +6912,7 @@ The **Runtime Client** is a shop-floor operator client for real-time WIP process
 | Barcode / serial-number scanning to locate WIP | Route / product / material editing (DT-CLIENT) |
 | Step processing: start, complete, move, hold, scrap | Plugin management (DT-CLIENT) |
 | Data collection (numeric, string, boolean, enum) | ERP synchronization (ERP-SIM-GUI) |
-| Quality test pass / fail recording | Equipment state transitions (Availability Simulator) |
+| Quality test pass / fail recording | Equipment state transitions (Equipment Simulator) |
 | MRB disposition selection | User / role administration (DT-CLIENT) |
 | Route progress visualization | |
 | Production order monitoring | |
