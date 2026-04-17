@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption } from "../types";
+import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption, UnitHistory, LotHistory } from "../types";
 import {
   startUnit, completeUnit, moveUnit, holdUnit, releaseHoldUnit, scrapUnit,
   startLot, completeLot, moveLot, holdLot, releaseHoldLot, scrapLot,
   collectDataBatch, recordQualityResult, fetchStepEquipment,
   fetchStepBomItems, fetchMaterials, fetchMaterialLots, consumeMaterial, fetchConsumedMaterials,
+  fetchUnitHistory, fetchLotHistory,
 } from "../api/runtime";
-import RouteProgressBar from "./RouteProgressBar";
 
 interface Props {
   context: StepContext;
@@ -88,6 +88,15 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
     enabled: wip.status === "in_process",
   });
 
+  // Fetch WIP processing history
+  const { data: wipHistory = [] } = useQuery<UnitHistory[] | LotHistory[]>({
+    queryKey: ["wip-history", wip_type, wip.id],
+    queryFn: () => isUnit ? fetchUnitHistory(wip.id) : fetchLotHistory(wip.id),
+  });
+
+  // Build step lookup for history table
+  const stepMap = Object.fromEntries(route_steps.map((s) => [s.id, s]));
+
   const runAction = async (fn: () => Promise<unknown>, msg: string) => {
     setActionLoading(true);
     setError(null);
@@ -101,6 +110,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["orders"] });
       await queryClient.invalidateQueries({ queryKey: ["order-progress"] });
       await queryClient.invalidateQueries({ queryKey: ["shift-summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["wip-history"] });
       await onRefresh();
     } catch (err: unknown) {
       const m = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Action failed";
@@ -238,23 +248,93 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
           <WipStatusBadge status={wip.status} />
         </div>
         {!isUnit && <p className="text-sm text-gray-500 mt-1">Quantity: {(wip as Lot).quantity}</p>}
-        {step && (
-          <div className="mt-3 p-3 bg-indigo-50 rounded-md">
-            <p className="text-sm text-indigo-800">
-              <span className="font-semibold">Current Step:</span> {step.name}
-              <span className="text-indigo-500 ml-2">({step.step_type}, seq {step.sequence})</span>
-            </p>
-          </div>
-        )}
-        {!step && wip.status !== "completed" && wip.status !== "scrapped" && (
-          <p className="mt-3 text-sm text-gray-400">No current step assigned</p>
-        )}
       </div>
 
-      {/* Route Progress */}
-      {route_steps.length > 0 && (
-        <RouteProgressBar steps={route_steps} currentStepId={wip.current_step_id} />
-      )}
+      {/* Step History */}
+      <div className="bg-white rounded-lg shadow p-5">
+        <h4 className="font-semibold text-gray-700 mb-3">Step History</h4>
+        {(() => {
+          // Build history rows: one row per history record + one for current queued/in-process step
+          const rows: { sequence: number; stepName: string; time: string; status: string }[] = [];
+
+          // Past history records (sorted chronologically)
+          const sorted = [...wipHistory].sort(
+            (a, b) => new Date(a.entered_at).getTime() - new Date(b.entered_at).getTime(),
+          );
+          for (const h of sorted) {
+            const rs = stepMap[h.step_id];
+            const seq = rs?.sequence ?? 0;
+            const name = rs?.name ?? "Unknown";
+            rows.push({
+              sequence: seq,
+              stepName: name,
+              time: new Date(h.entered_at).toLocaleString(),
+              status: "started",
+            });
+            if (h.exited_at) {
+              rows.push({
+                sequence: seq,
+                stepName: name,
+                time: new Date(h.exited_at).toLocaleString(),
+                status: h.result ? `completed (${h.result})` : "completed",
+              });
+            }
+          }
+
+          // Current step if queued (not yet in history)
+          if (step && wip.status === "queued") {
+            rows.push({
+              sequence: step.sequence,
+              stepName: step.name,
+              time: new Date(wip.updated_at).toLocaleString(),
+              status: "queued",
+            });
+          }
+
+          if (rows.length === 0) {
+            return <p className="text-sm text-gray-400">No history yet</p>;
+          }
+
+          return (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-gray-500">
+                    <th className="py-1 px-2">Seq</th>
+                    <th className="py-1 px-2">Step</th>
+                    <th className="py-1 px-2">Time</th>
+                    <th className="py-1 px-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className={`border-b ${r.status === "queued" ? "bg-indigo-50" : ""}`}>
+                      <td className="py-1 px-2 font-mono">{r.sequence}</td>
+                      <td className="py-1 px-2">{r.stepName}</td>
+                      <td className="py-1 px-2 text-gray-500">{r.time}</td>
+                      <td className="py-1 px-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          r.status === "queued"
+                            ? "bg-indigo-100 text-indigo-700"
+                            : r.status === "started"
+                              ? "bg-blue-100 text-blue-700"
+                              : r.status.includes("pass")
+                                ? "bg-green-100 text-green-700"
+                                : r.status.includes("fail") || r.status.includes("rework")
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-600"
+                        }`}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </div>
 
       {/* Feedback Messages */}
       {error && <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}

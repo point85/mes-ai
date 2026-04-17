@@ -4852,7 +4852,26 @@ This pulls in `httpx-ntlm >= 2.0.0`. The plugin works without it if using `beare
 
 ### 10.1 Overview
 
-The dispatching engine determines where a unit or lot moves next after completing a step. It supports both manual and automated dispatching. Automated dispatch is triggered by `wip.unit.completed` and `wip.lot.completed` events via event bus handlers.
+The dispatching engine determines where a unit or lot moves next after completing a step. It supports both manual and automated dispatching.
+
+**Automatic (event-driven):** Event bus handlers in `dispatch/handlers.py` listen for step-completion events. When `LotService.complete_lot_step()` or `UnitService.complete_unit_step()` fires a `wip.lot.completed` / `wip.unit.completed` event, the handler calls `auto_dispatch()`. Any completion source fires the trigger — OPC-UA data change, MQTT message, Historian poll, or operator manual interaction via the Runtime Client.
+
+**Manual (REST API):** An operator or external system calls the dispatch REST endpoints directly:
+- `POST /dispatch/evaluate` — rank dispatch options without moving WIP
+- `POST /dispatch/execute` — move WIP to a specific equipment
+- `POST /dispatch/auto` — evaluate + execute in one call
+
+#### WIP Location After Dispatch
+
+After dispatch executes, the unit or lot's location is updated on the WIP entity:
+
+| Field | Updated To | Meaning |
+|---|---|---|
+| `current_step_id` | Next route step's ID | The route step the WIP now sits at |
+| `current_equipment_id` | Chosen equipment's ID | The specific equipment assigned to process it |
+| `status` | `queued` | WIP is waiting in the equipment's queue |
+
+The WIP is logically **queued at a specific equipment within the next route step's work cell**. It remains `queued` until the equipment begins processing it (status → `in_process`), at which point processing, data collection, and quality tests can be recorded against that step.
 
 ### 10.2 Dispatch Strategies
 
