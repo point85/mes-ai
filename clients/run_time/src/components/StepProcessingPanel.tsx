@@ -254,40 +254,29 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       <div className="bg-white rounded-lg shadow p-5">
         <h4 className="font-semibold text-gray-700 mb-3">Step History</h4>
         {(() => {
-          // Build history rows: one row per history record + one for current queued/in-process step
-          const rows: { sequence: number; stepName: string; time: string; status: string }[] = [];
-
-          // Past history records (sorted chronologically)
+          // Build one row per history record, sorted by started time ascending
           const sorted = [...wipHistory].sort(
             (a, b) => new Date(a.entered_at).getTime() - new Date(b.entered_at).getTime(),
           );
-          for (const h of sorted) {
+          const rows = sorted.map((h) => {
             const rs = stepMap[h.step_id];
-            const seq = rs?.sequence ?? 0;
-            const name = rs?.name ?? "Unknown";
-            rows.push({
-              sequence: seq,
-              stepName: name,
-              time: new Date(h.entered_at).toLocaleString(),
-              status: "started",
-            });
-            if (h.exited_at) {
-              rows.push({
-                sequence: seq,
-                stepName: name,
-                time: new Date(h.exited_at).toLocaleString(),
-                status: h.result ? `completed (${h.result})` : "completed",
-              });
-            }
-          }
+            return {
+              sequence: rs?.sequence ?? 0,
+              stepName: rs?.name ?? "Unknown",
+              started: new Date(h.entered_at).toLocaleString(),
+              completed: h.exited_at ? new Date(h.exited_at).toLocaleString() : "—",
+              result: h.result ?? "",
+            };
+          });
 
           // Current step if queued (not yet in history)
           if (step && wip.status === "queued") {
             rows.push({
               sequence: step.sequence,
               stepName: step.name,
-              time: new Date(wip.updated_at).toLocaleString(),
-              status: "queued",
+              started: "—",
+              completed: "—",
+              result: "",
             });
           }
 
@@ -302,30 +291,30 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                   <tr className="border-b text-left text-gray-500">
                     <th className="py-1 px-2">Seq</th>
                     <th className="py-1 px-2">Step</th>
-                    <th className="py-1 px-2">Time</th>
-                    <th className="py-1 px-2">Status</th>
+                    <th className="py-1 px-2">Started</th>
+                    <th className="py-1 px-2">Completed</th>
+                    <th className="py-1 px-2">Result</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r, i) => (
-                    <tr key={i} className={`border-b ${r.status === "queued" ? "bg-indigo-50" : ""}`}>
+                    <tr key={i} className={`border-b ${r.started === "—" ? "bg-indigo-50" : ""}`}>
                       <td className="py-1 px-2 font-mono">{r.sequence}</td>
                       <td className="py-1 px-2">{r.stepName}</td>
-                      <td className="py-1 px-2 text-gray-500">{r.time}</td>
+                      <td className="py-1 px-2 text-gray-500">{r.started}</td>
+                      <td className="py-1 px-2 text-gray-500">{r.completed}</td>
                       <td className="py-1 px-2">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          r.status === "queued"
-                            ? "bg-indigo-100 text-indigo-700"
-                            : r.status === "started"
-                              ? "bg-blue-100 text-blue-700"
-                              : r.status.includes("pass")
-                                ? "bg-green-100 text-green-700"
-                                : r.status.includes("fail") || r.status.includes("rework")
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-gray-100 text-gray-600"
-                        }`}>
-                          {r.status}
-                        </span>
+                        {r.result && (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            r.result === "pass"
+                              ? "bg-green-100 text-green-700"
+                              : r.result === "fail" || r.result === "rework"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {r.result}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

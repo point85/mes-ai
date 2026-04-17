@@ -257,6 +257,26 @@ class UnitService:
 
         from_step_id = unit.current_step_id
 
+        # Close any open history record for the current step
+        if from_step_id is not None:
+            close_stmt = (
+                select(UnitHistory)
+                .where(
+                    UnitHistory.unit_id == unit_id,
+                    UnitHistory.step_id == from_step_id,
+                    UnitHistory.exited_at.is_(None),
+                )
+                .order_by(UnitHistory.entered_at.desc())
+            )
+            close_result = await session.execute(close_stmt)
+            open_history = close_result.scalar_one_or_none()
+            if open_history is not None:
+                now = datetime.now(timezone.utc)
+                open_history.exited_at = now
+                open_history.exited_at_utc = now.replace(tzinfo=None)
+                open_history.result = result or open_history.result
+                await session.flush()
+
         if target_step_id is not None:
             unit.current_step_id = target_step_id
         else:
@@ -599,6 +619,25 @@ class LotService:
             )
 
         from_step_id = lot.current_step_id
+
+        # Close any open history record for the current step
+        if from_step_id is not None:
+            close_stmt = (
+                select(LotHistory)
+                .where(
+                    LotHistory.lot_id == lot_id,
+                    LotHistory.step_id == from_step_id,
+                    LotHistory.exited_at.is_(None),
+                )
+                .order_by(LotHistory.entered_at.desc())
+            )
+            close_result = await session.execute(close_stmt)
+            open_history = close_result.scalar_one_or_none()
+            if open_history is not None:
+                now = datetime.now(timezone.utc)
+                open_history.exited_at = now
+                open_history.exited_at_utc = now.replace(tzinfo=None)
+                await session.flush()
 
         if target_step_id is not None:
             lot.current_step_id = target_step_id
