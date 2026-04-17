@@ -103,7 +103,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
                 <label className="block text-sm font-medium text-gray-700">Sequence</label>
                 <input
                   type="number"
-                  {...register("sequence")}
+                  {...register("sequence", { valueAsNumber: true })}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
                 {errors.sequence && (
@@ -140,7 +140,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
               </label>
               <input
                 type="number"
-                {...register("expected_cycle_time_sec")}
+                {...register("expected_cycle_time_sec", { valueAsNumber: true })}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 placeholder="120"
               />
