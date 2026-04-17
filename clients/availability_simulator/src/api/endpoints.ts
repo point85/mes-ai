@@ -294,3 +294,44 @@ export async function clearMaterialSetup(
 ): Promise<void> {
   await api.delete(`/equipment/${equipId}/material-setup`);
 }
+
+// ── Simulated Material Setup triggers ────────────────────────────
+
+export async function simulateOpcuaMaterialSetup(
+  equipId: string,
+  materialCode: string,
+  jobNumber?: string | null,
+  tag = "ns=2;s=Equipment1/MaterialSetup",
+): Promise<MaterialSetupRead> {
+  const res = await api.post<ApiResponse<MaterialSetupRead>>(
+    `/equipment/${equipId}/simulate-opcua-material-setup`,
+    { tag, material_code: materialCode, job_number: jobNumber ?? null },
+  );
+  return res.data.data;
+}
+
+export async function simulateMqttMaterialSetup(
+  equipId: string,
+  materialCode: string,
+  jobNumber?: string | null,
+  topic = "mes/equipment/{equipment_id}/material-setup",
+): Promise<MaterialSetupRead> {
+  const res = await api.post<ApiResponse<MaterialSetupRead>>(
+    `/equipment/${equipId}/simulate-mqtt-material-setup`,
+    { topic, material_code: materialCode, job_number: jobNumber ?? null },
+  );
+  return res.data.data;
+}
+
+export async function simulateHistorianMaterialSetup(
+  equipId: string,
+  materialCode: string,
+  jobNumber?: string | null,
+  tagFqn = "Simulated.MaterialSetupTag",
+): Promise<MaterialSetupRead> {
+  const res = await api.post<ApiResponse<MaterialSetupRead>>(
+    `/equipment/${equipId}/simulate-historian-material-setup`,
+    { tag_fqn: tagFqn, material_code: materialCode, job_number: jobNumber ?? null },
+  );
+  return res.data.data;
+}

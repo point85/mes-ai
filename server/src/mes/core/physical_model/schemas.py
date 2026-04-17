@@ -265,3 +265,48 @@ class MaterialSetupRead(BaseModel):
     design_speed_uom: str | None = None
     job_number: str | None = None
     setup_at: datetime | None = None
+
+
+# ─── Material Setup simulation requests ─────────────────────────────
+
+
+class SimulateOpcuaMaterialSetupRequest(BaseModel):
+    """Simulate an OPC-UA data-change that triggers a material setup switch."""
+
+    tag: str = Field(
+        "ns=2;s=Equipment1/MaterialSetup",
+        description="OPC-UA node ID of the material-setup tag",
+    )
+    material_code: str = Field(
+        ..., max_length=50,
+        description="Material code to switch to (looked up in equipment-materials)",
+    )
+    job_number: str | None = Field(None, max_length=64, description="Job / batch identifier")
+
+
+class SimulateMqttMaterialSetupRequest(BaseModel):
+    """Simulate an MQTT JSON message that triggers a material setup switch."""
+
+    topic: str = Field(
+        "mes/equipment/{equipment_id}/material-setup",
+        description="MQTT topic the message would arrive on",
+    )
+    material_code: str = Field(
+        ..., max_length=50,
+        description="Material code to switch to",
+    )
+    job_number: str | None = Field(None, max_length=64, description="Job / batch identifier")
+
+
+class SimulateHistorianMaterialSetupRequest(BaseModel):
+    """Simulate an AVEVA Historian tag change that triggers a material setup switch."""
+
+    tag_fqn: str = Field(
+        ..., max_length=255,
+        description="Fully qualified tag name (e.g. 'Baytown.Line1_MaterialSetup')",
+    )
+    material_code: str = Field(
+        ..., max_length=50,
+        description="Material code to switch to",
+    )
+    job_number: str | None = Field(None, max_length=64, description="Job / batch identifier")

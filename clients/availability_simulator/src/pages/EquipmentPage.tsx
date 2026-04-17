@@ -16,6 +16,9 @@ import {
   fetchMaterialSetup,
   setMaterialSetup,
   clearMaterialSetup,
+  simulateOpcuaMaterialSetup,
+  simulateMqttMaterialSetup,
+  simulateHistorianMaterialSetup,
 } from "../api/endpoints";
 import { useEquipmentContext } from "../App";
 import StateBadge from "../components/StateBadge";
@@ -98,6 +101,30 @@ export default function EquipmentPage() {
   const [jobNumber, setJobNumber] = useState("");
   const [setupBusy, setSetupBusy] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
+
+  // OPC-UA material-setup simulation
+  const [opcuaSetupTag, setOpcuaSetupTag] = useState("ns=2;s=Equipment1/MaterialSetup");
+  const [opcuaSetupCode, setOpcuaSetupCode] = useState("");
+  const [opcuaSetupJob, setOpcuaSetupJob] = useState("");
+  const [opcuaSetupBusy, setOpcuaSetupBusy] = useState(false);
+  const [opcuaSetupResult, setOpcuaSetupResult] = useState<string | null>(null);
+  const [opcuaSetupError, setOpcuaSetupError] = useState<string | null>(null);
+
+  // MQTT material-setup simulation
+  const [mqttSetupTopic, setMqttSetupTopic] = useState("mes/equipment/{equipment_id}/material-setup");
+  const [mqttSetupCode, setMqttSetupCode] = useState("");
+  const [mqttSetupJob, setMqttSetupJob] = useState("");
+  const [mqttSetupBusy, setMqttSetupBusy] = useState(false);
+  const [mqttSetupResult, setMqttSetupResult] = useState<string | null>(null);
+  const [mqttSetupError, setMqttSetupError] = useState<string | null>(null);
+
+  // Historian material-setup simulation
+  const [histSetupTagFqn, setHistSetupTagFqn] = useState("Simulated.MaterialSetupTag");
+  const [histSetupCode, setHistSetupCode] = useState("");
+  const [histSetupJob, setHistSetupJob] = useState("");
+  const [histSetupBusy, setHistSetupBusy] = useState(false);
+  const [histSetupResult, setHistSetupResult] = useState<string | null>(null);
+  const [histSetupError, setHistSetupError] = useState<string | null>(null);
 
   // Historian simulation state
   const [histTagFqn, setHistTagFqn] = useState("Simulated.StateTag");
@@ -1175,6 +1202,264 @@ export default function EquipmentPage() {
                 {setupError && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
                     {setupError}
+                  </div>
+                )}
+              </div>
+
+              {/* OPC-UA Material Setup Simulation */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate OPC-UA Material Setup — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates an OPC-UA data-change notification on a material-setup tag.
+                  Select a material code configured for this equipment and fire the event.
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    OPC-UA Tag
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-72"
+                      value={opcuaSetupTag}
+                      onChange={(e) => setOpcuaSetupTag(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Material
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm min-w-[180px]"
+                      value={opcuaSetupCode}
+                      onChange={(e) => setOpcuaSetupCode(e.target.value)}
+                    >
+                      <option value="">— select —</option>
+                      {configuredMaterials.map((m) => (
+                        <option key={m.id} value={m.material_code ?? ""}>
+                          {m.material_code} — {m.material_name ?? m.material_id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Job Number
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-32"
+                      value={opcuaSetupJob}
+                      onChange={(e) => setOpcuaSetupJob(e.target.value)}
+                      placeholder="Optional"
+                    />
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50"
+                    disabled={opcuaSetupBusy || !opcuaSetupCode}
+                    onClick={async () => {
+                      if (!equipmentId || !opcuaSetupCode) return;
+                      setOpcuaSetupBusy(true);
+                      setOpcuaSetupError(null);
+                      setOpcuaSetupResult(null);
+                      try {
+                        const result = await simulateOpcuaMaterialSetup(
+                          equipmentId, opcuaSetupCode, opcuaSetupJob || null, opcuaSetupTag,
+                        );
+                        setMaterialSetup_(result);
+                        setOpcuaSetupResult(
+                          `OPC-UA → material="${result.material_name}" (${result.material_code}) tag=${opcuaSetupTag}${result.job_number ? ` job=${result.job_number}` : ""}`,
+                        );
+                      } catch (err: unknown) {
+                        setOpcuaSetupError(err instanceof Error ? err.message : String(err));
+                      } finally {
+                        setOpcuaSetupBusy(false);
+                      }
+                    }}
+                  >
+                    {opcuaSetupBusy ? "Sending…" : "Send OPC-UA Event"}
+                  </button>
+                </div>
+
+                {opcuaSetupResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {opcuaSetupResult}
+                  </div>
+                )}
+                {opcuaSetupError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {opcuaSetupError}
+                  </div>
+                )}
+              </div>
+
+              {/* MQTT Material Setup Simulation */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate MQTT Material Setup — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates an MQTT JSON message on a material-setup topic.
+                  Payload: <code className="bg-gray-100 px-1 rounded">
+                  {`{"material_code": "${mqttSetupCode || "..."}", "job_number": ${mqttSetupJob ? `"${mqttSetupJob}"` : "null"}}`}
+                  </code>
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    MQTT Topic
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
+                      value={mqttSetupTopic}
+                      onChange={(e) => setMqttSetupTopic(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Material
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm min-w-[180px]"
+                      value={mqttSetupCode}
+                      onChange={(e) => setMqttSetupCode(e.target.value)}
+                    >
+                      <option value="">— select —</option>
+                      {configuredMaterials.map((m) => (
+                        <option key={m.id} value={m.material_code ?? ""}>
+                          {m.material_code} — {m.material_name ?? m.material_id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Job Number
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-32"
+                      value={mqttSetupJob}
+                      onChange={(e) => setMqttSetupJob(e.target.value)}
+                      placeholder="Optional"
+                    />
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
+                    disabled={mqttSetupBusy || !mqttSetupCode}
+                    onClick={async () => {
+                      if (!equipmentId || !mqttSetupCode) return;
+                      setMqttSetupBusy(true);
+                      setMqttSetupError(null);
+                      setMqttSetupResult(null);
+                      try {
+                        const result = await simulateMqttMaterialSetup(
+                          equipmentId, mqttSetupCode, mqttSetupJob || null, mqttSetupTopic,
+                        );
+                        setMaterialSetup_(result);
+                        const topic = mqttSetupTopic.replace("{equipment_id}", equipmentId);
+                        setMqttSetupResult(
+                          `MQTT → topic=${topic} material="${result.material_name}" (${result.material_code})${result.job_number ? ` job=${result.job_number}` : ""}`,
+                        );
+                      } catch (err: unknown) {
+                        setMqttSetupError(err instanceof Error ? err.message : String(err));
+                      } finally {
+                        setMqttSetupBusy(false);
+                      }
+                    }}
+                  >
+                    {mqttSetupBusy ? "Sending…" : "Publish MQTT Message"}
+                  </button>
+                </div>
+
+                {mqttSetupResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {mqttSetupResult}
+                  </div>
+                )}
+                {mqttSetupError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {mqttSetupError}
+                  </div>
+                )}
+              </div>
+
+              {/* Historian Material Setup Simulation */}
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate Historian Material Setup — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates an AVEVA Historian tag value change that triggers a
+                  material setup switch on the equipment.
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Tag FQN
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-72"
+                      value={histSetupTagFqn}
+                      onChange={(e) => setHistSetupTagFqn(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Material
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm min-w-[180px]"
+                      value={histSetupCode}
+                      onChange={(e) => setHistSetupCode(e.target.value)}
+                    >
+                      <option value="">— select —</option>
+                      {configuredMaterials.map((m) => (
+                        <option key={m.id} value={m.material_code ?? ""}>
+                          {m.material_code} — {m.material_name ?? m.material_id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Job Number
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-32"
+                      value={histSetupJob}
+                      onChange={(e) => setHistSetupJob(e.target.value)}
+                      placeholder="Optional"
+                    />
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
+                    disabled={histSetupBusy || !histSetupCode}
+                    onClick={async () => {
+                      if (!equipmentId || !histSetupCode) return;
+                      setHistSetupBusy(true);
+                      setHistSetupError(null);
+                      setHistSetupResult(null);
+                      try {
+                        const result = await simulateHistorianMaterialSetup(
+                          equipmentId, histSetupCode, histSetupJob || null, histSetupTagFqn,
+                        );
+                        setMaterialSetup_(result);
+                        setHistSetupResult(
+                          `Historian → tag=${histSetupTagFqn} material="${result.material_name}" (${result.material_code})${result.job_number ? ` job=${result.job_number}` : ""}`,
+                        );
+                      } catch (err: unknown) {
+                        setHistSetupError(err instanceof Error ? err.message : String(err));
+                      } finally {
+                        setHistSetupBusy(false);
+                      }
+                    }}
+                  >
+                    {histSetupBusy ? "Sending…" : "Send Historian Event"}
+                  </button>
+                </div>
+
+                {histSetupResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {histSetupResult}
+                  </div>
+                )}
+                {histSetupError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {histSetupError}
                   </div>
                 )}
               </div>

@@ -38,6 +38,9 @@ from .schemas import (
     ProductionLineCreate,
     ProductionLineRead,
     ProductionLineUpdate,
+    SimulateHistorianMaterialSetupRequest,
+    SimulateMqttMaterialSetupRequest,
+    SimulateOpcuaMaterialSetupRequest,
     SiteCreate,
     SiteRead,
     SiteUpdate,
@@ -501,3 +504,87 @@ async def clear_material_setup(
     """Clear the current material setup on equipment."""
     await svc.clear_material_setup(session, equip_id)
     await session.commit()
+
+
+# ─── Simulated material-setup triggers (OPC-UA / MQTT / Historian) ──
+
+
+def _build_setup_read(equip, em):
+    """Build a MaterialSetupRead from an equipment + equipment-material pair."""
+    return MaterialSetupRead(
+        equipment_material_id=equip.current_material_id,
+        material_id=em.material_id,
+        material_name=em.material.name if em.material else None,
+        material_code=em.material.code if em.material else None,
+        design_speed=em.design_speed,
+        design_speed_uom=em.design_speed_uom,
+        job_number=equip.current_job_number,
+        setup_at=equip.material_setup_at,
+    )
+
+
+@router.post("/equipment/{equip_id}/simulate-opcua-material-setup", status_code=201)
+async def simulate_opcua_material_setup(
+    equip_id: UUID,
+    body: SimulateOpcuaMaterialSetupRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """
+    Simulate an OPC-UA data-change event that triggers a material setup switch.
+
+    Looks up the equipment-material configuration by material code, then
+    switches the equipment's current material setup — the same path a real
+    OPC-UA subscription callback would take.
+    """
+    em = await svc.find_equipment_material_by_code(session, equip_id, body.material_code)
+    equip, em = await svc.set_material_setup(
+        session, equip_id, em.id, body.job_number,
+    )
+    data = _build_setup_read(equip, em)
+    await session.commit()
+    return success_response(data.model_dump())
+
+
+@router.post("/equipment/{equip_id}/simulate-mqtt-material-setup", status_code=201)
+async def simulate_mqtt_material_setup(
+    equip_id: UUID,
+    body: SimulateMqttMaterialSetupRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """
+    Simulate an MQTT JSON message that triggers a material setup switch.
+
+    Mimics a JSON payload arriving on an MQTT topic like
+    ``mes/equipment/{equipment_id}/material-setup`` with body
+    ``{"material_code": "<code>", "job_number": "<string>"}``.
+    """
+    em = await svc.find_equipment_material_by_code(session, equip_id, body.material_code)
+    equip, em = await svc.set_material_setup(
+        session, equip_id, em.id, body.job_number,
+    )
+    data = _build_setup_read(equip, em)
+    await session.commit()
+    return success_response(data.model_dump())
+
+
+@router.post("/equipment/{equip_id}/simulate-historian-material-setup", status_code=201)
+async def simulate_historian_material_setup(
+    equip_id: UUID,
+    body: SimulateHistorianMaterialSetupRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """
+    Simulate an AVEVA Historian tag data-change that triggers a material setup switch.
+
+    Mimics a historian polling callback delivering a material code change.
+    """
+    em = await svc.find_equipment_material_by_code(session, equip_id, body.material_code)
+    equip, em = await svc.set_material_setup(
+        session, equip_id, em.id, body.job_number,
+    )
+    data = _build_setup_read(equip, em)
+    await session.commit()
+    return success_response(data.model_dump())

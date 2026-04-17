@@ -549,3 +549,29 @@ class PhysicalModelService:
         await session.flush()
         logger.info("Cleared material setup on equipment %s", equip_id)
         return equip
+
+    @staticmethod
+    async def find_equipment_material_by_code(
+        session: AsyncSession, equip_id: UUID, material_code: str,
+    ) -> EquipmentMaterial:
+        """Find an active equipment-material by material code for a given equipment."""
+        from mes.core.material.models import MaterialDefinition
+
+        stmt = (
+            select(EquipmentMaterial)
+            .join(MaterialDefinition, EquipmentMaterial.material_id == MaterialDefinition.id)
+            .options(selectinload(EquipmentMaterial.material))
+            .where(
+                EquipmentMaterial.equipment_id == equip_id,
+                MaterialDefinition.code == material_code,
+                EquipmentMaterial.is_active.is_(True),
+            )
+        )
+        result = await session.execute(stmt)
+        em = result.scalar_one_or_none()
+        if em is None:
+            raise NotFoundException(
+                resource="EquipmentMaterial",
+                resource_id=f"material_code={material_code} for equipment {equip_id}",
+            )
+        return em
