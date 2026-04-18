@@ -220,3 +220,10 @@ No — the simulator does not use the real adapter. They are independent impleme
 The simulator's in-memory data in sap_data.py uses the same field names (AUFNR, MATNR, WERKS, etc.) as real SAP OData responses, so the shared transform layer processes them identically. This means the simulator exercises the full field-mapping pipeline without needing a live ERP.
 
 The Oracle pair (oracle_cloud_erp / oracle_erp_simulator) follows the exact same pattern — independent adapters sharing OracleTransformLayer.
+
+
+Open http://localhost:5173 → click Orders in the sidebar → click New Order to create a production order.
+
+To create a lot from a released order, use the RT-CLIENT at http://localhost:5176 → Orders page → click an order → "Create Lot".
+
+The flow is: DT-CLIENT creates/releases orders → RT-CLIENT creates lots and tracks WIP through the route steps.

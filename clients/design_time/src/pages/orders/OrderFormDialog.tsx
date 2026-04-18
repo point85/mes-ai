@@ -9,6 +9,7 @@ import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useCreateOrder, useUpdateOrder } from "../../hooks/useProduction";
+import { useProducts } from "../../hooks/useProductDef";
 import type { ProductionOrder } from "../../types";
 
 const orderSchema = z.object({
@@ -34,6 +35,8 @@ export default function OrderFormDialog({ order, onClose }: Props) {
   const isEdit = !!order;
   const createMut = useCreateOrder();
   const updateMut = useUpdateOrder();
+  const { data: productsResp } = useProducts();
+  const products = productsResp?.data ?? [];
 
   const {
     register,
@@ -154,13 +157,19 @@ export default function OrderFormDialog({ order, onClose }: Props) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Product ID
+                Product
               </label>
-              <input
+              <select
                 {...register("product_id")}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                placeholder="UUID of the product"
-              />
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">— Select a product —</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.code})
+                  </option>
+                ))}
+              </select>
               {errors.product_id && (
                 <p className="mt-1 text-xs text-red-600">
                   {errors.product_id.message}

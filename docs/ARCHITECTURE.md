@@ -528,6 +528,22 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **MaterialLot** | `id`, `material_id`, `lot_number`, `quantity_on_hand`, `quantity_reserved`, `status` (available/reserved/consumed/expired), `received_date`, `expiry_date`, `supplier` | → MaterialDefinition |
 | **MaterialConsumption** | `id`, `unit_id`/`lot_id`, `material_lot_id`, `quantity_consumed`, `consumed_at`, `step_id` | → Unit/Lot, → MaterialLot, → RouteStep |
 
+> **Material vs. Product**
+>
+> A **MaterialDefinition** represents a raw material, component, or consumable that is
+> *consumed* during manufacturing (e.g. resin pellets, PCB blanks, solder paste). Materials
+> have a `material_type` (raw, component, consumable, finished), a UOM, and are tracked via
+> `MaterialLot` records with inventory balances.
+>
+> A **ProductDefinition** represents the *finished good* being manufactured (e.g. "Shampoo
+> Bottle 500ml", "PCB Assembly X200"). A product owns a BOM (bill of materials listing which
+> materials are consumed and in what quantities) and one or more process routes (the sequence
+> of steps to produce it). Production orders reference a product.
+>
+> In short: **products are what you make; materials are what you use to make them.** The BOM
+> links the two — each `BOMItem` says "to build this product, consume this material in this
+> quantity at this route step."
+
 #### Inventory Management (INVENTORY)
 
 | Entity | Fields | Relations |
