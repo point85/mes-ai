@@ -29,6 +29,9 @@ from .schemas import (
     BOMItemRead,
     BOMRead,
     BOMUpdate,
+    DispositionCreate,
+    DispositionRead,
+    DispositionUpdate,
     ProductClone,
     ProductCreate,
     ProductRead,
@@ -53,6 +56,74 @@ from .service import ProductDefService
 
 router = APIRouter(prefix="/api/v1", tags=["Product Definition"])
 svc = ProductDefService
+
+
+# ─── Dispositions ─────────────────────────────────────────────────────
+
+
+@router.get("/dispositions")
+async def list_dispositions(
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """List all active dispositions."""
+    items, cursor, has_more = await svc.list_dispositions(session, params)
+    return list_response(
+        [DispositionRead.model_validate(d).model_dump() for d in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
+
+
+@router.post("/dispositions", status_code=201)
+async def create_disposition(
+    body: DispositionCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.create")),
+):
+    """Create a new disposition."""
+    disposition = await svc.create_disposition(session, **body.model_dump())
+    await session.commit()
+    return success_response(DispositionRead.model_validate(disposition).model_dump())
+
+
+@router.get("/dispositions/{disposition_id}")
+async def get_disposition(
+    disposition_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """Get a disposition by ID."""
+    disposition = await svc.get_disposition(session, disposition_id)
+    return success_response(DispositionRead.model_validate(disposition).model_dump())
+
+
+@router.put("/dispositions/{disposition_id}")
+async def update_disposition(
+    disposition_id: UUID,
+    body: DispositionUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.update")),
+):
+    """Update a disposition."""
+    disposition = await svc.update_disposition(
+        session, disposition_id, **body.model_dump(exclude_unset=True),
+    )
+    await session.commit()
+    return success_response(DispositionRead.model_validate(disposition).model_dump())
+
+
+@router.delete("/dispositions/{disposition_id}", status_code=204)
+async def delete_disposition(
+    disposition_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Soft-delete a disposition."""
+    await svc.delete_disposition(session, disposition_id)
+    await session.commit()
 
 
 # ─── Products ─────────────────────────────────────────────────────────

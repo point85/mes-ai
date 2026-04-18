@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mes.core.product_def.models import  RouteStep, StepTransition
+from mes.core.product_def.models import Disposition, RouteStep, StepTransition
 from mes.core.production.models import ProductionOrder
 from mes.framework.api.exceptions import NotFoundException
 from mes.core.wip.exceptions import NoRouteAssignedException, NoNextStepException
@@ -212,14 +212,15 @@ class RoutingEngineService:
         disposition_name: str,
     ) -> RouteStep | None:
         """
-        Look up a RouteStep by its input_disposition field within the route.
-        Returns the step whose input_disposition matches the given name.
+        Look up a RouteStep by its linked Disposition name within the route.
+        Joins RouteStep → Disposition and matches on Disposition.name.
         """
         stmt = (
             select(RouteStep)
+            .join(Disposition, RouteStep.disposition_id == Disposition.id)
             .where(
                 RouteStep.route_id == route_id,
-                RouteStep.input_disposition == disposition_name,
+                Disposition.name == disposition_name,
                 RouteStep.is_active.is_(True),
             )
         )
@@ -318,8 +319,9 @@ class RoutingEngineService:
         """
         Return the disposition choices available at a step.
 
-        Queries all other active steps in the same route that have an
-        input_disposition set (excluding the current step).
+        Queries all other active steps in the same route that have a
+        disposition_id set (excluding the current step), joining through
+        the Disposition table for name/category.
         Falls back to StepTransition-based dispositions for backwards compat.
         """
         # Find the step to get its route_id
@@ -329,30 +331,31 @@ class RoutingEngineService:
         if step is None:
             return []
 
-        # Look for steps with input_disposition in the same route
+        # Look for steps with a disposition in the same route
         disp_stmt = (
-            select(RouteStep)
+            select(RouteStep, Disposition)
+            .join(Disposition, RouteStep.disposition_id == Disposition.id)
             .where(
                 RouteStep.route_id == step.route_id,
                 RouteStep.is_active.is_(True),
-                RouteStep.input_disposition.isnot(None),
-                RouteStep.id != step_id,  # exclude current step
+                RouteStep.disposition_id.isnot(None),
+                RouteStep.id != step_id,
             )
-            .order_by(RouteStep.input_disposition)
+            .order_by(Disposition.name)
         )
         disp_result = await session.execute(disp_stmt)
-        steps_with_disp = disp_result.scalars().all()
+        rows = disp_result.all()
 
-        if steps_with_disp:
+        if rows:
             return [
                 {
-                    "id": str(s.id),
-                    "name": s.input_disposition,
-                    "description": "",
-                    "category": s.disposition_category,
-                    "to_step_id": str(s.id),
+                    "id": str(disp.id),
+                    "name": disp.name,
+                    "description": disp.description or "",
+                    "category": disp.category,
+                    "to_step_id": str(rs.id),
                 }
-                for s in steps_with_disp
+                for rs, disp in rows
             ]
 
         # Fallback: legacy StepTransition-based dispositions

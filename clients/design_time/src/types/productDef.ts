@@ -111,6 +111,32 @@ export interface RouteUpdate {
   is_default?: boolean;
 }
 
+// ─── Disposition ──────────────────────────────────────────────────────
+
+export interface Disposition {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  category: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DispositionCreate {
+  code: string;
+  name: string;
+  description?: string | null;
+  category?: string;
+}
+
+export interface DispositionUpdate {
+  name?: string;
+  description?: string | null;
+  category?: string;
+}
+
 // ─── Route Step ───────────────────────────────────────────────────────
 
 export interface RouteStep {
@@ -122,8 +148,7 @@ export interface RouteStep {
   work_cell_id: string | null;
   expected_cycle_time_sec: number | null;
   erp_operation_number: string | null;
-  input_disposition: string | null;
-  disposition_category: string;
+  disposition_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -135,8 +160,7 @@ export interface RouteStepCreate {
   step_type?: string;
   work_cell_id?: string | null;
   expected_cycle_time_sec?: number | null;
-  input_disposition?: string | null;
-  disposition_category?: string;
+  disposition_id?: string | null;
 }
 
 export interface RouteStepUpdate {
@@ -145,8 +169,7 @@ export interface RouteStepUpdate {
   step_type?: string;
   work_cell_id?: string | null;
   expected_cycle_time_sec?: number | null;
-  input_disposition?: string | null;
-  disposition_category?: string;
+  disposition_id?: string | null;
 }
 
 // ─── Step Parameter ───────────────────────────────────────────────────

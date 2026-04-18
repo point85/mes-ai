@@ -24,6 +24,7 @@ import {
   ArchiveBoxIcon,
   Square3Stack3DIcon,
   ClipboardDocumentIcon,
+  TagIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -56,6 +57,7 @@ const sections: NavSection[] = [
     items: [
       { label: "Products", to: "/products", icon: CubeIcon },
       { label: "Routes", to: "/routes", icon: QueueListIcon },
+      { label: "Dispositions", to: "/dispositions", icon: TagIcon },
       { label: "Materials", to: "/materials", icon: BeakerIcon },
     ],
   },

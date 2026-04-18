@@ -35,6 +35,10 @@ import {
   fetchRouteMaterials,
   assignMaterialToRoute,
   unassignMaterialFromRoute,
+  fetchDispositions,
+  createDisposition,
+  updateDisposition,
+  deleteDisposition,
 } from "../api/productDef";
 import type {
   ProductCreate,
@@ -51,6 +55,8 @@ import type {
   StepTransitionUpdate,
   RouteProductAssignmentCreate,
   RouteMaterialAssignmentCreate,
+  DispositionCreate,
+  DispositionUpdate,
 } from "../types";
 
 const KEYS = {
@@ -64,6 +70,7 @@ const KEYS = {
   steps: (routeId: string) => ["steps", routeId] as const,
   params: (stepId: string) => ["stepParams", stepId] as const,
   transitions: (stepId: string) => ["stepTransitions", stepId] as const,
+  dispositions: ["dispositions"] as const,
 };
 
 // ─── Products ─────────────────────────────────────────────────────────
@@ -349,5 +356,36 @@ export function useUnassignMaterialFromRoute() {
     mutationFn: ({ routeId, materialId }: { routeId: string; materialId: string }) =>
       unassignMaterialFromRoute(routeId, materialId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["routeMaterials"] }),
+  });
+}
+
+// ─── Dispositions ─────────────────────────────────────────────────────
+
+export function useDispositions() {
+  return useQuery({ queryKey: KEYS.dispositions, queryFn: fetchDispositions });
+}
+
+export function useCreateDisposition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DispositionCreate) => createDisposition(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.dispositions }),
+  });
+}
+
+export function useUpdateDisposition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: DispositionUpdate & { id: string }) =>
+      updateDisposition(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.dispositions }),
+  });
+}
+
+export function useDeleteDisposition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteDisposition(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.dispositions }),
   });
 }

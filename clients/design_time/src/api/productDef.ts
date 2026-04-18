@@ -27,6 +27,9 @@ import type {
   RouteProductAssignmentCreate,
   RouteMaterialAssignment,
   RouteMaterialAssignmentCreate,
+  Disposition,
+  DispositionCreate,
+  DispositionUpdate,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -312,4 +315,27 @@ export async function unassignMaterialFromRoute(
   materialId: string,
 ): Promise<void> {
   await api.delete(`/routes/${routeId}/materials/${materialId}`);
+}
+
+// ─── Dispositions ─────────────────────────────────────────────────────
+
+export async function fetchDispositions(): Promise<ApiListResponse<Disposition>> {
+  const { data } = await api.get<ApiListResponse<Disposition>>("/dispositions", {
+    params: { limit: "200" },
+  });
+  return data;
+}
+
+export async function createDisposition(body: DispositionCreate): Promise<Disposition> {
+  const { data } = await api.post<ApiResponse<Disposition>>("/dispositions", body);
+  return data.data;
+}
+
+export async function updateDisposition(id: string, body: DispositionUpdate): Promise<Disposition> {
+  const { data } = await api.put<ApiResponse<Disposition>>(`/dispositions/${id}`, body);
+  return data.data;
+}
+
+export async function deleteDisposition(id: string): Promise<void> {
+  await api.delete(`/dispositions/${id}`);
 }

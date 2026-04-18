@@ -23,6 +23,7 @@ import { GenealogyViewerPage } from "./pages/genealogy";
 import { DispatchPage } from "./pages/dispatch";
 import { PluginListPage, PluginDetailPage } from "./pages/plugins";
 import { ReasonListPage } from "./pages/reasons";
+import { DispositionListPage } from "./pages/dispositions";
 import { StorageLocationListPage } from "./pages/storage-locations";
 import { InventoryBalancesPage, InventoryTransactionsPage } from "./pages/inventory";
 
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="/non-conformances" element={<NCListPage />} />
             <Route path="/performance" element={<PerformancePage />} />
             <Route path="/reasons" element={<ReasonListPage />} />
+            <Route path="/dispositions" element={<DispositionListPage />} />
             <Route path="/genealogy" element={<GenealogyViewerPage />} />
             <Route path="/dispatch" element={<DispatchPage />} />
             <Route path="/storage-locations" element={<StorageLocationListPage />} />

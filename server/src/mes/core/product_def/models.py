@@ -26,6 +26,38 @@ from mes.core.uom.models import UnitOfMeasure  # noqa: F401 — needed for relat
 from mes.core.material.models import MaterialDefinition  # noqa: F401 — needed for RouteMaterialAssignment
 
 
+class Disposition(BaseModel):
+    """
+    A reusable disposition definition — e.g. 'Pass', 'Fail', 'Hold', 'Scrap'.
+
+    Dispositions are top-level entities created independently and then
+    referenced by route steps.  When an operator selects a disposition at
+    runtime, the routing engine resolves the target step through this FK.
+    """
+
+    __tablename__ = "dispositions"
+
+    code: Mapped[str] = mapped_column(
+        String(50), nullable=False, unique=True, index=True,
+        comment="Short unique code (e.g. 'PASS', 'QC-FAIL')",
+    )
+    name: Mapped[str] = mapped_column(
+        String(255), nullable=False,
+        comment="Human-readable disposition name",
+    )
+    description: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Optional description of when this disposition applies",
+    )
+    category: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="route",
+        comment="Disposition category: 'route', 'hold', or 'scrap'",
+    )
+
+    def __repr__(self) -> str:
+        return f"<Disposition id={self.id} code={self.code} category={self.category}>"
+
+
 class ProductDefinition(BaseModel):
     """
     A product (item master) that the factory can manufacture.
@@ -218,18 +250,18 @@ class RouteStep(BaseModel):
         String(50), nullable=True,
         comment="ERP operation/step number for outbound reporting (e.g. '0010', '0020')",
     )
-    input_disposition: Mapped[str | None] = mapped_column(
-        String(100), nullable=True,
-        comment="Disposition name that routes WIP to this step (unique within route)",
-    )
-    disposition_category: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="route",
-        comment="Disposition category: route, hold, scrap",
+    disposition_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("dispositions.id"),
+        nullable=True, index=True,
+        comment="FK to the disposition that routes WIP to this step",
     )
 
     # Relationships
     route: Mapped["ProcessRoute"] = relationship(
         "ProcessRoute", back_populates="steps",
+    )
+    disposition: Mapped["Disposition | None"] = relationship(
+        "Disposition", lazy="joined",
     )
     parameters: Mapped[list["StepParameter"]] = relationship(
         "StepParameter", back_populates="step", cascade="all, delete-orphan",

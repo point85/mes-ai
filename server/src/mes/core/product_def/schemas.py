@@ -13,6 +13,41 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+# ─── Disposition ──────────────────────────────────────────────────────
+
+
+class DispositionCreate(BaseModel):
+    """Schema for creating a new disposition."""
+
+    code: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    category: str = Field("route", pattern=r"^(route|hold|scrap)$")
+
+
+class DispositionRead(BaseModel):
+    """Schema for returning disposition data."""
+
+    id: UUID
+    code: str
+    name: str
+    description: str | None = None
+    category: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DispositionUpdate(BaseModel):
+    """Schema for updating a disposition."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = None
+    category: str | None = Field(None, pattern=r"^(route|hold|scrap)$")
+
+
 # ─── ProductDefinition ────────────────────────────────────────────────
 
 
@@ -187,8 +222,7 @@ class RouteStepCreate(BaseModel):
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50, description="ERP operation number for outbound reporting")
-    input_disposition: str | None = Field(None, max_length=100, description="Disposition name that routes WIP to this step")
-    disposition_category: str = Field("route", pattern=r"^(route|hold|scrap)$", description="Disposition category")
+    disposition_id: UUID | None = Field(None, description="FK to the disposition that routes WIP to this step")
 
 
 class RouteStepRead(BaseModel):
@@ -202,8 +236,7 @@ class RouteStepRead(BaseModel):
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = None
     erp_operation_number: str | None = None
-    input_disposition: str | None = None
-    disposition_category: str = "route"
+    disposition_id: UUID | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -220,8 +253,7 @@ class RouteStepUpdate(BaseModel):
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50)
-    input_disposition: str | None = Field(None, max_length=100)
-    disposition_category: str | None = Field(None, pattern=r"^(route|hold|scrap)$")
+    disposition_id: UUID | None = None
 
 
 # ─── StepParameter ───────────────────────────────────────────────────

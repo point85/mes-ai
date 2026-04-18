@@ -67,8 +67,7 @@ export interface RouteStep {
   step_type: string;
   sequence: number;
   erp_operation_number: string | null;
-  input_disposition: string | null;
-  disposition_category: string;
+  disposition_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

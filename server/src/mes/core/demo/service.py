@@ -28,6 +28,7 @@ from mes.core.material.service import MaterialLotService, MaterialService
 from mes.core.product_def.models import (
     BillOfMaterial, BOMItem, ProcessRoute, RouteStep,
 )
+from mes.core.product_def.models import Disposition
 from mes.core.product_def.service import ProductDefService
 from mes.core.production.models import ProductionOrder
 from mes.core.production.service import ProductionOrderService
@@ -65,7 +66,8 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
                                 "route_steps": 0, "transitions": 0,
                                 "step_parameters": 0, "data_definitions": 0,
-                                "quality_tests": 0, "material_lots": 0}
+                                "quality_tests": 0, "material_lots": 0,
+                                "dispositions": 0}
 
     # ── 1. Materials ──────────────────────────────────────────────────
     mat_ids: dict[str, UUID] = {}
@@ -98,7 +100,14 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
         name=D.ROUTE_NAME, version="1.0", is_default=True,
     )
 
-    # ── 4. Steps ──────────────────────────────────────────────────────
+    # ── 4. Dispositions ──────────────────────────────────────────────
+    disp_by_code: dict[str, Any] = {}
+    for d in D.DISPOSITIONS:
+        disp = await _get_or_create_disposition(session, d)
+        disp_by_code[d["code"]] = disp
+        summary["dispositions"] += 1
+
+    # ── 5. Steps ──────────────────────────────────────────────────────
     step_by_seq: dict[int, Any] = {}
     wc_ids = await _work_cell_id_map(session)
 
@@ -109,6 +118,9 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
             "expected_cycle_time_sec": s.get("expected_cycle_time_sec"),
             "erp_operation_number": s.get("erp_operation_number"),
         }
+        disp_code = s.get("disposition_code")
+        if disp_code and disp_code in disp_by_code:
+            step_kwargs["disposition_id"] = disp_by_code[disp_code].id
         wc_code = s.get("work_cell_code")
         if wc_code and wc_code in wc_ids:
             step_kwargs["work_cell_id"] = wc_ids[wc_code]
@@ -322,7 +334,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
                                 "route_steps": 0, "transitions": 0,
                                 "step_parameters": 0, "data_definitions": 0,
-                                "quality_tests": 0}
+                                "quality_tests": 0, "dispositions": 0}
 
     # ── 1. Materials ──────────────────────────────────────────────────
     mat_ids: dict[str, UUID] = {}
@@ -335,14 +347,20 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     product = await _get_or_create_product(session, E.PRODUCT)
     summary["product"] = str(product.id)
 
-    # ── 3. BOM ────────────────────────────────────────────────────────
     # ── 3. Route ──────────────────────────────────────────────────────
     route, route_created = await _get_or_create_route(
         session, product.id,
         name=E.ROUTE_NAME, version="1.0", is_default=True,
     )
 
-    # ── 4. Steps ──────────────────────────────────────────────────────
+    # ── 4. Dispositions ──────────────────────────────────────────────
+    disp_by_code: dict[str, Any] = {}
+    for d in E.DISPOSITIONS:
+        disp = await _get_or_create_disposition(session, d)
+        disp_by_code[d["code"]] = disp
+        summary["dispositions"] += 1
+
+    # ── 5. Steps ──────────────────────────────────────────────────────
     step_by_seq: dict[int, Any] = {}
     wc_ids = await _work_cell_id_map(session)
 
@@ -353,6 +371,9 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             "expected_cycle_time_sec": s.get("expected_cycle_time_sec"),
             "erp_operation_number": s.get("erp_operation_number"),
         }
+        disp_code = s.get("disposition_code")
+        if disp_code and disp_code in disp_by_code:
+            step_kwargs["disposition_id"] = disp_by_code[disp_code].id
         wc_code = s.get("work_cell_code")
         if wc_code and wc_code in wc_ids:
             step_kwargs["work_cell_id"] = wc_ids[wc_code]
@@ -507,6 +528,22 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Helpers — all get-or-create to ensure idempotency
 # ---------------------------------------------------------------------------
+
+async def _get_or_create_disposition(
+    session: AsyncSession, data: dict,
+) -> Disposition:
+    """Return existing disposition by code, or create a new one."""
+    result = await session.execute(
+        select(Disposition).where(Disposition.code == data["code"])
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        return existing
+    disp = Disposition(**data)
+    session.add(disp)
+    await session.flush()
+    return disp
+
 
 async def _get_or_create_material(
     session: AsyncSession, data: dict,

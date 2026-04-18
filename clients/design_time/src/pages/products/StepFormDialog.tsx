@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { useCreateRouteStep, useUpdateRouteStep } from "../../hooks/useProductDef";
+import { useCreateRouteStep, useUpdateRouteStep, useDispositions } from "../../hooks/useProductDef";
 import type { RouteStep } from "../../types";
 
 const schema = z.object({
@@ -17,6 +17,7 @@ const schema = z.object({
   step_type: z.enum(["production", "inspection", "rework", "mrb"]),
   expected_cycle_time_sec: z.number().min(0).nullable().optional(),
   erp_operation_number: z.string().max(50).nullable().optional(),
+  disposition_id: z.string().nullable().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -31,6 +32,8 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
   const isEdit = !!step;
   const createMut = useCreateRouteStep();
   const updateMut = useUpdateRouteStep();
+  const { data: dispResp } = useDispositions();
+  const dispositions = dispResp?.data ?? [];
 
   const {
     register,
@@ -46,6 +49,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
       step_type: "production",
       expected_cycle_time_sec: null,
       erp_operation_number: null,
+      disposition_id: null,
     },
   });
 
@@ -57,16 +61,21 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
         step_type: step.step_type as "production" | "inspection" | "rework" | "mrb",
         expected_cycle_time_sec: step.expected_cycle_time_sec,
         erp_operation_number: step.erp_operation_number,
+        disposition_id: step.disposition_id,
       });
     }
   }, [step, reset]);
 
   const onSubmit = async (data: FormData) => {
     try {
+      const payload = {
+        ...data,
+        disposition_id: data.disposition_id || null,
+      };
       if (isEdit) {
-        await updateMut.mutateAsync({ id: step!.id, ...data });
+        await updateMut.mutateAsync({ id: step!.id, ...payload });
       } else {
-        await createMut.mutateAsync({ routeId, ...data });
+        await createMut.mutateAsync({ routeId, ...payload });
       }
       onClose();
     } catch {
@@ -154,6 +163,23 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 placeholder="0010"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Input Disposition <span className="text-gray-400">(optional)</span>
+              </label>
+              <select
+                {...register("disposition_id")}
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">— None —</option>
+                {dispositions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code} — {d.name} ({d.category})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">Disposition that routes WIP to this step</p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button

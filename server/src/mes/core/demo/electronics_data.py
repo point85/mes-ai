@@ -56,6 +56,21 @@ BOM_ITEMS: list[dict] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Dispositions (top-level entities)
+# ---------------------------------------------------------------------------
+
+DISPOSITIONS: list[dict] = [
+    {"code": "E-START",      "name": "Start",           "description": "Initial entry into the SMT route",      "category": "route"},
+    {"code": "E-PASS-SMD",   "name": "Pass to SMD",     "description": "Advance to SMD placement",              "category": "route"},
+    {"code": "E-PASS-REFL",  "name": "Pass to Reflow",  "description": "Advance to reflow soldering",           "category": "route"},
+    {"code": "E-PASS-AOI",   "name": "Pass to AOI",     "description": "Advance to automated optical inspection","category": "route"},
+    {"code": "E-AOI-PASS",   "name": "AOI Pass",        "description": "AOI inspection passed",                 "category": "route"},
+    {"code": "E-TH-PASS",    "name": "TH Pass",         "description": "Through-hole step passed",              "category": "route"},
+    {"code": "E-REWORK",     "name": "Rework",          "description": "Send to rework station",                "category": "route"},
+    {"code": "E-ESCALATE",   "name": "Escalate",        "description": "Escalate to Material Review Board",     "category": "hold"},
+]
+
+# ---------------------------------------------------------------------------
 # Route Steps
 # ---------------------------------------------------------------------------
 
@@ -69,8 +84,7 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PASTE",
         "expected_cycle_time_sec": 30.0,
         "erp_operation_number": "0010",
-        "input_disposition": "Start",
-        "disposition_category": "route",
+        "disposition_code": "E-START",
     },
     {
         "sequence": 20,
@@ -79,8 +93,7 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PLACE",
         "expected_cycle_time_sec": 45.0,
         "erp_operation_number": "0020",
-        "input_disposition": "Pass to SMD",
-        "disposition_category": "route",
+        "disposition_code": "E-PASS-SMD",
     },
     {
         "sequence": 30,
@@ -89,8 +102,7 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REFLOW",
         "expected_cycle_time_sec": 180.0,
         "erp_operation_number": "0030",
-        "input_disposition": "Pass to Reflow",
-        "disposition_category": "route",
+        "disposition_code": "E-PASS-REFL",
     },
     {
         "sequence": 40,
@@ -99,8 +111,7 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-AOI",
         "expected_cycle_time_sec": 20.0,
         "erp_operation_number": "0040",
-        "input_disposition": "Pass to AOI",
-        "disposition_category": "route",
+        "disposition_code": "E-PASS-AOI",
     },
     {
         "sequence": 50,
@@ -109,8 +120,7 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-THT",
         "expected_cycle_time_sec": 120.0,
         "erp_operation_number": "0050",
-        "input_disposition": "AOI Pass",
-        "disposition_category": "route",
+        "disposition_code": "E-AOI-PASS",
     },
     {
         "sequence": 60,
@@ -119,8 +129,7 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-TEST",
         "expected_cycle_time_sec": 60.0,
         "erp_operation_number": "0060",
-        "input_disposition": "TH Pass",
-        "disposition_category": "route",
+        "disposition_code": "E-TH-PASS",
     },
     {
         "sequence": 70,
@@ -129,8 +138,7 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REWORK",
         "expected_cycle_time_sec": 300.0,
         "erp_operation_number": "0070",
-        "input_disposition": "Rework",
-        "disposition_category": "route",
+        "disposition_code": "E-REWORK",
     },
     {
         "sequence": 80,
@@ -139,8 +147,7 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REWORK",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0080",
-        "input_disposition": "Escalate",
-        "disposition_category": "hold",
+        "disposition_code": "E-ESCALATE",
     },
 ]
 

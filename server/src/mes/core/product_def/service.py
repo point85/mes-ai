@@ -24,6 +24,7 @@ from .exceptions import DuplicateProductException
 from .models import (
     BillOfMaterial,
     BOMItem,
+    Disposition,
     ProcessRoute,
     ProductDefinition,
     RouteMaterialAssignment,
@@ -223,6 +224,7 @@ class ProductDefService:
                     work_cell_id=src_step.work_cell_id,
                     expected_cycle_time_sec=src_step.expected_cycle_time_sec,
                     erp_operation_number=src_step.erp_operation_number,
+                    disposition_id=src_step.disposition_id,
                 )
                 session.add(new_step)
                 await session.flush()
@@ -695,6 +697,61 @@ class ProductDefService:
             persisted.append(route)
 
         return persisted
+
+    # ─── Disposition operations ─────────────────────────────────────
+
+    @staticmethod
+    async def list_dispositions(
+        session: AsyncSession,
+        params: PaginationParams,
+    ) -> tuple[Sequence[Disposition], str | None, bool]:
+        """List all active dispositions."""
+        stmt = select(Disposition).where(Disposition.is_active.is_(True))
+        return await paginate_query(session, stmt, Disposition, params)
+
+    @staticmethod
+    async def get_disposition(session: AsyncSession, disposition_id: UUID) -> Disposition:
+        """Get a disposition by ID."""
+        stmt = select(Disposition).where(
+            Disposition.id == disposition_id,
+            Disposition.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        disposition = result.scalar_one_or_none()
+        if disposition is None:
+            raise NotFoundException(resource="Disposition", resource_id=str(disposition_id))
+        return disposition
+
+    @staticmethod
+    async def create_disposition(session: AsyncSession, **kwargs: Any) -> Disposition:
+        """Create a new disposition."""
+        disposition = Disposition(**kwargs)
+        session.add(disposition)
+        await session.flush()
+        logger.info("Created disposition %s (code=%s)", disposition.id, disposition.code)
+        return disposition
+
+    @staticmethod
+    async def update_disposition(
+        session: AsyncSession, disposition_id: UUID, **kwargs: Any,
+    ) -> Disposition:
+        """Update a disposition."""
+        disposition = await ProductDefService.get_disposition(session, disposition_id)
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(disposition, key, value)
+        await session.flush()
+        return disposition
+
+    @staticmethod
+    async def delete_disposition(
+        session: AsyncSession, disposition_id: UUID,
+    ) -> None:
+        """Soft-delete a disposition."""
+        disposition = await ProductDefService.get_disposition(session, disposition_id)
+        disposition.is_active = False
+        await session.flush()
+        logger.info("Deleted disposition %s", disposition_id)
 
     # ─── StepTransition operations ───────────────────────────────────
 

@@ -19,6 +19,7 @@ import {
   useDeleteStepTransition,
   useBOMs,
   useBOMItems,
+  useDispositions,
 } from "../../hooks/useProductDef";
 import { fetchProduct } from "../../api/productDef";
 import { useQuery } from "@tanstack/react-query";
@@ -82,6 +83,10 @@ export default function ProductDetailPage() {
   const defaultBomId = boms.length > 0 ? boms[0].id : "";
   const { data: bomItemsData } = useBOMItems(defaultBomId);
   const bomItems = bomItemsData?.data ?? [];
+
+  // Dispositions for step display
+  const { data: dispResp } = useDispositions();
+  const dispMap = new Map((dispResp?.data ?? []).map((d) => [d.id, d]));
 
   // Group BOM items by route_step_id for quick lookup
   const stepMaterialsMap = new Map<string, BOMItem[]>();
@@ -230,6 +235,9 @@ export default function ProductDetailPage() {
                         Cycle Time
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Input Disposition
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Consumed Materials
                       </th>
                       <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -261,6 +269,26 @@ export default function ProductDetailPage() {
                           {s.expected_cycle_time_sec != null
                             ? `${s.expected_cycle_time_sec}s`
                             : "—"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {s.disposition_id && dispMap.has(s.disposition_id) ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm text-gray-900">{dispMap.get(s.disposition_id)!.name}</span>
+                              <span
+                                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                                  dispMap.get(s.disposition_id)!.category === "route"
+                                    ? "bg-green-100 text-green-700"
+                                    : dispMap.get(s.disposition_id)!.category === "hold"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-red-100 text-red-700"
+                                }`}
+                              >
+                                {dispMap.get(s.disposition_id)!.category}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-2">
                           {(stepMaterialsMap.get(s.id) ?? []).length > 0 ? (
@@ -297,7 +325,7 @@ export default function ProductDetailPage() {
                     {steps.length === 0 && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="px-4 py-6 text-center text-sm text-gray-400"
                         >
                           No steps defined yet.
