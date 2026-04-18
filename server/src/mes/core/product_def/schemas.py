@@ -187,6 +187,8 @@ class RouteStepCreate(BaseModel):
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50, description="ERP operation number for outbound reporting")
+    input_disposition: str | None = Field(None, max_length=100, description="Disposition name that routes WIP to this step")
+    disposition_category: str = Field("route", pattern=r"^(route|hold|scrap)$", description="Disposition category")
 
 
 class RouteStepRead(BaseModel):
@@ -200,6 +202,8 @@ class RouteStepRead(BaseModel):
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = None
     erp_operation_number: str | None = None
+    input_disposition: str | None = None
+    disposition_category: str = "route"
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -216,6 +220,8 @@ class RouteStepUpdate(BaseModel):
     work_cell_id: UUID | None = None
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50)
+    input_disposition: str | None = Field(None, max_length=100)
+    disposition_category: str | None = Field(None, pattern=r"^(route|hold|scrap)$")
 
 
 # ─── StepParameter ───────────────────────────────────────────────────

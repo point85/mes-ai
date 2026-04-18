@@ -137,7 +137,7 @@ class TestElecDataTransitions:
 
     def test_transition_count(self):
         from mes.core.demo.electronics_data import TRANSITIONS
-        assert len(TRANSITIONS) == 10
+        assert len(TRANSITIONS) == 12
 
     def test_all_transitions_reference_valid_steps(self):
         from mes.core.demo.electronics_data import TRANSITIONS, STEPS

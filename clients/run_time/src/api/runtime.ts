@@ -37,8 +37,8 @@ export const fetchUnitHistory = (id: string) =>
 export const startUnit = (id: string, equipmentId?: string) =>
   api.post(`/units/${id}/start`, equipmentId ? { equipment_id: equipmentId } : null).then(unwrap<Unit>);
 
-export const completeUnit = (id: string, result: string, dataSnapshot?: Record<string, unknown>) =>
-  api.post(`/units/${id}/complete`, { result, data_snapshot: dataSnapshot }).then(unwrap<Unit>);
+export const completeUnit = (id: string, result: string, dataSnapshot?: Record<string, unknown>, disposition?: string) =>
+  api.post(`/units/${id}/complete`, { result, data_snapshot: dataSnapshot, disposition: disposition ?? null }).then(unwrap<Unit>);
 
 export const moveUnit = (id: string, opts?: { target_step_id?: string; result?: string; disposition?: string }) =>
   api.post(`/units/${id}/move`, opts ?? null).then(unwrap<Unit>);
@@ -72,8 +72,8 @@ export const fetchLotHistory = (id: string) =>
 export const startLot = (id: string, equipmentId?: string) =>
   api.post(`/lots/${id}/start`, equipmentId ? { equipment_id: equipmentId } : null).then(unwrap<Lot>);
 
-export const completeLot = (id: string, quantityOut?: number, quantityScrapped?: number) =>
-  api.post(`/lots/${id}/complete`, { quantity_out: quantityOut, quantity_scrapped: quantityScrapped }).then(unwrap<Lot>);
+export const completeLot = (id: string, quantityOut?: number, quantityScrapped?: number, disposition?: string) =>
+  api.post(`/lots/${id}/complete`, { quantity_out: quantityOut, quantity_scrapped: quantityScrapped, disposition: disposition ?? null }).then(unwrap<Lot>);
 
 export const moveLot = (id: string, opts?: { target_step_id?: string; result?: string; disposition?: string }) =>
   api.post(`/lots/${id}/move`, opts ?? null).then(unwrap<Lot>);

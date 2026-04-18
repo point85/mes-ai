@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Text, Uuid
+from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -179,7 +179,6 @@ class ProcessRoute(BaseModel):
     material_assignments: Mapped[list["RouteMaterialAssignment"]] = relationship(
         "RouteMaterialAssignment", back_populates="route", cascade="all, delete-orphan",
     )
-
     def __repr__(self) -> str:
         return f"<ProcessRoute id={self.id} name={self.name} v={self.version}>"
 
@@ -219,6 +218,14 @@ class RouteStep(BaseModel):
         String(50), nullable=True,
         comment="ERP operation/step number for outbound reporting (e.g. '0010', '0020')",
     )
+    input_disposition: Mapped[str | None] = mapped_column(
+        String(100), nullable=True,
+        comment="Disposition name that routes WIP to this step (unique within route)",
+    )
+    disposition_category: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="route",
+        comment="Disposition category: route, hold, scrap",
+    )
 
     # Relationships
     route: Mapped["ProcessRoute"] = relationship(
@@ -241,7 +248,6 @@ class RouteStep(BaseModel):
         back_populates="to_step",
         cascade="all, delete-orphan",
     )
-
     def __repr__(self) -> str:
         return f"<RouteStep id={self.id} seq={self.sequence} name={self.name}>"
 
@@ -414,3 +420,6 @@ class RouteMaterialAssignment(BaseModel):
 
     def __repr__(self) -> str:
         return f"<RouteMaterialAssignment route={self.route_id} material={self.material_id}>"
+
+
+

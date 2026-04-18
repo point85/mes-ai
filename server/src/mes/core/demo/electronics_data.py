@@ -69,6 +69,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PASTE",
         "expected_cycle_time_sec": 30.0,
         "erp_operation_number": "0010",
+        "input_disposition": "Start",
+        "disposition_category": "route",
     },
     {
         "sequence": 20,
@@ -77,6 +79,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PLACE",
         "expected_cycle_time_sec": 45.0,
         "erp_operation_number": "0020",
+        "input_disposition": "Pass to SMD",
+        "disposition_category": "route",
     },
     {
         "sequence": 30,
@@ -85,6 +89,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REFLOW",
         "expected_cycle_time_sec": 180.0,
         "erp_operation_number": "0030",
+        "input_disposition": "Pass to Reflow",
+        "disposition_category": "route",
     },
     {
         "sequence": 40,
@@ -93,6 +99,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-AOI",
         "expected_cycle_time_sec": 20.0,
         "erp_operation_number": "0040",
+        "input_disposition": "Pass to AOI",
+        "disposition_category": "route",
     },
     {
         "sequence": 50,
@@ -101,6 +109,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-THT",
         "expected_cycle_time_sec": 120.0,
         "erp_operation_number": "0050",
+        "input_disposition": "AOI Pass",
+        "disposition_category": "route",
     },
     {
         "sequence": 60,
@@ -109,6 +119,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-TEST",
         "expected_cycle_time_sec": 60.0,
         "erp_operation_number": "0060",
+        "input_disposition": "TH Pass",
+        "disposition_category": "route",
     },
     {
         "sequence": 70,
@@ -117,6 +129,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REWORK",
         "expected_cycle_time_sec": 300.0,
         "erp_operation_number": "0070",
+        "input_disposition": "Rework",
+        "disposition_category": "route",
     },
     {
         "sequence": 80,
@@ -125,6 +139,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REWORK",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0080",
+        "input_disposition": "Escalate",
+        "disposition_category": "hold",
     },
 ]
 

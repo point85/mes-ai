@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mes.core.product_def.models import ProcessRoute, RouteStep, StepTransition
+from mes.core.product_def.models import  RouteStep, StepTransition
 from mes.core.production.models import ProductionOrder
 from mes.framework.api.exceptions import NotFoundException
 from mes.core.wip.exceptions import NoRouteAssignedException, NoNextStepException
@@ -148,22 +148,36 @@ class RoutingEngineService:
             current_step_id: Current step (None → returns first step)
             result:          Step completion result: 'pass', 'fail', 'rework'
                              Used to evaluate conditional transitions.
-            disposition:     Operator-selected label for MRB/disposition steps.
-                             Must match a StepTransition.label exactly.
+            disposition:     Operator-selected disposition name.
+                             Looked up in the Disposition table first;
+                             falls back to StepTransition-based routing.
 
         Returns:
             The next RouteStep, or None if the route is complete.
 
         Routing priority:
-        1. If transitions exist for current step → evaluate graph transitions
-        2. If no transitions → fall back to linear sequence ordering
+        1. Disposition-based routing (Disposition table lookup by name + route)
+        2. Graph-based routing (StepTransition edges)
+        3. Linear sequence fallback
         """
         if current_step_id is None:
             return await RoutingEngineService.get_first_step(session, order_id)
 
         route = await RoutingEngineService.get_route_for_order(session, order_id)
 
-        # Load outgoing transitions for the current step
+        # ── 1. Disposition-based routing ──────────────────────────────
+        if disposition:
+            disp_step = await RoutingEngineService._resolve_disposition(
+                session, route.id, disposition,
+            )
+            if disp_step is not None:
+                logger.info(
+                    "Disposition routing: step %s → %s (disposition=%r)",
+                    current_step_id, disp_step.id, disposition,
+                )
+                return disp_step
+
+        # ── 2. Graph-based routing (StepTransition) ──────────────────
         trans_stmt = (
             select(StepTransition)
             .where(
@@ -186,10 +200,31 @@ class RoutingEngineService:
                 )
                 return next_step
 
-        # Fallback: linear sequence-based routing
+        # ── 3. Linear sequence fallback ──────────────────────────────
         return await RoutingEngineService._resolve_linear_next(
             route, current_step_id,
         )
+
+    @staticmethod
+    async def _resolve_disposition(
+        session: AsyncSession,
+        route_id: UUID,
+        disposition_name: str,
+    ) -> RouteStep | None:
+        """
+        Look up a RouteStep by its input_disposition field within the route.
+        Returns the step whose input_disposition matches the given name.
+        """
+        stmt = (
+            select(RouteStep)
+            .where(
+                RouteStep.route_id == route_id,
+                RouteStep.input_disposition == disposition_name,
+                RouteStep.is_active.is_(True),
+            )
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
 
     @staticmethod
     async def _resolve_graph_transition(
@@ -283,9 +318,44 @@ class RoutingEngineService:
         """
         Return the disposition choices available at a step.
 
-        Used by MRB / disposition steps where the operator must choose
-        the exit path. Returns a list of {label, to_step_id} dicts.
+        Queries all other active steps in the same route that have an
+        input_disposition set (excluding the current step).
+        Falls back to StepTransition-based dispositions for backwards compat.
         """
+        # Find the step to get its route_id
+        step_stmt = select(RouteStep).where(RouteStep.id == step_id)
+        step_result = await session.execute(step_stmt)
+        step = step_result.scalar_one_or_none()
+        if step is None:
+            return []
+
+        # Look for steps with input_disposition in the same route
+        disp_stmt = (
+            select(RouteStep)
+            .where(
+                RouteStep.route_id == step.route_id,
+                RouteStep.is_active.is_(True),
+                RouteStep.input_disposition.isnot(None),
+                RouteStep.id != step_id,  # exclude current step
+            )
+            .order_by(RouteStep.input_disposition)
+        )
+        disp_result = await session.execute(disp_stmt)
+        steps_with_disp = disp_result.scalars().all()
+
+        if steps_with_disp:
+            return [
+                {
+                    "id": str(s.id),
+                    "name": s.input_disposition,
+                    "description": "",
+                    "category": s.disposition_category,
+                    "to_step_id": str(s.id),
+                }
+                for s in steps_with_disp
+            ]
+
+        # Fallback: legacy StepTransition-based dispositions
         stmt = (
             select(StepTransition)
             .where(

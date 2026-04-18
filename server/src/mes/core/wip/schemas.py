@@ -156,6 +156,11 @@ class CompleteRequest(BaseModel):
     """Request to complete processing at the current step."""
 
     result: str = Field("pass", description="Step result: pass, fail, rework")
+    disposition: str | None = Field(
+        None,
+        max_length=100,
+        description="Disposition name for routing (overrides result-based routing when set)",
+    )
     data_snapshot: dict | None = Field(None, description="Optional data collected at step")
     quantity_out: int | None = Field(None, gt=0, description="For lots: quantity completing step")
     quantity_scrapped: int | None = Field(None, ge=0, description="For lots: quantity scrapped at step")

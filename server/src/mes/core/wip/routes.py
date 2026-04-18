@@ -160,8 +160,9 @@ async def complete_unit(
     """Complete the current step for a unit."""
     result = body.result if body else "pass"
     data = body.data_snapshot if body else None
+    disp = body.disposition if body else None
     unit = await UnitService.complete_unit_step(
-        session, unit_id, result=result, data_snapshot=data,
+        session, unit_id, result=result, disposition=disp, data_snapshot=data,
     )
     await session.commit()
     return success_response(UnitRead.model_validate(unit).model_dump())
@@ -336,10 +337,12 @@ async def complete_lot(
     """Complete the current step for a lot."""
     qty_out = body.quantity_out if body else None
     qty_scrapped = body.quantity_scrapped if body else 0
+    disp = body.disposition if body else None
     lot = await LotService.complete_lot_step(
         session, lot_id,
         quantity_out=qty_out,
         quantity_scrapped=qty_scrapped or 0,
+        disposition=disp,
     )
     await session.commit()
     return success_response(LotRead.model_validate(lot).model_dump())

@@ -67,6 +67,8 @@ export interface RouteStep {
   step_type: string;
   sequence: number;
   erp_operation_number: string | null;
+  input_disposition: string | null;
+  disposition_category: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -120,8 +122,13 @@ export interface QualityTest {
 }
 
 export interface Disposition {
-  label: string;
+  id: string;
+  name: string;
+  description: string;
+  category: string;
   to_step_id: string;
+  /** @deprecated Legacy transition-based disposition */
+  label?: string;
 }
 
 export interface StepContext {

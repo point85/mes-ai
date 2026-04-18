@@ -172,10 +172,11 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
 
     await runAction(
       () => {
+        const disp = selectedDisposition || undefined;
         if (isUnit) {
-          return completeUnit(wip.id, completeResult, Object.keys(snapshot).length > 0 ? snapshot : undefined);
+          return completeUnit(wip.id, completeResult, Object.keys(snapshot).length > 0 ? snapshot : undefined, disp);
         } else {
-          return completeLot(wip.id, qtyOut ? parseInt(qtyOut) : undefined, parseInt(qtyScrapped) || 0);
+          return completeLot(wip.id, qtyOut ? parseInt(qtyOut) : undefined, parseInt(qtyScrapped) || 0, disp);
         }
       },
       "Step completed",
@@ -630,18 +631,37 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
           <div className="bg-white rounded-lg shadow p-5">
             <h4 className="font-semibold text-gray-700 mb-3">Complete Step</h4>
             <div className="flex items-end gap-4 flex-wrap">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">Result</label>
-                <select
-                  value={completeResult}
-                  onChange={(e) => setCompleteResult(e.target.value as "pass" | "fail" | "rework")}
-                  className="input-field"
-                >
-                  <option value="pass">Pass</option>
-                  <option value="fail">Fail</option>
-                  <option value="rework">Rework</option>
-                </select>
-              </div>
+              {dispositions.length > 0 ? (
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Disposition</label>
+                  <select
+                    value={selectedDisposition}
+                    onChange={(e) => setSelectedDisposition(e.target.value)}
+                    className="input-field"
+                  >
+                    {dispositions.length === 1 ? null : <option value="">— Select disposition —</option>}
+                    {dispositions.map((d) => (
+                      <option key={d.id ?? d.to_step_id} value={d.name ?? d.label}>
+                        {d.name ?? d.label}
+                        {d.description ? ` — ${d.description}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Result</label>
+                  <select
+                    value={completeResult}
+                    onChange={(e) => setCompleteResult(e.target.value as "pass" | "fail" | "rework")}
+                    className="input-field"
+                  >
+                    <option value="pass">Pass</option>
+                    <option value="fail">Fail</option>
+                    <option value="rework">Rework</option>
+                  </select>
+                </div>
+              )}
               {!isUnit && (
                 <>
                   <div>
@@ -673,25 +693,10 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
             </div>
           </div>
 
-          {/* Move / Disposition */}
+          {/* Move to Next Step */}
           <div className="bg-white rounded-lg shadow p-5">
             <h4 className="font-semibold text-gray-700 mb-3">Move to Next Step</h4>
             <div className="flex items-end gap-4 flex-wrap">
-              {dispositions.length > 0 && (
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">Disposition</label>
-                  <select
-                    value={selectedDisposition}
-                    onChange={(e) => setSelectedDisposition(e.target.value)}
-                    className="input-field"
-                  >
-                    <option value="">Auto (routing engine)</option>
-                    {dispositions.map((d) => (
-                      <option key={d.to_step_id} value={d.label}>{d.label}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <button onClick={handleMove} disabled={actionLoading} className="btn-primary">
                 Move
               </button>

@@ -186,11 +186,13 @@ class UnitService:
         session: AsyncSession,
         unit_id: UUID,
         result: str = "pass",
+        disposition: str | None = None,
         data_snapshot: dict | None = None,
     ) -> Unit:
         """
         Complete the current step for a unit.
         Updates the open history record with exit time and result.
+        If a disposition name is provided, it is stored in the history record.
         """
         unit = await UnitService.get_unit(session, unit_id)
         if unit.status != "in_process":
@@ -552,6 +554,7 @@ class LotService:
         lot_id: UUID,
         quantity_out: int | None = None,
         quantity_scrapped: int = 0,
+        disposition: str | None = None,
     ) -> Lot:
         lot = await LotService.get_lot(session, lot_id)
         if lot.status != "in_process":

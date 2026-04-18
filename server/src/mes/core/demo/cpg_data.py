@@ -86,6 +86,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-BLEND",
         "expected_cycle_time_sec": 900.0,
         "erp_operation_number": "0010",
+        "input_disposition": "Start",
+        "disposition_category": "route",
     },
     {
         "sequence": 20,
@@ -94,6 +96,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PAST",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0020",
+        "input_disposition": "Pass to Pasteurization",
+        "disposition_category": "route",
     },
     {
         "sequence": 30,
@@ -102,6 +106,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-QC",
         "expected_cycle_time_sec": 300.0,
         "erp_operation_number": "0030",
+        "input_disposition": "Pass to QC",
+        "disposition_category": "route",
     },
     {
         "sequence": 40,
@@ -110,6 +116,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-FILL",
         "expected_cycle_time_sec": 1200.0,
         "erp_operation_number": "0040",
+        "input_disposition": "QC Pass",
+        "disposition_category": "route",
     },
     {
         "sequence": 50,
@@ -118,6 +126,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PACK",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0050",
+        "input_disposition": "Pass to Packing",
+        "disposition_category": "route",
     },
     {
         "sequence": 60,
@@ -126,6 +136,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REWORK",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0060",
+        "input_disposition": "QC Fail",
+        "disposition_category": "route",
     },
     {
         "sequence": 70,
@@ -134,6 +146,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-QC",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0070",
+        "input_disposition": "Escalate to MRB",
+        "disposition_category": "hold",
     },
 ]
 
