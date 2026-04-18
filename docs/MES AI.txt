@@ -227,3 +227,11 @@ Open http://localhost:5173 → click Orders in the sidebar → click New Order t
 To create a lot from a released order, use the RT-CLIENT at http://localhost:5176 → Orders page → click an order → "Create Lot".
 
 The flow is: DT-CLIENT creates/releases orders → RT-CLIENT creates lots and tracks WIP through the route steps.
+
+In this MES:
+
+Material — a raw material, component, or consumable that is consumed during manufacturing (e.g. resin pellets, PCB blanks, labels, solder paste). Materials have a material_type (raw, component, consumable, finished), a UOM, and are tracked via lots with inventory balances.
+
+Product — the finished good being manufactured (e.g. "Shampoo Bottle 500ml", "PCB Assembly X200"). A product owns a BOM (bill of materials listing which materials are consumed and in what quantities) and one or more process routes (the sequence of steps to produce it). Production orders reference a product.
+
+In short: products are what you make; materials are what you use to make them. The BOM links the two — it says "to build Product X, consume these Materials in these quantities at these route steps."

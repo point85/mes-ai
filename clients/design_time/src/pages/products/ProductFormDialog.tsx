@@ -21,7 +21,7 @@ const productSchema = z.object({
   version: z.string().max(50).optional(),
   description: z.string().nullable().optional(),
   uom: z.string().min(1).max(20).optional(),
-  product_type: z.enum(["discrete", "process"]),
+  product_type: z.enum(["discrete", "process", "semi_finished", "configurable"]),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -61,7 +61,7 @@ export default function ProductFormDialog({ product, onClose }: Props) {
         version: product.version,
         description: product.description ?? "",
         uom: product.uom,
-        product_type: product.product_type as "discrete" | "process",
+        product_type: product.product_type as "discrete" | "process" | "semi_finished" | "configurable",
       });
     }
   }, [product, reset]);
@@ -161,6 +161,8 @@ export default function ProductFormDialog({ product, onClose }: Props) {
                 >
                   <option value="discrete">Discrete</option>
                   <option value="process">Process</option>
+                  <option value="semi_finished">Semi-Finished</option>
+                  <option value="configurable">Configurable</option>
                 </select>
               </div>
               <div>

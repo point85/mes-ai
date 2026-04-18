@@ -82,7 +82,7 @@ class ProductDefinition(BaseModel):
     )
     product_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="discrete",
-        comment="Product type: 'discrete' or 'process'",
+        comment="Product type: discrete, process, semi_finished, or configurable",
     )
 
     # Relationships

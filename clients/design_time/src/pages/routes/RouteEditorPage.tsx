@@ -8,7 +8,7 @@
  *   Right:  material assignments for the selected route
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   PlusIcon,
   PencilSquareIcon,
@@ -16,17 +16,24 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   useAllRoutes,
+  useProducts,
   useRouteSteps,
   useRouteMaterials,
+  useRouteProducts,
   useDeleteRoute,
   useDeleteStep,
   useAssignMaterialToRoute,
   useUnassignMaterialFromRoute,
+  useAssignProductToRoute,
+  useUnassignProductFromRoute,
 } from "../../hooks/useProductDef";
 import { useMaterials } from "../../hooks/useMaterial";
-import type { ProcessRoute, RouteStep, Material } from "../../types";
+import type { ProcessRoute, RouteStep, Material, Product } from "../../types";
 import RouteFormDialog from "./RouteFormDialog";
 import StepFormDialog from "../products/StepFormDialog";
+
+const PRODUCT_TYPES = ["discrete", "process", "semi_finished", "configurable"] as const;
+const MATERIAL_TYPES = ["raw", "intermediate", "finished", "semi", "consumable", "packaging", "spare"] as const;
 
 export default function RouteEditorPage() {
   const [selectedRoute, setSelectedRoute] = useState<ProcessRoute | null>(null);
@@ -35,16 +42,24 @@ export default function RouteEditorPage() {
   const [showStepForm, setShowStepForm] = useState(false);
   const [editingStep, setEditingStep] = useState<RouteStep | null>(null);
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
+  const [pickerSource, setPickerSource] = useState<"materials" | "products">("materials");
+  const [pickerTypeFilter, setPickerTypeFilter] = useState("");
 
   // Queries
   const { data: routesData, isLoading: routesLoading } = useAllRoutes();
   const routes = routesData?.data ?? [];
+
+  const { data: productsData } = useProducts();
+  const allProducts = productsData?.data ?? [];
 
   const { data: stepsData } = useRouteSteps(selectedRoute?.id ?? "");
   const steps = (stepsData?.data ?? []).sort((a, b) => a.sequence - b.sequence);
 
   const { data: materialAssignmentsData } = useRouteMaterials(selectedRoute?.id ?? "");
   const materialAssignments = materialAssignmentsData?.data ?? [];
+
+  const { data: productAssignmentsData } = useRouteProducts(selectedRoute?.id ?? "");
+  const productAssignments = productAssignmentsData?.data ?? [];
 
   const { data: materialsData } = useMaterials();
   const allMaterials = materialsData?.data ?? [];
@@ -54,14 +69,37 @@ export default function RouteEditorPage() {
     allMaterials.map((m) => [m.id, m]),
   );
 
+  // Build product lookup for displaying assigned product names
+  const productMap = new Map<string, Product>(
+    allProducts.map((p) => [p.id, p]),
+  );
+
   // Materials not yet assigned to the selected route
   const assignedMaterialIds = new Set(materialAssignments.map((a) => a.material_id));
   const availableMaterials = allMaterials.filter((m) => !assignedMaterialIds.has(m.id));
+
+  // Products not yet assigned to the selected route
+  const assignedProductIds = new Set(productAssignments.map((a) => a.product_id));
+  const availableProducts = allProducts.filter((p) => !assignedProductIds.has(p.id));
+
+  // Filtered picker items based on radio + type dropdown
+  const filteredPickerItems = useMemo(() => {
+    if (pickerSource === "products") {
+      return availableProducts
+        .filter((p) => !pickerTypeFilter || p.product_type === pickerTypeFilter)
+        .map((p) => ({ id: p.id, code: p.code, name: p.name, type: p.product_type }));
+    }
+    return availableMaterials
+      .filter((m) => !pickerTypeFilter || m.material_type === pickerTypeFilter)
+      .map((m) => ({ id: m.id, code: m.code, name: m.name, type: m.material_type }));
+  }, [pickerSource, pickerTypeFilter, availableProducts, availableMaterials]);
 
   const deleteRouteMut = useDeleteRoute();
   const deleteStepMut = useDeleteStep();
   const assignMaterialMut = useAssignMaterialToRoute();
   const unassignMaterialMut = useUnassignMaterialFromRoute();
+  const assignProductMut = useAssignProductToRoute();
+  const unassignProductMut = useUnassignProductFromRoute();
 
   if (routesLoading) {
     return <p className="text-sm text-gray-500 p-6">Loading…</p>;
@@ -280,30 +318,75 @@ export default function RouteEditorPage() {
 
               {/* Inline material picker */}
               {showMaterialPicker && (
-                <div className="border-b border-gray-200 px-4 py-3 bg-gray-50">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Select material to assign
-                  </label>
-                  {availableMaterials.length === 0 ? (
-                    <p className="text-xs text-gray-400">All materials already assigned.</p>
+                <div className="border-b border-gray-200 px-4 py-3 bg-gray-50 space-y-2">
+                  {/* Radio: Products vs Materials */}
+                  <div className="flex items-center gap-4">
+                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="pickerSource"
+                        checked={pickerSource === "materials"}
+                        onChange={() => { setPickerSource("materials"); setPickerTypeFilter(""); }}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Materials
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="pickerSource"
+                        checked={pickerSource === "products"}
+                        onChange={() => { setPickerSource("products"); setPickerTypeFilter(""); }}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Products
+                    </label>
+                  </div>
+
+                  {/* Type dropdown */}
+                  <select
+                    value={pickerTypeFilter}
+                    onChange={(e) => setPickerTypeFilter(e.target.value)}
+                    className="block w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">All types</option>
+                    {(pickerSource === "products" ? PRODUCT_TYPES : MATERIAL_TYPES).map((t) => (
+                      <option key={t} value={t}>
+                        {t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Filtered list */}
+                  {filteredPickerItems.length === 0 ? (
+                    <p className="text-xs text-gray-400">
+                      {pickerSource === "materials" ? "All materials already assigned." : "All products already assigned."}
+                    </p>
                   ) : (
                     <div className="max-h-48 overflow-y-auto space-y-1">
-                      {availableMaterials.map((m) => (
+                      {filteredPickerItems.map((item) => (
                         <button
-                          key={m.id}
+                          key={item.id}
                           onClick={async () => {
-                            await assignMaterialMut.mutateAsync({
-                              routeId: selectedRoute.id,
-                              material_id: m.id,
-                            });
+                            if (pickerSource === "products") {
+                              await assignProductMut.mutateAsync({
+                                routeId: selectedRoute.id,
+                                product_id: item.id,
+                              });
+                            } else {
+                              await assignMaterialMut.mutateAsync({
+                                routeId: selectedRoute.id,
+                                material_id: item.id,
+                              });
+                            }
                             setShowMaterialPicker(false);
                           }}
                           className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-indigo-50 transition-colors"
                         >
-                          <span className="font-medium text-gray-900">{m.code}</span>
-                          <span className="ml-2 text-gray-500">{m.name}</span>
+                          <span className="font-medium text-gray-900">{item.code}</span>
+                          <span className="ml-2 text-gray-500">{item.name}</span>
                           <span className="ml-1 inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
-                            {m.material_type}
+                            {item.type}
                           </span>
                         </button>
                       ))}
@@ -312,13 +395,50 @@ export default function RouteEditorPage() {
                 </div>
               )}
 
-              {/* Assigned materials list */}
+              {/* Assigned items list */}
               <div className="divide-y divide-gray-100">
-                {materialAssignments.length === 0 && (
+                {materialAssignments.length === 0 && productAssignments.length === 0 && (
                   <p className="px-4 py-6 text-center text-sm text-gray-400">
-                    No materials assigned.
+                    No materials or products assigned.
                   </p>
                 )}
+                {productAssignments.map((a) => {
+                  const product = productMap.get(a.product_id);
+                  return (
+                    <div
+                      key={a.id}
+                      className="px-4 py-2.5 flex items-center justify-between"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-gray-900 truncate block">
+                          {product?.code ?? a.product_id.slice(0, 8)}
+                        </span>
+                        <span className="text-xs text-gray-500 truncate block">
+                          {product?.name ?? ""}
+                          {product?.product_type && (
+                            <span className="ml-1 inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs text-indigo-600">
+                              {product.product_type}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Remove ${product?.code ?? "this product"} from route?`)) {
+                            unassignProductMut.mutate({
+                              routeId: selectedRoute.id,
+                              productId: a.product_id,
+                            });
+                          }
+                        }}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Remove assignment"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
                 {materialAssignments.map((a) => {
                   const material = materialMap.get(a.material_id);
                   return (

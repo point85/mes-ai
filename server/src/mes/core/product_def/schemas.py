@@ -68,7 +68,7 @@ class ProductCreate(BaseModel):
     version: str = Field("1.0", max_length=50)
     description: str | None = None
     uom: str = Field("EA", max_length=20)
-    product_type: str = Field("discrete", pattern=r"^(discrete|process)$")
+    product_type: str = Field("discrete", pattern=r"^(discrete|process|semi_finished|configurable)$")
 
 
 class ProductRead(BaseModel):
@@ -96,7 +96,7 @@ class ProductUpdate(BaseModel):
     version: str | None = Field(None, max_length=50)
     description: str | None = None
     uom: str | None = Field(None, max_length=20)
-    product_type: str | None = Field(None, pattern=r"^(discrete|process)$")
+    product_type: str | None = Field(None, pattern=r"^(discrete|process|semi_finished|configurable)$")
 
 
 # ─── BillOfMaterial ───────────────────────────────────────────────────

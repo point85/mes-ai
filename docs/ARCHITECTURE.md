@@ -543,6 +543,20 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 > In short: **products are what you make; materials are what you use to make them.** The BOM
 > links the two — each `BOMItem` says "to build this product, consume this material in this
 > quantity at this route step."
+>
+> **Finished Materials vs. Products — two views of the same item.** A MaterialDefinition
+> with `material_type = "finished"` and a ProductDefinition often represent the *same
+> physical item* from two different perspectives. The **ProductDefinition** is the
+> *planning/engineering view* — it defines how to make something (routes, BOM, version,
+> product type) and is what production orders reference. The **MaterialDefinition** is the
+> *inventory/logistics view* — a stockable item with lot tracking, shelf life, supplier
+> info, and inventory balances that warehouse transactions reference. When a production
+> order completes, the finished units/lots link to both: `product_id` (what was built) and
+> `material_id` (the inventory item that gets stocked). In ISA-95 terms the
+> ProductDefinition is a Level 4 (ERP planning) entity, while the MaterialDefinition
+> operates at both Level 3 (MES execution/tracking) and Level 4 (inventory management).
+> Many ERPs (e.g. SAP) use a single "material master" for both roles; the MES separates
+> them to keep route/BOM engineering concerns distinct from inventory/logistics concerns.
 
 #### Inventory Management (INVENTORY)
 
