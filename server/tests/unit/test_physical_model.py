@@ -177,17 +177,10 @@ class TestProductionLineSchemas:
 
 
 class TestWorkCellSchemas:
-    def test_work_cell_create_default_type(self):
+    def test_work_cell_create_minimal(self):
         schema = WorkCellCreate(name="Station A", code="WC-A")
-        assert schema.wc_type == "manual"
-
-    def test_work_cell_create_automated(self):
-        schema = WorkCellCreate(name="Robot A", code="WC-R1", wc_type="automated")
-        assert schema.wc_type == "automated"
-
-    def test_work_cell_create_invalid_type(self):
-        with pytest.raises(Exception):
-            WorkCellCreate(name="Bad", code="WC-BAD", wc_type="unknown")
+        assert schema.name == "Station A"
+        assert schema.code == "WC-A"
 
 
 class TestEquipmentSchemas:

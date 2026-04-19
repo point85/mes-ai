@@ -282,7 +282,8 @@ class TestCPGDataPhysicalModel:
     def test_work_cell_types_valid(self):
         from mes.core.demo.cpg_data import WORK_CELLS
         for wc in WORK_CELLS:
-            assert wc["wc_type"] in ("manual", "automated")
+            assert "code" in wc
+            assert "name" in wc
 
     def test_equipment_count(self):
         from mes.core.demo.cpg_data import EQUIPMENT

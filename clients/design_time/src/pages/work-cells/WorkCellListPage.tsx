@@ -14,12 +14,6 @@ import { Breadcrumb } from "../../components/layout";
 import type { WorkCell } from "../../types";
 import WorkCellFormDialog from "./WorkCellFormDialog";
 
-const TYPE_BADGE: Record<string, string> = {
-  manual: "bg-blue-50 text-blue-700",
-  automated: "bg-green-50 text-green-700",
-  hybrid: "bg-purple-50 text-purple-700",
-};
-
 interface LocationState {
   siteName?: string;
   siteId?: string;
@@ -116,7 +110,6 @@ export default function WorkCellListPage() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Code</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Description</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">Active</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
@@ -127,11 +120,6 @@ export default function WorkCellListPage() {
                 <tr key={wc.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-2.5 text-sm font-mono font-medium text-gray-900">{wc.code}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-700">{wc.name}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_BADGE[wc.wc_type] ?? "bg-gray-100 text-gray-700"}`}>
-                      {wc.wc_type}
-                    </span>
-                  </td>
                   <td className="px-4 py-2.5 text-sm text-gray-500 max-w-xs truncate">{wc.description ?? "—"}</td>
                   <td className="px-4 py-2.5 text-center">
                     {wc.is_active ? (

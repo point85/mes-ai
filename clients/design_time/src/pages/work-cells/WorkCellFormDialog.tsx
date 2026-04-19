@@ -19,7 +19,6 @@ const wcSchema = z.object({
     .max(50)
     .refine((s) => !s.includes(" "), "Code must not contain spaces"),
   description: z.string().nullable().optional(),
-  wc_type: z.string().min(1, "Type is required"),
 });
 
 type WCFormData = z.infer<typeof wcSchema>;
@@ -42,7 +41,7 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
     formState: { errors, isSubmitting },
   } = useForm<WCFormData>({
     resolver: zodResolver(wcSchema),
-    defaultValues: { name: "", code: "", description: "", wc_type: "manual" },
+    defaultValues: { name: "", code: "", description: "" },
   });
 
   useEffect(() => {
@@ -51,7 +50,6 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
         name: workCell.name,
         code: workCell.code,
         description: workCell.description ?? "",
-        wc_type: workCell.wc_type,
       });
     }
   }, [workCell, reset]);
@@ -117,21 +115,6 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
               />
               {errors.name && (
                 <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Type</label>
-              <select
-                {...register("wc_type")}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              >
-                <option value="manual">Manual</option>
-                <option value="automated">Automated</option>
-                <option value="hybrid">Hybrid</option>
-              </select>
-              {errors.wc_type && (
-                <p className="mt-1 text-xs text-red-600">{errors.wc_type.message}</p>
               )}
             </div>
 

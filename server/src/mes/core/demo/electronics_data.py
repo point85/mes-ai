@@ -317,13 +317,13 @@ AREA = {"code": "PCBA-AREA",  "name": "PCB Assembly Area",         "description"
 LINE = {"code": "LINE-SMT-01","name": "SMT Assembly Line 1",       "description": "High-mix SMT line with dual pick-and-place"}
 
 WORK_CELLS: list[dict] = [
-    {"code": "WC-PASTE",  "name": "Paste Application Cell",   "wc_type": "automated", "description": "Stencil printer for solder paste"},
-    {"code": "WC-PLACE",  "name": "Component Placement Cell",  "wc_type": "automated", "description": "Pick-and-place SMD mounting"},
-    {"code": "WC-REFLOW", "name": "Reflow Oven Cell",          "wc_type": "automated", "description": "5-zone convection reflow soldering"},
-    {"code": "WC-AOI",    "name": "Optical Inspection Cell",   "wc_type": "automated", "description": "Automated optical inspection station"},
-    {"code": "WC-THT",    "name": "Through-Hole & Coating Cell","wc_type": "semi_auto", "description": "Wave solder and conformal coating"},
-    {"code": "WC-TEST",   "name": "Functional Test Cell",      "wc_type": "automated", "description": "In-circuit and functional test"},
-    {"code": "WC-REWORK", "name": "Rework Station Cell",       "wc_type": "manual",    "description": "Manual rework and MRB review bench"},
+    {"code": "WC-PASTE",  "name": "Paste Application Cell",   "description": "Stencil printer for solder paste"},
+    {"code": "WC-PLACE",  "name": "Component Placement Cell",  "description": "Pick-and-place SMD mounting"},
+    {"code": "WC-REFLOW", "name": "Reflow Oven Cell",          "description": "5-zone convection reflow soldering"},
+    {"code": "WC-AOI",    "name": "Optical Inspection Cell",   "description": "Automated optical inspection station"},
+    {"code": "WC-THT",    "name": "Through-Hole & Coating Cell","description": "Wave solder and conformal coating"},
+    {"code": "WC-TEST",   "name": "Functional Test Cell",      "description": "In-circuit and functional test"},
+    {"code": "WC-REWORK", "name": "Rework Station Cell",       "description": "Manual rework and MRB review bench"},
 ]
 
 EQUIPMENT: list[dict] = [

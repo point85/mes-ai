@@ -115,11 +115,6 @@ class WorkCell(BaseModel):
     line_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("production_lines.id"), nullable=False, index=True,
     )
-    wc_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="manual",
-        comment="Work cell type: 'manual' or 'automated'",
-    )
-
     # Relationships
     production_line: Mapped["ProductionLine"] = relationship(
         "ProductionLine", back_populates="work_cells",

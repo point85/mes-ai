@@ -463,7 +463,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **Site** | `id`, `name`, `code`, `description`, `timezone`, `address` | → Areas |
 | **Area** | `id`, `name`, `code`, `description`, `site_id` | → Site, → ProductionLines |
 | **ProductionLine** | `id`, `name`, `code`, `description`, `area_id` | → Area, → WorkCells |
-| **WorkCell** | `id`, `name`, `code`, `description`, `line_id`, `wc_type` (manual/automated) | → ProductionLine, → Equipment |
+| **WorkCell** | `id`, `name`, `code`, `description`, `line_id` | → ProductionLine, → Equipment |
 | **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `capabilities` (JSON), `state_model_id` (nullable, refs EquipmentStateModel.model_id — null = 100% available), `max_queue_depth` (nullable int — max WIP items allowed in queue, null = unlimited) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials |
 | **EquipmentMaterial** | `id`, `equipment_id`, `material_id`, `design_speed`, `design_speed_uom` (FK → UoM rate symbol), `reject_uom` (FK → UoM symbol), `target_oee` (0–100%) | → Equipment, → MaterialDefinition, → UnitOfMeasure (×2) |
 
@@ -6802,11 +6802,11 @@ async def seed_all(client: httpx.AsyncClient):
     line = await create(client, f"/areas/{area['id']}/lines", {"name": "Line 1", "code": "L1"})
 
     wc1 = await create(client, f"/lines/{line['id']}/work-cells",
-                        {"name": "Chassis Mount", "code": "WC-101", "wc_type": "automated"})
+                        {"name": "Chassis Mount", "code": "WC-101"})
     wc2 = await create(client, f"/lines/{line['id']}/work-cells",
-                        {"name": "Wiring", "code": "WC-102", "wc_type": "manual"})
+                        {"name": "Wiring", "code": "WC-102"})
     wc3 = await create(client, f"/lines/{line['id']}/work-cells",
-                        {"name": "Final Test", "code": "WC-103", "wc_type": "automated"})
+                        {"name": "Final Test", "code": "WC-103"})
 
     eq1 = await create(client, f"/work-cells/{wc1['id']}/equipment",
                         {"name": "Robot Arm", "code": "R-001", "equipment_type": "robotic_arm",

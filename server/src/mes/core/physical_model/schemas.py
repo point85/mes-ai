@@ -129,7 +129,6 @@ class WorkCellCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
-    wc_type: str = Field("manual", pattern=r"^(manual|automated)$")
 
 
 class WorkCellRead(BaseModel):
@@ -140,7 +139,6 @@ class WorkCellRead(BaseModel):
     code: str
     description: str | None = None
     line_id: UUID
-    wc_type: str
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -154,7 +152,6 @@ class WorkCellUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     code: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
-    wc_type: str | None = Field(None, pattern=r"^(manual|automated)$")
 
 
 # ─── Equipment ────────────────────────────────────────────────────────

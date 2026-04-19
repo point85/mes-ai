@@ -91,7 +91,6 @@ export interface WorkCell {
   code: string;
   description: string | null;
   line_id: string;
-  wc_type: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -101,14 +100,12 @@ export interface WorkCellCreate {
   name: string;
   code: string;
   description?: string | null;
-  wc_type?: string;
 }
 
 export interface WorkCellUpdate {
   name?: string;
   code?: string;
   description?: string | null;
-  wc_type?: string;
 }
 
 // ─── Equipment ────────────────────────────────────────────────────────

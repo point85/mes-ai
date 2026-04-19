@@ -300,12 +300,12 @@ AREA = {"code": "SB-JUICE", "name": "Juice Processing", "description": "Juice bl
 LINE = {"code": "SB-LINE-01", "name": "Bottling Line 1", "description": "Single-product juice bottling line"}
 
 WORK_CELLS: list[dict] = [
-    {"code": "WC-BLEND",  "name": "Blending Station",      "wc_type": "automated", "description": "Tank mixer for juice blending"},
-    {"code": "WC-PAST",   "name": "Pasteurization Station", "wc_type": "automated", "description": "HTST pasteurizer"},
-    {"code": "WC-QC",     "name": "QC Lab Station",         "wc_type": "manual",    "description": "Quality control testing bench"},
-    {"code": "WC-FILL",   "name": "Filling Station",        "wc_type": "automated", "description": "Bottle filling and capping"},
-    {"code": "WC-PACK",   "name": "Packing Station",        "wc_type": "automated", "description": "Label application and case packing"},
-    {"code": "WC-REWORK", "name": "Rework Station",         "wc_type": "manual",    "description": "Juice adjustment/rework tank"},
+    {"code": "WC-BLEND",  "name": "Blending Station",      "description": "Tank mixer for juice blending"},
+    {"code": "WC-PAST",   "name": "Pasteurization Station", "description": "HTST pasteurizer"},
+    {"code": "WC-QC",     "name": "QC Lab Station",         "description": "Quality control testing bench"},
+    {"code": "WC-FILL",   "name": "Filling Station",        "description": "Bottle filling and capping"},
+    {"code": "WC-PACK",   "name": "Packing Station",        "description": "Label application and case packing"},
+    {"code": "WC-REWORK", "name": "Rework Station",         "description": "Juice adjustment/rework tank"},
 ]
 
 EQUIPMENT: list[dict] = [
