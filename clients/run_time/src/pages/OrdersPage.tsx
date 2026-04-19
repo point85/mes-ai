@@ -26,6 +26,13 @@ export default function OrdersPage() {
     refetchInterval: 10_000,
   });
 
+  const { data: products = [] } = useQuery({
+    queryKey: ["products"],
+    queryFn: () => fetchProducts(),
+  });
+
+  const productMap = Object.fromEntries(products.map((p) => [p.id, p]));
+
   const selectedOrder = orders?.find((o) => o.id === selectedOrderId) ?? null;
 
   const refresh = () => {
@@ -121,6 +128,7 @@ export default function OrdersPage() {
               <tr className="border-b text-left text-gray-500">
                 <th className="py-2 px-3 w-6"></th>
                 <th className="py-2 px-3">Order #</th>
+                <th className="py-2 px-3">Product</th>
                 <th className="py-2 px-3">Status</th>
                 <th className="py-2 px-3">Priority</th>
                 <th className="py-2 px-3">Ordered</th>
@@ -137,6 +145,7 @@ export default function OrdersPage() {
                 return (
                   <OrderRow
                     key={o.id} order={o} expanded={expanded} selected={selected}
+                    productMap={productMap}
                     onToggle={() => toggleExpand(o.id)}
                     onSelect={() => handleSelect(o.id)}
                     onRefresh={refresh}
@@ -168,10 +177,12 @@ export default function OrdersPage() {
   );
 }
 
-function OrderRow({ order: o, expanded, selected, onToggle, onSelect, onRefresh }: {
+function OrderRow({ order: o, expanded, selected, productMap, onToggle, onSelect, onRefresh }: {
   order: ProductionOrder; expanded: boolean; selected: boolean;
+  productMap: Record<string, Product>;
   onToggle: () => void; onSelect: () => void; onRefresh: () => void;
 }) {
+  const product = productMap[o.product_id];
   return (
     <>
       <tr
@@ -186,6 +197,7 @@ function OrderRow({ order: o, expanded, selected, onToggle, onSelect, onRefresh 
           </button>
         </td>
         <td className="py-2 px-3 font-mono">{o.order_number}</td>
+        <td className="py-2 px-3 text-gray-700">{product?.name ?? "—"}</td>
         <td className="py-2 px-3"><StatusBadge status={o.status} /></td>
         <td className="py-2 px-3">{o.priority}</td>
         <td className="py-2 px-3">{o.quantity_ordered}</td>
@@ -198,8 +210,8 @@ function OrderRow({ order: o, expanded, selected, onToggle, onSelect, onRefresh 
       </tr>
       {expanded && (
         <tr className="bg-gray-50">
-          <td colSpan={9} className="px-3 py-3">
-            <OrderDetail order={o} onRefresh={onRefresh} />
+          <td colSpan={10} className="px-3 py-3">
+            <OrderDetail order={o} productType={product?.product_type} onRefresh={onRefresh} />
           </td>
         </tr>
       )}
@@ -207,10 +219,12 @@ function OrderRow({ order: o, expanded, selected, onToggle, onSelect, onRefresh 
   );
 }
 
-function OrderDetail({ order, onRefresh }: { order: ProductionOrder; onRefresh: () => void }) {
+function OrderDetail({ order, productType, onRefresh }: { order: ProductionOrder; productType?: string; onRefresh: () => void }) {
   const [showCreateLot, setShowCreateLot] = useState(false);
   const [showCreateUnit, setShowCreateUnit] = useState(false);
   const canCreate = order.status === "released" || order.status === "in_progress";
+  const showLotButton = productType !== "discrete";
+  const showUnitButton = productType !== "process";
 
   const { data: units = [] } = useQuery<Unit[]>({
     queryKey: ["order-wip", "units", order.id],
@@ -227,18 +241,22 @@ function OrderDetail({ order, onRefresh }: { order: ProductionOrder; onRefresh: 
       {/* Create buttons */}
       {canCreate && (
         <div className="flex gap-2">
-          <button
-            onClick={() => { setShowCreateLot(!showCreateLot); setShowCreateUnit(false); }}
-            className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-md px-2 py-1"
-          >
-            <PlusIcon className="h-3.5 w-3.5" /> Create Lot
-          </button>
-          <button
-            onClick={() => { setShowCreateUnit(!showCreateUnit); setShowCreateLot(false); }}
-            className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-md px-2 py-1"
-          >
-            <PlusIcon className="h-3.5 w-3.5" /> Create Unit
-          </button>
+          {showLotButton && (
+            <button
+              onClick={() => { setShowCreateLot(!showCreateLot); setShowCreateUnit(false); }}
+              className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-md px-2 py-1"
+            >
+              <PlusIcon className="h-3.5 w-3.5" /> Create Lot
+            </button>
+          )}
+          {showUnitButton && (
+            <button
+              onClick={() => { setShowCreateUnit(!showCreateUnit); setShowCreateLot(false); }}
+              className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-md px-2 py-1"
+            >
+              <PlusIcon className="h-3.5 w-3.5" /> Create Unit
+            </button>
+          )}
         </div>
       )}
 
