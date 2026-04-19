@@ -1,19 +1,32 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon } from "@heroicons/react/24/outline";
-import { fetchOrders, releaseOrder, fetchUnits, fetchLots, createLot, createUnit } from "../api/runtime";
-import type { ProductionOrder, Unit, Lot } from "../types";
+import {
+  ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon,
+  PencilSquareIcon, PlayIcon, CheckIcon, LockClosedIcon, XMarkIcon,
+} from "@heroicons/react/24/outline";
+import {
+  fetchOrders, releaseOrder, completeOrder, closeOrder,
+  createOrder, updateOrder,
+  fetchUnits, fetchLots, createLot, createUnit,
+  fetchProducts,
+} from "../api/runtime";
+import type { ProductionOrder, Product, Unit, Lot } from "../types";
 
 export default function OrdersPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<ProductionOrder | null>(null);
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["orders", statusFilter],
     queryFn: () => fetchOrders({ status: statusFilter || undefined }),
     refetchInterval: 10_000,
   });
+
+  const selectedOrder = orders?.find((o) => o.id === selectedOrderId) ?? null;
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -25,22 +38,60 @@ export default function OrdersPage() {
   const toggleExpand = (id: string) =>
     setExpandedOrderId((prev) => (prev === id ? null : id));
 
-  const handleRelease = async (id: string) => {
-    try {
-      await releaseOrder(id);
-      refresh();
-    } catch { /* ignore */ }
+  const handleSelect = (id: string) =>
+    setSelectedOrderId((prev) => (prev === id ? null : id));
+
+  const handleRelease = async () => {
+    if (!selectedOrder) return;
+    try { await releaseOrder(selectedOrder.id); refresh(); } catch { /* ignore */ }
   };
+
+  const handleComplete = async () => {
+    if (!selectedOrder) return;
+    try { await completeOrder(selectedOrder.id); refresh(); } catch { /* ignore */ }
+  };
+
+  const handleClose = async () => {
+    if (!selectedOrder) return;
+    try { await closeOrder(selectedOrder.id); refresh(); } catch { /* ignore */ }
+  };
+
+  const canRelease = selectedOrder?.status === "created";
+  const canComplete = selectedOrder?.status === "released" || selectedOrder?.status === "in_progress";
+  const canEdit = !!selectedOrder && selectedOrder.status !== "closed";
+  const canClose = !!selectedOrder && selectedOrder.status !== "closed";
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-800">Production Orders</h2>
-        <button onClick={refresh} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800">
-          <ArrowPathIcon className="h-4 w-4" /> Refresh
+      <h2 className="text-2xl font-bold text-gray-800">Production Orders</h2>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => setShowCreateDialog(true)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500"
+        >
+          <PlusIcon className="h-4 w-4" /> New
+        </button>
+        <button onClick={handleRelease} disabled={!canRelease}
+          className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed">
+          <PlayIcon className="h-4 w-4" /> Release
+        </button>
+        <button onClick={handleComplete} disabled={!canComplete}
+          className="inline-flex items-center gap-1.5 rounded-md border border-green-300 bg-white px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed">
+          <CheckIcon className="h-4 w-4" /> Complete
+        </button>
+        <button onClick={() => { if (selectedOrder) setEditingOrder(selectedOrder); }} disabled={!canEdit}
+          className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+          <PencilSquareIcon className="h-4 w-4" /> Edit
+        </button>
+        <button onClick={handleClose} disabled={!canClose}
+          className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+          <LockClosedIcon className="h-4 w-4" /> Close
         </button>
       </div>
 
+      {/* Status filter */}
       <div className="flex gap-4 items-end">
         <div>
           <label className="block text-sm text-gray-600 mb-1">Status</label>
@@ -53,6 +104,10 @@ export default function OrdersPage() {
             <option value="closed">Closed</option>
           </select>
         </div>
+        <button onClick={refresh}
+          className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <ArrowPathIcon className="h-4 w-4" /> Refresh
+        </button>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-x-auto">
@@ -67,7 +122,6 @@ export default function OrdersPage() {
                 <th className="py-2 px-3 w-6"></th>
                 <th className="py-2 px-3">Order #</th>
                 <th className="py-2 px-3">Status</th>
-                <th className="py-2 px-3"></th>
                 <th className="py-2 px-3">Priority</th>
                 <th className="py-2 px-3">Ordered</th>
                 <th className="py-2 px-3">Completed</th>
@@ -79,41 +133,60 @@ export default function OrdersPage() {
             <tbody>
               {orders.map((o) => {
                 const expanded = expandedOrderId === o.id;
+                const selected = selectedOrderId === o.id;
                 return (
-                  <OrderRow key={o.id} order={o} expanded={expanded} onToggle={() => toggleExpand(o.id)} onRefresh={refresh} onRelease={handleRelease} />
+                  <OrderRow
+                    key={o.id} order={o} expanded={expanded} selected={selected}
+                    onToggle={() => toggleExpand(o.id)}
+                    onSelect={() => handleSelect(o.id)}
+                    onRefresh={refresh}
+                  />
                 );
               })}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Create dialog */}
+      {showCreateDialog && (
+        <OrderFormDialog
+          onClose={() => setShowCreateDialog(false)}
+          onSaved={() => { setShowCreateDialog(false); refresh(); }}
+        />
+      )}
+
+      {/* Edit dialog */}
+      {editingOrder && (
+        <OrderFormDialog
+          order={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSaved={() => { setEditingOrder(null); refresh(); }}
+        />
+      )}
     </div>
   );
 }
 
-function OrderRow({ order: o, expanded, onToggle, onRefresh, onRelease }: {
-  order: ProductionOrder; expanded: boolean; onToggle: () => void; onRefresh: () => void; onRelease: (id: string) => void;
+function OrderRow({ order: o, expanded, selected, onToggle, onSelect, onRefresh }: {
+  order: ProductionOrder; expanded: boolean; selected: boolean;
+  onToggle: () => void; onSelect: () => void; onRefresh: () => void;
 }) {
   return (
     <>
-      <tr className="border-b hover:bg-gray-50 cursor-pointer" onClick={onToggle}>
+      <tr
+        className={`border-b cursor-pointer transition-colors ${selected ? "bg-indigo-50" : "hover:bg-gray-50"}`}
+        onClick={onSelect}
+      >
         <td className="py-2 px-3">
-          {expanded
-            ? <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-            : <ChevronRightIcon className="h-4 w-4 text-gray-400" />}
+          <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className="p-0.5">
+            {expanded
+              ? <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+              : <ChevronRightIcon className="h-4 w-4 text-gray-400" />}
+          </button>
         </td>
         <td className="py-2 px-3 font-mono">{o.order_number}</td>
         <td className="py-2 px-3"><StatusBadge status={o.status} /></td>
-        <td className="py-2 px-3">
-          {o.status === "created" && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRelease(o.id); }}
-              className="px-2 py-0.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded"
-            >
-              Release
-            </button>
-          )}
-        </td>
         <td className="py-2 px-3">{o.priority}</td>
         <td className="py-2 px-3">{o.quantity_ordered}</td>
         <td className="py-2 px-3">{o.quantity_completed}</td>
@@ -125,7 +198,7 @@ function OrderRow({ order: o, expanded, onToggle, onRefresh, onRelease }: {
       </tr>
       {expanded && (
         <tr className="bg-gray-50">
-          <td colSpan={10} className="px-3 py-3">
+          <td colSpan={9} className="px-3 py-3">
             <OrderDetail order={o} onRefresh={onRefresh} />
           </td>
         </tr>
@@ -372,5 +445,137 @@ function WipBadge({ status }: { status: string }) {
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] ?? "bg-gray-100 text-gray-700"}`}>
       {status.replace("_", " ")}
     </span>
+  );
+}
+
+/* ── Order Create / Edit Dialog ─────────────────────────────────── */
+
+function OrderFormDialog({ order, onClose, onSaved }: {
+  order?: ProductionOrder;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!order;
+  const [orderNumber, setOrderNumber] = useState(order?.order_number ?? "");
+  const [productId, setProductId] = useState(order?.product_id ?? "");
+  const [quantityOrdered, setQuantityOrdered] = useState(String(order?.quantity_ordered ?? ""));
+  const [priority, setPriority] = useState(String(order?.priority ?? 0));
+  const [erpReference, setErpReference] = useState(order?.erp_reference ?? "");
+  const [notes, setNotes] = useState(order?.notes ?? "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ["products"],
+    queryFn: fetchProducts,
+  });
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (isEdit) {
+        await updateOrder(order.id, {
+          order_number: orderNumber,
+          product_id: productId,
+          quantity_ordered: parseInt(quantityOrdered),
+          priority: parseInt(priority) || 0,
+          erp_reference: erpReference || null,
+          notes: notes || null,
+        });
+      } else {
+        await createOrder({
+          order_number: orderNumber,
+          product_id: productId,
+          quantity_ordered: parseInt(quantityOrdered),
+          priority: parseInt(priority) || 0,
+          erp_reference: erpReference || null,
+          notes: notes || null,
+        });
+      }
+      onSaved();
+    } catch (err: unknown) {
+      const m = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? "Failed to save order";
+      setError(m);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const valid = orderNumber.trim() && productId && quantityOrdered && parseInt(quantityOrdered) > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {isEdit ? "Edit Order" : "New Production Order"}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <XMarkIcon className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Order Number */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Order Number</label>
+            <input type="text" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)}
+              className="input-field w-full" placeholder="e.g. ORD-001" />
+          </div>
+
+          {/* Product */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+            <select value={productId} onChange={(e) => setProductId(e.target.value)} className="input-field w-full">
+              <option value="">Select a product…</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Quantity & Priority */}
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+              <input type="number" min="1" value={quantityOrdered} onChange={(e) => setQuantityOrdered(e.target.value)}
+                className="input-field w-full" />
+            </div>
+            <div className="w-28">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+              <input type="number" min="0" value={priority} onChange={(e) => setPriority(e.target.value)}
+                className="input-field w-full" />
+            </div>
+          </div>
+
+          {/* ERP Reference */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ERP Reference</label>
+            <input type="text" value={erpReference} onChange={(e) => setErpReference(e.target.value)}
+              className="input-field w-full" placeholder="Optional" />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
+              className="input-field w-full" rows={2} placeholder="Optional" />
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t bg-gray-50 rounded-b-lg">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900">
+            Cancel
+          </button>
+          <button onClick={handleSubmit} disabled={!valid || loading}
+            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
+            {loading ? "Saving…" : isEdit ? "Save Changes" : "Create Order"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

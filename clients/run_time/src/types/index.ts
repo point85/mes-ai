@@ -141,6 +141,15 @@ export interface StepContext {
   route_steps: RouteStep[];
 }
 
+export interface Product {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  product_type: string;
+  is_active: boolean;
+}
+
 export interface ProductionOrder {
   id: string;
   order_number: string;

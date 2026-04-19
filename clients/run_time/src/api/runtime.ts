@@ -1,7 +1,7 @@
 import axios from "axios";
 import type {
   Unit, Lot, UnitHistory, LotHistory,
-  StepContext, ProductionOrder, Disposition,
+  StepContext, ProductionOrder, Product, Disposition,
   StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption,
   InventoryTransaction, InventoryBalance, StorageLocation,
 } from "../types";
@@ -143,8 +143,35 @@ export const recordQualityResult = (payload: {
 export const fetchOrders = (params?: { status?: string }) =>
   api.get("/orders", { params }).then(unwrapList<ProductionOrder>);
 
+export const createOrder = (payload: {
+  order_number: string;
+  product_id: string;
+  route_id?: string | null;
+  quantity_ordered: number;
+  priority?: number;
+  erp_reference?: string | null;
+  notes?: string | null;
+}) => api.post("/orders", payload).then(unwrap<ProductionOrder>);
+
+export const updateOrder = (id: string, payload: Record<string, unknown>) =>
+  api.patch(`/orders/${id}`, payload).then(unwrap<ProductionOrder>);
+
+export const deleteOrder = (id: string) =>
+  api.delete(`/orders/${id}`);
+
 export const releaseOrder = (orderId: string) =>
   api.post(`/orders/${orderId}/release`).then(unwrap<ProductionOrder>);
+
+export const completeOrder = (orderId: string) =>
+  api.post(`/orders/${orderId}/complete`).then(unwrap<ProductionOrder>);
+
+export const closeOrder = (orderId: string) =>
+  api.post(`/orders/${orderId}/close`).then(unwrap<ProductionOrder>);
+
+// ── Products (read-only for order creation) ──────────────────────
+
+export const fetchProducts = () =>
+  api.get("/products", { params: { limit: 200 } }).then(unwrapList<Product>);
 
 // ── WIP Creation ─────────────────────────────────────────────────
 
