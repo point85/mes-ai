@@ -87,7 +87,7 @@ export async function updateArea(areaId: string, body: AreaUpdate): Promise<Area
 export async function fetchAllLines(): Promise<ApiListResponse<ProductionLine>> {
   const { data } = await api.get<ApiListResponse<ProductionLine>>(
     "/lines",
-    { params: { limit: "500" } },
+    { params: { limit: "200" } },
   );
   return data;
 }
@@ -132,7 +132,7 @@ export async function updateLine(
 export async function fetchAllWorkCells(): Promise<ApiListResponse<WorkCell>> {
   const { data } = await api.get<ApiListResponse<WorkCell>>(
     "/work-cells",
-    { params: { limit: "500" } },
+    { params: { limit: "200" } },
   );
   return data;
 }
