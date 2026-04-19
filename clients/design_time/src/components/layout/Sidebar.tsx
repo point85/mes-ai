@@ -4,6 +4,7 @@
  * New editors are added here as they're implemented.
  */
 
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   HomeIcon,
@@ -25,12 +26,15 @@ import {
   Square3Stack3DIcon,
   ClipboardDocumentIcon,
   TagIcon,
+  QuestionMarkCircleIcon,
 } from "@heroicons/react/24/outline";
+import HelpDialog, { type HelpTopic } from "../HelpDialog";
 
 interface NavItem {
   label: string;
   to: string;
   icon: React.ElementType;
+  helpTopic?: HelpTopic;
 }
 
 interface NavSection {
@@ -55,10 +59,10 @@ const sections: NavSection[] = [
   {
     title: "Products",
     items: [
-      { label: "Products", to: "/products", icon: CubeIcon },
+      { label: "Products", to: "/products", icon: CubeIcon, helpTopic: "products" as HelpTopic },
       { label: "Routes", to: "/routes", icon: QueueListIcon },
       { label: "Dispositions", to: "/dispositions", icon: TagIcon },
-      { label: "Materials", to: "/materials", icon: BeakerIcon },
+      { label: "Materials", to: "/materials", icon: BeakerIcon, helpTopic: "materials" as HelpTopic },
     ],
   },
   {
@@ -95,6 +99,8 @@ const sections: NavSection[] = [
 ];
 
 export default function Sidebar() {
+  const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null);
+
   return (
     <aside className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col">
       {/* Logo / Title */}
@@ -119,11 +125,11 @@ export default function Sidebar() {
             </span>
             <ul className="mt-0.5 mb-1 space-y-0.5">
               {section.items.map((item) => (
-                <li key={item.to}>
+                <li key={item.to} className="flex items-center">
                   <NavLink
                     to={item.to}
                     className={({ isActive }) =>
-                      `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                      `flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
                         isActive
                           ? "bg-indigo-50 text-indigo-700"
                           : "text-gray-700 hover:bg-gray-100"
@@ -133,12 +139,25 @@ export default function Sidebar() {
                     <item.icon className="h-4 w-4" />
                     {item.label}
                   </NavLink>
+                  {item.helpTopic && (
+                    <button
+                      onClick={() => setHelpTopic(item.helpTopic!)}
+                      className="ml-0.5 rounded p-0.5 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 transition-colors"
+                      title={`Help: ${item.label}`}
+                    >
+                      <QuestionMarkCircleIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
         ))}
       </nav>
+
+      {helpTopic && (
+        <HelpDialog topic={helpTopic} onClose={() => setHelpTopic(null)} />
+      )}
     </aside>
   );
 }
