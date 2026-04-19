@@ -3,7 +3,7 @@ export * from "./physicalModel";
 export * from "./productDef";
 export * from "./material";
 export * from "./dataCollection";
-export * from "./production";
+
 export * from "./quality";
 export * from "./performance";
 export * from "./genealogy";

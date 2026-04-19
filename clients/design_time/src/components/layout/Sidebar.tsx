@@ -14,7 +14,6 @@ import {
   BuildingOffice2Icon,
   BeakerIcon,
   ClipboardDocumentListIcon,
-  ClipboardDocumentCheckIcon,
   ShieldCheckIcon,
   ExclamationTriangleIcon,
   ChartBarIcon,
@@ -63,12 +62,6 @@ const sections: NavSection[] = [
       { label: "Routes", to: "/routes", icon: QueueListIcon },
       { label: "Dispositions", to: "/dispositions", icon: TagIcon },
       { label: "Materials", to: "/materials", icon: BeakerIcon, helpTopic: "materials" as HelpTopic },
-    ],
-  },
-  {
-    title: "Production",
-    items: [
-      { label: "Orders", to: "/orders", icon: ClipboardDocumentCheckIcon },
     ],
   },
   {
