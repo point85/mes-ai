@@ -259,6 +259,24 @@ class PhysicalModelService:
         return await paginate_query(session, stmt, WorkCell, params)
 
     @staticmethod
+    async def list_all_work_cells(
+        session: AsyncSession,
+        params: PaginationParams,
+    ) -> tuple[Sequence[WorkCell], str | None, bool]:
+        """List all active work cells across all lines."""
+        stmt = select(WorkCell).where(WorkCell.is_active.is_(True))
+        return await paginate_query(session, stmt, WorkCell, params)
+
+    @staticmethod
+    async def list_all_lines(
+        session: AsyncSession,
+        params: PaginationParams,
+    ) -> tuple[Sequence[ProductionLine], str | None, bool]:
+        """List all active production lines across all areas."""
+        stmt = select(ProductionLine).where(ProductionLine.is_active.is_(True))
+        return await paginate_query(session, stmt, ProductionLine, params)
+
+    @staticmethod
     async def get_work_cell(session: AsyncSession, wc_id: UUID) -> WorkCell:
         """Get a work cell by ID."""
         stmt = select(WorkCell).where(

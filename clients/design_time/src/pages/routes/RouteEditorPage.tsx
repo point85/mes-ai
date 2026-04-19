@@ -28,6 +28,7 @@ import {
   useUnassignProductFromRoute,
 } from "../../hooks/useProductDef";
 import { useMaterials } from "../../hooks/useMaterial";
+import { useAllWorkCells } from "../../hooks/usePhysicalModel";
 import type { ProcessRoute, RouteStep, Material, Product } from "../../types";
 import RouteFormDialog from "./RouteFormDialog";
 import StepFormDialog from "../products/StepFormDialog";
@@ -63,6 +64,10 @@ export default function RouteEditorPage() {
 
   const { data: materialsData } = useMaterials();
   const allMaterials = materialsData?.data ?? [];
+
+  const { data: wcData } = useAllWorkCells();
+  const allWorkCells = wcData?.data ?? [];
+  const wcMap = new Map(allWorkCells.map((wc) => [wc.id, wc]));
 
   // Build material lookup for displaying assigned material names
   const materialMap = new Map<string, Material>(
@@ -217,6 +222,9 @@ export default function RouteEditorPage() {
                         Name
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Work Cell
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Type
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -238,6 +246,9 @@ export default function RouteEditorPage() {
                         </td>
                         <td className="px-4 py-2 text-sm font-medium text-gray-900">
                           {s.name}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-600">
+                          {s.work_cell_id ? (wcMap.get(s.work_cell_id)?.code ?? "—") : "—"}
                         </td>
                         <td className="px-4 py-2">
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">

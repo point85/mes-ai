@@ -13,11 +13,13 @@ import {
   fetchArea,
   createArea,
   updateArea,
+  fetchAllLines,
   fetchLines,
   fetchLine,
   createLine,
   updateLine,
   fetchWorkCells,
+  fetchAllWorkCells,
   fetchWorkCell,
   createWorkCell,
   updateWorkCell,
@@ -38,8 +40,10 @@ const KEYS = {
   areas: (siteId: string) => ["areas", siteId] as const,
   areaDetail: (id: string) => ["area", id] as const,
   lines: (areaId: string) => ["lines", areaId] as const,
+  allLines: ["lines", "all"] as const,
   lineDetail: (id: string) => ["line", id] as const,
   workCells: (lineId: string) => ["workCells", lineId] as const,
+  allWorkCells: ["workCells", "all"] as const,
   workCellDetail: (id: string) => ["workCell", id] as const,
   equipment: (wcId: string) => ["equipment", wcId] as const,
   allEquipment: ["equipment", "all"] as const,
@@ -120,7 +124,12 @@ export function useUpdateArea() {
 }
 
 // ─── Lines ────────────────────────────────────────────────────────────
-
+export function useAllLines() {
+  return useQuery({
+    queryKey: KEYS.allLines,
+    queryFn: fetchAllLines,
+  });
+}
 export function useLines(areaId: string) {
   return useQuery({
     queryKey: KEYS.lines(areaId),
@@ -162,6 +171,13 @@ export function useWorkCells(lineId: string) {
     queryKey: KEYS.workCells(lineId),
     queryFn: () => fetchWorkCells(lineId),
     enabled: !!lineId,
+  });
+}
+
+export function useAllWorkCells() {
+  return useQuery({
+    queryKey: KEYS.allWorkCells,
+    queryFn: fetchAllWorkCells,
   });
 }
 

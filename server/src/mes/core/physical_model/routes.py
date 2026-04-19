@@ -180,6 +180,22 @@ async def update_area(
 # ─── Production Lines ────────────────────────────────────────────────
 
 
+@router.get("/lines")
+async def list_all_lines(
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """List all active production lines across all areas."""
+    items, cursor, has_more = await svc.list_all_lines(session, params)
+    return list_response(
+        [ProductionLineRead.model_validate(ln).model_dump() for ln in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
+
+
 @router.get("/areas/{area_id}/lines")
 async def list_lines(
     area_id: UUID,
@@ -235,6 +251,22 @@ async def update_line(
 
 
 # ─── Work Cells ───────────────────────────────────────────────────────
+
+
+@router.get("/work-cells")
+async def list_all_work_cells(
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """List all active work cells across all lines."""
+    items, cursor, has_more = await svc.list_all_work_cells(session, params)
+    return list_response(
+        [WorkCellRead.model_validate(wc).model_dump() for wc in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
 
 
 @router.get("/lines/{line_id}/work-cells")
