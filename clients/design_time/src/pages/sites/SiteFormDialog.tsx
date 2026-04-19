@@ -2,7 +2,7 @@
  * Site Create / Edit dialog — modal form with Zod validation.
  */
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -34,11 +34,27 @@ export default function SiteFormDialog({ site, onClose }: Props) {
   const isEdit = !!site;
   const createMut = useCreateSite();
   const updateMut = useUpdateSite();
+  const tzByRegion = useMemo(() => {
+    const all = Intl.supportedValuesOf("timeZone");
+    const map: Record<string, string[]> = {};
+    for (const tz of all) {
+      const slash = tz.indexOf("/");
+      const region = slash > 0 ? tz.substring(0, slash) : "Other";
+      (map[region] ??= []).push(tz);
+    }
+    return map;
+  }, []);
+
+  const regions = useMemo(() => Object.keys(tzByRegion).sort(), [tzByRegion]);
+  const [selectedRegion, setSelectedRegion] = useState<string>("");
+  const filteredTimezones = selectedRegion ? (tzByRegion[selectedRegion] ?? []) : [];
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<SiteFormData>({
     resolver: zodResolver(siteSchema),
@@ -51,6 +67,8 @@ export default function SiteFormDialog({ site, onClose }: Props) {
     },
   });
 
+  const currentTimezone = watch("timezone");
+
   useEffect(() => {
     if (site) {
       reset({
@@ -60,6 +78,11 @@ export default function SiteFormDialog({ site, onClose }: Props) {
         timezone: site.timezone ?? "",
         address: site.address ?? "",
       });
+      // Pre-select region from existing timezone
+      if (site.timezone) {
+        const slash = site.timezone.indexOf("/");
+        if (slash > 0) setSelectedRegion(site.timezone.substring(0, slash));
+      }
     }
   }, [site, reset]);
 
@@ -140,11 +163,31 @@ export default function SiteFormDialog({ site, onClose }: Props) {
                 Timezone{" "}
                 <span className="text-gray-400">(optional)</span>
               </label>
-              <input
-                {...register("timezone")}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                placeholder="America/Chicago"
-              />
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <select
+                  value={selectedRegion}
+                  onChange={(e) => {
+                    setSelectedRegion(e.target.value);
+                    setValue("timezone", "");
+                  }}
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">— Region —</option>
+                  {regions.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+                <select
+                  {...register("timezone")}
+                  disabled={!selectedRegion}
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <option value="">— Timezone —</option>
+                  {filteredTimezones.map((tz) => (
+                    <option key={tz} value={tz}>{tz.substring(tz.indexOf("/") + 1).replace(/_/g, " ")}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>

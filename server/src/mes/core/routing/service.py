@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mes.core.product_def.models import Disposition, RouteStep, StepTransition
+from mes.core.product_def.models import Disposition, ProcessRoute, RouteStep, StepTransition
 from mes.core.production.models import ProductionOrder
 from mes.framework.api.exceptions import NotFoundException
 from mes.core.wip.exceptions import NoRouteAssignedException, NoNextStepException

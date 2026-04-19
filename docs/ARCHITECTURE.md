@@ -520,6 +520,35 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **UnitHistory** | `id`, `unit_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `result` (pass/fail/rework), `operator_id`, `data_snapshot` (JSON) | → Unit, → RouteStep, → Equipment |
 | **LotHistory** | `id`, `lot_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `quantity_in`, `quantity_out`, `quantity_scrapped`, `operator_id` | → Lot, → RouteStep, → Equipment |
 
+##### Serial Number & Lot Number Auto-Generation
+
+When a unit or lot is created without an explicit serial/lot number, the server auto-generates one using a configurable template. The implementation is in `server/src/mes/core/wip/serial.py` (`SerialNumberService`).
+
+**Default templates:**
+
+| WIP Type | Default Template | Example Output |
+|---|---|---|
+| **Unit** (serial number) | `SN-{order}-{seq:05d}` | `SN-WO-2026-001-00001` |
+| **Lot** (lot number) | `LOT-{order}-{seq:04d}` | `LOT-WO-2026-001-0001` |
+
+**Available template variables:**
+
+| Variable | Description | Example |
+|---|---|---|
+| `{seq}` | Auto-incrementing sequence counter (per order, 1-based). Derived by counting existing units/lots on the order + 1. | `1`, `42` |
+| `{order}` | Production order number | `WO-2026-001` |
+| `{product}` | Product code (from the order's product definition) | `PCB-X200` |
+| `{date}` | Current UTC date as `YYYYMMDD` | `20260419` |
+| `{year}` | 4-digit year | `2026` |
+| `{month}` | 2-digit month | `04` |
+| `{day}` | 2-digit day | `19` |
+
+Variables support Python format-spec for zero-padding, e.g. `{seq:05d}` pads to 5 digits.
+
+**To customize:** Change the default templates by editing the constants `DEFAULT_SERIAL_TEMPLATE` and `DEFAULT_LOT_TEMPLATE` in `server/src/mes/core/wip/serial.py`. Alternatively, pass a custom template per-request via the `serial_template` or `lot_template` field in the `UnitCreate` / `LotCreate` API payload.
+
+**Sequence algorithm:** The sequence counter is not stored — it is computed atomically at creation time by counting existing units (or lots) on the order (`SELECT COUNT(*) FROM unit WHERE order_id = ?`) and adding 1. This ensures uniqueness per order without requiring a separate sequence table.
+
 #### Material Management (MAT-MGMT)
 
 | Entity | Fields | Relations |

@@ -35,7 +35,7 @@ export const fetchUnitHistory = (id: string) =>
   api.get(`/units/${id}/history`).then(unwrap<UnitHistory[]>);
 
 export const startUnit = (id: string, equipmentId?: string) =>
-  api.post(`/units/${id}/start`, equipmentId ? { equipment_id: equipmentId } : null).then(unwrap<Unit>);
+  api.post(`/units/${id}/start`, equipmentId ? { equipment_id: equipmentId } : undefined).then(unwrap<Unit>);
 
 export const completeUnit = (id: string, result: string, dataSnapshot?: Record<string, unknown>, disposition?: string) =>
   api.post(`/units/${id}/complete`, { result, data_snapshot: dataSnapshot, disposition: disposition ?? null }).then(unwrap<Unit>);
@@ -70,7 +70,7 @@ export const fetchLotHistory = (id: string) =>
   api.get(`/lots/${id}/history`).then(unwrap<LotHistory[]>);
 
 export const startLot = (id: string, equipmentId?: string) =>
-  api.post(`/lots/${id}/start`, equipmentId ? { equipment_id: equipmentId } : null).then(unwrap<Lot>);
+  api.post(`/lots/${id}/start`, equipmentId ? { equipment_id: equipmentId } : undefined).then(unwrap<Lot>);
 
 export const completeLot = (id: string, quantityOut?: number, quantityScrapped?: number, disposition?: string) =>
   api.post(`/lots/${id}/complete`, { quantity_out: quantityOut, quantity_scrapped: quantityScrapped, disposition: disposition ?? null }).then(unwrap<Lot>);
