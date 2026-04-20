@@ -39,6 +39,7 @@ from mes.core.quality.service import QualityTestService
 from mes.core.physical_model.service import PhysicalModelService
 from mes.core.physical_model.models import (
     Site, Area, ProductionLine, WorkCell, Equipment, EquipmentMaterial,
+    EquipmentClass, EquipmentClassProperty,
 )
 from mes.core.inventory.models import StorageLocation
 from mes.core.inventory.service import (
@@ -267,6 +268,10 @@ async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
         )
         if created:
             summary["equipment_materials"] += 1
+
+    # ── 4b. Equipment Classes (ISA-95 Part 2) ─────────────────────────
+    ec_counts = await _seed_equipment_classes(session, D, equip_map)
+    summary.update(ec_counts)
 
     # ── 5. Storage Locations ──────────────────────────────────────────
     summary["storage_locations"] = 0
@@ -519,6 +524,10 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
         )
         if created:
             summary["equipment_materials"] += 1
+
+    # ── 4b. Equipment Classes (ISA-95 Part 2) ─────────────────────────
+    ec_counts = await _seed_equipment_classes(session, E, equip_map)
+    summary.update(ec_counts)
 
     await session.commit()
     logger.info("Electronics plant demo data seeded: %s", summary)
@@ -867,3 +876,82 @@ async def _inventory_already_received(
         ),
     )
     return result.scalar_one_or_none() is not None
+
+
+async def _get_or_create_equipment_class(
+    session: AsyncSession, **kwargs: Any,
+) -> EquipmentClass:
+    """Return existing equipment class by code, or create."""
+    result = await session.execute(
+        select(EquipmentClass).where(
+            EquipmentClass.code == kwargs["code"],
+            EquipmentClass.is_active.is_(True),
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        return existing
+    return await PhysicalModelService.create_equipment_class(session, **kwargs)
+
+
+async def _get_or_create_class_property(
+    session: AsyncSession, class_id: UUID, **kwargs: Any,
+) -> EquipmentClassProperty:
+    """Return existing class property by (class_id, name), or create."""
+    result = await session.execute(
+        select(EquipmentClassProperty).where(
+            EquipmentClassProperty.equipment_class_id == class_id,
+            EquipmentClassProperty.name == kwargs["name"],
+            EquipmentClassProperty.is_active.is_(True),
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        return existing
+    return await PhysicalModelService.create_class_property(session, class_id, **kwargs)
+
+
+async def _seed_equipment_classes(
+    session: AsyncSession,
+    data_module: Any,
+    equip_map: dict[str, UUID],
+) -> dict[str, int]:
+    """Seed equipment classes, properties, and assign classes to equipment.
+    Returns counts summary."""
+    counts = {"equipment_classes": 0, "class_properties": 0, "class_assignments": 0}
+
+    if not hasattr(data_module, "EQUIPMENT_CLASSES"):
+        return counts
+
+    # Create classes
+    class_map: dict[str, UUID] = {}
+    for ec_data in data_module.EQUIPMENT_CLASSES:
+        ec = await _get_or_create_equipment_class(session, **ec_data)
+        class_map[ec_data["code"]] = ec.id
+        counts["equipment_classes"] += 1
+
+    # Create properties
+    if hasattr(data_module, "EQUIPMENT_CLASS_PROPERTIES"):
+        for prop_data in data_module.EQUIPMENT_CLASS_PROPERTIES:
+            pdata = dict(prop_data)
+            class_code = pdata.pop("class_code")
+            class_id = class_map[class_code]
+            await _get_or_create_class_property(session, class_id, **pdata)
+            counts["class_properties"] += 1
+
+    # Assign classes to equipment
+    if hasattr(data_module, "EQUIPMENT_CLASS_MAP"):
+        for equip_code, class_code in data_module.EQUIPMENT_CLASS_MAP.items():
+            equip_id = equip_map.get(equip_code)
+            class_id = class_map.get(class_code)
+            if equip_id and class_id:
+                result = await session.execute(
+                    select(Equipment).where(Equipment.id == equip_id)
+                )
+                equip = result.scalar_one_or_none()
+                if equip and equip.equipment_class_id != class_id:
+                    equip.equipment_class_id = class_id
+                    counts["class_assignments"] += 1
+        await session.flush()
+
+    return counts

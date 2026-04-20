@@ -330,6 +330,44 @@ EQUIPMENT_MATERIALS: list[dict] = [
 ]
 
 # ---------------------------------------------------------------------------
+# ISA-95 Part 2: Equipment Classes & Properties
+# ---------------------------------------------------------------------------
+
+EQUIPMENT_CLASSES: list[dict] = [
+    {"code": "MIXER",       "name": "Mixer",           "description": "Blending / mixing equipment"},
+    {"code": "PASTEURIZER", "name": "Pasteurizer",     "description": "Heat-treatment equipment (HTST, UHT)"},
+    {"code": "ANALYZER",    "name": "Analyzer",        "description": "Quality-control analytical instrument"},
+    {"code": "FILLER",      "name": "Filler",          "description": "Liquid filling and capping equipment"},
+    {"code": "LABELER",     "name": "Labeler / Packer","description": "Label application and case packing"},
+    {"code": "TANK",        "name": "Tank",            "description": "Holding / rework tank"},
+]
+
+EQUIPMENT_CLASS_PROPERTIES: list[dict] = [
+    # Mixer
+    {"class_code": "MIXER",       "name": "max_volume_l",   "data_type": "float",  "uom_id": "L",    "description": "Max batch volume"},
+    {"class_code": "MIXER",       "name": "max_rpm",        "data_type": "float",  "uom_id": None,   "description": "Maximum impeller speed (RPM)"},
+    # Pasteurizer
+    {"class_code": "PASTEURIZER", "name": "max_temp_c",     "data_type": "float",  "uom_id": None,   "description": "Max temperature (°C)"},
+    {"class_code": "PASTEURIZER", "name": "hold_time_s",    "data_type": "float",  "uom_id": "s",    "description": "Minimum hold time"},
+    # Filler
+    {"class_code": "FILLER",      "name": "max_fill_rate",  "data_type": "float",  "uom_id": None,   "description": "Max fill rate (bottles/min)"},
+    {"class_code": "FILLER",      "name": "min_fill_vol_ml","data_type": "float",  "uom_id": None,   "description": "Minimum fill volume (mL)"},
+    # Labeler
+    {"class_code": "LABELER",     "name": "max_label_rate", "data_type": "float",  "uom_id": None,   "description": "Max labels/min"},
+]
+
+# Maps equipment code → equipment class code
+EQUIPMENT_CLASS_MAP: dict[str, str] = {
+    "TM-100":  "MIXER",
+    "PS-200":  "PASTEURIZER",
+    "QC-300":  "ANALYZER",
+    "FL-400A": "FILLER",
+    "FL-400B": "FILLER",
+    "LP-500":  "LABELER",
+    "RW-600":  "TANK",
+}
+
+# ---------------------------------------------------------------------------
 # Storage Locations  (inventory module)
 # ---------------------------------------------------------------------------
 

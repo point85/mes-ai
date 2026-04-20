@@ -27,6 +27,16 @@ from .schemas import (
     AreaCreate,
     AreaRead,
     AreaUpdate,
+    EquipmentCapabilityCreate,
+    EquipmentCapabilityRead,
+    EquipmentCapabilityUpdate,
+    EquipmentClassCreate,
+    EquipmentClassDetail,
+    EquipmentClassPropertyCreate,
+    EquipmentClassPropertyRead,
+    EquipmentClassPropertyUpdate,
+    EquipmentClassRead,
+    EquipmentClassUpdate,
     EquipmentCreate,
     EquipmentMaterialCreate,
     EquipmentMaterialRead,
@@ -620,3 +630,191 @@ async def simulate_historian_material_setup(
     data = _build_setup_read(equip, em)
     await session.commit()
     return success_response(data.model_dump())
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ISA-95 Part 2 — Equipment Classes & Capabilities
+# ═══════════════════════════════════════════════════════════════════════
+
+
+# ─── Equipment Classes ────────────────────────────────────────────────
+
+
+@router.get("/equipment-classes")
+async def list_equipment_classes(
+    params: PaginationParams = Depends(get_pagination_params),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """List all active equipment classes."""
+    items, cursor, has_more = await svc.list_equipment_classes(session, params)
+    return list_response(
+        [EquipmentClassRead.model_validate(ec).model_dump() for ec in items],
+        cursor=cursor,
+        limit=params.limit,
+        has_more=has_more,
+    )
+
+
+@router.get("/equipment-classes/{class_id}")
+async def get_equipment_class(
+    class_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """Get an equipment class with its properties."""
+    ec = await svc.get_equipment_class(session, class_id)
+    data = EquipmentClassDetail.model_validate(ec)
+    data.member_count = len(ec.equipment_members) if ec.equipment_members else 0
+    return success_response(data.model_dump())
+
+
+@router.post("/equipment-classes", status_code=201)
+async def create_equipment_class(
+    body: EquipmentClassCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.create")),
+):
+    """Create a new equipment class."""
+    ec = await svc.create_equipment_class(session, **body.model_dump())
+    await session.commit()
+    return success_response(EquipmentClassRead.model_validate(ec).model_dump())
+
+
+@router.patch("/equipment-classes/{class_id}")
+async def update_equipment_class(
+    class_id: UUID,
+    body: EquipmentClassUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """Update an equipment class."""
+    ec = await svc.update_equipment_class(session, class_id, **body.model_dump(exclude_unset=True))
+    await session.commit()
+    return success_response(EquipmentClassRead.model_validate(ec).model_dump())
+
+
+@router.delete("/equipment-classes/{class_id}", status_code=204)
+async def delete_equipment_class(
+    class_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.delete")),
+):
+    """Soft-delete an equipment class."""
+    await svc.delete_equipment_class(session, class_id)
+    await session.commit()
+
+
+# ─── Equipment Class Properties ──────────────────────────────────────
+
+
+@router.get("/equipment-classes/{class_id}/properties")
+async def list_class_properties(
+    class_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """List properties defined on an equipment class."""
+    items = await svc.list_class_properties(session, class_id)
+    return success_response(
+        [EquipmentClassPropertyRead.model_validate(p).model_dump() for p in items]
+    )
+
+
+@router.post("/equipment-classes/{class_id}/properties", status_code=201)
+async def create_class_property(
+    class_id: UUID,
+    body: EquipmentClassPropertyCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.create")),
+):
+    """Add a property definition to an equipment class."""
+    prop = await svc.create_class_property(session, class_id, **body.model_dump())
+    await session.commit()
+    return success_response(EquipmentClassPropertyRead.model_validate(prop).model_dump())
+
+
+@router.patch("/equipment-class-properties/{prop_id}")
+async def update_class_property(
+    prop_id: UUID,
+    body: EquipmentClassPropertyUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """Update a class property definition."""
+    prop = await svc.update_class_property(session, prop_id, **body.model_dump(exclude_unset=True))
+    await session.commit()
+    return success_response(EquipmentClassPropertyRead.model_validate(prop).model_dump())
+
+
+@router.delete("/equipment-class-properties/{prop_id}", status_code=204)
+async def delete_class_property(
+    prop_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.delete")),
+):
+    """Soft-delete a class property definition."""
+    await svc.delete_class_property(session, prop_id)
+    await session.commit()
+
+
+# ─── Equipment Capabilities ─────────────────────────────────────────
+
+
+@router.get("/equipment/{equip_id}/capabilities")
+async def list_equipment_capabilities(
+    equip_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.read")),
+):
+    """List all active capabilities for an equipment instance."""
+    items = await svc.list_equipment_capabilities(session, equip_id)
+    return success_response(
+        [EquipmentCapabilityRead.model_validate(c).model_dump() for c in items]
+    )
+
+
+@router.post("/equipment/{equip_id}/capabilities", status_code=201)
+async def create_capability(
+    equip_id: UUID,
+    body: EquipmentCapabilityCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.create")),
+):
+    """Create a capability declaration for an equipment instance."""
+    cap = await svc.create_capability(
+        session,
+        equip_id,
+        equipment_class_id=body.equipment_class_id,
+        capability_type=body.capability_type,
+        reason=body.reason,
+        start_time=body.start_time,
+        end_time=body.end_time,
+        properties=[p.model_dump() for p in body.properties],
+    )
+    await session.commit()
+    return success_response(EquipmentCapabilityRead.model_validate(cap).model_dump())
+
+
+@router.patch("/equipment-capabilities/{cap_id}")
+async def update_capability(
+    cap_id: UUID,
+    body: EquipmentCapabilityUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """Update a capability declaration."""
+    cap = await svc.update_capability(session, cap_id, **body.model_dump(exclude_unset=True))
+    await session.commit()
+    return success_response(EquipmentCapabilityRead.model_validate(cap).model_dump())
+
+
+@router.delete("/equipment-capabilities/{cap_id}", status_code=204)
+async def delete_capability(
+    cap_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.delete")),
+):
+    """Soft-delete a capability declaration."""
+    await svc.delete_capability(session, cap_id)
+    await session.commit()

@@ -2,6 +2,7 @@
 PHYS-MODEL: Pydantic schemas for the physical asset hierarchy REST API.
 
 Create/Read/Update schemas for Site, Area, ProductionLine, WorkCell, Equipment.
+ISA-95 Part 2: EquipmentClass, EquipmentClassProperty, EquipmentCapability, EquipmentCapabilityProperty.
 """
 
 from __future__ import annotations
@@ -164,6 +165,7 @@ class EquipmentCreate(BaseModel):
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
     equipment_type: str | None = Field(None, max_length=100)
+    equipment_class_id: UUID | None = Field(None, description="ISA-95 Part 2 equipment class ID")
     capabilities: dict[str, Any] | None = None
     state_model_id: str | None = Field(None, max_length=50, description="State machine model ID (e.g. 'packml'). Null = 100% available.")
     max_queue_depth: int | None = Field(None, ge=1, description="Max WIP items in input queue. Null = unlimited.")
@@ -178,6 +180,7 @@ class EquipmentRead(BaseModel):
     description: str | None = None
     work_cell_id: UUID
     equipment_type: str | None = None
+    equipment_class_id: UUID | None = None
     capabilities: dict[str, Any] | None = None
     state_model_id: str | None = None
     max_queue_depth: int | None = None
@@ -195,6 +198,7 @@ class EquipmentUpdate(BaseModel):
     code: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
     equipment_type: str | None = None
+    equipment_class_id: UUID | None = None
     capabilities: dict[str, Any] | None = None
     state_model_id: str | None = None
     max_queue_depth: int | None = Field(None, ge=1, description="Max WIP items in input queue. Null = unlimited.")
@@ -307,3 +311,152 @@ class SimulateHistorianMaterialSetupRequest(BaseModel):
         description="Material code to switch to",
     )
     job_number: str | None = Field(None, max_length=64, description="Job / batch identifier")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ISA-95 Part 2 — Equipment Capability Model
+# ═══════════════════════════════════════════════════════════════════════
+
+
+# ─── Equipment Class ─────────────────────────────────────────────────
+
+
+class EquipmentClassCreate(BaseModel):
+    """Schema for creating an equipment class."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    code: str = Field(..., min_length=1, max_length=50)
+    description: str | None = None
+
+
+class EquipmentClassRead(BaseModel):
+    """Schema for returning equipment class data."""
+
+    id: UUID
+    name: str
+    code: str
+    description: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EquipmentClassUpdate(BaseModel):
+    """Schema for updating an equipment class."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    code: str | None = Field(None, min_length=1, max_length=50)
+    description: str | None = None
+
+
+# ─── Equipment Class Property ───────────────────────────────────────
+
+
+class EquipmentClassPropertyCreate(BaseModel):
+    """Schema for creating a property on an equipment class."""
+
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = None
+    data_type: str = Field("string", pattern=r"^(string|float|int|boolean)$")
+    uom_id: str | None = Field(None, max_length=20, description="UoM symbol (e.g. 'bottles/min')")
+    default_value: str | None = Field(None, max_length=255)
+
+
+class EquipmentClassPropertyRead(BaseModel):
+    """Schema for returning an equipment class property."""
+
+    id: UUID
+    equipment_class_id: UUID
+    name: str
+    description: str | None = None
+    data_type: str
+    uom_id: str | None = None
+    default_value: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EquipmentClassPropertyUpdate(BaseModel):
+    """Schema for updating an equipment class property."""
+
+    name: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = None
+    data_type: str | None = Field(None, pattern=r"^(string|float|int|boolean)$")
+    uom_id: str | None = None
+    default_value: str | None = None
+
+
+class EquipmentClassDetail(EquipmentClassRead):
+    """Equipment class with nested properties and member count."""
+
+    properties: list[EquipmentClassPropertyRead] = []
+    member_count: int = 0
+
+
+# ─── Equipment Capability ───────────────────────────────────────────
+
+
+class EquipmentCapabilityPropertyCreate(BaseModel):
+    """Schema for creating a capability property value (inline with capability)."""
+
+    class_property_id: UUID = Field(..., description="ID of the class property definition")
+    value: str = Field(..., max_length=255)
+
+
+class EquipmentCapabilityPropertyRead(BaseModel):
+    """Schema for returning a capability property value."""
+
+    id: UUID
+    capability_id: UUID
+    class_property_id: UUID
+    property_name: str | None = None
+    value: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EquipmentCapabilityCreate(BaseModel):
+    """Schema for creating an equipment capability."""
+
+    equipment_class_id: UUID | None = Field(None, description="Equipment class this capability covers")
+    capability_type: str = Field("available", pattern=r"^(committed|available|unattainable)$")
+    reason: str | None = Field(None, max_length=255)
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    properties: list[EquipmentCapabilityPropertyCreate] = []
+
+
+class EquipmentCapabilityRead(BaseModel):
+    """Schema for returning equipment capability data."""
+
+    id: UUID
+    equipment_id: UUID
+    equipment_class_id: UUID | None = None
+    capability_type: str
+    reason: str | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    properties: list[EquipmentCapabilityPropertyRead] = []
+
+    model_config = {"from_attributes": True}
+
+
+class EquipmentCapabilityUpdate(BaseModel):
+    """Schema for updating an equipment capability."""
+
+    equipment_class_id: UUID | None = None
+    capability_type: str | None = Field(None, pattern=r"^(committed|available|unattainable)$")
+    reason: str | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None

@@ -22,7 +22,18 @@ from mes.framework.events import event_bus
 
 from .events import equipment_created, site_created
 from .exceptions import DuplicateCodeException
-from .models import Area, Equipment, EquipmentMaterial, ProductionLine, Site, WorkCell
+from .models import (
+    Area,
+    Equipment,
+    EquipmentCapability,
+    EquipmentCapabilityProperty,
+    EquipmentClass,
+    EquipmentClassProperty,
+    EquipmentMaterial,
+    ProductionLine,
+    Site,
+    WorkCell,
+)
 
 logger = logging.getLogger("mes.physical_model")
 
@@ -593,3 +604,225 @@ class PhysicalModelService:
                 resource_id=f"material_code={material_code} for equipment {equip_id}",
             )
         return em
+
+    # ─── Equipment Class operations (ISA-95 Part 2) ──────────────────
+
+    @staticmethod
+    async def list_equipment_classes(
+        session: AsyncSession,
+        params: PaginationParams,
+    ) -> tuple[Sequence[EquipmentClass], str | None, bool]:
+        stmt = select(EquipmentClass).where(EquipmentClass.is_active.is_(True))
+        return await paginate_query(session, stmt, EquipmentClass, params)
+
+    @staticmethod
+    async def get_equipment_class(
+        session: AsyncSession, class_id: UUID
+    ) -> EquipmentClass:
+        stmt = (
+            select(EquipmentClass)
+            .options(
+                selectinload(EquipmentClass.properties),
+                selectinload(EquipmentClass.equipment_members),
+            )
+            .where(EquipmentClass.id == class_id, EquipmentClass.is_active.is_(True))
+        )
+        result = await session.execute(stmt)
+        ec = result.scalar_one_or_none()
+        if ec is None:
+            raise NotFoundException(resource="EquipmentClass", resource_id=str(class_id))
+        return ec
+
+    @staticmethod
+    async def create_equipment_class(
+        session: AsyncSession, **kwargs: Any
+    ) -> EquipmentClass:
+        existing = await session.execute(
+            select(EquipmentClass).where(EquipmentClass.code == kwargs["code"])
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise DuplicateCodeException("EquipmentClass", kwargs["code"])
+        ec = EquipmentClass(**kwargs)
+        session.add(ec)
+        await session.flush()
+        logger.info("Created equipment class %s (code=%s)", ec.id, ec.code)
+        return ec
+
+    @staticmethod
+    async def update_equipment_class(
+        session: AsyncSession, class_id: UUID, **kwargs: Any
+    ) -> EquipmentClass:
+        ec = await PhysicalModelService.get_equipment_class(session, class_id)
+        if "code" in kwargs and kwargs["code"] is not None and kwargs["code"] != ec.code:
+            dup = await session.execute(
+                select(EquipmentClass).where(EquipmentClass.code == kwargs["code"])
+            )
+            if dup.scalar_one_or_none() is not None:
+                raise DuplicateCodeException("EquipmentClass", kwargs["code"])
+        for k, v in kwargs.items():
+            if v is not None:
+                setattr(ec, k, v)
+        await session.flush()
+        return ec
+
+    @staticmethod
+    async def delete_equipment_class(
+        session: AsyncSession, class_id: UUID
+    ) -> None:
+        ec = await PhysicalModelService.get_equipment_class(session, class_id)
+        ec.is_active = False
+        await session.flush()
+
+    # ─── Equipment Class Property operations ─────────────────────────
+
+    @staticmethod
+    async def list_class_properties(
+        session: AsyncSession, class_id: UUID,
+    ) -> Sequence[EquipmentClassProperty]:
+        stmt = (
+            select(EquipmentClassProperty)
+            .where(
+                EquipmentClassProperty.equipment_class_id == class_id,
+                EquipmentClassProperty.is_active.is_(True),
+            )
+            .order_by(EquipmentClassProperty.name)
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_class_property(
+        session: AsyncSession, prop_id: UUID,
+    ) -> EquipmentClassProperty:
+        stmt = select(EquipmentClassProperty).where(
+            EquipmentClassProperty.id == prop_id,
+            EquipmentClassProperty.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        prop = result.scalar_one_or_none()
+        if prop is None:
+            raise NotFoundException(resource="EquipmentClassProperty", resource_id=str(prop_id))
+        return prop
+
+    @staticmethod
+    async def create_class_property(
+        session: AsyncSession, class_id: UUID, **kwargs: Any
+    ) -> EquipmentClassProperty:
+        # Ensure class exists
+        await PhysicalModelService.get_equipment_class(session, class_id)
+        prop = EquipmentClassProperty(equipment_class_id=class_id, **kwargs)
+        session.add(prop)
+        await session.flush()
+        logger.info("Created class property %s on class %s", prop.name, class_id)
+        return prop
+
+    @staticmethod
+    async def update_class_property(
+        session: AsyncSession, prop_id: UUID, **kwargs: Any
+    ) -> EquipmentClassProperty:
+        prop = await PhysicalModelService.get_class_property(session, prop_id)
+        for k, v in kwargs.items():
+            if v is not None:
+                setattr(prop, k, v)
+        await session.flush()
+        return prop
+
+    @staticmethod
+    async def delete_class_property(
+        session: AsyncSession, prop_id: UUID,
+    ) -> None:
+        prop = await PhysicalModelService.get_class_property(session, prop_id)
+        prop.is_active = False
+        await session.flush()
+
+    # ─── Equipment Capability operations ─────────────────────────────
+
+    @staticmethod
+    async def list_equipment_capabilities(
+        session: AsyncSession, equip_id: UUID,
+    ) -> Sequence[EquipmentCapability]:
+        stmt = (
+            select(EquipmentCapability)
+            .options(selectinload(EquipmentCapability.properties))
+            .where(
+                EquipmentCapability.equipment_id == equip_id,
+                EquipmentCapability.is_active.is_(True),
+            )
+            .order_by(EquipmentCapability.created_at)
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_capability(
+        session: AsyncSession, cap_id: UUID,
+    ) -> EquipmentCapability:
+        stmt = (
+            select(EquipmentCapability)
+            .options(selectinload(EquipmentCapability.properties))
+            .where(EquipmentCapability.id == cap_id, EquipmentCapability.is_active.is_(True))
+        )
+        result = await session.execute(stmt)
+        cap = result.scalar_one_or_none()
+        if cap is None:
+            raise NotFoundException(resource="EquipmentCapability", resource_id=str(cap_id))
+        return cap
+
+    @staticmethod
+    async def create_capability(
+        session: AsyncSession,
+        equip_id: UUID,
+        *,
+        equipment_class_id: UUID | None = None,
+        capability_type: str = "available",
+        reason: str | None = None,
+        start_time: _dt.datetime | None = None,
+        end_time: _dt.datetime | None = None,
+        properties: list[dict[str, Any]] | None = None,
+    ) -> EquipmentCapability:
+        # Ensure equipment exists
+        await PhysicalModelService.get_equipment(session, equip_id)
+        cap = EquipmentCapability(
+            equipment_id=equip_id,
+            equipment_class_id=equipment_class_id,
+            capability_type=capability_type,
+            reason=reason,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        session.add(cap)
+        await session.flush()
+
+        if properties:
+            for p in properties:
+                prop = EquipmentCapabilityProperty(
+                    capability_id=cap.id,
+                    class_property_id=p["class_property_id"],
+                    value=p["value"],
+                )
+                session.add(prop)
+            await session.flush()
+            # Reload to get properties
+            cap = await PhysicalModelService.get_capability(session, cap.id)
+
+        logger.info("Created capability %s for equipment %s", cap.id, equip_id)
+        return cap
+
+    @staticmethod
+    async def update_capability(
+        session: AsyncSession, cap_id: UUID, **kwargs: Any
+    ) -> EquipmentCapability:
+        cap = await PhysicalModelService.get_capability(session, cap_id)
+        for k, v in kwargs.items():
+            if v is not None:
+                setattr(cap, k, v)
+        await session.flush()
+        return cap
+
+    @staticmethod
+    async def delete_capability(
+        session: AsyncSession, cap_id: UUID,
+    ) -> None:
+        cap = await PhysicalModelService.get_capability(session, cap_id)
+        cap.is_active = False
+        await session.flush()

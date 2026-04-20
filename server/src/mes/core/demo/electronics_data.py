@@ -348,3 +348,40 @@ EQUIPMENT_MATERIALS: list[dict] = [
     {"equipment_code": "FCT-200",  "material_code": "FG-ECB-100", "design_speed": 60.0,  "design_speed_uom": "EA", "reject_uom": "EA", "target_oee": 95.0},
     {"equipment_code": "RW-BENCH", "material_code": "FG-ECB-100", "design_speed": 10.0,  "design_speed_uom": "EA", "reject_uom": "EA", "target_oee": 70.0},
 ]
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: Equipment Classes & Properties
+# ---------------------------------------------------------------------------
+
+EQUIPMENT_CLASSES: list[dict] = [
+    {"code": "PRINTER",    "name": "Stencil Printer",   "description": "Solder-paste stencil printing equipment"},
+    {"code": "PLACEMENT",  "name": "Pick-and-Place",    "description": "SMT component placement machine"},
+    {"code": "OVEN",       "name": "Reflow Oven",       "description": "Convection / IR reflow soldering oven"},
+    {"code": "INSPECTION", "name": "Inspection System",  "description": "Automated optical / X-ray inspection"},
+    {"code": "WAVE_SOLDER","name": "Wave Solder",        "description": "Wave soldering and conformal coating"},
+    {"code": "TESTER",     "name": "Functional Tester",  "description": "ICT / FCT test fixture"},
+    {"code": "MANUAL",     "name": "Manual Station",     "description": "Manual rework / repair bench"},
+]
+
+EQUIPMENT_CLASS_PROPERTIES: list[dict] = [
+    # Placement
+    {"class_code": "PLACEMENT",  "name": "max_cph",       "data_type": "float",  "uom_id": None,  "description": "Max components per hour"},
+    {"class_code": "PLACEMENT",  "name": "feeder_slots",  "data_type": "int",    "uom_id": None,  "description": "Number of feeder slots"},
+    # Oven
+    {"class_code": "OVEN",       "name": "zone_count",    "data_type": "int",    "uom_id": None,  "description": "Number of heating zones"},
+    {"class_code": "OVEN",       "name": "max_temp_c",    "data_type": "float",  "uom_id": None,  "description": "Max zone temperature (°C)"},
+    # Printer
+    {"class_code": "PRINTER",    "name": "max_board_size", "data_type": "string", "uom_id": None, "description": "Max PCB size (LxW mm)"},
+]
+
+# Maps equipment code → equipment class code
+EQUIPMENT_CLASS_MAP: dict[str, str] = {
+    "SP-200":   "PRINTER",
+    "PNP-800A": "PLACEMENT",
+    "PNP-800B": "PLACEMENT",
+    "RO-500":   "OVEN",
+    "AOI-300":  "INSPECTION",
+    "WS-100":   "WAVE_SOLDER",
+    "FCT-200":  "TESTER",
+    "RW-BENCH": "MANUAL",
+}

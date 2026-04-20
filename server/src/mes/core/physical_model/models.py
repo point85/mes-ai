@@ -1,19 +1,26 @@
 """
 PHYS-MODEL: SQLAlchemy models for the ISA-95 physical asset hierarchy.
 
-Entities:
+Entities (Part 1 — Physical Hierarchy):
 - Site:           Top-level organizational unit (factory / plant)
 - Area:           Logical grouping within a site (department / shop)
 - ProductionLine: A linear arrangement of work cells within an area
 - WorkCell:       A station where operations are performed (manual or automated)
 - Equipment:      An individual machine or device within a work cell
+
+Entities (Part 2 — Equipment Capability Model):
+- EquipmentClass:              Groups equipment by what they can do (e.g. Filler, Labeler)
+- EquipmentClassProperty:      Typed property definitions for a class
+- EquipmentCapability:         Specific capability declaration for an equipment instance
+- EquipmentCapabilityProperty: Actual property values for a capability
 """
 
 from __future__ import annotations
 
+import datetime as _dt
 import uuid
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, JSON, Uuid, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, JSON, Uuid, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -146,11 +153,15 @@ class Equipment(BaseModel):
     )
     equipment_type: Mapped[str | None] = mapped_column(
         String(100), nullable=True,
-        comment="Free-form equipment type classification",
+        comment="Free-form equipment type classification (legacy — prefer equipment_class_id)",
+    )
+    equipment_class_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("equipment_classes.id"), nullable=True, index=True,
+        comment="ISA-95 Part 2 equipment class (e.g. Filler, Labeler). Formal replacement for equipment_type.",
     )
     capabilities: Mapped[dict | None] = mapped_column(
         JSON, nullable=True,
-        comment="Freeform JSON describing equipment capabilities for dispatch matching",
+        comment="Freeform JSON describing equipment capabilities (legacy — prefer EquipmentCapability)",
     )
     state_model_id: Mapped[str | None] = mapped_column(
         String(50), nullable=True, index=True,
@@ -180,6 +191,12 @@ class Equipment(BaseModel):
     # Relationships
     work_cell: Mapped["WorkCell"] = relationship(
         "WorkCell", back_populates="equipment",
+    )
+    equipment_class: Mapped["EquipmentClass | None"] = relationship(
+        "EquipmentClass", back_populates="equipment_members",
+    )
+    formal_capabilities: Mapped[list["EquipmentCapability"]] = relationship(
+        "EquipmentCapability", back_populates="equipment", cascade="all, delete-orphan",
     )
     material_setups: Mapped[list["EquipmentMaterial"]] = relationship(
         "EquipmentMaterial", back_populates="equipment", cascade="all, delete-orphan",
@@ -252,4 +269,190 @@ class EquipmentMaterial(BaseModel):
             f"<EquipmentMaterial id={self.id} "
             f"equip={self.equipment_id} mat={self.material_id} "
             f"speed={self.design_speed} oee={self.target_oee}%>"
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ISA-95 Part 2 — Equipment Capability Model
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class EquipmentClass(BaseModel):
+    """
+    ISA-95 Part 2 — Equipment Class.
+
+    Groups equipment by *what they can do* (capability classification),
+    independent of where they sit in the physical hierarchy.
+    Examples: "Filler", "Labeler", "Oven", "Pick-and-Place".
+
+    An equipment instance references exactly one class via Equipment.equipment_class_id.
+    """
+
+    __tablename__ = "equipment_classes"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    properties: Mapped[list["EquipmentClassProperty"]] = relationship(
+        "EquipmentClassProperty", back_populates="equipment_class",
+        cascade="all, delete-orphan", order_by="EquipmentClassProperty.name",
+    )
+    equipment_members: Mapped[list["Equipment"]] = relationship(
+        "Equipment", back_populates="equipment_class",
+    )
+
+    def __repr__(self) -> str:
+        return f"<EquipmentClass id={self.id} code={self.code}>"
+
+
+class EquipmentClassProperty(BaseModel):
+    """
+    ISA-95 Part 2 — Equipment Class Property.
+
+    Defines a typed property that any equipment in this class should declare.
+    For example, class "Filler" may define properties:
+      - max_fill_rate (float, bottles/min)
+      - min_fill_volume (float, mL)
+      - supported_container_types (string)
+    """
+
+    __tablename__ = "equipment_class_properties"
+    __table_args__ = (
+        UniqueConstraint("equipment_class_id", "name", name="uq_ecp_class_name"),
+    )
+
+    equipment_class_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("equipment_classes.id"), nullable=False, index=True,
+    )
+    name: Mapped[str] = mapped_column(
+        String(100), nullable=False,
+        comment="Property name (e.g. 'max_fill_rate')",
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="string",
+        comment="Data type: string, float, int, boolean",
+    )
+    uom_id: Mapped[str | None] = mapped_column(
+        String(20), ForeignKey("units_of_measure.symbol"), nullable=True,
+        comment="Unit of measure for this property (nullable for dimensionless values)",
+    )
+    default_value: Mapped[str | None] = mapped_column(
+        String(255), nullable=True,
+        comment="Default value (stored as string, interpreted per data_type)",
+    )
+
+    # Relationships
+    equipment_class: Mapped["EquipmentClass"] = relationship(
+        "EquipmentClass", back_populates="properties",
+    )
+    unit_of_measure: Mapped["UnitOfMeasure | None"] = relationship(
+        "UnitOfMeasure", lazy="selectin",
+    )
+
+    def __repr__(self) -> str:
+        return f"<EquipmentClassProperty id={self.id} name={self.name} type={self.data_type}>"
+
+
+class EquipmentCapability(BaseModel):
+    """
+    ISA-95 Part 2 — Equipment Capability.
+
+    Declares a specific capability of an equipment instance, optionally
+    time-bounded. Links to an EquipmentClass to indicate what *kind* of
+    operation this equipment can perform.
+
+    capability_type values (per ISA-95):
+      - committed:    reserved for a specific job/order
+      - available:    currently available for dispatch
+      - unattainable: equipment cannot perform this operation right now
+    """
+
+    __tablename__ = "equipment_capabilities"
+
+    equipment_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("equipment.id"), nullable=False, index=True,
+    )
+    equipment_class_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("equipment_classes.id"), nullable=True, index=True,
+        comment="What class of operation this capability covers",
+    )
+    capability_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="available",
+        comment="ISA-95 capability type: committed, available, unattainable",
+    )
+    reason: Mapped[str | None] = mapped_column(
+        String(255), nullable=True,
+        comment="Reason for current capability status",
+    )
+    start_time: Mapped[_dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="When this capability becomes valid (null = now)",
+    )
+    end_time: Mapped[_dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="When this capability expires (null = indefinite)",
+    )
+
+    # Relationships
+    equipment: Mapped["Equipment"] = relationship(
+        "Equipment", back_populates="formal_capabilities",
+    )
+    equipment_class: Mapped["EquipmentClass | None"] = relationship(
+        "EquipmentClass",
+    )
+    properties: Mapped[list["EquipmentCapabilityProperty"]] = relationship(
+        "EquipmentCapabilityProperty", back_populates="capability",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<EquipmentCapability id={self.id} "
+            f"equip={self.equipment_id} type={self.capability_type}>"
+        )
+
+
+class EquipmentCapabilityProperty(BaseModel):
+    """
+    ISA-95 Part 2 — Equipment Capability Property.
+
+    The actual value of a capability property for a specific equipment instance.
+    Links back to the class-level property definition for name, data_type, and UoM.
+    """
+
+    __tablename__ = "equipment_capability_properties"
+    __table_args__ = (
+        UniqueConstraint(
+            "capability_id", "class_property_id",
+            name="uq_ecap_prop",
+        ),
+    )
+
+    capability_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("equipment_capabilities.id"), nullable=False, index=True,
+    )
+    class_property_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("equipment_class_properties.id"), nullable=False, index=True,
+        comment="Links to the class-level property definition",
+    )
+    value: Mapped[str] = mapped_column(
+        String(255), nullable=False,
+        comment="Property value (stored as string, interpreted per class property data_type)",
+    )
+
+    # Relationships
+    capability: Mapped["EquipmentCapability"] = relationship(
+        "EquipmentCapability", back_populates="properties",
+    )
+    class_property: Mapped["EquipmentClassProperty"] = relationship(
+        "EquipmentClassProperty", lazy="selectin",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<EquipmentCapabilityProperty id={self.id} "
+            f"prop={self.class_property_id} value={self.value}>"
         )
