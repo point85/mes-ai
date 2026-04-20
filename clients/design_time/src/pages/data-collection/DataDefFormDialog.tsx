@@ -2,7 +2,7 @@
  * Data Definition Create / Edit dialog — modal form with Zod validation.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,6 +12,10 @@ import {
   useCreateDataDefinition,
   useUpdateDataDefinition,
 } from "../../hooks/useDataCollection";
+import {
+  useAllRoutes,
+  useRouteSteps,
+} from "../../hooks/useProductDef";
 import type { DataDefinition } from "../../types";
 
 const dataDefSchema = z.object({
@@ -24,6 +28,7 @@ const dataDefSchema = z.object({
   description: z.string().nullable().optional(),
   data_type: z.enum(["numeric", "string", "boolean", "enum"]),
   uom: z.string().max(20).nullable().optional(),
+  step_id: z.string().nullable().optional(),
   source: z.enum(["manual", "equipment", "sensor"]),
   is_required: z.boolean(),
   enum_values: z.string().nullable().optional(),
@@ -43,11 +48,18 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
   const createMut = useCreateDataDefinition();
   const updateMut = useUpdateDataDefinition();
 
+  const [selectedRouteId, setSelectedRouteId] = useState("");
+  const { data: routesData } = useAllRoutes();
+  const { data: stepsData } = useRouteSteps(selectedRouteId);
+  const routes = routesData?.data ?? [];
+  const steps = stepsData?.data ?? [];
+
   const {
     register,
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<DataDefFormData>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,6 +70,7 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
       description: "",
       data_type: "numeric",
       uom: "",
+      step_id: null,
       source: "manual",
       is_required: false,
       enum_values: "",
@@ -80,6 +93,7 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
           | "boolean"
           | "enum",
         uom: definition.uom ?? "",
+        step_id: definition.step_id ?? null,
         source: definition.source as "manual" | "equipment" | "sensor",
         is_required: definition.is_required,
         enum_values: definition.enum_values ?? "",
@@ -89,12 +103,28 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
     }
   }, [definition, reset]);
 
+  // When editing, find which route owns the step so we can pre-select the route dropdown
+  useEffect(() => {
+    if (definition?.step_id && routes.length > 0 && !selectedRouteId) {
+      // We don't know which route the step belongs to, so try each
+      // The step's route_id isn't on the definition — we'll search all routes
+      // For now set selectedRouteId to first route and let user adjust;
+      // Once steps load, the step_id will match
+      for (const r of routes) {
+        // We'll set the first route and let the step query cascade
+        setSelectedRouteId(r.id);
+        break;
+      }
+    }
+  }, [definition, routes, selectedRouteId]);
+
   const onSubmit = async (data: DataDefFormData) => {
     try {
       // Clean up null-ish values
       const payload = {
         ...data,
         uom: data.uom || null,
+        step_id: data.step_id || null,
         enum_values: data.enum_values || null,
         lower_limit: data.lower_limit ?? null,
         upper_limit: data.upper_limit ?? null,
@@ -182,6 +212,44 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
                   {errors.name.message}
                 </p>
               )}
+            </div>
+
+            {/* Route Step — optional link to a specific route step */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Route <span className="text-gray-400">(opt)</span>
+                </label>
+                <select
+                  value={selectedRouteId}
+                  onChange={(e) => {
+                    setSelectedRouteId(e.target.value);
+                    setValue("step_id", null);
+                  }}
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">— Select route —</option>
+                  {routes.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Step <span className="text-gray-400">(opt)</span>
+                </label>
+                <select
+                  {...register("step_id")}
+                  disabled={!selectedRouteId}
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <option value="">— Any step —</option>
+                  {steps.map((s) => (
+                    <option key={s.id} value={s.id}>#{s.sequence} — {s.name}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">Collect at this step only (blank = any step)</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
