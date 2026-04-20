@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { useCreateEquipment, useUpdateEquipment } from "../../hooks/usePhysicalModel";
+import { useCreateEquipment, useUpdateEquipment, useEquipmentClasses } from "../../hooks/usePhysicalModel";
 import { useStateModels } from "../../hooks/usePerformance";
 import type { Equipment } from "../../types";
 
@@ -20,9 +20,8 @@ const equipSchema = z.object({
     .max(50)
     .refine((s) => !s.includes(" "), "Code must not contain spaces"),
   description: z.string().nullable().optional(),
-  equipment_type: z.string().nullable().optional(),
+  equipment_class_id: z.string().nullable().optional(),
   state_model_id: z.string().nullable().optional(),
-  capabilities_json: z.string().optional(),
 });
 
 type EquipFormData = z.infer<typeof equipSchema>;
@@ -38,12 +37,13 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
   const createMut = useCreateEquipment();
   const updateMut = useUpdateEquipment();
   const { data: stateModels } = useStateModels();
+  const { data: classesResp } = useEquipmentClasses();
+  const equipmentClasses = classesResp?.data ?? [];
 
   const {
     register,
     handleSubmit,
     reset,
-    setError,
     formState: { errors, isSubmitting },
   } = useForm<EquipFormData>({
     resolver: zodResolver(equipSchema),
@@ -51,9 +51,8 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
       name: "",
       code: "",
       description: "",
-      equipment_type: "",
+      equipment_class_id: "",
       state_model_id: "",
-      capabilities_json: "",
     },
   });
 
@@ -63,32 +62,18 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
         name: equipment.name,
         code: equipment.code,
         description: equipment.description ?? "",
-        equipment_type: equipment.equipment_type ?? "",
+        equipment_class_id: equipment.equipment_class_id ?? "",
         state_model_id: equipment.state_model_id ?? "",
-        capabilities_json: equipment.capabilities
-          ? JSON.stringify(equipment.capabilities, null, 2)
-          : "",
       });
     }
   }, [equipment, reset]);
 
   const onSubmit = async (data: EquipFormData) => {
-    let capabilities: Record<string, unknown> | null = null;
-    if (data.capabilities_json?.trim()) {
-      try {
-        capabilities = JSON.parse(data.capabilities_json);
-      } catch {
-        setError("capabilities_json", { message: "Invalid JSON" });
-        return;
-      }
-    }
-
     const payload = {
       name: data.name,
       code: data.code,
       description: data.description,
-      equipment_type: data.equipment_type || null,
-      capabilities,
+      equipment_class_id: data.equipment_class_id || null,
       state_model_id: data.state_model_id || null,
     };
 
@@ -160,13 +145,22 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Equipment Type <span className="text-gray-400">(optional)</span>
+                  Equipment Class <span className="text-gray-400">(optional)</span>
                 </label>
-                <input
-                  {...register("equipment_type")}
+                <select
+                  {...register("equipment_class_id")}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  placeholder="CNC, conveyor, sensor…"
-                />
+                >
+                  <option value="">None</option>
+                  {equipmentClasses.map((ec) => (
+                    <option key={ec.id} value={ec.id}>
+                      {ec.name} ({ec.code})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  ISA-95 equipment classification (e.g. Filler, Oven).
+                </p>
               </div>
 
               <div>
@@ -199,23 +193,6 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
                 rows={2}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Capabilities JSON <span className="text-gray-400">(optional)</span>
-              </label>
-              <textarea
-                {...register("capabilities_json")}
-                rows={3}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                placeholder='{"max_speed": 1000, "axes": 5}'
-              />
-              {errors.capabilities_json && (
-                <p className="mt-1 text-xs text-red-600">
-                  {errors.capabilities_json.message}
-                </p>
-              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

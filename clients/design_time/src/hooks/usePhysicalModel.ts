@@ -31,8 +31,13 @@ import {
   createEquipmentMaterial,
   updateEquipmentMaterial,
   deleteEquipmentMaterial,
+  fetchEquipmentClasses,
+  fetchEquipmentClassDetail,
+  fetchEquipmentCapabilities,
+  createEquipmentCapability,
+  deleteEquipmentCapability,
 } from "../api/physicalModel";
-import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCellCreate, WorkCellUpdate, EquipmentCreate, EquipmentUpdate, EquipmentMaterialCreate, EquipmentMaterialUpdate } from "../types";
+import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCellCreate, WorkCellUpdate, EquipmentCreate, EquipmentUpdate, EquipmentMaterialCreate, EquipmentMaterialUpdate, EquipmentCapabilityCreate } from "../types";
 
 const KEYS = {
   sites: ["sites"] as const,
@@ -48,6 +53,9 @@ const KEYS = {
   equipment: (wcId: string) => ["equipment", wcId] as const,
   allEquipment: ["equipment", "all"] as const,
   equipmentMaterials: (equipId: string) => ["equipmentMaterials", equipId] as const,
+  equipmentClasses: ["equipmentClasses"] as const,
+  equipmentClassDetail: (id: string) => ["equipmentClasses", id] as const,
+  equipmentCapabilities: (equipId: string) => ["equipmentCapabilities", equipId] as const,
 };
 
 // ─── Sites ────────────────────────────────────────────────────────────
@@ -276,5 +284,51 @@ export function useDeleteEquipmentMaterial() {
   return useMutation({
     mutationFn: (id: string) => deleteEquipmentMaterial(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["equipmentMaterials"] }),
+  });
+}
+
+
+// ─── Equipment Classes (ISA-95 Part 2) ─────────────────────────────
+
+export function useEquipmentClasses() {
+  return useQuery({
+    queryKey: KEYS.equipmentClasses,
+    queryFn: fetchEquipmentClasses,
+  });
+}
+
+export function useEquipmentClassDetail(classId: string) {
+  return useQuery({
+    queryKey: KEYS.equipmentClassDetail(classId),
+    queryFn: () => fetchEquipmentClassDetail(classId),
+    enabled: !!classId,
+  });
+}
+
+
+// ─── Equipment Capabilities (ISA-95 Part 2) ────────────────────────
+
+export function useEquipmentCapabilities(equipId: string) {
+  return useQuery({
+    queryKey: KEYS.equipmentCapabilities(equipId),
+    queryFn: () => fetchEquipmentCapabilities(equipId),
+    enabled: !!equipId,
+  });
+}
+
+export function useCreateEquipmentCapability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ equipId, ...body }: EquipmentCapabilityCreate & { equipId: string }) =>
+      createEquipmentCapability(equipId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipmentCapabilities"] }),
+  });
+}
+
+export function useDeleteEquipmentCapability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (capId: string) => deleteEquipmentCapability(capId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipmentCapabilities"] }),
   });
 }

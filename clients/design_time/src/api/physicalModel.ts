@@ -22,6 +22,10 @@ import type {
   EquipmentMaterial,
   EquipmentMaterialCreate,
   EquipmentMaterialUpdate,
+  EquipmentClass,
+  EquipmentClassDetail,
+  EquipmentCapabilityCreate,
+  EquipmentCapabilityRead,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -253,4 +257,50 @@ export async function updateEquipmentMaterial(
 
 export async function deleteEquipmentMaterial(emId: string): Promise<void> {
   await api.delete(`/equipment-materials/${emId}`);
+}
+
+
+// ─── Equipment Classes (ISA-95 Part 2) ─────────────────────────────
+
+export async function fetchEquipmentClasses(): Promise<ApiListResponse<EquipmentClass>> {
+  const { data } = await api.get<ApiListResponse<EquipmentClass>>(
+    "/equipment-classes",
+    { params: { limit: "200" } },
+  );
+  return data;
+}
+
+export async function fetchEquipmentClassDetail(classId: string): Promise<EquipmentClassDetail> {
+  const { data } = await api.get<ApiResponse<EquipmentClassDetail>>(
+    `/equipment-classes/${classId}`,
+  );
+  return data.data;
+}
+
+
+// ─── Equipment Capabilities (ISA-95 Part 2) ────────────────────────
+
+export async function fetchEquipmentCapabilities(
+  equipId: string,
+): Promise<ApiListResponse<EquipmentCapabilityRead>> {
+  const { data } = await api.get<ApiListResponse<EquipmentCapabilityRead>>(
+    `/equipment/${equipId}/capabilities`,
+    { params: { limit: "200" } },
+  );
+  return data;
+}
+
+export async function createEquipmentCapability(
+  equipId: string,
+  body: EquipmentCapabilityCreate,
+): Promise<EquipmentCapabilityRead> {
+  const { data } = await api.post<ApiResponse<EquipmentCapabilityRead>>(
+    `/equipment/${equipId}/capabilities`,
+    body,
+  );
+  return data.data;
+}
+
+export async function deleteEquipmentCapability(capId: string): Promise<void> {
+  await api.delete(`/equipment-capabilities/${capId}`);
 }

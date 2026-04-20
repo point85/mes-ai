@@ -118,6 +118,7 @@ export interface Equipment {
   work_cell_id: string;
   equipment_type: string | null;
   capabilities: Record<string, unknown> | null;
+  equipment_class_id: string | null;
   state_model_id: string | null;
   is_active: boolean;
   created_at: string;
@@ -130,6 +131,7 @@ export interface EquipmentCreate {
   description?: string | null;
   equipment_type?: string | null;
   capabilities?: Record<string, unknown> | null;
+  equipment_class_id?: string | null;
   state_model_id?: string | null;
 }
 
@@ -139,6 +141,7 @@ export interface EquipmentUpdate {
   description?: string | null;
   equipment_type?: string | null;
   capabilities?: Record<string, unknown> | null;
+  equipment_class_id?: string | null;
   state_model_id?: string | null;
 }
 
@@ -170,4 +173,75 @@ export interface EquipmentMaterialUpdate {
   design_speed_uom?: string;
   reject_uom?: string;
   target_oee?: number;
+}
+
+// ─── Equipment Class (ISA-95 Part 2) ─────────────────────────────────
+
+export interface EquipmentClass {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EquipmentClassDetail extends EquipmentClass {
+  properties: EquipmentClassProperty[];
+  member_count: number;
+}
+
+export interface EquipmentClassProperty {
+  id: string;
+  equipment_class_id: string;
+  name: string;
+  description: string | null;
+  data_type: string;
+  uom_id: string | null;
+  default_value: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Equipment Capability (ISA-95 Part 2) ────────────────────────────
+
+export interface EquipmentCapabilityPropertyCreate {
+  class_property_id: string;
+  value: string;
+}
+
+export interface EquipmentCapabilityPropertyRead {
+  id: string;
+  capability_id: string;
+  class_property_id: string;
+  property_name: string | null;
+  value: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EquipmentCapabilityCreate {
+  equipment_class_id?: string | null;
+  capability_type?: string;
+  reason?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  properties?: EquipmentCapabilityPropertyCreate[];
+}
+
+export interface EquipmentCapabilityRead {
+  id: string;
+  equipment_id: string;
+  equipment_class_id: string | null;
+  capability_type: string;
+  reason: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  properties: EquipmentCapabilityPropertyRead[];
 }

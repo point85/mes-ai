@@ -5,13 +5,14 @@
 
 import { useState, useMemo } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { PlusIcon, PencilSquareIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PencilSquareIcon, Cog6ToothIcon, BoltIcon } from "@heroicons/react/24/outline";
 import {
   useWorkCell,
   useLine,
   useArea,
   useSite,
   useEquipment,
+  useEquipmentClasses,
 } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
 import type { Equipment } from "../../types";
@@ -42,6 +43,15 @@ export default function EquipmentListPage() {
   const { data: area } = useArea(line?.area_id ?? locState.areaId ?? "");
   const { data: site } = useSite(area?.site_id ?? locState.siteId ?? "");
   const { data, isLoading, error } = useEquipment(wcId!);
+  const { data: classesResp } = useEquipmentClasses();
+
+  const classMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of classesResp?.data ?? []) {
+      map.set(c.id, `${c.name} (${c.code})`);
+    }
+    return map;
+  }, [classesResp]);
 
   const siteName = site?.name ?? locState.siteName ?? "…";
   const siteId = site?.id ?? area?.site_id ?? locState.siteId ?? "";
@@ -120,7 +130,7 @@ export default function EquipmentListPage() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Code</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Class</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">State Model</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">Active</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
@@ -131,7 +141,9 @@ export default function EquipmentListPage() {
                 <tr key={eq.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-2.5 text-sm font-mono font-medium text-gray-900">{eq.code}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-700">{eq.name}</td>
-                  <td className="px-4 py-2.5 text-sm text-gray-500">{eq.equipment_type ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-500">
+                    {eq.equipment_class_id ? classMap.get(eq.equipment_class_id) ?? "—" : "—"}
+                  </td>
                   <td className="px-4 py-2.5 text-sm text-gray-500">
                     {eq.state_model_id ?? <span className="text-gray-400 italic">none</span>}
                   </td>
@@ -144,6 +156,13 @@ export default function EquipmentListPage() {
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => navigate(`/equipment/${eq.id}/capabilities`)}
+                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                        title="Capabilities"
+                      >
+                        <BoltIcon className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => navigate(`/equipment/${eq.id}/materials`)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"

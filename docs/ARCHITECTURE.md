@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), 1844 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), 1845 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -395,6 +395,12 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 │                                                               │
 │  Site ──1:N──▶ Area ──1:N──▶ ProductionLine ──1:N──▶        │
 │  WorkCell ──1:N──▶ Equipment                                 │
+│                       │                                       │
+│                       ├──N:1──▶ EquipmentClass               │
+│                       │            └──1:N──▶ EquipmentClassProperty │
+│                       │                                       │
+│                       └──1:N──▶ EquipmentCapability          │
+│                                    └──1:N──▶ EquipmentCapabilityProperty │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
 
@@ -464,8 +470,12 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **Area** | `id`, `name`, `code`, `description`, `site_id` | → Site, → ProductionLines |
 | **ProductionLine** | `id`, `name`, `code`, `description`, `area_id` | → Area, → WorkCells |
 | **WorkCell** | `id`, `name`, `code`, `description`, `line_id` | → ProductionLine, → Equipment |
-| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type`, `capabilities` (JSON), `state_model_id` (nullable, refs EquipmentStateModel.model_id — null = 100% available), `max_queue_depth` (nullable int — max WIP items allowed in queue, null = unlimited) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials |
+| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type` (legacy), `capabilities` (JSON, legacy), `equipment_class_id` (nullable FK → EquipmentClass), `state_model_id` (nullable, refs EquipmentStateModel.model_id — null = 100% available), `max_queue_depth` (nullable int — max WIP items allowed in queue, null = unlimited) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials, → EquipmentClass, → EquipmentCapabilities |
 | **EquipmentMaterial** | `id`, `equipment_id`, `material_id`, `design_speed`, `design_speed_uom` (FK → UoM rate symbol), `reject_uom` (FK → UoM symbol), `target_oee` (0–100%) | → Equipment, → MaterialDefinition, → UnitOfMeasure (×2) |
+| **EquipmentClass** | `id`, `name`, `code` (unique), `description` | → EquipmentClassProperties, → Equipment members |
+| **EquipmentClassProperty** | `id`, `equipment_class_id`, `name`, `description`, `data_type` (string/float/int/boolean), `uom_id` (nullable FK → UoM symbol), `default_value` | → EquipmentClass, → UnitOfMeasure. Unique on (equipment_class_id, name) |
+| **EquipmentCapability** | `id`, `equipment_id`, `equipment_class_id` (nullable), `capability_type` (committed/available/unattainable), `reason`, `start_time`, `end_time` | → Equipment, → EquipmentClass, → EquipmentCapabilityProperties |
+| **EquipmentCapabilityProperty** | `id`, `capability_id`, `class_property_id`, `value` (string) | → EquipmentCapability, → EquipmentClassProperty. Unique on (capability_id, class_property_id) |
 
 #### Product Definition (PROD-DEF)
 
@@ -2370,6 +2380,107 @@ Rework loops can produce **multiple history records** for the same step on the s
 visit creates a new record. This provides full traceability of how many times a unit visited a
 step and what the result was each time.
 
+### 5.10 Equipment Capability Model (ISA-95 Part 2)
+
+ISA-95 Part 2 defines a formal equipment capability model that classifies equipment by
+*what they can do* (not where they sit in the hierarchy) and declares what each instance
+can actually perform at any point in time.
+
+#### 5.10.1 Motivation
+
+The original Equipment model carried two free-form fields — `equipment_type` (string) and
+`capabilities` (JSON blob). These are sufficient for simple setups but have drawbacks:
+
+- **No type safety** — JSON blobs have no schema enforcement
+- **No cross-equipment queries** — "find all fillers with max_fill_rate > 500" requires parsing JSON
+- **No standardised vocabulary** — each equipment stores capabilities in ad-hoc formats
+- **ISA-95 non-compliance** — the standard defines a formal class/property/capability hierarchy
+
+The formal model addresses all of these while keeping the legacy fields for backward compatibility.
+
+#### 5.10.2 Conceptual Model
+
+```
+EquipmentClass                    Equipment
+ ├── code (unique)                 ├── equipment_class_id ──▶ EquipmentClass
+ ├── name                         │
+ └── EquipmentClassProperty[]     └── EquipmentCapability[]
+      ├── name                         ├── capability_type (committed / available / unattainable)
+      ├── data_type                    ├── equipment_class_id (optional)
+      ├── uom_id ──▶ UoM              ├── start_time / end_time
+      └── default_value                └── EquipmentCapabilityProperty[]
+                                            ├── class_property_id ──▶ EquipmentClassProperty
+                                            └── value
+```
+
+**EquipmentClass** groups equipment by function (e.g. "Filler", "Oven", "Pick-and-Place").
+Each class defines **EquipmentClassProperty** entries that describe the typed properties
+any member of that class should declare (e.g. `max_fill_rate` as float in `bottles/min`).
+
+**EquipmentCapability** is a per-equipment declaration of what the equipment can do, using
+ISA-95's three capability types:
+
+| Capability Type | Meaning |
+|---|---|
+| `committed` | Equipment is allocated to a specific production order/segment |
+| `available` | Equipment is operational and can accept work |
+| `unattainable` | Equipment cannot perform this operation right now |
+
+Capabilities are optionally time-bounded (`start_time` / `end_time`) and carry a `reason`.
+
+**EquipmentCapabilityProperty** holds the actual value of a class-defined property for a
+specific capability instance (e.g. `max_fill_rate = 600` for equipment FL-400A).
+
+#### 5.10.3 Relationship to Existing Models
+
+| Existing Model | Relationship |
+|---|---|
+| `Equipment.equipment_type` (string) | Legacy — superseded by `equipment_class_id` FK |
+| `Equipment.capabilities` (JSON) | Legacy — superseded by `EquipmentCapability` + `EquipmentCapabilityProperty` |
+| `EquipmentMaterial` | Complementary — material-level capability ("this equipment can run this material"). The formal model adds class-level capability and typed property values |
+| `EquipmentStateLog` | Complementary — tracks *runtime state* (up/down/idle). Capability model tracks *what the equipment can do* |
+| Dispatch Capability Gate (§10.3.2) | Currently uses `EquipmentMaterial`. Future enhancement: incorporate formal capability checks |
+
+#### 5.10.4 Demo Data
+
+Both demo scenarios seed equipment classes and auto-assign equipment to their class:
+
+**CPG (Consumer Packaged Goods):**
+
+| Class Code | Properties |
+|---|---|
+| MIXER | max_batch_size_kg |
+| PASTEURIZER | max_temp_c, throughput_lph |
+| ANALYZER | — |
+| FILLER | max_fill_rate, min_fill_vol_ml |
+| LABELER | max_speed_lpm |
+| TANK | capacity_liters |
+
+**Electronics (SMT Line):**
+
+| Class Code | Properties |
+|---|---|
+| PRINTER | max_board_width_mm |
+| PLACEMENT | placement_rate_cph, head_count |
+| OVEN | max_temp_c |
+| INSPECTION | — |
+| WAVE_SOLDER | max_board_width_mm |
+| TESTER | — |
+| MANUAL | — |
+
+#### 5.10.5 Key Files
+
+| File | Purpose |
+|---|---|
+| `server/src/mes/core/physical_model/models.py` | `EquipmentClass`, `EquipmentClassProperty`, `EquipmentCapability`, `EquipmentCapabilityProperty` SQLAlchemy models |
+| `server/src/mes/core/physical_model/schemas.py` | Pydantic create/read/update/detail schemas for all 4 entities |
+| `server/src/mes/core/physical_model/service.py` | CRUD service methods for classes, properties, and capabilities |
+| `server/src/mes/core/physical_model/routes.py` | REST endpoint handlers (see §6.3 Physical Model) |
+| `server/alembic/versions/20260419_1400_a1b2c3d4e5f8_...` | Migration: creates 4 tables + `equipment.equipment_class_id` FK |
+| `server/src/mes/core/demo/cpg_data.py` | CPG equipment class definitions and assignments |
+| `server/src/mes/core/demo/electronics_data.py` | Electronics equipment class definitions and assignments |
+| `server/src/mes/core/demo/service.py` | Idempotent seeding of classes, properties, and class assignments |
+
 ## 6. REST API
 
 ### 6.1 Design Principles
@@ -2450,6 +2561,19 @@ step and what the result was each time.
 | `GET` | `/api/v1/equipment-materials/{em_id}` | Get equipment-material setup by ID |
 | `PUT` | `/api/v1/equipment-materials/{em_id}` | Update equipment-material setup |
 | `DELETE` | `/api/v1/equipment-materials/{em_id}` | Soft-delete equipment-material setup |
+| `GET` | `/api/v1/equipment-classes` | List all equipment classes |
+| `POST` | `/api/v1/equipment-classes` | Create an equipment class |
+| `GET` | `/api/v1/equipment-classes/{class_id}` | Get class detail (properties + member count) |
+| `PATCH` | `/api/v1/equipment-classes/{class_id}` | Update an equipment class |
+| `DELETE` | `/api/v1/equipment-classes/{class_id}` | Soft-delete an equipment class |
+| `GET` | `/api/v1/equipment-classes/{class_id}/properties` | List class properties |
+| `POST` | `/api/v1/equipment-classes/{class_id}/properties` | Create class property |
+| `PATCH` | `/api/v1/equipment-class-properties/{prop_id}` | Update a class property |
+| `DELETE` | `/api/v1/equipment-class-properties/{prop_id}` | Soft-delete a class property |
+| `GET` | `/api/v1/equipment/{equip_id}/capabilities` | List capabilities for equipment |
+| `POST` | `/api/v1/equipment/{equip_id}/capabilities` | Create capability with property values |
+| `PATCH` | `/api/v1/equipment-capabilities/{cap_id}` | Update a capability |
+| `DELETE` | `/api/v1/equipment-capabilities/{cap_id}` | Soft-delete a capability |
 
 #### Product Definition (PROD-DEF)
 
