@@ -9,7 +9,6 @@ erDiagram
 
     EquipmentClass ||--o{ Equipment : "classifies"
 
-    ProductDefinition ||--o{ ProcessRoute : "legacy 1:1"
     ProductDefinition ||--o{ RouteProductAssignment : "many-to-many"
     ProcessRoute      ||--o{ RouteProductAssignment : "many-to-many"
 
