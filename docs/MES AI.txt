@@ -235,3 +235,7 @@ Material — a raw material, component, or consumable that is consumed during ma
 Product — the finished good being manufactured (e.g. "Shampoo Bottle 500ml", "PCB Assembly X200"). A product owns a BOM (bill of materials listing which materials are consumed and in what quantities) and one or more process routes (the sequence of steps to produce it). Production orders reference a product.
 
 In short: products are what you make; materials are what you use to make them. The BOM links the two — it says "to build Product X, consume these Materials in these quantities at these route steps."
+
+to regeneate ER diagram
+cd c:\dev\mes_ai\docs\diagrams
+npx --yes -p @mermaid-js/mermaid-cli mmdc -i routing_physical_er.mmd -o routing_physical_er.pdf -f --pdfFit

@@ -1,0 +1,30 @@
+---
+title: MES Routing & ISA-95 Physical Model ER Diagram
+---
+erDiagram
+    Site ||--o{ Area : "contains"
+    Area ||--o{ ProductionLine : "contains"
+    ProductionLine ||--o{ WorkCell : "contains"
+    WorkCell ||--o{ Equipment : "contains"
+
+    EquipmentClass ||--o{ Equipment : "classifies"
+
+    ProductDefinition ||--o{ ProcessRoute : "legacy 1:1"
+    ProductDefinition ||--o{ RouteProductAssignment : "many-to-many"
+    ProcessRoute      ||--o{ RouteProductAssignment : "many-to-many"
+
+    ProcessRoute ||--o{ RouteStep : "ordered steps"
+    ProcessRoute ||--o{ RouteMaterialAssignment : "allowed materials"
+
+    RouteStep }o--|| WorkCell       : "legacy location"
+    RouteStep }o--|| EquipmentClass : "process segment (required class)"
+    RouteStep }o--|| Disposition    : "routed-to via"
+
+    RouteStep ||--o{ StepEquipmentRequirement : "process segment equipment"
+    StepEquipmentRequirement }o--|| Equipment : "specific unit"
+
+    RouteStep ||--o{ StepMaterialRequirement : "process segment materials"
+    RouteStep ||--o{ StepParameter           : "data collection spec"
+
+    RouteStep ||--o{ StepTransition : "outgoing"
+    RouteStep ||--o{ StepTransition : "incoming"
