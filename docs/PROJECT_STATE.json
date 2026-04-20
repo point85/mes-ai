@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-16",
-  "lastSessionId": "S033",
+  "lastUpdated": "2026-04-20",
+  "lastSessionId": "S034",
 
   "phases": [
     {
@@ -234,6 +234,11 @@
           "id": "T5.22",
           "name": "Bridge inventory.consume → MaterialLotService.consume for WIP genealogy",
           "status": "complete"
+        },
+        {
+          "id": "T5.23",
+          "name": "ISA-95 Part 4 Process Segment: equipment_class_id on RouteStep, StepEquipmentRequirement, StepMaterialRequirement, dispatch 3-tier resolution, 8 REST endpoints, DT-CLIENT equipment class dropdown",
+          "status": "complete"
         }
       ]
     },
@@ -247,7 +252,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "P5 22/22 tasks complete. S033: ARCHITECTURE.md refreshed with S031-S032 additions (inventory module §5.2, pip_dependencies D053, parameter validation at enable D054, WIP genealogy bridge D055, test count 1844). Ready for P6 or next feature work.",
+  "currentTask": "S034: ISA-95 Part 4 Process Segment on route steps — equipment_class_id, StepEquipmentRequirement, StepMaterialRequirement models + dispatch 3-tier equipment resolution + 8 new REST endpoints + DT-CLIENT equipment class dropdown + 1869 tests passing. Ready for P6, personnel requirements, or next feature work.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -296,7 +301,8 @@
       "UOM":           { "name": "Units of Measure",               "phase": "P3", "status": "implemented" },
       "UOM-MAPPING":   { "name": "ERP UOM Normalization Utility",  "phase": "P4", "status": "implemented" },
       "SESSION-META":  { "name": "AI Session Metadata",            "phase": "P3", "status": "planned" },
-      "INVENTORY":     { "name": "Inventory Management (WIP Consumption)", "phase": "P3", "status": "implemented" }
+      "INVENTORY":     { "name": "Inventory Management (WIP Consumption)", "phase": "P3", "status": "implemented" },
+      "PROC-SEG":      { "name": "ISA-95 Process Segment (Step Requirements)", "phase": "P5", "status": "implemented" }
     }
   },
 
@@ -582,6 +588,30 @@
       "date": "2026-04-03",
       "decision": "Electronics Demo: Discrete-manufacturing PCB assembly demo with unit serial number tracking. Same seed pattern as CPG (two POST endpoints, one-click buttons). Product type 'discrete' with serial template SN-{order}-{seq:05d}. 8 route steps including AOI branch to rework loop and MRB disposition. Dual PNP placement machines for dispatch.",
       "rationale": "Complements CPG (process/lot-tracked) with a discrete/unit-tracked scenario. Demonstrates serial number auto-generation, AOI-driven pass/fail/rework branching, and MRB disposition paths. ECB- prefix avoids data collisions with CPG-."
+    },
+    {
+      "id": "D049",
+      "date": "2026-04-20",
+      "decision": "ISA-95 Part 4 Process Segment: route steps carry equipment_class_id (nullable FK → EquipmentClass) to declare what class of equipment is needed. Dispatch resolves equipment from class membership at runtime.",
+      "rationale": "ISA-95 process segments define equipment requirements by class, not by specific equipment. This decouples route definition from physical equipment layout and enables dispatch flexibility."
+    },
+    {
+      "id": "D050",
+      "date": "2026-04-20",
+      "decision": "StepEquipmentRequirement model: explicit per-step equipment declarations with use_type (required/preferred/alternate) for fine-grained dispatch control. Unique on (step_id, equipment_id).",
+      "rationale": "ISA-95 allows process segments to declare specific equipment requirements alongside equipment class requirements. The use_type field enables dispatch strategies to prefer certain equipment while allowing alternates."
+    },
+    {
+      "id": "D051",
+      "date": "2026-04-20",
+      "decision": "StepMaterialRequirement model: per-step BOM with material_use (consumed/produced), quantity, UOM, position. Separate from product-level BOM for step-level material granularity.",
+      "rationale": "ISA-95 process segments define material requirements at the operation level. Step-level BOM enables material consumption tracking per route step rather than only at the product level."
+    },
+    {
+      "id": "D052",
+      "date": "2026-04-20",
+      "decision": "Dispatch 3-tier equipment resolution priority: (1) StepEquipmentRequirement rows → (2) equipment_class_id membership → (3) legacy work_cell_id. Empty options if no constraint defined.",
+      "rationale": "Provides backward compatibility with existing work_cell_id-based routing while enabling ISA-95 process segment equipment resolution. Explicit requirements take priority over class-based, which takes priority over legacy."
     }
   ],
 

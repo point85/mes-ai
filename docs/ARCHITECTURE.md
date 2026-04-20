@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), 1845 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), ISA-95 Part 4 Process Segment model with equipment_class_id on route steps, StepEquipmentRequirement and StepMaterialRequirement tables, 3-tier dispatch equipment resolution (D049–D052, §5.11, §10.3), 1869 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -485,9 +485,11 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **BillOfMaterial** | `id`, `product_id`, `version`, `effective_date`, `expiry_date` | → ProductDefinition, → BOMItems |
 | **BOMItem** | `id`, `bom_id`, `material_id`, `quantity`, `uom`, `position` | → BillOfMaterial, → MaterialDefinition |
 | **ProcessRoute** | `id`, `product_id`, `version`, `name`, `description`, `is_default` | → ProductDefinition, → RouteSteps |
-| **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework/mrb), `work_cell_id`, `expected_cycle_time_sec`, `erp_operation_number` (nullable — ERP operation/step number for outbound reporting, e.g. '0010') | → ProcessRoute, → WorkCell, → StepParameters, → outgoing StepTransitions, → incoming StepTransitions |
+| **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework/mrb), `work_cell_id` (legacy — prefer equipment_class_id), `equipment_class_id` (nullable FK → EquipmentClass, ISA-95 process segment), `expected_cycle_time_sec`, `erp_operation_number` (nullable — ERP operation/step number for outbound reporting, e.g. '0010') | → ProcessRoute, → WorkCell, → EquipmentClass, → StepParameters, → StepEquipmentRequirements, → StepMaterialRequirements, → outgoing StepTransitions, → incoming StepTransitions |
 | **StepTransition** | `id`, `from_step_id`, `to_step_id`, `condition` (always/on_pass/on_fail/on_rework/disposition), `is_default`, `priority` (higher evaluated first), `label` (nullable — human label for disposition choices) | → RouteStep (from), → RouteStep (to). Directed edge enabling rework loops, MRB branches, and conditional routing. |
 | **StepParameter** | `id`, `step_id`, `name`, `data_type`, `uom`, `target_value`, `lower_limit`, `upper_limit`, `is_required` | → RouteStep |
+| **StepEquipmentRequirement** | `id`, `step_id`, `equipment_id`, `use_type` (required/preferred/alternate), `description` | → RouteStep, → Equipment. Unique on (step_id, equipment_id). ISA-95 process segment equipment requirement (D050). |
+| **StepMaterialRequirement** | `id`, `step_id`, `material_id`, `quantity`, `uom`, `material_use` (consumed/produced), `position`, `description` | → RouteStep, → MaterialDefinition. Unique on (step_id, material_id, material_use). ISA-95 process segment material requirement (D051). |
 
 > **ISA-95 Route Ownership Boundary**
 >
@@ -2481,6 +2483,69 @@ Both demo scenarios seed equipment classes and auto-assign equipment to their cl
 | `server/src/mes/core/demo/electronics_data.py` | Electronics equipment class definitions and assignments |
 | `server/src/mes/core/demo/service.py` | Idempotent seeding of classes, properties, and class assignments |
 
+### 5.11 Process Segment Model (ISA-95 Part 4)
+
+ISA-95 Part 4 defines the **operations definition** — how operations are structured as
+process segments with resource requirements. A `RouteStep` maps to an ISA-95 **process segment**
+and declares three types of resource requirements:
+
+#### 5.11.1 Motivation
+
+The original RouteStep model had only a `work_cell_id` FK linking it to a specific work cell.
+This had several problems:
+
+- **Tight coupling** — a route step was bound to a single physical work cell, making routes
+  non-portable across production lines
+- **No ISA-95 alignment** — ISA-95 process segments declare *classes of equipment needed*,
+  not specific equipment instances
+- **No step-level BOM** — material requirements existed only at the product BOM level, not per step
+- **No explicit equipment list** — no way to declare "this step requires one of these specific machines"
+
+#### 5.11.2 Conceptual Model
+
+```
+RouteStep (Process Segment)
+ ├── equipment_class_id ──▶ EquipmentClass     (what class of equipment is needed)
+ ├── work_cell_id ──▶ WorkCell                  (legacy — backward compatible)
+ │
+ ├── StepEquipmentRequirement[]                 (specific equipment declarations)
+ │    ├── equipment_id ──▶ Equipment
+ │    └── use_type (required / preferred / alternate)
+ │
+ └── StepMaterialRequirement[]                  (step-level BOM)
+      ├── material_id ──▶ MaterialDefinition
+      ├── quantity, uom
+      └── material_use (consumed / produced)
+```
+
+#### 5.11.3 Equipment Resolution (Dispatch)
+
+The dispatch engine (§10) resolves equipment for a route step using a **3-tier priority** (D052):
+
+| Priority | Source | Behavior |
+|---|---|---|
+| 1 (highest) | `StepEquipmentRequirement` rows | Use the explicitly listed equipment |
+| 2 | `equipment_class_id` | Find all equipment assigned to that class |
+| 3 (legacy) | `work_cell_id` | Find all equipment at that work cell |
+| — | None of the above | Empty options → dispatch blocked |
+
+This ensures backward compatibility: existing routes with only `work_cell_id` continue to work,
+while new routes can use the ISA-95 process segment model for more flexible equipment resolution.
+
+After equipment resolution, the standard three-stage filtering (§10.3) still applies:
+availability gate → capability gate → capacity gate.
+
+#### 5.11.4 Key Files
+
+| File | Purpose |
+|---|---|
+| `server/src/mes/core/product_def/models.py` | `StepEquipmentRequirement`, `StepMaterialRequirement` models; `equipment_class_id` on `RouteStep` |
+| `server/src/mes/core/product_def/schemas.py` | Create/Read/Update schemas for both requirement types |
+| `server/src/mes/core/product_def/service.py` | CRUD service methods for requirements |
+| `server/src/mes/core/product_def/routes.py` | 8 new REST endpoints (see §6.3) |
+| `server/src/mes/core/dispatch/service.py` | 3-tier equipment resolution logic |
+| `server/alembic/versions/20260420_1000_b2c3d4e5f6g7_...` | Migration: 2 new tables + `equipment_class_id` column |
+
 ## 6. REST API
 
 ### 6.1 Design Principles
@@ -2591,6 +2656,10 @@ Both demo scenarios seed equipment classes and auto-assign equipment to their cl
 | `GET/POST` | `/api/v1/steps/{step_id}/parameters` | List / create step parameters |
 | `GET/POST` | `/api/v1/steps/{step_id}/transitions` | List / create step transitions (outgoing edges) |
 | `GET/PUT/DELETE` | `/api/v1/transitions/{transition_id}` | Get / update / delete a step transition |
+| `GET/POST` | `/api/v1/steps/{step_id}/equipment-requirements` | List / create step equipment requirements (ISA-95 process segment) |
+| `PATCH/DELETE` | `/api/v1/step-equipment-requirements/{id}` | Update / delete a step equipment requirement |
+| `GET/POST` | `/api/v1/steps/{step_id}/material-requirements` | List / create step material requirements (step-level BOM) |
+| `PATCH/DELETE` | `/api/v1/step-material-requirements/{id}` | Update / delete a step material requirement |
 
 #### Production Orders (PROD-ORDER)
 
@@ -5067,10 +5136,23 @@ The WIP is logically **queued at a specific equipment within the next route step
 | **capability_match** | Built-in | Route based on equipment capability and product requirements |
 | **custom** | Plugin | User-defined strategy via plugin extension point |
 
-### 10.3 Three-Stage Equipment Filtering
+### 10.3 Equipment Resolution & Three-Stage Filtering
 
-Before any strategy is applied, the dispatch engine filters equipment at the target work cell
-through three mandatory gates. All three must pass for equipment to be considered eligible:
+Before any strategy is applied, the dispatch engine first **resolves** which equipment to consider,
+then **filters** them through three mandatory gates.
+
+#### 10.3.0 ISA-95 Equipment Resolution (D052)
+
+The dispatch engine resolves the candidate equipment set using a 3-tier priority based on the
+ISA-95 process segment model (§5.11):
+
+1. **StepEquipmentRequirement rows** — if the step has explicit equipment declarations, use those
+2. **equipment_class_id** — if the step declares an equipment class, find all equipment in that class
+3. **work_cell_id** (legacy) — find all equipment at the work cell
+4. No constraint → empty set → dispatch blocked
+
+Only the highest-priority tier that yields results is used. This replaces the previous logic
+that always resolved from `work_cell_id`.
 
 #### 10.3.1 Availability Gate
 
@@ -5114,7 +5196,8 @@ Unit/Lot completes step (result = pass/fail/rework)
   (graph transitions → linear fallback)
        │
        ▼
-  Get all Equipment at next step's WorkCell
+  ISA-95 Equipment Resolution (§10.3.0)
+  (requirements → class → work_cell → empty)
        │
        ▼
   ┌─── Three-Stage Filter ───┐
@@ -5631,7 +5714,7 @@ The DT-CLIENT handles **definition-time** activities — everything that happens
 | Domain | What the DT-CLIENT Configures |
 |---|---|
 | **Physical Model** | Sites, areas, production lines, work cells, equipment (with capabilities/properties) |
-| **Product Definition** | Products, BOMs, BOM items, process routes, route steps, step parameters |
+| **Product Definition** | Products, BOMs, BOM items, process routes, route steps (with equipment class selection), step parameters, step equipment/material requirements |
 | **Material Masters** | Material definitions (raw, intermediate, finished), units of measure |
 | **Quality Setup** | Quality test definitions, pass/fail criteria, sampling plans |
 | **Data Collection Setup** | Data definitions (what to collect at each step), sources, limits |

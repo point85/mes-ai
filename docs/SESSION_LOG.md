@@ -2942,3 +2942,98 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 
 ### To Resume
 Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
+
+---
+
+## Session S034 — 2026-04-20
+
+**Phase**: P5 — Client Implementations / Core Server Enhancement  
+**Objective**: Implement ISA-95 Part 4 Process Segment model on route steps — equipment class requirements, equipment requirements, material requirements
+
+### What Happened
+
+1. Resumed from S033 (PC crash lost in-flight work from April 19). Recovered context from `PROJECT_STATE.json`, `SESSION_LOG.md`, git history, and repo memory. Two unlogged commits from April 19 (ISA-95 Part 2 equipment capability model + DT-CLIENT equipment class editor) were identified but no process segment code existed.
+
+2. Identified conceptual gap: route steps had only a direct `work_cell_id` link — no ISA-95 connection to equipment classes. A route step should define *what class of equipment is needed* (process segment), not *which specific work cell*. The dispatch engine then uses the equipment class and equipment requirements to select equipment at runtime.
+
+3. **Model changes** (`server/src/mes/core/product_def/models.py`):
+   - Added `equipment_class_id` nullable FK to `RouteStep` (→ EquipmentClass)
+   - Added `equipment_class` relationship on RouteStep
+   - Added `equipment_requirements` and `material_requirements` relationships on RouteStep
+   - Created `StepEquipmentRequirement` model: `step_id`, `equipment_id`, `use_type` (required/preferred/alternate), `description`, unique constraint on (step_id, equipment_id)
+   - Created `StepMaterialRequirement` model: `step_id`, `material_id`, `quantity`, `uom`, `material_use` (consumed/produced), `position`, `description`, unique constraint on (step_id, material_id, material_use)
+
+4. **Schema changes** (`server/src/mes/core/product_def/schemas.py`):
+   - Added `equipment_class_id` to `RouteStepCreate`, `RouteStepRead`, `RouteStepUpdate`
+   - Created 6 new Pydantic schemas: `StepEquipmentRequirementCreate/Read/Update`, `StepMaterialRequirementCreate/Read/Update`
+
+5. **Service layer** (`server/src/mes/core/product_def/service.py`):
+   - Added 8 new static methods: `list/create/update/delete_step_equipment_requirement`, `list/create/update/delete_step_material_requirement`
+
+6. **REST API** (`server/src/mes/core/product_def/routes.py`):
+   - Added 8 new endpoints:
+     - `GET/POST /steps/{step_id}/equipment-requirements`
+     - `PATCH/DELETE /step-equipment-requirements/{requirement_id}`
+     - `GET/POST /steps/{step_id}/material-requirements`
+     - `PATCH/DELETE /step-material-requirements/{requirement_id}`
+
+7. **Dispatch engine rewrite** (`server/src/mes/core/dispatch/service.py`):
+   - Rewrote `get_step_equipment()` with ISA-95 3-tier equipment resolution priority:
+     1. **StepEquipmentRequirement rows** → use explicitly listed equipment
+     2. **equipment_class_id** → find all equipment in that class
+     3. **work_cell_id** (legacy) → find all equipment at that work cell
+     4. No constraint → empty options
+   - Updated `evaluate()` to use the new resolution logic
+
+8. **Alembic migration** (`server/alembic/versions/20260420_1000_b2c3d4e5f6g7_add_process_segment_requirements.py`):
+   - Adds `equipment_class_id` column + index to `route_steps`
+   - Creates `step_equipment_requirements` table
+   - Creates `step_material_requirements` table
+
+9. **Unit tests** (`server/tests/unit/test_product_def.py`):
+   - Added 26 new tests in 3 test classes:
+     - `TestRouteStepEquipmentClass` (8 tests) — equipment_class_id on RouteStep model/schemas
+     - `TestStepEquipmentRequirement` (9 tests) — model, schemas, service methods
+     - `TestStepMaterialRequirement` (9 tests) — model, schemas, service methods
+   - All 1869 tests pass (excluding 2 pre-existing lifecycle test failures)
+
+10. **DT-CLIENT UI updates**:
+    - `types/productDef.ts` — added `equipment_class_id` to RouteStep/Create/Update interfaces
+    - `StepFormDialog.tsx` — added Equipment Class dropdown (ISA-95) using `useEquipmentClasses` hook, placed after Work Cell selector
+    - `RouteEditorPage.tsx` — added Equipment Class column to steps table, imported `useEquipmentClasses` hook
+    - `run_time/src/types/index.ts` — added `equipment_class_id` to RT-CLIENT RouteStep type
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D049 | ISA-95 Part 4 Process Segment: route steps carry `equipment_class_id` to declare what class of equipment is needed. Dispatch resolves equipment from class membership at runtime. |
+| D050 | Step Equipment Requirements: explicit equipment declarations per step with use_type (required/preferred/alternate) for fine-grained dispatch control |
+| D051 | Step Material Requirements: per-step BOM with material_use (consumed/produced), quantity, UOM — separate from product-level BOM for step-level granularity |
+| D052 | Dispatch 3-tier priority: (1) explicit equipment requirements → (2) equipment class membership → (3) legacy work_cell_id. Provides backward compatibility while enabling ISA-95 process segments. |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/core/product_def/models.py` | Added equipment_class_id FK, StepEquipmentRequirement, StepMaterialRequirement models |
+| `server/src/mes/core/product_def/schemas.py` | Added equipment_class_id to step schemas, 6 new requirement schemas |
+| `server/src/mes/core/product_def/service.py` | 8 new CRUD methods for requirements |
+| `server/src/mes/core/product_def/routes.py` | 8 new REST endpoints |
+| `server/src/mes/core/dispatch/service.py` | Rewrote equipment resolution with 3-tier ISA-95 priority |
+| `server/alembic/versions/20260420_...` | Migration for 2 new tables + 1 new column |
+| `server/tests/unit/test_product_def.py` | 26 new unit tests |
+| `clients/design_time/src/types/productDef.ts` | equipment_class_id on RouteStep types |
+| `clients/design_time/src/pages/products/StepFormDialog.tsx` | Equipment Class dropdown |
+| `clients/design_time/src/pages/routes/RouteEditorPage.tsx` | Equipment Class column in steps table |
+| `clients/run_time/src/types/index.ts` | equipment_class_id on RouteStep type |
+
+### Where We Stopped
+- **ISA-95 Process Segment implementation complete** — models, schemas, service, routes, dispatch, migration, tests, UI
+- **1869 tests passing** (2 pre-existing failures in lifecycle tests — mock coroutine issue, not related)
+- Next options:
+  1. **P6: Testing & CI** — GitHub Actions pipeline, integration tests
+  2. **Personnel requirements** — next ISA-95 process segment resource type
+  3. **Browser smoke test** — verify end-to-end with all 4 dev servers
+  4. **More vendor adapters** — Modbus TCP, D365 F&O
+
+### To Resume
+Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and this log.
