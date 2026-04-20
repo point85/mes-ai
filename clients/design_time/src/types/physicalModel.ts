@@ -205,6 +205,34 @@ export interface EquipmentClassProperty {
   updated_at: string;
 }
 
+export interface EquipmentClassCreate {
+  name: string;
+  code: string;
+  description?: string | null;
+}
+
+export interface EquipmentClassUpdate {
+  name?: string;
+  code?: string;
+  description?: string | null;
+}
+
+export interface EquipmentClassPropertyCreate {
+  name: string;
+  description?: string | null;
+  data_type?: string;
+  uom_id?: string | null;
+  default_value?: string | null;
+}
+
+export interface EquipmentClassPropertyUpdate {
+  name?: string;
+  description?: string | null;
+  data_type?: string;
+  uom_id?: string | null;
+  default_value?: string | null;
+}
+
 // ─── Equipment Capability (ISA-95 Part 2) ────────────────────────────
 
 export interface EquipmentCapabilityPropertyCreate {

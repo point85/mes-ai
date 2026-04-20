@@ -25,6 +25,7 @@ import {
   Square3Stack3DIcon,
   ClipboardDocumentIcon,
   TagIcon,
+  WrenchScrewdriverIcon,
   QuestionMarkCircleIcon,
 } from "@heroicons/react/24/outline";
 import HelpDialog, { type HelpTopic } from "../HelpDialog";
@@ -53,6 +54,7 @@ const sections: NavSection[] = [
     title: "Plant Model",
     items: [
       { label: "Sites", to: "/sites", icon: BuildingOffice2Icon },
+      { label: "Equipment Classes", to: "/equipment-classes", icon: WrenchScrewdriverIcon },
     ],
   },
   {

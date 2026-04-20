@@ -33,11 +33,18 @@ import {
   deleteEquipmentMaterial,
   fetchEquipmentClasses,
   fetchEquipmentClassDetail,
+  createEquipmentClass,
+  updateEquipmentClass,
+  deleteEquipmentClass,
+  fetchClassProperties,
+  createClassProperty,
+  updateClassProperty,
+  deleteClassProperty,
   fetchEquipmentCapabilities,
   createEquipmentCapability,
   deleteEquipmentCapability,
 } from "../api/physicalModel";
-import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCellCreate, WorkCellUpdate, EquipmentCreate, EquipmentUpdate, EquipmentMaterialCreate, EquipmentMaterialUpdate, EquipmentCapabilityCreate } from "../types";
+import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCellCreate, WorkCellUpdate, EquipmentCreate, EquipmentUpdate, EquipmentMaterialCreate, EquipmentMaterialUpdate, EquipmentCapabilityCreate, EquipmentClassCreate, EquipmentClassUpdate, EquipmentClassPropertyCreate, EquipmentClassPropertyUpdate } from "../types";
 
 const KEYS = {
   sites: ["sites"] as const,
@@ -55,6 +62,7 @@ const KEYS = {
   equipmentMaterials: (equipId: string) => ["equipmentMaterials", equipId] as const,
   equipmentClasses: ["equipmentClasses"] as const,
   equipmentClassDetail: (id: string) => ["equipmentClasses", id] as const,
+  classProperties: (classId: string) => ["classProperties", classId] as const,
   equipmentCapabilities: (equipId: string) => ["equipmentCapabilities", equipId] as const,
 };
 
@@ -302,6 +310,65 @@ export function useEquipmentClassDetail(classId: string) {
     queryKey: KEYS.equipmentClassDetail(classId),
     queryFn: () => fetchEquipmentClassDetail(classId),
     enabled: !!classId,
+  });
+}
+
+export function useCreateEquipmentClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: EquipmentClassCreate) => createEquipmentClass(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.equipmentClasses }),
+  });
+}
+
+export function useUpdateEquipmentClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: EquipmentClassUpdate & { id: string }) =>
+      updateEquipmentClass(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.equipmentClasses }),
+  });
+}
+
+export function useDeleteEquipmentClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteEquipmentClass(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.equipmentClasses }),
+  });
+}
+
+export function useClassProperties(classId: string) {
+  return useQuery({
+    queryKey: KEYS.classProperties(classId),
+    queryFn: () => fetchClassProperties(classId),
+    enabled: !!classId,
+  });
+}
+
+export function useCreateClassProperty() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ classId, ...body }: EquipmentClassPropertyCreate & { classId: string }) =>
+      createClassProperty(classId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["classProperties"] }),
+  });
+}
+
+export function useUpdateClassProperty() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: EquipmentClassPropertyUpdate & { id: string }) =>
+      updateClassProperty(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["classProperties"] }),
+  });
+}
+
+export function useDeleteClassProperty() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteClassProperty(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["classProperties"] }),
   });
 }
 

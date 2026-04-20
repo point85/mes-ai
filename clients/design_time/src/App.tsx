@@ -12,6 +12,7 @@ import { AreaListPage } from "./pages/areas";
 import { LineListPage } from "./pages/lines";
 import { WorkCellListPage } from "./pages/work-cells";
 import { EquipmentListPage, EquipmentMaterialPage, EquipmentCapabilityPage } from "./pages/equipment";
+import { EquipmentClassListPage, EquipmentClassDetailPage } from "./pages/equipment-classes";
 import { ProductListPage, ProductDetailPage } from "./pages/products";
 import { RouteEditorPage } from "./pages/routes";
 import { MaterialListPage } from "./pages/materials";
@@ -51,6 +52,8 @@ export default function App() {
             <Route path="/work-cells/:wcId/equipment" element={<EquipmentListPage />} />
             <Route path="/equipment/:equipId/materials" element={<EquipmentMaterialPage />} />
             <Route path="/equipment/:equipId/capabilities" element={<EquipmentCapabilityPage />} />
+            <Route path="/equipment-classes" element={<EquipmentClassListPage />} />
+            <Route path="/equipment-classes/:classId" element={<EquipmentClassDetailPage />} />
             {/* Products & Materials */}
             <Route path="/products" element={<ProductListPage />} />
             <Route path="/products/:productId" element={<ProductDetailPage />} />

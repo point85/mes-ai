@@ -23,7 +23,12 @@ import type {
   EquipmentMaterialCreate,
   EquipmentMaterialUpdate,
   EquipmentClass,
+  EquipmentClassCreate,
+  EquipmentClassUpdate,
   EquipmentClassDetail,
+  EquipmentClassProperty,
+  EquipmentClassPropertyCreate,
+  EquipmentClassPropertyUpdate,
   EquipmentCapabilityCreate,
   EquipmentCapabilityRead,
   ApiResponse,
@@ -275,6 +280,47 @@ export async function fetchEquipmentClassDetail(classId: string): Promise<Equipm
     `/equipment-classes/${classId}`,
   );
   return data.data;
+}
+
+export async function createEquipmentClass(body: EquipmentClassCreate): Promise<EquipmentClass> {
+  const { data } = await api.post<ApiResponse<EquipmentClass>>("/equipment-classes", body);
+  return data.data;
+}
+
+export async function updateEquipmentClass(classId: string, body: EquipmentClassUpdate): Promise<EquipmentClass> {
+  const { data } = await api.patch<ApiResponse<EquipmentClass>>(`/equipment-classes/${classId}`, body);
+  return data.data;
+}
+
+export async function deleteEquipmentClass(classId: string): Promise<void> {
+  await api.delete(`/equipment-classes/${classId}`);
+}
+
+export async function fetchClassProperties(classId: string): Promise<EquipmentClassProperty[]> {
+  const { data } = await api.get<ApiResponse<EquipmentClassProperty[]>>(
+    `/equipment-classes/${classId}/properties`,
+  );
+  return data.data;
+}
+
+export async function createClassProperty(classId: string, body: EquipmentClassPropertyCreate): Promise<EquipmentClassProperty> {
+  const { data } = await api.post<ApiResponse<EquipmentClassProperty>>(
+    `/equipment-classes/${classId}/properties`,
+    body,
+  );
+  return data.data;
+}
+
+export async function updateClassProperty(propId: string, body: EquipmentClassPropertyUpdate): Promise<EquipmentClassProperty> {
+  const { data } = await api.patch<ApiResponse<EquipmentClassProperty>>(
+    `/equipment-class-properties/${propId}`,
+    body,
+  );
+  return data.data;
+}
+
+export async function deleteClassProperty(propId: string): Promise<void> {
+  await api.delete(`/equipment-class-properties/${propId}`);
 }
 
 
