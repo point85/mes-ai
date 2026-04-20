@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from mes.framework.db import BaseModel
 from mes.core.uom.models import UnitOfMeasure  # noqa: F401 — needed for relationships
 from mes.core.material.models import MaterialDefinition  # noqa: F401 — needed for RouteMaterialAssignment
+from mes.core.physical_model.models import EquipmentClass, Equipment  # noqa: F401 — needed for RouteStep relationships
 
 
 class Disposition(BaseModel):
@@ -240,7 +241,12 @@ class RouteStep(BaseModel):
     work_cell_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("work_cells.id"),
         nullable=True, index=True,
-        comment="Work cell where this step is performed (nullable for unassigned steps)",
+        comment="Legacy direct work-cell link (prefer equipment_class_id for ISA-95 process segments)",
+    )
+    equipment_class_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("equipment_classes.id"),
+        nullable=True, index=True,
+        comment="ISA-95 process segment: what class of equipment is required at this step",
     )
     expected_cycle_time_sec: Mapped[float | None] = mapped_column(
         Float, nullable=True,
@@ -263,9 +269,19 @@ class RouteStep(BaseModel):
     disposition: Mapped["Disposition | None"] = relationship(
         "Disposition", lazy="joined",
     )
+    equipment_class: Mapped["EquipmentClass | None"] = relationship(
+        "EquipmentClass", lazy="joined",
+    )
     parameters: Mapped[list["StepParameter"]] = relationship(
         "StepParameter", back_populates="step", cascade="all, delete-orphan",
         order_by="StepParameter.name",
+    )
+    equipment_requirements: Mapped[list["StepEquipmentRequirement"]] = relationship(
+        "StepEquipmentRequirement", back_populates="step", cascade="all, delete-orphan",
+    )
+    material_requirements: Mapped[list["StepMaterialRequirement"]] = relationship(
+        "StepMaterialRequirement", back_populates="step", cascade="all, delete-orphan",
+        order_by="StepMaterialRequirement.position",
     )
     outgoing_transitions: Mapped[list["StepTransition"]] = relationship(
         "StepTransition",
@@ -331,6 +347,114 @@ class StepParameter(BaseModel):
 
     def __repr__(self) -> str:
         return f"<StepParameter id={self.id} step_id={self.step_id} name={self.name}>"
+
+
+class StepEquipmentRequirement(BaseModel):
+    """
+    ISA-95 Process Segment — Equipment Requirement.
+
+    Specifies that a particular piece of equipment (by ID) is required or
+    preferred at a route step.  Used by the dispatch engine to narrow the
+    candidate set beyond the equipment class constraint on the step.
+
+    use_type values:
+      - required:  this specific equipment *must* be used
+      - preferred: use if available, otherwise fall back to class members
+      - alternate: acceptable substitute
+    """
+
+    __tablename__ = "step_equipment_requirements"
+    __table_args__ = (
+        UniqueConstraint("step_id", "equipment_id", name="uq_step_equip_req"),
+    )
+
+    step_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("route_steps.id"),
+        nullable=False, index=True,
+    )
+    equipment_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("equipment.id"),
+        nullable=False, index=True,
+        comment="Specific equipment instance required at this step",
+    )
+    use_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="preferred",
+        comment="Use type: required, preferred, alternate",
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    step: Mapped["RouteStep"] = relationship(
+        "RouteStep", back_populates="equipment_requirements",
+    )
+    equipment: Mapped["Equipment"] = relationship("Equipment", lazy="joined")
+
+    def __repr__(self) -> str:
+        return (
+            f"<StepEquipmentRequirement id={self.id} "
+            f"step={self.step_id} equip={self.equipment_id} use={self.use_type}>"
+        )
+
+
+class StepMaterialRequirement(BaseModel):
+    """
+    ISA-95 Process Segment — Material Requirement.
+
+    Specifies a material consumed or produced at a specific route step,
+    with quantity and unit of measure.  This is the step-level BOM —
+    linking *what* material is needed *where* in the process.
+
+    material_use values:
+      - consumed:  raw material or component used up at this step
+      - produced:  intermediate or finished material output at this step
+    """
+
+    __tablename__ = "step_material_requirements"
+    __table_args__ = (
+        UniqueConstraint("step_id", "material_id", name="uq_step_mat_req"),
+    )
+
+    step_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("route_steps.id"),
+        nullable=False, index=True,
+    )
+    material_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("material_definitions.id"),
+        nullable=False, index=True,
+        comment="Material definition consumed or produced at this step",
+    )
+    quantity: Mapped[float] = mapped_column(
+        Float, nullable=False,
+        comment="Quantity per unit/lot of finished product",
+    )
+    uom: Mapped[str] = mapped_column(
+        String(20), ForeignKey("units_of_measure.symbol"),
+        nullable=False, default="EA",
+        comment="Unit of measure for the quantity",
+    )
+    material_use: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="consumed",
+        comment="Material use: consumed, produced",
+    )
+    position: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="Sort order within the step",
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    step: Mapped["RouteStep"] = relationship(
+        "RouteStep", back_populates="material_requirements",
+    )
+    material: Mapped["MaterialDefinition"] = relationship(
+        "MaterialDefinition", lazy="joined",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<StepMaterialRequirement id={self.id} "
+            f"step={self.step_id} mat={self.material_id} qty={self.quantity} use={self.material_use}>"
+        )
 
 
 class StepTransition(BaseModel):

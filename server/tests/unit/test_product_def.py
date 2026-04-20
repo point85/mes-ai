@@ -26,6 +26,8 @@ from mes.core.product_def.models import (
     RouteMaterialAssignment,
     RouteProductAssignment,
     RouteStep,
+    StepEquipmentRequirement,
+    StepMaterialRequirement,
     StepParameter,
     StepTransition,
 )
@@ -53,6 +55,12 @@ from mes.core.product_def.schemas import (
     RouteProductAssignmentRead,
     RouteMaterialAssignmentCreate,
     RouteMaterialAssignmentRead,
+    StepEquipmentRequirementCreate,
+    StepEquipmentRequirementRead,
+    StepEquipmentRequirementUpdate,
+    StepMaterialRequirementCreate,
+    StepMaterialRequirementRead,
+    StepMaterialRequirementUpdate,
 )
 
 
@@ -618,3 +626,383 @@ class TestRouteMaterialAssignment:
         from mes.core.product_def.service import ProductDefService
         assert hasattr(ProductDefService, "delete_standalone_route")
         assert hasattr(ProductDefService, "delete_step")
+
+
+# ─── ISA-95 Process Segment — Route Step Equipment Class ─────────────
+
+
+class TestRouteStepEquipmentClass:
+    """Tests for equipment_class_id on RouteStep."""
+
+    def test_route_step_create_with_equipment_class_id(self):
+        schema = RouteStepCreate(
+            sequence=10,
+            name="Fill",
+            equipment_class_id=str(uuid.uuid4()),
+        )
+        assert schema.equipment_class_id is not None
+
+    def test_route_step_create_without_equipment_class_id(self):
+        schema = RouteStepCreate(sequence=10, name="Mix")
+        assert schema.equipment_class_id is None
+
+    def test_route_step_read_includes_equipment_class_id(self):
+        now = datetime.now(timezone.utc)
+        ec_id = uuid.uuid4()
+        schema = RouteStepRead(
+            id=uuid.uuid4(),
+            route_id=uuid.uuid4(),
+            sequence=10,
+            name="Fill",
+            step_type="production",
+            equipment_class_id=ec_id,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.equipment_class_id == ec_id
+
+    def test_route_step_update_equipment_class_id(self):
+        ec_id = uuid.uuid4()
+        schema = RouteStepUpdate(equipment_class_id=ec_id)
+        assert schema.equipment_class_id == ec_id
+
+    def test_model_has_equipment_class_id_column(self):
+        assert hasattr(RouteStep, "equipment_class_id")
+
+    def test_model_has_equipment_class_relationship(self):
+        assert hasattr(RouteStep, "equipment_class")
+
+    def test_model_has_equipment_requirements_relationship(self):
+        assert hasattr(RouteStep, "equipment_requirements")
+
+    def test_model_has_material_requirements_relationship(self):
+        assert hasattr(RouteStep, "material_requirements")
+
+
+# ─── ISA-95 Process Segment — Step Equipment Requirement ─────────────
+
+
+class TestStepEquipmentRequirement:
+    """Tests for StepEquipmentRequirement model and schemas."""
+
+    def test_model_tablename(self):
+        assert StepEquipmentRequirement.__tablename__ == "step_equipment_requirements"
+
+    def test_model_has_expected_columns(self):
+        assert hasattr(StepEquipmentRequirement, "step_id")
+        assert hasattr(StepEquipmentRequirement, "equipment_id")
+        assert hasattr(StepEquipmentRequirement, "use_type")
+        assert hasattr(StepEquipmentRequirement, "description")
+
+    def test_create_schema_defaults(self):
+        schema = StepEquipmentRequirementCreate(equipment_id=uuid.uuid4())
+        assert schema.use_type == "preferred"
+        assert schema.description is None
+
+    def test_create_schema_required_use_type(self):
+        schema = StepEquipmentRequirementCreate(
+            equipment_id=uuid.uuid4(), use_type="required",
+        )
+        assert schema.use_type == "required"
+
+    def test_create_schema_alternate_use_type(self):
+        schema = StepEquipmentRequirementCreate(
+            equipment_id=uuid.uuid4(), use_type="alternate",
+        )
+        assert schema.use_type == "alternate"
+
+    def test_create_schema_invalid_use_type(self):
+        with pytest.raises(Exception):
+            StepEquipmentRequirementCreate(
+                equipment_id=uuid.uuid4(), use_type="invalid",
+            )
+
+    def test_read_schema(self):
+        now = datetime.now(timezone.utc)
+        schema = StepEquipmentRequirementRead(
+            id=uuid.uuid4(),
+            step_id=uuid.uuid4(),
+            equipment_id=uuid.uuid4(),
+            use_type="preferred",
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.use_type == "preferred"
+
+    def test_update_schema(self):
+        schema = StepEquipmentRequirementUpdate(use_type="required")
+        assert schema.use_type == "required"
+
+    def test_service_has_equipment_requirement_methods(self):
+        from mes.core.product_def.service import ProductDefService
+        assert hasattr(ProductDefService, "list_step_equipment_requirements")
+        assert hasattr(ProductDefService, "create_step_equipment_requirement")
+        assert hasattr(ProductDefService, "update_step_equipment_requirement")
+        assert hasattr(ProductDefService, "delete_step_equipment_requirement")
+
+
+# ─── ISA-95 Process Segment — Step Material Requirement ──────────────
+
+
+class TestStepMaterialRequirement:
+    """Tests for StepMaterialRequirement model and schemas."""
+
+    def test_model_tablename(self):
+        assert StepMaterialRequirement.__tablename__ == "step_material_requirements"
+
+    def test_model_has_expected_columns(self):
+        assert hasattr(StepMaterialRequirement, "step_id")
+        assert hasattr(StepMaterialRequirement, "material_id")
+        assert hasattr(StepMaterialRequirement, "quantity")
+        assert hasattr(StepMaterialRequirement, "uom")
+        assert hasattr(StepMaterialRequirement, "material_use")
+        assert hasattr(StepMaterialRequirement, "position")
+        assert hasattr(StepMaterialRequirement, "description")
+
+    def test_create_schema_defaults(self):
+        schema = StepMaterialRequirementCreate(
+            material_id=uuid.uuid4(), quantity=5.0,
+        )
+        assert schema.uom == "EA"
+        assert schema.material_use == "consumed"
+        assert schema.position == 0
+        assert schema.description is None
+
+    def test_create_schema_produced(self):
+        schema = StepMaterialRequirementCreate(
+            material_id=uuid.uuid4(), quantity=1.0, material_use="produced",
+        )
+        assert schema.material_use == "produced"
+
+    def test_create_schema_invalid_material_use(self):
+        with pytest.raises(Exception):
+            StepMaterialRequirementCreate(
+                material_id=uuid.uuid4(), quantity=1.0, material_use="invalid",
+            )
+
+    def test_create_schema_quantity_must_be_positive(self):
+        with pytest.raises(Exception):
+            StepMaterialRequirementCreate(
+                material_id=uuid.uuid4(), quantity=0,
+            )
+
+    def test_read_schema(self):
+        now = datetime.now(timezone.utc)
+        schema = StepMaterialRequirementRead(
+            id=uuid.uuid4(),
+            step_id=uuid.uuid4(),
+            material_id=uuid.uuid4(),
+            quantity=5.0,
+            uom="kg",
+            material_use="consumed",
+            position=1,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.quantity == 5.0
+        assert schema.material_use == "consumed"
+
+    def test_update_schema(self):
+        schema = StepMaterialRequirementUpdate(quantity=10.0, material_use="produced")
+        assert schema.quantity == 10.0
+        assert schema.material_use == "produced"
+
+    def test_service_has_material_requirement_methods(self):
+        from mes.core.product_def.service import ProductDefService
+        assert hasattr(ProductDefService, "list_step_material_requirements")
+        assert hasattr(ProductDefService, "create_step_material_requirement")
+        assert hasattr(ProductDefService, "update_step_material_requirement")
+        assert hasattr(ProductDefService, "delete_step_material_requirement")
+
+
+# ─── ISA-95 Process Segment — Route Step Equipment Class ─────────────
+
+
+class TestRouteStepEquipmentClass:
+    """Tests for equipment_class_id on RouteStep."""
+
+    def test_route_step_create_with_equipment_class_id(self):
+        schema = RouteStepCreate(
+            sequence=10,
+            name="Fill",
+            equipment_class_id=str(uuid.uuid4()),
+        )
+        assert schema.equipment_class_id is not None
+
+    def test_route_step_create_without_equipment_class_id(self):
+        schema = RouteStepCreate(sequence=10, name="Mix")
+        assert schema.equipment_class_id is None
+
+    def test_route_step_read_includes_equipment_class_id(self):
+        now = datetime.now(timezone.utc)
+        ec_id = uuid.uuid4()
+        schema = RouteStepRead(
+            id=uuid.uuid4(),
+            route_id=uuid.uuid4(),
+            sequence=10,
+            name="Fill",
+            step_type="production",
+            equipment_class_id=ec_id,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.equipment_class_id == ec_id
+
+    def test_route_step_update_equipment_class_id(self):
+        ec_id = uuid.uuid4()
+        schema = RouteStepUpdate(equipment_class_id=ec_id)
+        assert schema.equipment_class_id == ec_id
+
+    def test_model_has_equipment_class_id_column(self):
+        assert hasattr(RouteStep, "equipment_class_id")
+
+    def test_model_has_equipment_class_relationship(self):
+        assert hasattr(RouteStep, "equipment_class")
+
+    def test_model_has_equipment_requirements_relationship(self):
+        assert hasattr(RouteStep, "equipment_requirements")
+
+    def test_model_has_material_requirements_relationship(self):
+        assert hasattr(RouteStep, "material_requirements")
+
+
+# ─── ISA-95 Process Segment — Step Equipment Requirement ─────────────
+
+
+class TestStepEquipmentRequirement:
+    """Tests for StepEquipmentRequirement model and schemas."""
+
+    def test_model_tablename(self):
+        assert StepEquipmentRequirement.__tablename__ == "step_equipment_requirements"
+
+    def test_model_has_expected_columns(self):
+        assert hasattr(StepEquipmentRequirement, "step_id")
+        assert hasattr(StepEquipmentRequirement, "equipment_id")
+        assert hasattr(StepEquipmentRequirement, "use_type")
+        assert hasattr(StepEquipmentRequirement, "description")
+
+    def test_create_schema_defaults(self):
+        schema = StepEquipmentRequirementCreate(equipment_id=uuid.uuid4())
+        assert schema.use_type == "preferred"
+        assert schema.description is None
+
+    def test_create_schema_required_use_type(self):
+        schema = StepEquipmentRequirementCreate(
+            equipment_id=uuid.uuid4(), use_type="required",
+        )
+        assert schema.use_type == "required"
+
+    def test_create_schema_alternate_use_type(self):
+        schema = StepEquipmentRequirementCreate(
+            equipment_id=uuid.uuid4(), use_type="alternate",
+        )
+        assert schema.use_type == "alternate"
+
+    def test_create_schema_invalid_use_type(self):
+        with pytest.raises(Exception):
+            StepEquipmentRequirementCreate(
+                equipment_id=uuid.uuid4(), use_type="invalid",
+            )
+
+    def test_read_schema(self):
+        now = datetime.now(timezone.utc)
+        schema = StepEquipmentRequirementRead(
+            id=uuid.uuid4(),
+            step_id=uuid.uuid4(),
+            equipment_id=uuid.uuid4(),
+            use_type="preferred",
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.use_type == "preferred"
+
+    def test_update_schema(self):
+        schema = StepEquipmentRequirementUpdate(use_type="required")
+        assert schema.use_type == "required"
+
+    def test_service_has_equipment_requirement_methods(self):
+        from mes.core.product_def.service import ProductDefService
+        assert hasattr(ProductDefService, "list_step_equipment_requirements")
+        assert hasattr(ProductDefService, "create_step_equipment_requirement")
+        assert hasattr(ProductDefService, "update_step_equipment_requirement")
+        assert hasattr(ProductDefService, "delete_step_equipment_requirement")
+
+
+# ─── ISA-95 Process Segment — Step Material Requirement ──────────────
+
+
+class TestStepMaterialRequirement:
+    """Tests for StepMaterialRequirement model and schemas."""
+
+    def test_model_tablename(self):
+        assert StepMaterialRequirement.__tablename__ == "step_material_requirements"
+
+    def test_model_has_expected_columns(self):
+        assert hasattr(StepMaterialRequirement, "step_id")
+        assert hasattr(StepMaterialRequirement, "material_id")
+        assert hasattr(StepMaterialRequirement, "quantity")
+        assert hasattr(StepMaterialRequirement, "uom")
+        assert hasattr(StepMaterialRequirement, "material_use")
+        assert hasattr(StepMaterialRequirement, "position")
+        assert hasattr(StepMaterialRequirement, "description")
+
+    def test_create_schema_defaults(self):
+        schema = StepMaterialRequirementCreate(
+            material_id=uuid.uuid4(), quantity=5.0,
+        )
+        assert schema.uom == "EA"
+        assert schema.material_use == "consumed"
+        assert schema.position == 0
+        assert schema.description is None
+
+    def test_create_schema_produced(self):
+        schema = StepMaterialRequirementCreate(
+            material_id=uuid.uuid4(), quantity=1.0, material_use="produced",
+        )
+        assert schema.material_use == "produced"
+
+    def test_create_schema_invalid_material_use(self):
+        with pytest.raises(Exception):
+            StepMaterialRequirementCreate(
+                material_id=uuid.uuid4(), quantity=1.0, material_use="invalid",
+            )
+
+    def test_create_schema_quantity_must_be_positive(self):
+        with pytest.raises(Exception):
+            StepMaterialRequirementCreate(
+                material_id=uuid.uuid4(), quantity=0,
+            )
+
+    def test_read_schema(self):
+        now = datetime.now(timezone.utc)
+        schema = StepMaterialRequirementRead(
+            id=uuid.uuid4(),
+            step_id=uuid.uuid4(),
+            material_id=uuid.uuid4(),
+            quantity=5.0,
+            uom="kg",
+            material_use="consumed",
+            position=1,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.quantity == 5.0
+        assert schema.material_use == "consumed"
+
+    def test_update_schema(self):
+        schema = StepMaterialRequirementUpdate(quantity=10.0, material_use="produced")
+        assert schema.quantity == 10.0
+        assert schema.material_use == "produced"
+
+    def test_service_has_material_requirement_methods(self):
+        from mes.core.product_def.service import ProductDefService
+        assert hasattr(ProductDefService, "list_step_material_requirements")
+        assert hasattr(ProductDefService, "create_step_material_requirement")
+        assert hasattr(ProductDefService, "update_step_material_requirement")
+        assert hasattr(ProductDefService, "delete_step_material_requirement")

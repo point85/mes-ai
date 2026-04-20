@@ -51,6 +51,12 @@ from .schemas import (
     RouteProductAssignmentRead,
     RouteMaterialAssignmentCreate,
     RouteMaterialAssignmentRead,
+    StepEquipmentRequirementCreate,
+    StepEquipmentRequirementRead,
+    StepEquipmentRequirementUpdate,
+    StepMaterialRequirementCreate,
+    StepMaterialRequirementRead,
+    StepMaterialRequirementUpdate,
 )
 from .service import ProductDefService
 
@@ -684,4 +690,126 @@ async def unassign_material_from_route(
 ):
     """Remove a material assignment from a route."""
     await svc.unassign_material_from_route(session, route_id, material_id)
+    await session.commit()
+
+
+# ── Step Equipment Requirements (ISA-95 Process Segment) ────────────
+
+
+@router.get("/steps/{step_id}/equipment-requirements")
+async def list_step_equipment_requirements(
+    step_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """List equipment requirements for a route step."""
+    items = await svc.list_step_equipment_requirements(session, step_id)
+    return list_response(
+        [StepEquipmentRequirementRead.model_validate(r).model_dump() for r in items],
+    )
+
+
+@router.post("/steps/{step_id}/equipment-requirements", status_code=201)
+async def create_step_equipment_requirement(
+    step_id: UUID,
+    body: StepEquipmentRequirementCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.create")),
+):
+    """Add an equipment requirement to a route step."""
+    req = await svc.create_step_equipment_requirement(
+        session, step_id, **body.model_dump(),
+    )
+    await session.commit()
+    return success_response(
+        StepEquipmentRequirementRead.model_validate(req).model_dump(),
+    )
+
+
+@router.patch("/step-equipment-requirements/{requirement_id}")
+async def update_step_equipment_requirement(
+    requirement_id: UUID,
+    body: StepEquipmentRequirementUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.update")),
+):
+    """Update an equipment requirement."""
+    req = await svc.update_step_equipment_requirement(
+        session, requirement_id, **body.model_dump(exclude_unset=True),
+    )
+    await session.commit()
+    return success_response(
+        StepEquipmentRequirementRead.model_validate(req).model_dump(),
+    )
+
+
+@router.delete("/step-equipment-requirements/{requirement_id}", status_code=204)
+async def delete_step_equipment_requirement(
+    requirement_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Remove an equipment requirement from a step."""
+    await svc.delete_step_equipment_requirement(session, requirement_id)
+    await session.commit()
+
+
+# ── Step Material Requirements (ISA-95 Process Segment) ─────────────
+
+
+@router.get("/steps/{step_id}/material-requirements")
+async def list_step_material_requirements(
+    step_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """List material requirements for a route step."""
+    items = await svc.list_step_material_requirements(session, step_id)
+    return list_response(
+        [StepMaterialRequirementRead.model_validate(r).model_dump() for r in items],
+    )
+
+
+@router.post("/steps/{step_id}/material-requirements", status_code=201)
+async def create_step_material_requirement(
+    step_id: UUID,
+    body: StepMaterialRequirementCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.create")),
+):
+    """Add a material requirement to a route step."""
+    req = await svc.create_step_material_requirement(
+        session, step_id, **body.model_dump(),
+    )
+    await session.commit()
+    return success_response(
+        StepMaterialRequirementRead.model_validate(req).model_dump(),
+    )
+
+
+@router.patch("/step-material-requirements/{requirement_id}")
+async def update_step_material_requirement(
+    requirement_id: UUID,
+    body: StepMaterialRequirementUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.update")),
+):
+    """Update a material requirement."""
+    req = await svc.update_step_material_requirement(
+        session, requirement_id, **body.model_dump(exclude_unset=True),
+    )
+    await session.commit()
+    return success_response(
+        StepMaterialRequirementRead.model_validate(req).model_dump(),
+    )
+
+
+@router.delete("/step-material-requirements/{requirement_id}", status_code=204)
+async def delete_step_material_requirement(
+    requirement_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Remove a material requirement from a step."""
+    await svc.delete_step_material_requirement(session, requirement_id)
     await session.commit()

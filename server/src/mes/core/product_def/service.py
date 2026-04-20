@@ -30,6 +30,8 @@ from .models import (
     RouteMaterialAssignment,
     RouteProductAssignment,
     RouteStep,
+    StepEquipmentRequirement,
+    StepMaterialRequirement,
     StepParameter,
     StepTransition,
 )
@@ -1016,3 +1018,125 @@ class ProductDefService:
         assignment.is_active = False
         await session.flush()
         logger.info("Unassigned material %s from route %s", material_id, route_id)
+
+    # ─── Step Equipment Requirements (ISA-95 Process Segment) ────────
+
+    @staticmethod
+    async def list_step_equipment_requirements(
+        session: AsyncSession, step_id: UUID,
+    ) -> Sequence[StepEquipmentRequirement]:
+        """List active equipment requirements for a route step."""
+        stmt = select(StepEquipmentRequirement).where(
+            StepEquipmentRequirement.step_id == step_id,
+            StepEquipmentRequirement.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def create_step_equipment_requirement(
+        session: AsyncSession, step_id: UUID, **kwargs: Any,
+    ) -> StepEquipmentRequirement:
+        """Add an equipment requirement to a route step."""
+        req = StepEquipmentRequirement(step_id=step_id, **kwargs)
+        session.add(req)
+        await session.flush()
+        logger.info("Created equipment requirement %s for step %s", req.id, step_id)
+        return req
+
+    @staticmethod
+    async def update_step_equipment_requirement(
+        session: AsyncSession, requirement_id: UUID, **kwargs: Any,
+    ) -> StepEquipmentRequirement:
+        """Update an equipment requirement."""
+        stmt = select(StepEquipmentRequirement).where(
+            StepEquipmentRequirement.id == requirement_id,
+            StepEquipmentRequirement.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        req = result.scalar_one_or_none()
+        if req is None:
+            raise NotFoundException(resource="StepEquipmentRequirement", resource_id=str(requirement_id))
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(req, key, value)
+        await session.flush()
+        return req
+
+    @staticmethod
+    async def delete_step_equipment_requirement(
+        session: AsyncSession, requirement_id: UUID,
+    ) -> None:
+        """Soft-delete an equipment requirement."""
+        stmt = select(StepEquipmentRequirement).where(
+            StepEquipmentRequirement.id == requirement_id,
+            StepEquipmentRequirement.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        req = result.scalar_one_or_none()
+        if req is None:
+            raise NotFoundException(resource="StepEquipmentRequirement", resource_id=str(requirement_id))
+        req.is_active = False
+        await session.flush()
+        logger.info("Deleted equipment requirement %s", requirement_id)
+
+    # ─── Step Material Requirements (ISA-95 Process Segment) ─────────
+
+    @staticmethod
+    async def list_step_material_requirements(
+        session: AsyncSession, step_id: UUID,
+    ) -> Sequence[StepMaterialRequirement]:
+        """List active material requirements for a route step."""
+        stmt = select(StepMaterialRequirement).where(
+            StepMaterialRequirement.step_id == step_id,
+            StepMaterialRequirement.is_active.is_(True),
+        ).order_by(StepMaterialRequirement.position)
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def create_step_material_requirement(
+        session: AsyncSession, step_id: UUID, **kwargs: Any,
+    ) -> StepMaterialRequirement:
+        """Add a material requirement to a route step."""
+        req = StepMaterialRequirement(step_id=step_id, **kwargs)
+        session.add(req)
+        await session.flush()
+        logger.info("Created material requirement %s for step %s", req.id, step_id)
+        return req
+
+    @staticmethod
+    async def update_step_material_requirement(
+        session: AsyncSession, requirement_id: UUID, **kwargs: Any,
+    ) -> StepMaterialRequirement:
+        """Update a material requirement."""
+        stmt = select(StepMaterialRequirement).where(
+            StepMaterialRequirement.id == requirement_id,
+            StepMaterialRequirement.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        req = result.scalar_one_or_none()
+        if req is None:
+            raise NotFoundException(resource="StepMaterialRequirement", resource_id=str(requirement_id))
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(req, key, value)
+        await session.flush()
+        return req
+
+    @staticmethod
+    async def delete_step_material_requirement(
+        session: AsyncSession, requirement_id: UUID,
+    ) -> None:
+        """Soft-delete a material requirement."""
+        stmt = select(StepMaterialRequirement).where(
+            StepMaterialRequirement.id == requirement_id,
+            StepMaterialRequirement.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        req = result.scalar_one_or_none()
+        if req is None:
+            raise NotFoundException(resource="StepMaterialRequirement", resource_id=str(requirement_id))
+        req.is_active = False
+        await session.flush()
+        logger.info("Deleted material requirement %s", requirement_id)

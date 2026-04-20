@@ -9,7 +9,7 @@ import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useCreateRouteStep, useUpdateRouteStep, useDispositions } from "../../hooks/useProductDef";
-import { useAllWorkCells, useAllLines } from "../../hooks/usePhysicalModel";
+import { useAllWorkCells, useAllLines, useEquipmentClasses } from "../../hooks/usePhysicalModel";
 import type { RouteStep } from "../../types";
 
 const schema = z.object({
@@ -17,6 +17,7 @@ const schema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   step_type: z.enum(["production", "inspection", "rework", "mrb"]),
   work_cell_id: z.string().nullable().optional(),
+  equipment_class_id: z.string().nullable().optional(),
   expected_cycle_time_sec: z.number().min(0).nullable().optional(),
   erp_operation_number: z.string().max(50).nullable().optional(),
   disposition_id: z.string().nullable().optional(),
@@ -41,6 +42,8 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
   const { data: linesResp } = useAllLines();
   const allLines = linesResp?.data ?? [];
   const lineMap = new Map(allLines.map((ln) => [ln.id, ln]));
+  const { data: ecResp } = useEquipmentClasses();
+  const equipmentClasses = (ecResp?.data ?? []).sort((a: { code: string }, b: { code: string }) => a.code.localeCompare(b.code));
 
   // Group work cells by production line for the dropdown
   const wcByLine = new Map<string, typeof workCells>();
@@ -63,6 +66,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
       name: "",
       step_type: "production",
       work_cell_id: null,
+      equipment_class_id: null,
       expected_cycle_time_sec: null,
       erp_operation_number: null,
       disposition_id: null,
@@ -76,6 +80,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
         name: step.name,
         step_type: step.step_type as "production" | "inspection" | "rework" | "mrb",
         work_cell_id: step.work_cell_id,
+        equipment_class_id: step.equipment_class_id,
         expected_cycle_time_sec: step.expected_cycle_time_sec,
         erp_operation_number: step.erp_operation_number,
         disposition_id: step.disposition_id,
@@ -88,6 +93,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
       const payload = {
         ...data,
         work_cell_id: data.work_cell_id || null,
+        equipment_class_id: data.equipment_class_id || null,
         disposition_id: data.disposition_id || null,
       };
       if (isEdit) {
@@ -183,6 +189,23 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
                   ))}
               </select>
               <p className="mt-1 text-xs text-gray-400">Where this step is performed</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Equipment Class <span className="text-gray-400">(ISA-95)</span>
+              </label>
+              <select
+                {...register("equipment_class_id")}
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">— None —</option>
+                {equipmentClasses.map((ec: { id: string; code: string; name: string }) => (
+                  <option key={ec.id} value={ec.id}>
+                    {ec.code} — {ec.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">What class of equipment is needed (dispatch uses this)</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">

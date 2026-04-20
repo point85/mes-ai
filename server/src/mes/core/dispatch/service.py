@@ -29,7 +29,7 @@ from mes.framework.api.exceptions import NotFoundException
 from mes.framework.events import event_bus
 
 from mes.core.physical_model.models import Equipment, EquipmentMaterial, WorkCell
-from mes.core.product_def.models import RouteStep
+from mes.core.product_def.models import RouteStep, StepEquipmentRequirement
 from mes.core.wip.models import Unit, Lot
 from mes.core.performance.models import EquipmentStateLog
 
@@ -164,24 +164,71 @@ class DispatchService:
         target_step = next_steps[0]
 
         # ── Find eligible equipment at the target step ──────────────
-        if target_step.work_cell_id is None:
+        # ISA-95 Process Segment dispatch priority:
+        #   1. StepEquipmentRequirement rows (specific equipment for this step)
+        #   2. equipment_class_id on the step (all equipment of that class)
+        #   3. work_cell_id (legacy: all equipment in the work cell)
+        #   4. No constraint → empty options
+
+        equip_rows: list[tuple] = []
+
+        # 1. Check step-level equipment requirements
+        equip_req_result = await session.execute(
+            select(StepEquipmentRequirement).where(
+                StepEquipmentRequirement.step_id == target_step.id,
+                StepEquipmentRequirement.is_active.is_(True),
+            )
+        )
+        equip_reqs = equip_req_result.scalars().all()
+
+        if equip_reqs:
+            # Use specific equipment from requirements
+            req_equip_ids = [r.equipment_id for r in equip_reqs]
+            equip_stmt = (
+                select(Equipment, WorkCell)
+                .join(WorkCell, Equipment.work_cell_id == WorkCell.id)
+                .where(
+                    Equipment.id.in_(req_equip_ids),
+                    Equipment.is_active.is_(True),
+                )
+            )
+            equip_result = await session.execute(equip_stmt)
+            equip_rows = equip_result.all()
+
+        elif target_step.equipment_class_id is not None:
+            # 2. Find all equipment belonging to the required class
+            equip_stmt = (
+                select(Equipment, WorkCell)
+                .join(WorkCell, Equipment.work_cell_id == WorkCell.id)
+                .where(
+                    Equipment.equipment_class_id == target_step.equipment_class_id,
+                    Equipment.is_active.is_(True),
+                )
+            )
+            equip_result = await session.execute(equip_stmt)
+            equip_rows = equip_result.all()
+
+        elif target_step.work_cell_id is not None:
+            # 3. Legacy: find equipment in the specified work cell
+            equip_stmt = (
+                select(Equipment, WorkCell)
+                .join(WorkCell, Equipment.work_cell_id == WorkCell.id)
+                .where(
+                    Equipment.work_cell_id == target_step.work_cell_id,
+                    Equipment.is_active.is_(True),
+                )
+            )
+            equip_result = await session.execute(equip_stmt)
+            equip_rows = equip_result.all()
+
+        else:
+            # 4. No equipment constraint — cannot dispatch
             return DispatchEvaluateResponse(
                 unit_id=unit_id,
                 lot_id=lot_id,
                 strategy=strategy,
                 options=[],
             )
-
-        equip_stmt = (
-            select(Equipment, WorkCell)
-            .join(WorkCell, Equipment.work_cell_id == WorkCell.id)
-            .where(
-                Equipment.work_cell_id == target_step.work_cell_id,
-                Equipment.is_active.is_(True),
-            )
-        )
-        equip_result = await session.execute(equip_stmt)
-        equip_rows = equip_result.all()
 
         # ── Filter by availability, capability, capacity ────────────
         options: list[DispatchOption] = []
@@ -522,21 +569,49 @@ class DispatchService:
         Includes dispatch_category, PackML state, queue depth, material setup,
         and whether the WIP is currently assigned to that equipment.
         """
-        # Resolve step → work_cell
+        # Resolve step → equipment candidates
+        # Priority: step equipment requirements > equipment_class_id > work_cell_id
         step_result = await session.execute(
             select(RouteStep).where(RouteStep.id == step_id)
         )
         step_obj = step_result.scalar_one_or_none()
-        if step_obj is None or step_obj.work_cell_id is None:
+        if step_obj is None:
             return []
 
-        # Get all active equipment in the work cell
-        equip_result = await session.execute(
-            select(Equipment).where(
-                Equipment.work_cell_id == step_obj.work_cell_id,
-                Equipment.is_active.is_(True),
-            ).order_by(Equipment.code)
+        # 1. Check step-level equipment requirements
+        equip_req_result = await session.execute(
+            select(StepEquipmentRequirement).where(
+                StepEquipmentRequirement.step_id == step_id,
+                StepEquipmentRequirement.is_active.is_(True),
+            )
         )
+        equip_reqs = equip_req_result.scalars().all()
+
+        if equip_reqs:
+            req_equip_ids = [r.equipment_id for r in equip_reqs]
+            equip_result = await session.execute(
+                select(Equipment).where(
+                    Equipment.id.in_(req_equip_ids),
+                    Equipment.is_active.is_(True),
+                ).order_by(Equipment.code)
+            )
+        elif step_obj.equipment_class_id is not None:
+            equip_result = await session.execute(
+                select(Equipment).where(
+                    Equipment.equipment_class_id == step_obj.equipment_class_id,
+                    Equipment.is_active.is_(True),
+                ).order_by(Equipment.code)
+            )
+        elif step_obj.work_cell_id is not None:
+            equip_result = await session.execute(
+                select(Equipment).where(
+                    Equipment.work_cell_id == step_obj.work_cell_id,
+                    Equipment.is_active.is_(True),
+                ).order_by(Equipment.code)
+            )
+        else:
+            return []
+
         equipment_list = equip_result.scalars().all()
 
         statuses: list[StepEquipmentStatus] = []

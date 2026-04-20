@@ -146,6 +146,7 @@ export interface RouteStep {
   name: string;
   step_type: string;
   work_cell_id: string | null;
+  equipment_class_id: string | null;
   expected_cycle_time_sec: number | null;
   erp_operation_number: string | null;
   disposition_id: string | null;
@@ -159,6 +160,7 @@ export interface RouteStepCreate {
   name: string;
   step_type?: string;
   work_cell_id?: string | null;
+  equipment_class_id?: string | null;
   expected_cycle_time_sec?: number | null;
   disposition_id?: string | null;
 }
@@ -168,6 +170,7 @@ export interface RouteStepUpdate {
   name?: string;
   step_type?: string;
   work_cell_id?: string | null;
+  equipment_class_id?: string | null;
   expected_cycle_time_sec?: number | null;
   disposition_id?: string | null;
 }

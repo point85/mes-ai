@@ -66,6 +66,7 @@ export interface RouteStep {
   description: string | null;
   step_type: string;
   sequence: number;
+  equipment_class_id: string | null;
   erp_operation_number: string | null;
   disposition_id: string | null;
   is_active: boolean;

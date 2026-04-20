@@ -220,6 +220,7 @@ class RouteStepCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     step_type: str = Field("production", pattern=r"^(production|inspection|rework|mrb)$")
     work_cell_id: UUID | None = None
+    equipment_class_id: UUID | None = Field(None, description="ISA-95 equipment class required at this step")
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50, description="ERP operation number for outbound reporting")
     disposition_id: UUID | None = Field(None, description="FK to the disposition that routes WIP to this step")
@@ -234,6 +235,7 @@ class RouteStepRead(BaseModel):
     name: str
     step_type: str
     work_cell_id: UUID | None = None
+    equipment_class_id: UUID | None = None
     expected_cycle_time_sec: float | None = None
     erp_operation_number: str | None = None
     disposition_id: UUID | None = None
@@ -251,6 +253,7 @@ class RouteStepUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     step_type: str | None = Field(None, pattern=r"^(production|inspection|rework|mrb)$")
     work_cell_id: UUID | None = None
+    equipment_class_id: UUID | None = Field(None, description="ISA-95 equipment class required at this step")
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50)
     disposition_id: UUID | None = None
@@ -390,3 +393,78 @@ class RouteMaterialAssignmentRead(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ─── Step Equipment Requirement (ISA-95 Process Segment) ─────────────
+
+
+class StepEquipmentRequirementCreate(BaseModel):
+    """Schema for adding an equipment requirement to a route step."""
+
+    equipment_id: UUID
+    use_type: str = Field("preferred", pattern=r"^(required|preferred|alternate)$")
+    description: str | None = None
+
+
+class StepEquipmentRequirementRead(BaseModel):
+    """Schema for returning a step equipment requirement."""
+
+    id: UUID
+    step_id: UUID
+    equipment_id: UUID
+    use_type: str
+    description: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class StepEquipmentRequirementUpdate(BaseModel):
+    """Schema for updating a step equipment requirement."""
+
+    use_type: str | None = Field(None, pattern=r"^(required|preferred|alternate)$")
+    description: str | None = None
+
+
+# ─── Step Material Requirement (ISA-95 Process Segment) ──────────────
+
+
+class StepMaterialRequirementCreate(BaseModel):
+    """Schema for adding a material requirement to a route step."""
+
+    material_id: UUID
+    quantity: float = Field(..., gt=0)
+    uom: str = Field("EA", max_length=20)
+    material_use: str = Field("consumed", pattern=r"^(consumed|produced)$")
+    position: int = Field(0, ge=0)
+    description: str | None = None
+
+
+class StepMaterialRequirementRead(BaseModel):
+    """Schema for returning a step material requirement."""
+
+    id: UUID
+    step_id: UUID
+    material_id: UUID
+    quantity: float
+    uom: str
+    material_use: str
+    position: int
+    description: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class StepMaterialRequirementUpdate(BaseModel):
+    """Schema for updating a step material requirement."""
+
+    quantity: float | None = Field(None, gt=0)
+    uom: str | None = Field(None, max_length=20)
+    material_use: str | None = Field(None, pattern=r"^(consumed|produced)$")
+    position: int | None = Field(None, ge=0)
+    description: str | None = None
