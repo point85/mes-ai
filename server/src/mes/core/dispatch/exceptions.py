@@ -12,7 +12,7 @@ class NoEligibleEquipmentException(MESException):
     error_code = "NO_ELIGIBLE_EQUIPMENT"
 
     def __init__(self, step_id: str | None = None, reason: str = "") -> None:
-        details: dict = {"step_id": step_id}
+        details: dict[str, str | None] = {"step_id": step_id}
         if reason:
             details["reason"] = reason
         super().__init__(
