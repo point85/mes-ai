@@ -30,7 +30,7 @@ import mes.framework.plugin.models  # noqa: F401
 import mes.core.physical_model.models  # noqa: F401
 import mes.core.product_def.models  # noqa: F401
 import mes.core.uom.models  # noqa: F401
-import mes.core.production.models  # noqa: F401
+import mes.core.operations.models  # noqa: F401
 import mes.core.wip.models  # noqa: F401
 import mes.core.material.models  # noqa: F401
 import mes.core.data_collection.models  # noqa: F401
@@ -44,7 +44,7 @@ from mes.core.wip.exceptions import (
     DuplicateLotNumberException,
     InvalidWIPTransitionException,
 )
-from mes.core.production.service import ProductionOrderService
+from mes.core.operations.service import OperationsRequestService
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -144,7 +144,7 @@ class TestLotCreation:
 
     @pytest.mark.asyncio
     @patch("mes.core.wip.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.wip.service.ProductionOrderService.start_order", new_callable=AsyncMock)
+    @patch("mes.core.wip.service.OperationsRequestService.start_order", new_callable=AsyncMock)
     async def test_creates_lot_and_fires_event(self, mock_start_order, mock_publish):
         session = _session_returning(None)  # no duplicate
         lot_data = dict(
@@ -236,7 +236,7 @@ class TestLotStepCompletion:
 
     @pytest.mark.asyncio
     @patch("mes.core.wip.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.wip.service.ProductionOrderService.increment_scrapped", new_callable=AsyncMock)
+    @patch("mes.core.wip.service.OperationsRequestService.increment_scrapped", new_callable=AsyncMock)
     @patch("mes.core.wip.service.LotService.get_lot", new_callable=AsyncMock)
     async def test_complete_step_updates_history_and_qty(
         self, mock_get, mock_incr_scrap, mock_publish,
@@ -265,7 +265,7 @@ class TestLotStepCompletion:
 
     @pytest.mark.asyncio
     @patch("mes.core.wip.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.wip.service.ProductionOrderService.increment_scrapped", new_callable=AsyncMock)
+    @patch("mes.core.wip.service.OperationsRequestService.increment_scrapped", new_callable=AsyncMock)
     @patch("mes.core.wip.service.LotService.get_lot", new_callable=AsyncMock)
     async def test_complete_step_zero_scrap_no_order_update(
         self, mock_get, mock_incr_scrap, mock_publish,
@@ -282,7 +282,7 @@ class TestLotStepCompletion:
 
     @pytest.mark.asyncio
     @patch("mes.core.wip.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.wip.service.ProductionOrderService.increment_scrapped", new_callable=AsyncMock)
+    @patch("mes.core.wip.service.OperationsRequestService.increment_scrapped", new_callable=AsyncMock)
     @patch("mes.core.wip.service.LotService.get_lot", new_callable=AsyncMock)
     async def test_complete_step_defaults_qty_out(
         self, mock_get, mock_incr_scrap, mock_publish,
@@ -338,7 +338,7 @@ class TestLotMove:
 
     @pytest.mark.asyncio
     @patch("mes.core.wip.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.wip.service.ProductionOrderService.increment_completed", new_callable=AsyncMock)
+    @patch("mes.core.wip.service.OperationsRequestService.increment_completed", new_callable=AsyncMock)
     @patch("mes.core.wip.service.LotService.get_lot", new_callable=AsyncMock)
     async def test_move_completes_lot_when_no_next_step(
         self, mock_get, mock_incr_complete, mock_publish,
@@ -462,7 +462,7 @@ class TestLotScrap:
 
     @pytest.mark.asyncio
     @patch("mes.core.wip.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.wip.service.ProductionOrderService.increment_scrapped", new_callable=AsyncMock)
+    @patch("mes.core.wip.service.OperationsRequestService.increment_scrapped", new_callable=AsyncMock)
     @patch("mes.core.wip.service.LotService.get_lot", new_callable=AsyncMock)
     async def test_scrap_sets_status_and_increments_order(
         self, mock_get, mock_incr_scrap, mock_publish,
@@ -499,55 +499,55 @@ class TestLotScrap:
 # ═══════════════════════════════════════════════════════════════════
 
 class TestOrderLifecycle:
-    """ProductionOrderService — increment_completed, increment_scrapped,
+    """OperationsRequestService — increment_completed, increment_scrapped,
     complete_order, close_order."""
 
     @pytest.mark.asyncio
-    @patch("mes.core.production.service.ProductionOrderService.get_order", new_callable=AsyncMock)
+    @patch("mes.core.operations.service.OperationsRequestService.get_order", new_callable=AsyncMock)
     async def test_increment_completed(self, mock_get):
         order = _make_order(quantity_completed=0)
         mock_get.return_value = order
         session = AsyncMock()
         session.flush = AsyncMock()
 
-        result = await ProductionOrderService.increment_completed(session, order.id, qty=100)
+        result = await OperationsRequestService.increment_completed(session, order.id, qty=100)
 
         assert order.quantity_completed == 100
 
     @pytest.mark.asyncio
-    @patch("mes.core.production.service.ProductionOrderService.get_order", new_callable=AsyncMock)
+    @patch("mes.core.operations.service.OperationsRequestService.get_order", new_callable=AsyncMock)
     async def test_increment_completed_accumulates(self, mock_get):
         order = _make_order(quantity_completed=200)
         mock_get.return_value = order
         session = AsyncMock()
         session.flush = AsyncMock()
 
-        await ProductionOrderService.increment_completed(session, order.id, qty=50)
+        await OperationsRequestService.increment_completed(session, order.id, qty=50)
 
         assert order.quantity_completed == 250
 
     @pytest.mark.asyncio
-    @patch("mes.core.production.service.ProductionOrderService.get_order", new_callable=AsyncMock)
+    @patch("mes.core.operations.service.OperationsRequestService.get_order", new_callable=AsyncMock)
     async def test_increment_scrapped(self, mock_get):
         order = _make_order(quantity_scrapped=0)
         mock_get.return_value = order
         session = AsyncMock()
         session.flush = AsyncMock()
 
-        await ProductionOrderService.increment_scrapped(session, order.id, qty=5)
+        await OperationsRequestService.increment_scrapped(session, order.id, qty=5)
 
         assert order.quantity_scrapped == 5
 
     @pytest.mark.asyncio
-    @patch("mes.core.production.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.production.service.ProductionOrderService.get_order", new_callable=AsyncMock)
+    @patch("mes.core.operations.service.event_bus.publish", new_callable=AsyncMock)
+    @patch("mes.core.operations.service.OperationsRequestService.get_order", new_callable=AsyncMock)
     async def test_complete_order(self, mock_get, mock_publish):
         order = _make_order(status="in_progress", actual_end=None)
         mock_get.return_value = order
         session = AsyncMock()
         session.flush = AsyncMock()
 
-        await ProductionOrderService.complete_order(session, order.id)
+        await OperationsRequestService.complete_order(session, order.id)
 
         assert order.status == "completed"
         assert order.actual_end is not None
@@ -555,14 +555,14 @@ class TestOrderLifecycle:
         assert event.event_type == "production.order.completed"
 
     @pytest.mark.asyncio
-    @patch("mes.core.production.service.ProductionOrderService.get_order", new_callable=AsyncMock)
+    @patch("mes.core.operations.service.OperationsRequestService.get_order", new_callable=AsyncMock)
     async def test_close_order(self, mock_get):
         order = _make_order(status="completed", actual_end=None)
         mock_get.return_value = order
         session = AsyncMock()
         session.flush = AsyncMock()
 
-        await ProductionOrderService.close_order(session, order.id)
+        await OperationsRequestService.close_order(session, order.id)
 
         assert order.status == "closed"
         assert order.actual_end is not None
@@ -789,7 +789,7 @@ class TestFullLotLifecycleSequence:
             published_events.append(event.event_type)
 
         with patch("mes.core.wip.service.event_bus.publish", side_effect=capture_event):
-            with patch("mes.core.wip.service.ProductionOrderService.start_order", new_callable=AsyncMock):
+            with patch("mes.core.wip.service.OperationsRequestService.start_order", new_callable=AsyncMock):
                 # 1. Create
                 session = _session_returning(None)
                 lot = await LotService.create_lot(
@@ -812,7 +812,7 @@ class TestFullLotLifecycleSequence:
                 history = _make_history()
                 session = _session_returning(history)
 
-                with patch("mes.core.wip.service.ProductionOrderService.increment_scrapped", new_callable=AsyncMock):
+                with patch("mes.core.wip.service.OperationsRequestService.increment_scrapped", new_callable=AsyncMock):
                     # 3. Complete step
                     await LotService.complete_lot_step(session, lot_mock.id, quantity_out=99, quantity_scrapped=1)
 
@@ -820,7 +820,7 @@ class TestFullLotLifecycleSequence:
                 mock_get.return_value = lot_mock
                 session = _session_returning(None)  # no history for result
 
-                with patch("mes.core.wip.service.ProductionOrderService.increment_completed", new_callable=AsyncMock):
+                with patch("mes.core.wip.service.OperationsRequestService.increment_completed", new_callable=AsyncMock):
                     with patch(
                         "mes.core.routing.service.RoutingEngineService.get_next_step",
                         new_callable=AsyncMock, return_value=None,

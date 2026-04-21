@@ -2,7 +2,7 @@
 Unit tests for the WIP-TRACK (Work-In-Process Tracking) module.
 
 Covers:
-- Model instantiation & table mapping (Unit, Lot, UnitHistory, LotHistory)
+- Model instantiation & table mapping (Unit, Lot, SegmentResponseUnit, SegmentResponseLot)
 - Schema validation (create, read, action request schemas)
 - Event factories (unit and lot events)
 - Exception construction
@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from mes.core.wip.models import Unit, Lot, UnitHistory, LotHistory
+from mes.core.wip.models import Unit, Lot, SegmentResponseUnit, SegmentResponseLot
 from mes.core.wip.schemas import (
     UnitCreate, UnitRead, LotCreate, LotRead,
     UnitHistoryRead, LotHistoryRead,
@@ -77,7 +77,7 @@ def _make_lot(**overrides) -> types.SimpleNamespace:
     return types.SimpleNamespace(**defaults)
 
 
-def _make_unit_history(**overrides) -> types.SimpleNamespace:
+def _make_segment_response_units(**overrides) -> types.SimpleNamespace:
     defaults = {
         "id": uuid.uuid4(),
         "unit_id": uuid.uuid4(),
@@ -94,7 +94,7 @@ def _make_unit_history(**overrides) -> types.SimpleNamespace:
     return types.SimpleNamespace(**defaults)
 
 
-def _make_lot_history(**overrides) -> types.SimpleNamespace:
+def _make_segment_response_lots(**overrides) -> types.SimpleNamespace:
     defaults = {
         "id": uuid.uuid4(),
         "lot_id": uuid.uuid4(),
@@ -143,21 +143,21 @@ class TestLotModel:
 
 class TestUnitHistoryModel:
     def test_tablename(self):
-        assert UnitHistory.__tablename__ == "unit_history"
+        assert SegmentResponseUnit.__tablename__ == "segment_response_units"
 
     def test_has_mapper(self):
-        assert hasattr(UnitHistory, "__mapper__")
+        assert hasattr(SegmentResponseUnit, "__mapper__")
 
 
 class TestLotHistoryModel:
     def test_tablename(self):
-        assert LotHistory.__tablename__ == "lot_history"
+        assert SegmentResponseLot.__tablename__ == "segment_response_lots"
 
     def test_has_mapper(self):
-        assert hasattr(LotHistory, "__mapper__")
+        assert hasattr(SegmentResponseLot, "__mapper__")
 
     def test_default_quantities(self):
-        cols = {c.name: c for c in LotHistory.__table__.columns}
+        cols = {c.name: c for c in SegmentResponseLot.__table__.columns}
         assert cols["quantity_out"].default.arg == 0
         assert cols["quantity_scrapped"].default.arg == 0
 
@@ -264,13 +264,13 @@ class TestLotReadSchema:
 
 class TestUnitHistoryReadSchema:
     def test_from_attributes(self):
-        h = _make_unit_history(result="pass", exited_at=datetime.now(timezone.utc))
+        h = _make_segment_response_units(result="pass", exited_at=datetime.now(timezone.utc))
         read = UnitHistoryRead.model_validate(h)
         assert read.result == "pass"
         assert read.exited_at is not None
 
     def test_in_progress_record(self):
-        h = _make_unit_history()
+        h = _make_segment_response_units()
         read = UnitHistoryRead.model_validate(h)
         assert read.exited_at is None
         assert read.result is None
@@ -278,7 +278,7 @@ class TestUnitHistoryReadSchema:
 
 class TestLotHistoryReadSchema:
     def test_from_attributes(self):
-        h = _make_lot_history(quantity_out=80, quantity_scrapped=5)
+        h = _make_segment_response_lots(quantity_out=80, quantity_scrapped=5)
         read = LotHistoryRead.model_validate(h)
         assert read.quantity_in == 100
         assert read.quantity_out == 80

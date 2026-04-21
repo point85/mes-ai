@@ -76,10 +76,10 @@ class MockERPInboundAdapter(ERPInboundAdapter):
     async def health_check(self) -> bool:
         return self._connected and self._fixture_dir.exists()
 
-    async def sync_production_orders(
+    async def sync_operations_requests(
         self, since: datetime | None = None,
     ) -> list[ProductionOrderDTO]:
-        data = await self._read_fixture("production_orders.json")
+        data = await self._read_fixture("operations_requests.json")
         return [self._transform.to_production_order(d) for d in data]
 
     async def sync_materials(

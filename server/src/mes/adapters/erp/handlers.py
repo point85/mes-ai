@@ -45,7 +45,7 @@ async def on_lot_completed_erp_report(event: MESEvent) -> None:
 
     from sqlalchemy import select
     from mes.core.wip.models import Lot
-    from mes.core.production.models import ProductionOrder
+    from mes.core.operations.models import OperationsRequest
     from mes.core.product_def.models import ProcessSegment
     from mes.adapters.erp.queue import ERPOutboundQueueService
 
@@ -60,7 +60,7 @@ async def on_lot_completed_erp_report(event: MESEvent) -> None:
                 return
 
             order_result = await session.execute(
-                select(ProductionOrder).where(ProductionOrder.id == lot.order_id)
+                select(OperationsRequest).where(OperationsRequest.id == lot.order_id)
             )
             order = order_result.scalar_one_or_none()
             if order is None or order.erp_reference is None:
@@ -114,7 +114,7 @@ async def on_unit_completed_erp_report(event: MESEvent) -> None:
 
     from sqlalchemy import select
     from mes.core.wip.models import Unit
-    from mes.core.production.models import ProductionOrder
+    from mes.core.operations.models import OperationsRequest
     from mes.core.product_def.models import ProcessSegment
     from mes.adapters.erp.queue import ERPOutboundQueueService
 
@@ -128,7 +128,7 @@ async def on_unit_completed_erp_report(event: MESEvent) -> None:
                 return
 
             order_result = await session.execute(
-                select(ProductionOrder).where(ProductionOrder.id == unit.order_id)
+                select(OperationsRequest).where(OperationsRequest.id == unit.order_id)
             )
             order = order_result.scalar_one_or_none()
             if order is None or order.erp_reference is None:

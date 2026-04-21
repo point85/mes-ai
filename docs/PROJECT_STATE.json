@@ -253,7 +253,7 @@
         { "id": "T6.2",  "name": "Step 2 (optional): Personnel + PhysicalAsset scaffolding", "status": "skipped" },
         { "id": "T6.3",  "name": "Step 3: Part 1 physical hierarchy polish", "status": "complete" },
         { "id": "T6.4",  "name": "Step 4: Part 2 rename — ProcessRoute->OperationsDefinition, RouteStep->ProcessSegment, StepTransition->ProcessSegmentDependency, StepParameter/EquipmentRequirement/MaterialRequirement->Segment*", "status": "complete" },
-        { "id": "T6.5",  "name": "Step 5: Part 3 rename — ProductionOrder->OperationsRequest, module production/->operations/, add OperationsSchedule+OperationsResponse, UnitHistory/LotHistory->SegmentResponseUnit/Lot", "status": "not-started" },
+        { "id": "T6.5",  "name": "Step 5: Part 3 rename — ProductionOrder->OperationsRequest, module production/->operations/, add OperationsSchedule+OperationsResponse, UnitHistory/LotHistory->SegmentResponseUnit/Lot", "status": "complete" },
         { "id": "T6.6",  "name": "Step 6: Part 4 resource actuals — MaterialActual, EquipmentActual, PersonnelActual", "status": "not-started" },
         { "id": "T6.7",  "name": "Step 7: Drop legacy edges — ProcessRoute.product_id, RouteStep.work_cell_id, Equipment.equipment_type, Equipment.capabilities", "status": "not-started" },
         { "id": "T6.8",  "name": "Step 8: REST API path renames per DICTIONARY.md 5.4", "status": "not-started" },

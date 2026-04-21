@@ -20,7 +20,7 @@ from mes.framework.api.exceptions import NotFoundException
 from mes.framework.api.pagination import PaginationParams, paginate_query
 from mes.framework.events import event_bus
 
-from mes.core.production.service import ProductionOrderService
+from mes.core.operations.service import OperationsRequestService
 
 from .events import (
     unit_created, unit_started, unit_completed, unit_moved,
@@ -35,7 +35,7 @@ from .exceptions import (
     NoRouteAssignedException,
     NoNextStepException,
 )
-from .models import Unit, Lot, UnitHistory, LotHistory
+from .models import Unit, Lot, SegmentResponseUnit, SegmentResponseLot
 
 logger = logging.getLogger("mes.wip")
 
@@ -89,16 +89,16 @@ class UnitService:
         return unit
 
     @staticmethod
-    async def get_unit_history(
+    async def get_segment_response_units(
         session: AsyncSession, unit_id: UUID,
-    ) -> Sequence[UnitHistory]:
+    ) -> Sequence[SegmentResponseUnit]:
         """Get all history records for a unit, ordered by entered_at."""
         # Verify unit exists
         await UnitService.get_unit(session, unit_id)
         stmt = (
-            select(UnitHistory)
-            .where(UnitHistory.unit_id == unit_id)
-            .order_by(UnitHistory.entered_at)
+            select(SegmentResponseUnit)
+            .where(SegmentResponseUnit.unit_id == unit_id)
+            .order_by(SegmentResponseUnit.entered_at)
         )
         result = await session.execute(stmt)
         return result.scalars().all()
@@ -120,7 +120,7 @@ class UnitService:
         await session.flush()
 
         # Auto-transition order to in_progress if it's released
-        await ProductionOrderService.start_order(session, unit.order_id)
+        await OperationsRequestService.start_order(session, unit.order_id)
 
         await event_bus.publish(
             unit_created(str(unit.id), str(unit.order_id), unit.serial_number)
@@ -161,7 +161,7 @@ class UnitService:
 
         # Create history record
         now = datetime.now(timezone.utc)
-        history = UnitHistory(
+        history = SegmentResponseUnit(
             unit_id=unit.id,
             step_id=unit.current_step_id,
             equipment_id=unit.current_equipment_id,
@@ -202,13 +202,13 @@ class UnitService:
 
         # Close the open history record for the current step
         stmt = (
-            select(UnitHistory)
+            select(SegmentResponseUnit)
             .where(
-                UnitHistory.unit_id == unit_id,
-                UnitHistory.step_id == unit.current_step_id,
-                UnitHistory.exited_at.is_(None),
+                SegmentResponseUnit.unit_id == unit_id,
+                SegmentResponseUnit.step_id == unit.current_step_id,
+                SegmentResponseUnit.exited_at.is_(None),
             )
-            .order_by(UnitHistory.entered_at.desc())
+            .order_by(SegmentResponseUnit.entered_at.desc())
         )
         history_result = await session.execute(stmt)
         history = history_result.scalar_one_or_none()
@@ -262,13 +262,13 @@ class UnitService:
         # Close any open history record for the current step
         if from_step_id is not None:
             close_stmt = (
-                select(UnitHistory)
+                select(SegmentResponseUnit)
                 .where(
-                    UnitHistory.unit_id == unit_id,
-                    UnitHistory.step_id == from_step_id,
-                    UnitHistory.exited_at.is_(None),
+                    SegmentResponseUnit.unit_id == unit_id,
+                    SegmentResponseUnit.step_id == from_step_id,
+                    SegmentResponseUnit.exited_at.is_(None),
                 )
-                .order_by(UnitHistory.entered_at.desc())
+                .order_by(SegmentResponseUnit.entered_at.desc())
             )
             close_result = await session.execute(close_stmt)
             open_history = close_result.scalar_one_or_none()
@@ -289,12 +289,12 @@ class UnitService:
             step_result = result
             if step_result is None and from_step_id is not None:
                 hist_stmt = (
-                    select(UnitHistory)
+                    select(SegmentResponseUnit)
                     .where(
-                        UnitHistory.unit_id == unit_id,
-                        UnitHistory.step_id == from_step_id,
+                        SegmentResponseUnit.unit_id == unit_id,
+                        SegmentResponseUnit.step_id == from_step_id,
                     )
-                    .order_by(UnitHistory.entered_at.desc())
+                    .order_by(SegmentResponseUnit.entered_at.desc())
                     .limit(1)
                 )
                 hist_result = await session.execute(hist_stmt)
@@ -314,7 +314,7 @@ class UnitService:
                 await session.flush()
 
                 # Increment order completed count
-                await ProductionOrderService.increment_completed(
+                await OperationsRequestService.increment_completed(
                     session, unit.order_id,
                 )
                 await event_bus.publish(
@@ -403,7 +403,7 @@ class UnitService:
         await session.flush()
 
         # Increment order scrapped count
-        await ProductionOrderService.increment_scrapped(session, unit.order_id)
+        await OperationsRequestService.increment_scrapped(session, unit.order_id)
 
         await event_bus.publish(
             unit_scrapped(
@@ -465,14 +465,14 @@ class LotService:
         return lot
 
     @staticmethod
-    async def get_lot_history(
+    async def get_segment_response_lots(
         session: AsyncSession, lot_id: UUID,
-    ) -> Sequence[LotHistory]:
+    ) -> Sequence[SegmentResponseLot]:
         await LotService.get_lot(session, lot_id)
         stmt = (
-            select(LotHistory)
-            .where(LotHistory.lot_id == lot_id)
-            .order_by(LotHistory.entered_at)
+            select(SegmentResponseLot)
+            .where(SegmentResponseLot.lot_id == lot_id)
+            .order_by(SegmentResponseLot.entered_at)
         )
         result = await session.execute(stmt)
         return result.scalars().all()
@@ -492,7 +492,7 @@ class LotService:
         session.add(lot)
         await session.flush()
 
-        await ProductionOrderService.start_order(session, lot.order_id)
+        await OperationsRequestService.start_order(session, lot.order_id)
 
         await event_bus.publish(
             lot_created(str(lot.id), str(lot.order_id), lot.lot_number, lot.quantity)
@@ -527,7 +527,7 @@ class LotService:
         await session.flush()
 
         now = datetime.now(timezone.utc)
-        history = LotHistory(
+        history = SegmentResponseLot(
             lot_id=lot.id,
             step_id=lot.current_step_id,
             equipment_id=lot.current_equipment_id,
@@ -567,13 +567,13 @@ class LotService:
 
         # Close the open history record
         stmt = (
-            select(LotHistory)
+            select(SegmentResponseLot)
             .where(
-                LotHistory.lot_id == lot_id,
-                LotHistory.step_id == lot.current_step_id,
-                LotHistory.exited_at.is_(None),
+                SegmentResponseLot.lot_id == lot_id,
+                SegmentResponseLot.step_id == lot.current_step_id,
+                SegmentResponseLot.exited_at.is_(None),
             )
-            .order_by(LotHistory.entered_at.desc())
+            .order_by(SegmentResponseLot.entered_at.desc())
         )
         history_result = await session.execute(stmt)
         history = history_result.scalar_one_or_none()
@@ -589,7 +589,7 @@ class LotService:
 
         # Propagate step-level scrap to the production order immediately
         if quantity_scrapped > 0:
-            await ProductionOrderService.increment_scrapped(
+            await OperationsRequestService.increment_scrapped(
                 session, lot.order_id, quantity_scrapped,
             )
 
@@ -626,13 +626,13 @@ class LotService:
         # Close any open history record for the current step
         if from_step_id is not None:
             close_stmt = (
-                select(LotHistory)
+                select(SegmentResponseLot)
                 .where(
-                    LotHistory.lot_id == lot_id,
-                    LotHistory.step_id == from_step_id,
-                    LotHistory.exited_at.is_(None),
+                    SegmentResponseLot.lot_id == lot_id,
+                    SegmentResponseLot.step_id == from_step_id,
+                    SegmentResponseLot.exited_at.is_(None),
                 )
-                .order_by(LotHistory.entered_at.desc())
+                .order_by(SegmentResponseLot.entered_at.desc())
             )
             close_result = await session.execute(close_stmt)
             open_history = close_result.scalar_one_or_none()
@@ -651,12 +651,12 @@ class LotService:
             step_result = result
             if step_result is None and from_step_id is not None:
                 hist_stmt = (
-                    select(LotHistory)
+                    select(SegmentResponseLot)
                     .where(
-                        LotHistory.lot_id == lot_id,
-                        LotHistory.step_id == from_step_id,
+                        SegmentResponseLot.lot_id == lot_id,
+                        SegmentResponseLot.step_id == from_step_id,
                     )
-                    .order_by(LotHistory.entered_at.desc())
+                    .order_by(SegmentResponseLot.entered_at.desc())
                     .limit(1)
                 )
                 hist_result = await session.execute(hist_stmt)
@@ -676,7 +676,7 @@ class LotService:
                 lot.current_equipment_id = None
                 await session.flush()
 
-                await ProductionOrderService.increment_completed(
+                await OperationsRequestService.increment_completed(
                     session, lot.order_id, lot.quantity,
                 )
                 await event_bus.publish(
@@ -763,7 +763,7 @@ class LotService:
         lot.current_equipment_id = None
         await session.flush()
 
-        await ProductionOrderService.increment_scrapped(
+        await OperationsRequestService.increment_scrapped(
             session, lot.order_id, lot.quantity,
         )
 

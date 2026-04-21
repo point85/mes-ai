@@ -262,9 +262,9 @@ class TestMockERPInboundAdapter:
         assert await adapter.health_check() is False
 
     @pytest.mark.asyncio
-    async def test_sync_production_orders(self, adapter):
+    async def test_sync_operations_requests(self, adapter):
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         assert len(orders) == 3
         assert all(isinstance(o, ProductionOrderDTO) for o in orders)
         assert orders[0].erp_reference == "PO-2026-001"

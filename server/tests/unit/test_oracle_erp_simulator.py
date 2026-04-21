@@ -57,14 +57,14 @@ class TestOracleSimulatorWorkOrders:
     @pytest.mark.asyncio
     async def test_sync_all_orders(self, adapter):
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         assert len(orders) == 5
         assert all(isinstance(o, ProductionOrderDTO) for o in orders)
 
     @pytest.mark.asyncio
     async def test_order_field_mapping(self, adapter):
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         o = orders[0]
         assert o.erp_reference == "WO-100-001"
         assert o.product_code == "FG-WIDGET-100"
@@ -78,7 +78,7 @@ class TestOracleSimulatorWorkOrders:
     @pytest.mark.asyncio
     async def test_oracle_priority_mapping(self, adapter):
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         assert orders[0].priority == 500   # "3" → Medium
         assert orders[1].priority == 700   # "2" → High
         assert orders[2].priority == 900   # "1" → Critical
@@ -87,7 +87,7 @@ class TestOracleSimulatorWorkOrders:
     @pytest.mark.asyncio
     async def test_planned_dates_parsed(self, adapter):
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         o = orders[0]
         assert o.planned_start is not None
         assert isinstance(o.planned_start, datetime)
@@ -97,7 +97,7 @@ class TestOracleSimulatorWorkOrders:
     async def test_incremental_sync(self, adapter):
         await adapter.connect()
         cutoff = datetime(2026, 3, 25, tzinfo=timezone.utc)
-        orders = await adapter.sync_production_orders(since=cutoff)
+        orders = await adapter.sync_operations_requests(since=cutoff)
         assert len(orders) == 1
         assert orders[0].erp_reference == "WO-300-002"
 
@@ -113,7 +113,7 @@ class TestOracleSimulatorWorkOrders:
             "OrganizationCode": "ORG_MAIN",
             "WorkOrderType": "Standard",
         })
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         assert len(orders) == 6
         added = [o for o in orders if o.erp_reference == "WO-TEST-999"]
         assert len(added) == 1
@@ -416,7 +416,7 @@ class TestOracleSimulatorInboundLifecycle:
         await adapter.connect()
         from mes.adapters.erp.exceptions import ERPSyncError
         with pytest.raises(ERPSyncError):
-            await adapter.sync_production_orders()
+            await adapter.sync_operations_requests()
 
     @pytest.mark.asyncio
     async def test_independent_instances(self):
@@ -432,8 +432,8 @@ class TestOracleSimulatorInboundLifecycle:
             "OrganizationCode": "ORG_MAIN",
             "WorkOrderType": "Standard",
         })
-        assert len(await a1.sync_production_orders()) == 6
-        assert len(await a2.sync_production_orders()) == 5
+        assert len(await a1.sync_operations_requests()) == 6
+        assert len(await a2.sync_operations_requests()) == 5
 
     @pytest.mark.asyncio
     async def test_erp_type_attribute(self):

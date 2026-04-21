@@ -32,10 +32,10 @@ from .schemas import (
     OrderReleaseRequest,
     OrderCompleteRequest,
 )
-from .service import ProductionOrderService
+from .service import OperationsRequestService
 
 router = APIRouter(prefix="/api/v1", tags=["Production Orders"])
-svc = ProductionOrderService
+svc = OperationsRequestService
 
 
 # ─── List / query ────────────────────────────────────────────────────

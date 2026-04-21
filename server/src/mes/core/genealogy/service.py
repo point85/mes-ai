@@ -1,7 +1,7 @@
 """
 GENEALOGY: Service for building the full as-built traceability record.
 
-Queries across UnitHistory/LotHistory, MaterialConsumption, TestResult,
+Queries across SegmentResponseUnit/SegmentResponseLot, MaterialConsumption, TestResult,
 and DataPoint to assemble the genealogy for a unit or lot.
 """
 
@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from mes.framework.api.exceptions import NotFoundException
 
-from mes.core.wip.models import Unit, Lot, UnitHistory, LotHistory
+from mes.core.wip.models import Unit, Lot, SegmentResponseUnit, SegmentResponseLot
 from mes.core.material.models import MaterialConsumption, MaterialDefinition, MaterialLot
 from mes.core.quality.models import TestResult, QualityTest
 from mes.core.data_collection.models import DataPoint, DataDefinition
@@ -43,7 +43,7 @@ class GenealogyService:
         Build the full genealogy for a unit.
 
         Gathers:
-        - Processing history (UnitHistory)
+        - Processing history (SegmentResponseUnit)
         - Consumed materials (MaterialConsumption)
         - Quality test results (TestResult)
         - Collected data points (DataPoint)
@@ -57,9 +57,9 @@ class GenealogyService:
 
         # ── Processing history ──────────────────────────────────────
         hist_stmt = (
-            select(UnitHistory)
-            .where(UnitHistory.unit_id == unit_id)
-            .order_by(UnitHistory.entered_at)
+            select(SegmentResponseUnit)
+            .where(SegmentResponseUnit.unit_id == unit_id)
+            .order_by(SegmentResponseUnit.entered_at)
         )
         hist_result = await session.execute(hist_stmt)
         histories = hist_result.scalars().all()
@@ -178,9 +178,9 @@ class GenealogyService:
 
         # ── Processing history ──────────────────────────────────────
         hist_stmt = (
-            select(LotHistory)
-            .where(LotHistory.lot_id == lot_id)
-            .order_by(LotHistory.entered_at)
+            select(SegmentResponseLot)
+            .where(SegmentResponseLot.lot_id == lot_id)
+            .order_by(SegmentResponseLot.entered_at)
         )
         hist_result = await session.execute(hist_stmt)
         histories = hist_result.scalars().all()

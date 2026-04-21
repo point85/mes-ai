@@ -1,7 +1,7 @@
 """
 WIP-TRACK: Pydantic schemas for the WIP Tracking REST API.
 
-Create / Read schemas for Unit, Lot, UnitHistory, LotHistory,
+Create / Read schemas for Unit, Lot, SegmentResponseUnit, SegmentResponseLot,
 plus action request schemas for WIP lifecycle operations.
 """
 

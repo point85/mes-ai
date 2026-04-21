@@ -17,7 +17,7 @@ from sqlalchemy import case, func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mes.core.production.models import ProductionOrder
+from mes.core.operations.models import OperationsRequest
 from mes.core.wip.models import Unit, Lot
 from mes.core.physical_model.models import Equipment, WorkCell, ProductionLine
 from mes.core.performance.models import EquipmentStateLog
@@ -45,10 +45,10 @@ class DashboardService:
         - pct_complete (0–100)
         - wip_counts: {queued, in_process, on_hold, completed, scrapped}
         """
-        stmt = select(ProductionOrder).where(ProductionOrder.is_active.is_(True))
+        stmt = select(OperationsRequest).where(OperationsRequest.is_active.is_(True))
         if status_filter:
-            stmt = stmt.where(ProductionOrder.status == status_filter)
-        stmt = stmt.order_by(ProductionOrder.priority.desc(), ProductionOrder.created_at)
+            stmt = stmt.where(OperationsRequest.status == status_filter)
+        stmt = stmt.order_by(OperationsRequest.priority.desc(), OperationsRequest.created_at)
 
         result = await session.execute(stmt)
         orders = result.scalars().all()
@@ -215,18 +215,18 @@ class DashboardService:
         now = datetime.now(timezone.utc)
         start = now - timedelta(hours=hours)
 
-        from mes.core.wip.models import UnitHistory, LotHistory
+        from mes.core.wip.models import SegmentResponseUnit, SegmentResponseLot
 
         # Unit history in time window
-        unit_base = select(UnitHistory).where(UnitHistory.entered_at >= start)
+        unit_base = select(SegmentResponseUnit).where(SegmentResponseUnit.entered_at >= start)
         if equipment_id:
-            unit_base = unit_base.where(UnitHistory.equipment_id == equipment_id)
+            unit_base = unit_base.where(SegmentResponseUnit.equipment_id == equipment_id)
 
         unit_started_q = select(func.count()).select_from(
             unit_base.subquery()
         )
         unit_completed_q = select(func.count()).select_from(
-            unit_base.where(UnitHistory.exited_at.is_not(None)).subquery()
+            unit_base.where(SegmentResponseUnit.exited_at.is_not(None)).subquery()
         )
         unit_scrapped_q = select(func.count()).select_from(
             select(Unit).where(
@@ -236,15 +236,15 @@ class DashboardService:
         )
 
         # Lot history in time window
-        lot_base = select(LotHistory).where(LotHistory.entered_at >= start)
+        lot_base = select(SegmentResponseLot).where(SegmentResponseLot.entered_at >= start)
         if equipment_id:
-            lot_base = lot_base.where(LotHistory.equipment_id == equipment_id)
+            lot_base = lot_base.where(SegmentResponseLot.equipment_id == equipment_id)
 
         lot_started_q = select(func.count()).select_from(
             lot_base.subquery()
         )
         lot_completed_q = select(func.count()).select_from(
-            lot_base.where(LotHistory.exited_at.is_not(None)).subquery()
+            lot_base.where(SegmentResponseLot.exited_at.is_not(None)).subquery()
         )
         lot_scrapped_q = select(func.count()).select_from(
             select(Lot).where(

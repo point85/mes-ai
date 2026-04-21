@@ -486,7 +486,7 @@ class TestCPGLotProcessor:
         order = types.SimpleNamespace(id=order_id, order_number="ERP-CPG-001", status="created")
         lot = types.SimpleNamespace(id=lot_id, lot_number="LOT-ERP-CPG-001")
 
-        with patch("mes.core.demo.order_processors.ProductionOrderService") as mock_pos:
+        with patch("mes.core.demo.order_processors.OperationsRequestService") as mock_pos:
             mock_pos.create_order = AsyncMock(return_value=order)
             mock_pos.release_order = AsyncMock(return_value=order)
             with patch("mes.core.demo.order_processors.LotService") as mock_ls:
@@ -587,7 +587,7 @@ class TestElectronicsUnitProcessor:
                 serial_number=kwargs["serial_number"],
             )
 
-        with patch("mes.core.demo.order_processors.ProductionOrderService") as mock_pos:
+        with patch("mes.core.demo.order_processors.OperationsRequestService") as mock_pos:
             mock_pos.create_order = AsyncMock(return_value=order)
             mock_pos.release_order = AsyncMock(return_value=order)
             with patch("mes.core.demo.order_processors.UnitService") as mock_us:
@@ -638,7 +638,7 @@ class TestElectronicsUnitProcessor:
             captured_serials.append(kwargs["serial_number"])
             return types.SimpleNamespace(id=uuid.uuid4(), serial_number=kwargs["serial_number"])
 
-        with patch("mes.core.demo.order_processors.ProductionOrderService") as mock_pos:
+        with patch("mes.core.demo.order_processors.OperationsRequestService") as mock_pos:
             mock_pos.create_order = AsyncMock(return_value=order)
             mock_pos.release_order = AsyncMock(return_value=order)
             with patch("mes.core.demo.order_processors.UnitService") as mock_us:

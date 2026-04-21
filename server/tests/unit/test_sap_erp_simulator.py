@@ -56,14 +56,14 @@ class TestSAPSimulatorProductionOrders:
     @pytest.mark.asyncio
     async def test_sync_all_orders(self, adapter):
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         assert len(orders) == 5
         assert all(isinstance(o, ProductionOrderDTO) for o in orders)
 
     @pytest.mark.asyncio
     async def test_order_field_mapping(self, adapter):
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         o = orders[0]
         assert o.erp_reference == "000001000100"
         assert o.product_code == "FG-WIDGET-100"
@@ -77,7 +77,7 @@ class TestSAPSimulatorProductionOrders:
     @pytest.mark.asyncio
     async def test_sap_priority_mapping(self, adapter):
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         assert orders[0].priority == 500   # "3" → Medium
         assert orders[1].priority == 700   # "2" → High
         assert orders[2].priority == 900   # "1" → Very high
@@ -86,7 +86,7 @@ class TestSAPSimulatorProductionOrders:
     @pytest.mark.asyncio
     async def test_planned_dates_parsed(self, adapter):
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         o = orders[0]
         assert o.planned_start is not None
         assert isinstance(o.planned_start, datetime)
@@ -97,7 +97,7 @@ class TestSAPSimulatorProductionOrders:
     async def test_incremental_sync(self, adapter):
         await adapter.connect()
         cutoff = datetime(2026, 3, 25, tzinfo=timezone.utc)
-        orders = await adapter.sync_production_orders(since=cutoff)
+        orders = await adapter.sync_operations_requests(since=cutoff)
         assert len(orders) == 1
         assert orders[0].erp_reference == "000001000301"
 
@@ -113,7 +113,7 @@ class TestSAPSimulatorProductionOrders:
             "ProductionPlant": "1000",
             "ManufacturingOrderType": "PP01",
         })
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         assert len(orders) == 6
         added = [o for o in orders if o.erp_reference == "000009999999"]
         assert len(added) == 1
@@ -420,7 +420,7 @@ class TestSAPSimulatorInboundLifecycle:
         await adapter.connect()
         from mes.adapters.erp.exceptions import ERPSyncError
         with pytest.raises(ERPSyncError):
-            await adapter.sync_production_orders()
+            await adapter.sync_operations_requests()
 
     @pytest.mark.asyncio
     async def test_independent_instances(self):
@@ -436,8 +436,8 @@ class TestSAPSimulatorInboundLifecycle:
             "ProductionPlant": "1000",
             "ManufacturingOrderType": "PP01",
         })
-        assert len(await a1.sync_production_orders()) == 6
-        assert len(await a2.sync_production_orders()) == 5
+        assert len(await a1.sync_operations_requests()) == 6
+        assert len(await a2.sync_operations_requests()) == 5
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -841,7 +841,7 @@ class TestSAPERPSimulatorPluginRestored:
         await plugin.start()
 
         inbound = plugin.get_adapter()["erp_inbound"]
-        orders = await inbound.sync_production_orders()
+        orders = await inbound.sync_operations_requests()
         assert len(orders) == 5
 
         materials = await inbound.sync_materials()
@@ -938,7 +938,7 @@ class TestSAPDataIntegrity:
         products = await adapter.sync_products()
         product_codes = {p.code for p in products}
 
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         for order in orders:
             assert order.product_code in product_codes, (
                 f"Order {order.erp_reference} references product "
@@ -949,7 +949,7 @@ class TestSAPDataIntegrity:
     async def test_all_order_products_have_boms(self, adapter):
         """Every production order product should have at least one BOM."""
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         seen_products = {o.product_code for o in orders}
 
         for product_code in seen_products:
@@ -962,7 +962,7 @@ class TestSAPDataIntegrity:
     async def test_all_order_products_have_routings(self, adapter):
         """Every production order product should have at least one routing."""
         await adapter.connect()
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         seen_products = {o.product_code for o in orders}
 
         for product_code in seen_products:

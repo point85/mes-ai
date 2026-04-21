@@ -28,7 +28,7 @@ import mes.framework.plugin.models  # noqa: F401
 import mes.core.physical_model.models  # noqa: F401
 import mes.core.product_def.models  # noqa: F401
 import mes.core.uom.models  # noqa: F401
-import mes.core.production.models  # noqa: F401
+import mes.core.operations.models  # noqa: F401
 import mes.core.wip.models  # noqa: F401
 import mes.core.material.models  # noqa: F401
 import mes.core.data_collection.models  # noqa: F401
@@ -42,7 +42,7 @@ from mes.core.wip.exceptions import (
     DuplicateSerialNumberException,
     InvalidWIPTransitionException,
 )
-from mes.core.production.service import ProductionOrderService
+from mes.core.operations.service import OperationsRequestService
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -142,7 +142,7 @@ class TestUnitCreation:
 
     @pytest.mark.asyncio
     @patch("mes.core.wip.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.wip.service.ProductionOrderService.start_order", new_callable=AsyncMock)
+    @patch("mes.core.wip.service.OperationsRequestService.start_order", new_callable=AsyncMock)
     async def test_creates_unit_and_fires_event(self, mock_start_order, mock_publish):
         session = _session_returning(None)  # no duplicate
         unit_data = dict(
@@ -375,7 +375,7 @@ class TestUnitMove:
 
     @pytest.mark.asyncio
     @patch("mes.core.wip.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.wip.service.ProductionOrderService.increment_completed", new_callable=AsyncMock)
+    @patch("mes.core.wip.service.OperationsRequestService.increment_completed", new_callable=AsyncMock)
     @patch("mes.core.wip.service.UnitService.get_unit", new_callable=AsyncMock)
     async def test_move_completes_unit_when_no_next_step(
         self, mock_get, mock_incr_complete, mock_publish,
@@ -518,7 +518,7 @@ class TestUnitScrap:
 
     @pytest.mark.asyncio
     @patch("mes.core.wip.service.event_bus.publish", new_callable=AsyncMock)
-    @patch("mes.core.wip.service.ProductionOrderService.increment_scrapped", new_callable=AsyncMock)
+    @patch("mes.core.wip.service.OperationsRequestService.increment_scrapped", new_callable=AsyncMock)
     @patch("mes.core.wip.service.UnitService.get_unit", new_callable=AsyncMock)
     async def test_scrap_sets_status_and_increments_order(
         self, mock_get, mock_incr_scrap, mock_publish,
@@ -822,7 +822,7 @@ class TestFullUnitLifecycleSequence:
             published_events.append(event.event_type)
 
         with patch("mes.core.wip.service.event_bus.publish", side_effect=capture_event):
-            with patch("mes.core.wip.service.ProductionOrderService.start_order", new_callable=AsyncMock):
+            with patch("mes.core.wip.service.OperationsRequestService.start_order", new_callable=AsyncMock):
                 # 1. Create
                 session = _session_returning(None)
                 await UnitService.create_unit(
@@ -852,7 +852,7 @@ class TestFullUnitLifecycleSequence:
                 mock_get.return_value = unit_mock
                 session = _session_returning(None)
 
-                with patch("mes.core.wip.service.ProductionOrderService.increment_completed", new_callable=AsyncMock):
+                with patch("mes.core.wip.service.OperationsRequestService.increment_completed", new_callable=AsyncMock):
                     with patch(
                         "mes.core.routing.service.RoutingEngineService.get_next_step",
                         new_callable=AsyncMock, return_value=None,

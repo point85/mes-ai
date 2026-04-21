@@ -19,7 +19,7 @@ from mes.core.product_def.routes import router as product_def_router
 from mes.core.uom.routes import router as uom_router
 
 # Layer 2 routers
-from mes.core.production.routes import router as production_router
+from mes.core.operations.routes import router as production_router
 from mes.core.wip.routes import router as wip_router
 
 # Layer 3 routers
@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
     inbound_task = asyncio.create_task(_inbound_queue_loop())
 
     # ── WIP generator: create lots/units for released orders ──
-    from mes.core.production.wip_generator import wip_generator_loop
+    from mes.core.operations.wip_generator import wip_generator_loop
     wip_task = asyncio.create_task(wip_generator_loop())
 
     logger.info("MES AI server ready")

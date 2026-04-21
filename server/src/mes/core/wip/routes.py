@@ -226,13 +226,13 @@ async def scrap_unit(
 
 
 @router.get("/units/{unit_id}/history")
-async def get_unit_history(
+async def get_segment_response_units(
     unit_id: UUID,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("wip.read")),
 ):
     """Get processing history for a unit."""
-    records = await UnitService.get_unit_history(session, unit_id)
+    records = await UnitService.get_segment_response_units(session, unit_id)
     return success_response(
         [UnitHistoryRead.model_validate(r).model_dump() for r in records]
     )
@@ -406,13 +406,13 @@ async def scrap_lot(
 
 
 @router.get("/lots/{lot_id}/history")
-async def get_lot_history(
+async def get_segment_response_lots(
     lot_id: UUID,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("wip.read")),
 ):
     """Get processing history for a lot."""
-    records = await LotService.get_lot_history(session, lot_id)
+    records = await LotService.get_segment_response_lots(session, lot_id)
     return success_response(
         [LotHistoryRead.model_validate(r).model_dump() for r in records]
     )

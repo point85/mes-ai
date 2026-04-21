@@ -2,7 +2,7 @@
 Demo: Order processors for the CPG and Electronics demos.
 
 These are concrete implementations of ``OrderProcessor`` that show how
-to convert inbound ERP orders into MES ``ProductionOrder`` entities
+to convert inbound ERP orders into MES ``OperationsRequest`` entities
 plus WIP (Lots for CPG, Units for Electronics).
 
 End users should study these examples and create their own processor
@@ -33,8 +33,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.adapters.erp.inbound_queue import OrderProcessor, ProcessorResult
 from mes.core.product_def.models import ProductDefinition, OperationsDefinition
-from mes.core.production.models import ProductionOrder
-from mes.core.production.service import ProductionOrderService
+from mes.core.operations.models import OperationsRequest
+from mes.core.operations.service import OperationsRequestService
 from mes.core.wip.service import LotService, UnitService
 
 logger = logging.getLogger("mes.demo.order_processors")
@@ -82,12 +82,12 @@ async def _resolve_route(
 
 async def _find_existing_order(
     session: AsyncSession, erp_reference: str,
-) -> ProductionOrder | None:
+) -> OperationsRequest | None:
     """Check if a production order with this ERP reference already exists."""
     result = await session.execute(
-        select(ProductionOrder).where(
-            ProductionOrder.erp_reference == erp_reference,
-            ProductionOrder.is_active.is_(True),
+        select(OperationsRequest).where(
+            OperationsRequest.erp_reference == erp_reference,
+            OperationsRequest.is_active.is_(True),
         )
     )
     return result.scalar_one_or_none()
@@ -103,7 +103,7 @@ class CPGLotProcessor(OrderProcessor):
     Flow for each order:
       1. Resolve product by code.
       2. Look up the default process route.
-      3. Create a ProductionOrder (status = ``created``).
+      3. Create a OperationsRequest (status = ``created``).
       4. Release the order (``created`` → ``released``).
       5. Create a single Lot with ``quantity = order.quantity_ordered``.
 
@@ -140,7 +140,7 @@ class CPGLotProcessor(OrderProcessor):
         route = await _resolve_route(session, product.id)
 
         # 4. Create production order
-        order = await ProductionOrderService.create_order(
+        order = await OperationsRequestService.create_order(
             session,
             order_number=erp_ref,
             product_id=product.id,
@@ -153,7 +153,7 @@ class CPGLotProcessor(OrderProcessor):
         )
 
         # 5. Release the order
-        await ProductionOrderService.release_order(session, order.id)
+        await OperationsRequestService.release_order(session, order.id)
 
         # 6. Create one lot for the full quantity
         lot_number = f"LOT-{erp_ref}"
@@ -185,7 +185,7 @@ class ElectronicsUnitProcessor(OrderProcessor):
     Flow for each order:
       1. Resolve product by code.
       2. Look up the default process route.
-      3. Create a ProductionOrder (status = ``created``).
+      3. Create a OperationsRequest (status = ``created``).
       4. Release the order (``created`` → ``released``).
       5. Create N Units (one per ordered quantity) with serial numbers
          ``SN-{erp_reference}-00001`` … ``SN-{erp_reference}-NNNNN``.
@@ -220,7 +220,7 @@ class ElectronicsUnitProcessor(OrderProcessor):
         route = await _resolve_route(session, product.id)
 
         # 4. Create production order
-        order = await ProductionOrderService.create_order(
+        order = await OperationsRequestService.create_order(
             session,
             order_number=erp_ref,
             product_id=product.id,
@@ -233,7 +233,7 @@ class ElectronicsUnitProcessor(OrderProcessor):
         )
 
         # 5. Release the order
-        await ProductionOrderService.release_order(session, order.id)
+        await OperationsRequestService.release_order(session, order.id)
 
         # 6. Create one unit per piece
         unit_ids: list[str] = []

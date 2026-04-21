@@ -61,7 +61,7 @@ class OracleInboundAdapter(ERPInboundAdapter):
     async def health_check(self) -> bool:
         return await self._client.health_check()
 
-    async def sync_production_orders(
+    async def sync_operations_requests(
         self, since: datetime | None = None,
     ) -> list[ProductionOrderDTO]:
         """Fetch work orders, optionally filtered by last-updated date."""

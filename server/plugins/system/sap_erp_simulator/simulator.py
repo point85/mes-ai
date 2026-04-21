@@ -104,11 +104,11 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
 
     # ── Inbound sync methods ──────────────────────────────────────
 
-    async def sync_production_orders(
+    async def sync_operations_requests(
         self, since: datetime | None = None,
     ) -> list[ProductionOrderDTO]:
         await self._simulate_latency()
-        self._maybe_fail("sync_production_orders")
+        self._maybe_fail("sync_operations_requests")
 
         orders = self._orders
         if since:

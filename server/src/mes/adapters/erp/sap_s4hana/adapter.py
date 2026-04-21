@@ -61,7 +61,7 @@ class SAPS4HANAInboundAdapter(ERPInboundAdapter):
     async def health_check(self) -> bool:
         return await self._client.health_check()
 
-    async def sync_production_orders(
+    async def sync_operations_requests(
         self, since: datetime | None = None,
     ) -> list[ProductionOrderDTO]:
         """Fetch production orders, optionally filtered by last-changed date."""
@@ -77,7 +77,7 @@ class SAPS4HANAInboundAdapter(ERPInboundAdapter):
             filter_expr = plant_filter
 
         raw_orders = await self._client.get_list(
-            sap_settings.SAP_PRODUCTION_ORDER_PATH + "/ProductionOrder",
+            sap_settings.SAP_PRODUCTION_ORDER_PATH + "/OperationsRequest",
             filter_expr=filter_expr,
         )
         return [self._transform.to_production_order(o) for o in raw_orders]

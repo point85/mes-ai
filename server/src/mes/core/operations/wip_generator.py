@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.core.product_def.models import ProductDefinition
-from mes.core.production.models import ProductionOrder
+from mes.core.operations.models import OperationsRequest
 from mes.core.wip.serial import SerialNumberService
 from mes.core.wip.service import LotService, UnitService
 
@@ -32,7 +32,7 @@ logger = logging.getLogger("mes.production.wip_generator")
 WIP_GENERATOR_INTERVAL_SEC = 5  # default polling interval
 
 
-async def _generate_wip_for_order(session: AsyncSession, order: ProductionOrder) -> int:
+async def _generate_wip_for_order(session: AsyncSession, order: OperationsRequest) -> int:
     """
     Create lots or units for a single released order.
 
@@ -84,12 +84,12 @@ async def process_released_orders(session: AsyncSession) -> int:
     Returns the total number of WIP items created across all orders.
     """
     stmt = (
-        select(ProductionOrder)
+        select(OperationsRequest)
         .where(
-            ProductionOrder.status == "released",
-            ProductionOrder.is_active.is_(True),
+            OperationsRequest.status == "released",
+            OperationsRequest.is_active.is_(True),
         )
-        .order_by(ProductionOrder.priority.desc(), ProductionOrder.created_at)
+        .order_by(OperationsRequest.priority.desc(), OperationsRequest.created_at)
     )
     result = await session.execute(stmt)
     orders = result.scalars().all()

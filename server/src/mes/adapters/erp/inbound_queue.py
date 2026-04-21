@@ -5,7 +5,7 @@ ERP systems push production orders to the MES via the inbound adapter.
 Orders are persisted immediately to the ``erp_inbound_orders`` table so
 they survive MES restarts.  A periodic background task (default: every
 5 seconds) picks up unprocessed rows and converts them into MES
-``ProductionOrder`` entities, then optionally creates Lots or Units
+``OperationsRequest`` entities, then optionally creates Lots or Units
 depending on the concrete ``OrderProcessor`` implementation.
 
 Architecture
@@ -62,7 +62,7 @@ class ERPInboundOrder(BaseModel):
 
     Statuses:
         pending   — just received, waiting to be processed
-        processed — successfully converted into a ProductionOrder (+ WIP)
+        processed — successfully converted into a OperationsRequest (+ WIP)
         failed    — exhausted all retry attempts
         retry     — will be retried after ``next_retry_at``
     """
@@ -89,7 +89,7 @@ class ERPInboundOrder(BaseModel):
     # ── Processing outcome ──────────────────────────────────────────
     order_id: Mapped[str | None] = mapped_column(
         String(36), nullable=True,
-        comment="MES ProductionOrder.id after successful processing",
+        comment="MES OperationsRequest.id after successful processing",
     )
     wip_ids: Mapped[str | None] = mapped_column(
         Text, nullable=True,
@@ -218,7 +218,7 @@ class OrderProcessor(ABC):
     Abstract interface for converting an inbound ERP order into MES entities.
 
     Implement ``process_order()`` to:
-      1. Create a ``ProductionOrder`` (or reuse an existing one).
+      1. Create a ``OperationsRequest`` (or reuse an existing one).
       2. Optionally create Lots (batch) or Units (discrete).
       3. Optionally release the order so WIP can start immediately.
       4. Return a ``ProcessorResult`` with the created IDs.

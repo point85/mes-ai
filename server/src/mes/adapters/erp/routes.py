@@ -219,7 +219,7 @@ async def erp_health():
 
 
 @router.post("/sync/production-orders", response_model=dict)
-async def sync_production_orders(
+async def sync_operations_requests(
     since: datetime | None = Query(None, description="Only fetch orders changed after this timestamp"),
     enqueue: bool = Query(True, description="Persist orders to the inbound queue for processing"),
     session: AsyncSession = Depends(get_db_session),
@@ -232,7 +232,7 @@ async def sync_production_orders(
     registered ``OrderProcessor``.
     """
     adapter = _get_erp_inbound()
-    orders = await adapter.sync_production_orders(since=since)
+    orders = await adapter.sync_operations_requests(since=since)
 
     enqueued_ids: list[str] = []
     if enqueue and orders:

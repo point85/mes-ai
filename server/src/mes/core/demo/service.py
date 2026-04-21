@@ -30,8 +30,8 @@ from mes.core.product_def.models import (
 )
 from mes.core.product_def.models import Disposition
 from mes.core.product_def.service import ProductDefService
-from mes.core.production.models import ProductionOrder
-from mes.core.production.service import ProductionOrderService
+from mes.core.operations.models import OperationsRequest
+from mes.core.operations.service import OperationsRequestService
 from mes.core.data_collection.models import DataDefinition
 from mes.core.data_collection.service import DataDefinitionService
 from mes.core.quality.models import QualityTest
@@ -664,11 +664,11 @@ async def _get_or_create_order(
 ) -> bool:
     """Create order if it doesn't exist. Returns True if created."""
     result = await session.execute(
-        select(ProductionOrder.id).where(ProductionOrder.order_number == order_number)
+        select(OperationsRequest.id).where(OperationsRequest.order_number == order_number)
     )
     if result.scalar_one_or_none() is not None:
         return False
-    await ProductionOrderService.create_order(session, order_number=order_number, **kwargs)
+    await OperationsRequestService.create_order(session, order_number=order_number, **kwargs)
     return True
 
 

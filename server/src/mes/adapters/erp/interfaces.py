@@ -51,7 +51,7 @@ class ERPInboundAdapter(ABC):
         ...
 
     @abstractmethod
-    async def sync_production_orders(
+    async def sync_operations_requests(
         self, since: datetime | None = None,
     ) -> list[ProductionOrderDTO]:
         """Fetch new or changed production orders from ERP."""

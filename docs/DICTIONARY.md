@@ -53,7 +53,9 @@
 
 | Term | Definition |
 |---|---|
-| **Production Order** | A directive to manufacture a specific quantity of a product. Also known as: *work order*, *manufacturing order*, *shop order*. Has statuses: `created` → `released` → `in_progress` → `completed` → `closed`. Links to an ERP reference for traceability. |
+| **Operations Request** (formerly *Production Order*) | ISA-95 Part 3 directive to manufacture a specific quantity of a product. Also known as: *work order*, *manufacturing order*, *shop order*. Has statuses: `created` → `released` → `in_progress` → `completed` → `closed`. Links to an ERP reference for traceability. Class: `OperationsRequest`, table: `operations_requests`. |
+| **Operations Schedule** *(new, scaffold)* | ISA-95 Part 3 grouping of one or more Operations Requests into a dispatchable schedule window (e.g. a shift). Class: `OperationsSchedule`, table: `operations_schedules`. Scaffolded in Phase 6 Step 5; consumers land later. |
+| **Operations Response** *(new, scaffold)* | ISA-95 Part 3 as-performed aggregate record for a completed Operations Request — composed of Segment Responses + Resource Actuals. Class: `OperationsResponse`, table: `operations_responses`. Scaffolded in Phase 6 Step 5; consumers land later. |
 | **Unit** | A single serialized item being tracked through the manufacturing process. Each unit has a unique `serial_number`, a current step, current equipment, and status: `queued`, `in_process`, `completed`, `scrapped`, `on_hold`. |
 | **Lot** | A batch of items tracked as a group (used when individual serialization is impractical). Has a `lot_number` and quantity. Also known as: *batch*. |
 | **WIP** | **Work In Process** — units and lots currently moving through the manufacturing process (not yet completed or shipped). |
@@ -64,9 +66,9 @@
 
 | Term | Definition |
 |---|---|
-| **Unit History** | A record of a unit passing through a route step — when it entered, when it exited, the result (`pass`/`fail`/`rework`), which equipment and operator, plus a data snapshot. |
-| **Lot History** | Same as unit history but for lot-based tracking, including quantity in/out/scrapped. |
-| **Genealogy** | The complete as-built record for a unit or lot — all materials consumed, steps performed, data collected, tests executed. Built by querying across `UnitHistory`, `MaterialConsumption`, `TestResult`, and `DataPoint`. No separate table needed. |
+| **Segment Response (Unit)** (formerly *Unit History*) | ISA-95 Part 3 "Segment Response" for a serialized unit — when it entered a Process Segment, when it exited, the result (`pass`/`fail`/`rework`), which equipment and operator, plus a data snapshot. Class: `SegmentResponseUnit`, table: `segment_response_units`. |
+| **Segment Response (Lot)** (formerly *Lot History*) | ISA-95 Part 3 "Segment Response" for a lot — same as the unit variant but for lot-based tracking, including quantity in/out/scrapped. Class: `SegmentResponseLot`, table: `segment_response_lots`. |
+| **Genealogy** | The complete as-built record for a unit or lot — all materials consumed, segments performed, data collected, tests executed. Built by querying across `SegmentResponseUnit`, `MaterialConsumption`, `TestResult`, and `DataPoint`. No separate table needed. |
 | **Traceability** | The ability to trace a finished product back to its raw materials, process conditions, and test results. Genealogy provides full traceability. |
 
 ### Quality
@@ -120,7 +122,7 @@ These short identifiers are used in architecture docs, code paths, commit messag
 |---|---|---|
 | `PHYS-MODEL` | Physical Model | `server/src/mes/core/physical_model/` |
 | `PROD-DEF` | Product Definition | `server/src/mes/core/product_def/` |
-| `PROD-ORDER` | Production Order | `server/src/mes/core/production/` |
+| ~~`PROD-ORDER`~~ `OPS-REQUEST` | Operations Request (formerly Production Order) | `server/src/mes/core/operations/` |
 | `WIP-TRACK` | WIP Tracking | `server/src/mes/core/wip/` |
 | `ROUTE-DEF` | Route Definition | `server/src/mes/core/routing/` |
 | `ROUTE-ENGINE` | Route Engine | `server/src/mes/core/routing/` |

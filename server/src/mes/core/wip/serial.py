@@ -26,7 +26,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mes.core.production.models import ProductionOrder
+from mes.core.operations.models import OperationsRequest
 from mes.core.product_def.models import ProductDefinition
 
 logger = logging.getLogger("mes.wip.serial")
@@ -95,9 +95,9 @@ class SerialNumberService:
 
 async def _load_context(
     session: AsyncSession, order_id: UUID,
-) -> tuple[ProductionOrder, ProductDefinition | None]:
+) -> tuple[OperationsRequest, ProductDefinition | None]:
     """Load order and product for template variable resolution."""
-    from mes.core.production.models import ProductionOrder as PO
+    from mes.core.operations.models import OperationsRequest as PO
     from mes.core.product_def.models import ProductDefinition as PD
 
     stmt = select(PO).where(PO.id == order_id)
@@ -105,7 +105,7 @@ async def _load_context(
     order = result.scalar_one_or_none()
     if order is None:
         from mes.framework.api.exceptions import NotFoundException
-        raise NotFoundException(resource="ProductionOrder", resource_id=str(order_id))
+        raise NotFoundException(resource="OperationsRequest", resource_id=str(order_id))
 
     product = None
     if order.product_id:
@@ -118,7 +118,7 @@ async def _load_context(
 
 def _format_template(
     template: str,
-    order: ProductionOrder,
+    order: OperationsRequest,
     product: ProductDefinition | None,
     seq: int,
     now: datetime,

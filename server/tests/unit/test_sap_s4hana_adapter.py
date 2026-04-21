@@ -564,7 +564,7 @@ class TestSAPInboundAdapter:
         assert result is True
 
     @pytest.mark.asyncio()
-    async def test_sync_production_orders(self, adapter):
+    async def test_sync_operations_requests(self, adapter):
         adapter._client.get_list = AsyncMock(return_value=[
             {
                 "ManufacturingOrder": "000001000001",
@@ -573,16 +573,16 @@ class TestSAPInboundAdapter:
                 "ProductionPlant": "1000",
             },
         ])
-        orders = await adapter.sync_production_orders()
+        orders = await adapter.sync_operations_requests()
         assert len(orders) == 1
         assert orders[0].erp_reference == "000001000001"
         assert orders[0].quantity_ordered == 50
 
     @pytest.mark.asyncio()
-    async def test_sync_production_orders_with_since(self, adapter):
+    async def test_sync_operations_requests_with_since(self, adapter):
         adapter._client.get_list = AsyncMock(return_value=[])
         since = datetime(2026, 3, 1, tzinfo=timezone.utc)
-        orders = await adapter.sync_production_orders(since=since)
+        orders = await adapter.sync_operations_requests(since=since)
         assert len(orders) == 0
         # Verify filter includes LastChangeDateTime
         call_args = adapter._client.get_list.call_args

@@ -18,8 +18,8 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from mes.core.production.models import ProductionOrder
-from mes.core.production.schemas import (
+from mes.core.operations.models import OperationsRequest
+from mes.core.operations.schemas import (
     OrderCreate,
     OrderRead,
     OrderUpdate,
@@ -28,18 +28,18 @@ from mes.core.production.schemas import (
     ORDER_STATUSES,
     ORDER_TRANSITIONS,
 )
-from mes.core.production.events import (
+from mes.core.operations.events import (
     order_created,
     order_released,
     order_started,
     order_completed,
 )
-from mes.core.production.exceptions import (
+from mes.core.operations.exceptions import (
     DuplicateOrderNumberException,
     InvalidOrderTransitionException,
     OrderNotReleasedException,
 )
-from mes.core.production.service import ProductionOrderService
+from mes.core.operations.service import OperationsRequestService
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────
@@ -80,14 +80,14 @@ class TestProductionOrderModel:
     """Tests for the SQLAlchemy model."""
 
     def test_tablename(self):
-        assert ProductionOrder.__tablename__ == "production_orders"
+        assert OperationsRequest.__tablename__ == "operations_requests"
 
     def test_has_mapper(self):
-        assert hasattr(ProductionOrder, "__mapper__")
+        assert hasattr(OperationsRequest, "__mapper__")
 
     def test_column_defaults(self):
         """Verify key column defaults are set."""
-        cols = {c.name: c for c in ProductionOrder.__table__.columns}
+        cols = {c.name: c for c in OperationsRequest.__table__.columns}
         assert cols["status"].default.arg == "created"
         assert cols["priority"].default.arg == 0
         assert cols["quantity_completed"].default.arg == 0
@@ -219,12 +219,12 @@ class TestOrderTransitions:
     def test_validate_transition_rejects_invalid(self):
         order = _make_order(status="created")
         with pytest.raises(InvalidOrderTransitionException):
-            ProductionOrderService._validate_transition(order, "completed")
+            OperationsRequestService._validate_transition(order, "completed")
 
     def test_validate_transition_allows_valid(self):
         order = _make_order(status="created")
         # Should not raise
-        ProductionOrderService._validate_transition(order, "released")
+        OperationsRequestService._validate_transition(order, "released")
 
 
 # ═════════════════════════════════════════════════════════════════════

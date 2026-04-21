@@ -185,7 +185,7 @@ class ProductionCounter(BaseModel):
         nullable=False, index=True,
     )
     order_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("production_orders.id"),
+        Uuid, ForeignKey("operations_requests.id"),
         nullable=True, index=True,
     )
     shift_date: Mapped[date] = mapped_column(

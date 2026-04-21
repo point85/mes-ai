@@ -4,8 +4,8 @@ WIP-TRACK: SQLAlchemy models for work-in-process tracking.
 Entities:
 - Unit:        A discrete trackable item (identified by serial_number)
 - Lot:         A batch of material processed together (identified by lot_number)
-- UnitHistory: Processing record for a unit at a route step
-- LotHistory:  Processing record for a lot at a route step
+- SegmentResponseUnit: Processing record for a unit at a route step
+- SegmentResponseLot:  Processing record for a lot at a route step
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ class Unit(BaseModel):
         comment="Unique serial number for the unit",
     )
     order_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("production_orders.id"),
+        Uuid, ForeignKey("operations_requests.id"),
         nullable=False, index=True,
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
@@ -66,8 +66,8 @@ class Unit(BaseModel):
     )
 
     # ── Relationships ───────────────────────────────────────────────
-    order: Mapped["ProductionOrder"] = relationship(  # noqa: F821
-        "ProductionOrder", back_populates="units",
+    order: Mapped["OperationsRequest"] = relationship(  # noqa: F821
+        "OperationsRequest", back_populates="units",
     )
     product: Mapped["ProductDefinition"] = relationship(  # noqa: F821
         "ProductDefinition", foreign_keys=[product_id],
@@ -78,9 +78,9 @@ class Unit(BaseModel):
     current_step: Mapped["ProcessSegment | None"] = relationship(  # noqa: F821
         "ProcessSegment", foreign_keys=[current_step_id], lazy="joined",
     )
-    history: Mapped[list["UnitHistory"]] = relationship(
-        "UnitHistory", back_populates="unit", cascade="all, delete-orphan",
-        order_by="UnitHistory.entered_at",
+    history: Mapped[list["SegmentResponseUnit"]] = relationship(
+        "SegmentResponseUnit", back_populates="unit", cascade="all, delete-orphan",
+        order_by="SegmentResponseUnit.entered_at",
     )
 
     @property
@@ -104,7 +104,7 @@ class Lot(BaseModel):
         comment="Unique lot identifier",
     )
     order_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("production_orders.id"),
+        Uuid, ForeignKey("operations_requests.id"),
         nullable=False, index=True,
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
@@ -134,8 +134,8 @@ class Lot(BaseModel):
     )
 
     # ── Relationships ───────────────────────────────────────────────
-    order: Mapped["ProductionOrder"] = relationship(  # noqa: F821
-        "ProductionOrder", back_populates="lots",
+    order: Mapped["OperationsRequest"] = relationship(  # noqa: F821
+        "OperationsRequest", back_populates="lots",
     )
     product: Mapped["ProductDefinition"] = relationship(  # noqa: F821
         "ProductDefinition", foreign_keys=[product_id],
@@ -146,9 +146,9 @@ class Lot(BaseModel):
     current_step: Mapped["ProcessSegment | None"] = relationship(  # noqa: F821
         "ProcessSegment", foreign_keys=[current_step_id], lazy="joined",
     )
-    history: Mapped[list["LotHistory"]] = relationship(
-        "LotHistory", back_populates="lot", cascade="all, delete-orphan",
-        order_by="LotHistory.entered_at",
+    history: Mapped[list["SegmentResponseLot"]] = relationship(
+        "SegmentResponseLot", back_populates="lot", cascade="all, delete-orphan",
+        order_by="SegmentResponseLot.entered_at",
     )
 
     @property
@@ -159,13 +159,13 @@ class Lot(BaseModel):
         return f"<Lot id={self.id} lot_number={self.lot_number} status={self.status}>"
 
 
-class UnitHistory(BaseModel):
+class SegmentResponseUnit(BaseModel):
     """
     A processing record for a unit at a specific route step.
     Created when a unit enters a step; updated with exit time and result when it leaves.
     """
 
-    __tablename__ = "unit_history"
+    __tablename__ = "segment_response_units"
 
     unit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("units.id"),
@@ -217,18 +217,18 @@ class UnitHistory(BaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"<UnitHistory id={self.id} unit_id={self.unit_id} "
+            f"<SegmentResponseUnit id={self.id} unit_id={self.unit_id} "
             f"step_id={self.step_id} result={self.result}>"
         )
 
 
-class LotHistory(BaseModel):
+class SegmentResponseLot(BaseModel):
     """
     A processing record for a lot at a specific route step.
     Tracks quantity flow (in, out, scrapped) through each step.
     """
 
-    __tablename__ = "lot_history"
+    __tablename__ = "segment_response_lots"
 
     lot_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("lots.id"),
@@ -279,6 +279,6 @@ class LotHistory(BaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"<LotHistory id={self.id} lot_id={self.lot_id} "
+            f"<SegmentResponseLot id={self.id} lot_id={self.lot_id} "
             f"step_id={self.step_id} qty_in={self.quantity_in}>"
         )

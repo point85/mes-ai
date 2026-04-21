@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from mes.core.product_def.models import Disposition, OperationsDefinition, ProcessSegment, ProcessSegmentDependency
-from mes.core.production.models import ProductionOrder
+from mes.core.operations.models import OperationsRequest
 from mes.framework.api.exceptions import NotFoundException
 from mes.core.wip.exceptions import NoRouteAssignedException, NoNextStepException
 
@@ -65,11 +65,11 @@ class RoutingEngineService:
         Raises NoRouteAssignedException if none found.
         """
         # Load the order
-        stmt = select(ProductionOrder).where(ProductionOrder.id == order_id)
+        stmt = select(OperationsRequest).where(OperationsRequest.id == order_id)
         result = await session.execute(stmt)
         order = result.scalar_one_or_none()
         if order is None:
-            raise NotFoundException(resource="ProductionOrder", resource_id=str(order_id))
+            raise NotFoundException(resource="OperationsRequest", resource_id=str(order_id))
 
         # 1. Explicitly assigned route
         if order.route_id is not None:

@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from mes.core.production.wip_generator import (
+from mes.core.operations.wip_generator import (
     WIP_GENERATOR_INTERVAL_SEC,
     _generate_wip_for_order,
     process_released_orders,
@@ -96,11 +96,11 @@ class TestGenerateWipForOrder:
 
         with (
             patch(
-                "mes.core.production.wip_generator.SerialNumberService.generate_serial_number",
+                "mes.core.operations.wip_generator.SerialNumberService.generate_serial_number",
                 side_effect=fake_generate,
             ),
             patch(
-                "mes.core.production.wip_generator.UnitService.create_unit",
+                "mes.core.operations.wip_generator.UnitService.create_unit",
                 new_callable=AsyncMock,
                 return_value=fake_unit,
             ) as mock_create,
@@ -126,12 +126,12 @@ class TestGenerateWipForOrder:
 
         with (
             patch(
-                "mes.core.production.wip_generator.SerialNumberService.generate_lot_number",
+                "mes.core.operations.wip_generator.SerialNumberService.generate_lot_number",
                 new_callable=AsyncMock,
                 return_value="LOT-0001",
             ),
             patch(
-                "mes.core.production.wip_generator.LotService.create_lot",
+                "mes.core.operations.wip_generator.LotService.create_lot",
                 new_callable=AsyncMock,
                 return_value=fake_lot,
             ) as mock_create,
@@ -189,7 +189,7 @@ class TestProcessReleasedOrders:
         session.execute = AsyncMock(return_value=mock_result)
 
         with patch(
-            "mes.core.production.wip_generator._generate_wip_for_order",
+            "mes.core.operations.wip_generator._generate_wip_for_order",
             new_callable=AsyncMock,
             side_effect=[2, 3],
         ) as mock_gen:
@@ -212,7 +212,7 @@ class TestProcessReleasedOrders:
         session.execute = AsyncMock(return_value=mock_result)
 
         with patch(
-            "mes.core.production.wip_generator._generate_wip_for_order",
+            "mes.core.operations.wip_generator._generate_wip_for_order",
             new_callable=AsyncMock,
             side_effect=[RuntimeError("boom"), 4],
         ):
@@ -232,7 +232,7 @@ class TestWipGeneratorLoop:
     async def test_loop_cancels_cleanly(self):
         """The loop should raise CancelledError when cancelled."""
         with patch(
-            "mes.core.production.wip_generator.asyncio.sleep",
+            "mes.core.operations.wip_generator.asyncio.sleep",
             new_callable=AsyncMock,
             side_effect=asyncio.CancelledError,
         ):
@@ -257,7 +257,7 @@ class TestWipGeneratorLoop:
 
         with (
             patch(
-                "mes.core.production.wip_generator.asyncio.sleep",
+                "mes.core.operations.wip_generator.asyncio.sleep",
                 side_effect=fake_sleep,
             ),
             patch(
@@ -265,7 +265,7 @@ class TestWipGeneratorLoop:
                 return_value=mock_session_ctx,
             ),
             patch(
-                "mes.core.production.wip_generator.process_released_orders",
+                "mes.core.operations.wip_generator.process_released_orders",
                 new_callable=AsyncMock,
                 return_value=2,
             ) as mock_process,

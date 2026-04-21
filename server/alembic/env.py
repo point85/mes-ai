@@ -23,7 +23,7 @@ import mes.framework.plugin.models  # noqa: F401
 import mes.core.physical_model.models  # noqa: F401
 import mes.core.product_def.models  # noqa: F401
 import mes.core.uom.models  # noqa: F401
-import mes.core.production.models  # noqa: F401
+import mes.core.operations.models  # noqa: F401
 import mes.core.wip.models  # noqa: F401
 import mes.core.material.models  # noqa: F401
 import mes.core.data_collection.models  # noqa: F401

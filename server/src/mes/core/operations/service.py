@@ -25,13 +25,13 @@ from .exceptions import (
     InvalidOrderTransitionException,
     OrderNotReleasedException,
 )
-from .models import ProductionOrder
+from .models import OperationsRequest
 from .schemas import ORDER_TRANSITIONS
 
 logger = logging.getLogger("mes.production")
 
 
-class ProductionOrderService:
+class OperationsRequestService:
     """Service class for production-order CRUD and lifecycle operations."""
 
     # ─── Queries ─────────────────────────────────────────────────────
@@ -42,42 +42,42 @@ class ProductionOrderService:
         params: PaginationParams,
         status: str | None = None,
         product_id: UUID | None = None,
-    ) -> tuple[Sequence[ProductionOrder], str | None, bool]:
+    ) -> tuple[Sequence[OperationsRequest], str | None, bool]:
         """List active production orders with optional filters."""
-        stmt = select(ProductionOrder).where(ProductionOrder.is_active.is_(True))
+        stmt = select(OperationsRequest).where(OperationsRequest.is_active.is_(True))
         if status is not None:
-            stmt = stmt.where(ProductionOrder.status == status)
+            stmt = stmt.where(OperationsRequest.status == status)
         if product_id is not None:
-            stmt = stmt.where(ProductionOrder.product_id == product_id)
-        return await paginate_query(session, stmt, ProductionOrder, params)
+            stmt = stmt.where(OperationsRequest.product_id == product_id)
+        return await paginate_query(session, stmt, OperationsRequest, params)
 
     @staticmethod
-    async def get_order(session: AsyncSession, order_id: UUID) -> ProductionOrder:
+    async def get_order(session: AsyncSession, order_id: UUID) -> OperationsRequest:
         """Get a production order by ID. Raises NotFoundException if missing."""
-        stmt = select(ProductionOrder).where(
-            ProductionOrder.id == order_id,
-            ProductionOrder.is_active.is_(True),
+        stmt = select(OperationsRequest).where(
+            OperationsRequest.id == order_id,
+            OperationsRequest.is_active.is_(True),
         )
         result = await session.execute(stmt)
         order = result.scalar_one_or_none()
         if order is None:
-            raise NotFoundException(resource="ProductionOrder", resource_id=str(order_id))
+            raise NotFoundException(resource="OperationsRequest", resource_id=str(order_id))
         return order
 
     # ─── Mutations ───────────────────────────────────────────────────
 
     @staticmethod
-    async def create_order(session: AsyncSession, **kwargs: Any) -> ProductionOrder:
+    async def create_order(session: AsyncSession, **kwargs: Any) -> OperationsRequest:
         """Create a new production order. Raises DuplicateOrderNumberException if order_number exists."""
         existing = await session.execute(
-            select(ProductionOrder).where(
-                ProductionOrder.order_number == kwargs["order_number"]
+            select(OperationsRequest).where(
+                OperationsRequest.order_number == kwargs["order_number"]
             )
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateOrderNumberException(kwargs["order_number"])
 
-        order = ProductionOrder(**kwargs)
+        order = OperationsRequest(**kwargs)
         # Sync planned date _utc columns
         if order.planned_start is not None:
             order.planned_start_utc = order.planned_start.replace(tzinfo=None)
@@ -97,17 +97,17 @@ class ProductionOrderService:
     @staticmethod
     async def update_order(
         session: AsyncSession, order_id: UUID, **kwargs: Any,
-    ) -> ProductionOrder:
+    ) -> OperationsRequest:
         """Update a production order's fields. Only non-None values are applied."""
-        order = await ProductionOrderService.get_order(session, order_id)
+        order = await OperationsRequestService.get_order(session, order_id)
 
         # Check order_number uniqueness if changing
         new_number = kwargs.get("order_number")
         if new_number is not None and new_number != order.order_number:
             existing = await session.execute(
-                select(ProductionOrder).where(
-                    ProductionOrder.order_number == new_number,
-                    ProductionOrder.id != order_id,
+                select(OperationsRequest).where(
+                    OperationsRequest.order_number == new_number,
+                    OperationsRequest.id != order_id,
                 )
             )
             if existing.scalar_one_or_none() is not None:
@@ -124,7 +124,7 @@ class ProductionOrderService:
     @staticmethod
     async def delete_order(session: AsyncSession, order_id: UUID) -> None:
         """Soft-delete a production order."""
-        order = await ProductionOrderService.get_order(session, order_id)
+        order = await OperationsRequestService.get_order(session, order_id)
         order.is_active = False
         await session.flush()
         logger.info("Soft-deleted production order %s (%s)", order.id, order.order_number)
@@ -132,7 +132,7 @@ class ProductionOrderService:
     # ─── Lifecycle transitions ───────────────────────────────────────
 
     @staticmethod
-    def _validate_transition(order: ProductionOrder, target_status: str) -> None:
+    def _validate_transition(order: OperationsRequest, target_status: str) -> None:
         """Check that a status transition is allowed."""
         allowed = ORDER_TRANSITIONS.get(order.status, set())
         if target_status not in allowed:
@@ -141,13 +141,13 @@ class ProductionOrderService:
             )
 
     @staticmethod
-    async def release_order(session: AsyncSession, order_id: UUID) -> ProductionOrder:
+    async def release_order(session: AsyncSession, order_id: UUID) -> OperationsRequest:
         """
         Transition an order from 'created' to 'released'.
         Makes it available for production (units/lots can be created against it).
         """
-        order = await ProductionOrderService.get_order(session, order_id)
-        ProductionOrderService._validate_transition(order, "released")
+        order = await OperationsRequestService.get_order(session, order_id)
+        OperationsRequestService._validate_transition(order, "released")
         order.status = "released"
         await session.flush()
 
@@ -158,15 +158,15 @@ class ProductionOrderService:
         return order
 
     @staticmethod
-    async def start_order(session: AsyncSession, order_id: UUID) -> ProductionOrder:
+    async def start_order(session: AsyncSession, order_id: UUID) -> OperationsRequest:
         """
         Transition an order from 'released' to 'in_progress'.
         Called automatically when the first unit/lot starts processing.
         """
-        order = await ProductionOrderService.get_order(session, order_id)
+        order = await OperationsRequestService.get_order(session, order_id)
         if order.status == "in_progress":
             return order  # idempotent
-        ProductionOrderService._validate_transition(order, "in_progress")
+        OperationsRequestService._validate_transition(order, "in_progress")
         order.status = "in_progress"
         now = datetime.now(timezone.utc)
         order.actual_start = now
@@ -178,12 +178,12 @@ class ProductionOrderService:
         return order
 
     @staticmethod
-    async def complete_order(session: AsyncSession, order_id: UUID) -> ProductionOrder:
+    async def complete_order(session: AsyncSession, order_id: UUID) -> OperationsRequest:
         """
         Transition an order from 'in_progress' to 'completed'.
         """
-        order = await ProductionOrderService.get_order(session, order_id)
-        ProductionOrderService._validate_transition(order, "completed")
+        order = await OperationsRequestService.get_order(session, order_id)
+        OperationsRequestService._validate_transition(order, "completed")
         order.status = "completed"
         now = datetime.now(timezone.utc)
         order.actual_end = now
@@ -201,12 +201,12 @@ class ProductionOrderService:
         return order
 
     @staticmethod
-    async def close_order(session: AsyncSession, order_id: UUID) -> ProductionOrder:
+    async def close_order(session: AsyncSession, order_id: UUID) -> OperationsRequest:
         """
         Transition an order to 'closed'. Can be called from any non-closed status.
         """
-        order = await ProductionOrderService.get_order(session, order_id)
-        ProductionOrderService._validate_transition(order, "closed")
+        order = await OperationsRequestService.get_order(session, order_id)
+        OperationsRequestService._validate_transition(order, "closed")
         order.status = "closed"
         if order.actual_end is None:
             now = datetime.now(timezone.utc)
@@ -220,9 +220,9 @@ class ProductionOrderService:
     @staticmethod
     async def increment_completed(
         session: AsyncSession, order_id: UUID, qty: int = 1,
-    ) -> ProductionOrder:
+    ) -> OperationsRequest:
         """Increment quantity_completed. Called when a unit/lot finishes final step."""
-        order = await ProductionOrderService.get_order(session, order_id)
+        order = await OperationsRequestService.get_order(session, order_id)
         order.quantity_completed += qty
         await session.flush()
         return order
@@ -230,9 +230,9 @@ class ProductionOrderService:
     @staticmethod
     async def increment_scrapped(
         session: AsyncSession, order_id: UUID, qty: int = 1,
-    ) -> ProductionOrder:
+    ) -> OperationsRequest:
         """Increment quantity_scrapped. Called when a unit/lot is scrapped."""
-        order = await ProductionOrderService.get_order(session, order_id)
+        order = await OperationsRequestService.get_order(session, order_id)
         order.quantity_scrapped += qty
         await session.flush()
         return order

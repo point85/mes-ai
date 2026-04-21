@@ -165,7 +165,7 @@ String token = JsonParser.parseString(
 
 // Create production order
 HttpRequest orderReq = HttpRequest.newBuilder()
-    .uri(URI.create("http://mes-server:8000/api/v1/production/orders"))
+    .uri(URI.create("http://mes-server:8000/api/v1/operations/orders"))
     .header("Authorization", "Bearer " + token)
     .header("Content-Type", "application/json")
     .POST(BodyPublishers.ofString("{\"order_number\":\"WO-2026-001\","
@@ -260,7 +260,7 @@ mes_ai/
 │   │       │   ├── wip/               # WIP-TRACK
 │   │       │   ├── routing/           # ROUTE-DEF + ROUTE-ENGINE
 │   │       │   ├── dispatch/          # DISPATCH
-│   │       │   ├── production/        # PROD-ORDER
+│   │       │   ├── operations/        # OPS-REQUEST
 │   │       │   ├── material/          # MAT-MGMT
 │   │       │   ├── data_collection/   # DATA-COLLECT
 │   │       │   ├── product_def/       # PROD-DEF
@@ -419,13 +419,13 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 
 ┌──────────────────── Production & WIP ────────────────────────┐
 │                                                               │
-│  ProductionOrder ──1:N──▶ Unit  (serialized)                 │
+│  OperationsRequest ──1:N──▶ Unit  (serialized)                 │
 │        │                   │                                  │
-│        │                   └──1:N──▶ UnitHistory              │
+│        │                   └──1:N──▶ SegmentResponseUnit              │
 │        │                                                      │
 │        └──1:N──▶ Lot (batch)                                 │
 │                   │                                           │
-│                   └──1:N──▶ LotHistory                       │
+│                   └──1:N──▶ SegmentResponseLot                       │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
 
@@ -455,7 +455,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 ┌──────────────────── Performance ─────────────────────────────┐
 │                                                               │
 │  EquipmentStateLog ──▶ Equipment (state machine state)      │
-│  ProductionCounter ──▶ Equipment + ProductionOrder           │
+│  ProductionCounter ──▶ Equipment + OperationsRequest           │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
 ```
@@ -505,7 +505,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 > 2. **Data collection anchoring** — Every quality test, data point, material consumption,
 >    non-conformance, and history record is captured per `ProcessSegment`. The step is the foreign-key
 >    anchor for `QualityTest`, `DataPoint`, `MaterialConsumption`, `NonConformance`,
->    `UnitHistory`, and `LotHistory`.
+>    `SegmentResponseUnit`, and `SegmentResponseLot`.
 > 3. **Outbound reporting** — `ERPOutboundAdapter.report_completion()` reports per-operation
 >    actuals (labor, material, yield). The MES must know which operation just finished to map it
 >    back to the ERP's cost-posting structure.
@@ -517,20 +517,20 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 > Routes are synced via `ERPInboundAdapter.sync_routings()` (§9.2.4). The `ROUTE-DEF` module
 > stores them; the `ROUTE-ENGINE` module interprets them at execution time.
 
-#### Production Order (PROD-ORDER)
+#### Operations Request (OPS-REQUEST)
 
 | Entity | Fields | Relations |
 |---|---|---|
-| **ProductionOrder** | `id`, `order_number`, `product_id`, `quantity_ordered`, `quantity_completed`, `quantity_scrapped`, `status` (created/released/in_progress/completed/closed), `priority`, `planned_start`, `planned_end`, `actual_start`, `actual_end`, `erp_reference` | → ProductDefinition, → Units, → Lots |
+| **OperationsRequest** | `id`, `order_number`, `product_id`, `quantity_ordered`, `quantity_completed`, `quantity_scrapped`, `status` (created/released/in_progress/completed/closed), `priority`, `planned_start`, `planned_end`, `actual_start`, `actual_end`, `erp_reference` | → ProductDefinition, → Units, → Lots |
 
 #### WIP Tracking (WIP-TRACK)
 
 | Entity | Fields | Relations |
 |---|---|---|
-| **Unit** | `id`, `serial_number`, `order_id`, `product_id`, `material_id`, `current_step_id`, `current_equipment_id`, `status` (queued/in_process/completed/scrapped/on_hold), `created_at` | → ProductionOrder, → MaterialDefinition, → ProcessSegment, → Equipment |
-| **Lot** | `id`, `lot_number`, `order_id`, `product_id`, `material_id`, `quantity`, `current_step_id`, `current_equipment_id`, `status` | → ProductionOrder, → MaterialDefinition, → ProcessSegment, → Equipment |
-| **UnitHistory** | `id`, `unit_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `result` (pass/fail/rework), `operator_id`, `data_snapshot` (JSON) | → Unit, → ProcessSegment, → Equipment |
-| **LotHistory** | `id`, `lot_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `quantity_in`, `quantity_out`, `quantity_scrapped`, `operator_id` | → Lot, → ProcessSegment, → Equipment |
+| **Unit** | `id`, `serial_number`, `order_id`, `product_id`, `material_id`, `current_step_id`, `current_equipment_id`, `status` (queued/in_process/completed/scrapped/on_hold), `created_at` | → OperationsRequest, → MaterialDefinition, → ProcessSegment, → Equipment |
+| **Lot** | `id`, `lot_number`, `order_id`, `product_id`, `material_id`, `quantity`, `current_step_id`, `current_equipment_id`, `status` | → OperationsRequest, → MaterialDefinition, → ProcessSegment, → Equipment |
+| **SegmentResponseUnit** | `id`, `unit_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `result` (pass/fail/rework), `operator_id`, `data_snapshot` (JSON) | → Unit, → ProcessSegment, → Equipment |
+| **SegmentResponseLot** | `id`, `lot_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `quantity_in`, `quantity_out`, `quantity_scrapped`, `operator_id` | → Lot, → ProcessSegment, → Equipment |
 
 ##### Serial Number & Lot Number Auto-Generation
 
@@ -632,12 +632,12 @@ Variables support Python format-spec for zero-padding, e.g. `{seq:05d}` pads to 
 |---|---|---|
 | **EquipmentStateModel** | `id`, `model_id` (unique, e.g. "packml"), `name`, `description`, `initial_state`, `states` (JSON — canonical dispatch + OEE mappings), `transitions` (JSON — valid from→to pairs) | Registered by availability plugins |
 | **EquipmentStateLog** | `id`, `equipment_id`, `state_model`, `state`, `sub_state` (nullable), `dispatch_category` (available/busy/unavailable_planned/unavailable_unplanned), `oee_bucket`, `started_at`, `ended_at`, `reason_code`, `notes` | → Equipment |
-| **ProductionCounter** | `id`, `equipment_id`, `order_id`, `shift_date`, `good_count`, `reject_count`, `rework_count`, `ideal_cycle_time_sec`, `actual_run_time_sec` | → Equipment, → ProductionOrder. Incremented atomically via `ProductionCounterService.increment_counter()` by counter-collection plugins (PackML OPC-UA, MQTT) or the REST `POST /counters/increment` endpoint. |
+| **ProductionCounter** | `id`, `equipment_id`, `order_id`, `shift_date`, `good_count`, `reject_count`, `rework_count`, `ideal_cycle_time_sec`, `actual_run_time_sec` | → Equipment, → OperationsRequest. Incremented atomically via `ProductionCounterService.increment_counter()` by counter-collection plugins (PackML OPC-UA, MQTT) or the REST `POST /counters/increment` endpoint. |
 | **Reason** | `id`, `code` (4-char, unique), `name`, `description`, `oee_bucket`, `parent_id` (self FK, nullable) | Self-referential hierarchy; used by manual-transition endpoint |
 
 #### Genealogy (GENEALOGY)
 
-Genealogy is built from the relationships between `Unit/Lot`, `UnitHistory/LotHistory`, `MaterialConsumption`, `TestResult`, and `DataPoint`. No separate genealogy table is needed — it is a query that traverses existing records to build the full as-built record for a unit or lot.
+Genealogy is built from the relationships between `Unit/Lot`, `SegmentResponseUnit/SegmentResponseLot`, `MaterialConsumption`, `TestResult`, and `DataPoint`. No separate genealogy table is needed — it is a query that traverses existing records to build the full as-built record for a unit or lot.
 
 #### Auth (AUTH)
 
@@ -705,7 +705,7 @@ class WorkCell(Base):
     equipment: Mapped[list["Equipment"]] = relationship(back_populates="work_cell")
 ```
 
-**Used for:** Site→Areas, Area→Lines, Line→WorkCells, WorkCell→Equipment, ProductionOrder→Units, ProductionOrder→Lots, Route→Steps, Step→Parameters, and all other parent-child hierarchies.
+**Used for:** Site→Areas, Area→Lines, Line→WorkCells, WorkCell→Equipment, OperationsRequest→Units, OperationsRequest→Lots, Route→Steps, Step→Parameters, and all other parent-child hierarchies.
 
 #### Many-to-Many
 
@@ -964,8 +964,8 @@ def downgrade():
 # For large tables, use CONCURRENTLY on PostgreSQL to avoid locking
 def upgrade():
     op.create_index(
-        "ix_unit_history_entered_at",
-        "unit_history", ["entered_at"],
+        "ix_segment_response_units_entered_at",
+        "segment_response_units", ["entered_at"],
         postgresql_concurrently=True   # Non-blocking on PostgreSQL
     )
 ```
@@ -2251,7 +2251,7 @@ Unit completes step (result = 'pass' | 'fail' | 'rework')
        │
        ├── If explicit target_step_id → bypass routing engine
        │
-       ├── If result not provided → read from last UnitHistory record
+       ├── If result not provided → read from last SegmentResponseUnit record
        │
        ▼
   RoutingEngineService.get_next_step(order_id, current_step_id, result, disposition)
@@ -2355,8 +2355,8 @@ This means:
 |---|---|---|---|---|
 | `create_unit()` | → `queued` | set to first step (or NULL) | `NULL` | — |
 | `dispatch_execute()` | unchanged (`queued`) | unchanged | **set** to target equipment | — |
-| `start_unit(equip_id)` | `queued` → `in_process` | set (resolves first step if NULL) | **set** if provided | `UnitHistory` created (`entered_at`) |
-| `complete_unit_step()` | unchanged (`in_process`) | unchanged | unchanged | `UnitHistory` updated (`exited_at`, `result`) |
+| `start_unit(equip_id)` | `queued` → `in_process` | set (resolves first step if NULL) | **set** if provided | `SegmentResponseUnit` created (`entered_at`) |
+| `complete_unit_step()` | unchanged (`in_process`) | unchanged | unchanged | `SegmentResponseUnit` updated (`exited_at`, `result`) |
 | `move_unit()` | → `queued` (or `completed`) | **set** to next step (or `NULL`) | **reset to `NULL`** | — |
 | `hold_unit()` | → `on_hold` | unchanged | unchanged | — |
 | `release_hold_unit()` | → `queued` | unchanged | unchanged | — |
@@ -2368,7 +2368,7 @@ ensures the routing engine handles "where in the route" while dispatch handles "
 
 #### 5.9.4 History & Audit Trail
 
-Every step visit creates a `UnitHistory` (or `LotHistory`) record with:
+Every step visit creates a `SegmentResponseUnit` (or `SegmentResponseLot`) record with:
 
 | Field | Set On | Description |
 |---|---|---|
@@ -2661,7 +2661,7 @@ availability gate → capability gate → capacity gate.
 | `GET/POST` | `/api/v1/steps/{step_id}/material-requirements` | List / create step material requirements (step-level BOM) |
 | `PATCH/DELETE` | `/api/v1/step-material-requirements/{id}` | Update / delete a step material requirement |
 
-#### Production Orders (PROD-ORDER)
+#### Production Orders (OPS-REQUEST)
 
 | Method | Path | Description |
 |---|---|---|
@@ -3381,9 +3381,9 @@ class MESEvent:
 | `wip.unit.scrapped` | WIP-TRACK | `{unit_id, step_id, reason}` |
 | `wip.unit.held` | WIP-TRACK | `{unit_id, reason}` |
 | `wip.lot.*` | WIP-TRACK | (Same pattern as unit events, with `lot_id`, `quantity_out`, `quantity_scrapped`) |
-| `production.order.released` | PROD-ORDER | `{order_id, product_id, quantity}` |
-| `production.order.started` | PROD-ORDER | `{order_id}` |
-| `production.order.completed` | PROD-ORDER | `{order_id, quantity_completed}` |
+| `production.order.released` | OPS-REQUEST | `{order_id, product_id, quantity}` |
+| `production.order.started` | OPS-REQUEST | `{order_id}` |
+| `production.order.completed` | OPS-REQUEST | `{order_id, quantity_completed}` |
 | `equipment.state.changed` | PHYS-MODEL | `{equipment_id, old_state, new_state, reason}` |
 | `production.counter.updated` | PERF-ANALYSIS | `{equipment_id, good_delta, reject_delta, rework_delta, source_plugin}` |
 | `performance.oee.calculated` | PERF-ANALYSIS | `{equipment_id, oee}` |
@@ -3500,7 +3500,7 @@ Core modules that need an adapter instance call `PluginManager` methods:
 # Get the ERP inbound adapter (returns the adapter interface instance)
 erp_inbound = plugin_manager.get_adapter_by_type("erp_inbound")
 if erp_inbound:
-    orders = await erp_inbound.sync_production_orders()
+    orders = await erp_inbound.sync_operations_requests()
 
 # Get the equipment driver adapter
 equipment = plugin_manager.get_adapter_by_type("equipment_driver")
@@ -3571,7 +3571,7 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 
 | Data | ERP Source | MES Destination | Trigger |
 |---|---|---|---|
-| **Production Orders** | ERP production planning/scheduling | ERP-INBOUND-Q → PROD-ORDER module | Pull sync or push to `/erp/inbound/queue` → background processor (§9.2.3b) |
+| **Production Orders** | ERP production planning/scheduling | ERP-INBOUND-Q → OPS-REQUEST module | Pull sync or push to `/erp/inbound/queue` → background processor (§9.2.3b) |
 | **Material Master** | ERP material management | MAT-MGMT module | Scheduled sync or on-demand |
 | **Bill of Materials** | ERP product engineering | PROD-DEF module | On production order receipt or scheduled sync |
 | **Product/Item Master** | ERP product management | PROD-DEF module | Scheduled sync |
@@ -3596,7 +3596,7 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 > when a unit or lot completes a step. Two event handlers in `mes/adapters/erp/handlers.py`
 > subscribe to `wip.unit.completed` and `wip.lot.completed` events. Each handler:
 >
-> 1. Looks up the `ProductionOrder.erp_reference` to identify the ERP order
+> 1. Looks up the `OperationsRequest.erp_reference` to identify the ERP order
 > 2. Looks up `ProcessSegment.erp_operation_number` to identify the ERP operation
 > 3. Builds a completion report DTO with quantities (good/reject)
 > 4. Enqueues via `ERPOutboundQueueService.enqueue()` for reliable delivery with retry
@@ -3664,7 +3664,7 @@ DT-CLIENT route editor (§15.5) provides manual route entry as a substitute.
 
 Production orders arriving from the ERP must survive MES downtime and be processed
 asynchronously. The **ERP Inbound Order Queue** provides a persistent, retry-capable
-pipeline that converts ERP orders into MES `ProductionOrder` + WIP entities (Lots or Units).
+pipeline that converts ERP orders into MES `OperationsRequest` + WIP entities (Lots or Units).
 
 ##### Architecture
 
@@ -3674,7 +3674,7 @@ ERP System                        MES
   │                                 │
   │  ┌─ Pull model ──────────────┐  │
   │  │ POST /erp/sync/           │  │
-  │  │   production-orders       │──┼──▶ ERPInboundAdapter.sync_production_orders()
+  │  │   production-orders       │──┼──▶ ERPInboundAdapter.sync_operations_requests()
   │  │   ?enqueue=true           │  │         │
   │  └───────────────────────────┘  │         │  enqueue_from_sync()
   │                                 │         ▼
@@ -3701,7 +3701,7 @@ ERP System                        MES
   │                                 │   Processor Processor
   │                                 │        │         │
   │                                 │        ▼         ▼
-  │                                 │   ProductionOrder + Lot/Units
+  │                                 │   OperationsRequest + Lot/Units
 ```
 
 ##### Two Ingestion Models
@@ -3723,7 +3723,7 @@ in `pending` or `retry` status are silently skipped (dedup).
 | `product_code` | VARCHAR | Product code for lookup in MES |
 | `payload` | TEXT (JSON) | Full serialised `ProductionOrderDTO` |
 | `status` | VARCHAR | `pending` → `processed` / `retry` → `failed` (indexed) |
-| `order_id` | VARCHAR | MES `ProductionOrder.id` after processing |
+| `order_id` | VARCHAR | MES `OperationsRequest.id` after processing |
 | `wip_ids` | TEXT (JSON) | List of created Lot/Unit IDs |
 | `processor_name` | VARCHAR | Which `OrderProcessor` handled this item |
 | `attempts` | INTEGER | Number of processing attempts (default 0) |
@@ -3766,7 +3766,7 @@ class MyProcessor(OrderProcessor):
 
     async def process_order(self, session, payload: dict) -> ProcessorResult:
         # 1. Look up product by payload["product_code"]
-        # 2. Create ProductionOrder
+        # 2. Create OperationsRequest
         # 3. Create Lots or Units
         # 4. Return ProcessorResult(order_id=..., wip_ids=[...])
         ...
@@ -3817,7 +3817,7 @@ Both processors:
 class ERPInboundAdapter(BaseAdapter):
     """Pulls data from ERP into MES."""
 
-    async def sync_production_orders(
+    async def sync_operations_requests(
         self, since: datetime | None = None
     ) -> list[ProductionOrderDTO]: ...
 
@@ -4141,8 +4141,8 @@ For development, testing, and demo environments:
 
 ```python
 class MockERPInboundAdapter(ERPInboundAdapter):
-    async def sync_production_orders(self, since=None) -> list[ProductionOrderDTO]:
-        data = await self._read_json("production_orders.json")
+    async def sync_operations_requests(self, since=None) -> list[ProductionOrderDTO]:
+        data = await self._read_json("operations_requests.json")
         return [self.transform.to_production_order(d) for d in data]
 
 class MockERPOutboundAdapter(ERPOutboundAdapter):
@@ -5382,7 +5382,7 @@ Permissions follow the pattern: **`module.resource.action`**
 | | `product_def.create` | Create products, routes, BOMs | All POST endpoints |
 | | `product_def.update` | Modify products, routes, BOMs | All PUT endpoints |
 | | `product_def.delete` | Soft-delete product definitions | All DELETE endpoints |
-| **PROD-ORDER** | `production.order.read` | View production orders | GET endpoints |
+| **OPS-REQUEST** | `production.order.read` | View production orders | GET endpoints |
 | | `production.order.create` | Create production orders | POST create |
 | | `production.order.update` | Update order details | PUT endpoints |
 | | `production.order.execute` | Release, complete, close orders | POST release/complete |
@@ -6263,7 +6263,7 @@ Response: JSON snapshot of all configuration data in the requested domains
 The export produces a **deterministic JSON document** with all entities and their relationships. Suitable for:
 - Version control (commit configuration snapshots to Git)
 - Environment promotion (export from dev, import to staging)
-- Backup of configuration data (not production/runtime data)
+- Backup of configuration data (not operations/runtime data)
 
 #### Import
 
@@ -7554,7 +7554,7 @@ The WIP generator is a background `asyncio` task that runs inside the MES server
 #### Source File
 
 ```
-server/src/mes/core/production/wip_generator.py
+server/src/mes/core/operations/wip_generator.py
 ```
 
 This is the **primary customization point** for end users who need to control how WIP is created.
@@ -7565,7 +7565,7 @@ This is the **primary customization point** for end users who need to control ho
 ┌─────────────────────────────────────────────────────────────────┐
 │  wip_generator_loop()  (runs every 5s)                          │
 │                                                                 │
-│  1. Query: SELECT * FROM production_orders                      │
+│  1. Query: SELECT * FROM operations_requests                      │
 │            WHERE status = 'released' AND is_active = true       │
 │            ORDER BY priority DESC, created_at                   │
 │                                                                 │
@@ -7600,7 +7600,7 @@ This is the **primary customization point** for end users who need to control ho
 The task is registered in the FastAPI lifespan handler (`server/src/mes/main.py`):
 
 ```python
-from mes.core.production.wip_generator import wip_generator_loop
+from mes.core.operations.wip_generator import wip_generator_loop
 wip_task = asyncio.create_task(wip_generator_loop())
 ```
 
@@ -7641,7 +7641,7 @@ Modify `_generate_wip_for_order()` to add business logic **before** creating lot
 #### Example: Adding an Inventory Check
 
 ```python
-async def _generate_wip_for_order(session: AsyncSession, order: ProductionOrder) -> int:
+async def _generate_wip_for_order(session: AsyncSession, order: OperationsRequest) -> int:
     product = await session.get(ProductDefinition, order.product_id)
     if product is None:
         return 0
@@ -7658,10 +7658,10 @@ async def _generate_wip_for_order(session: AsyncSession, order: ProductionOrder)
 
 | File | Purpose | Customize? |
 |---|---|---|
-| `server/src/mes/core/production/wip_generator.py` | Background task + WIP creation logic | **Yes** — primary customization point |
+| `server/src/mes/core/operations/wip_generator.py` | Background task + WIP creation logic | **Yes** — primary customization point |
 | `server/src/mes/core/wip/serial.py` | Serial/lot number template engine | **Yes** — change templates or add custom variables |
 | `server/src/mes/core/wip/service.py` | `UnitService.create_unit()`, `LotService.create_lot()` | Rarely — these handle DB writes and event publishing |
-| `server/src/mes/core/production/service.py` | `start_order()` — auto-transitions released → in_progress | Rarely — called automatically by create_unit/create_lot |
+| `server/src/mes/core/operations/service.py` | `start_order()` — auto-transitions released → in_progress | Rarely — called automatically by create_unit/create_lot |
 | `server/src/mes/main.py` | Registers the background task in `lifespan()` | Only to change the polling interval |
 
 ---
@@ -7678,7 +7678,7 @@ Layer 1 (Physical Model + Product):
   PHYS-MODEL → PROD-DEF → ROUTE-DEF
 
 Layer 2 (Production):
-  PROD-ORDER → WIP-TRACK → ROUTE-ENGINE
+  OPS-REQUEST → WIP-TRACK → ROUTE-ENGINE
 
 Layer 3 (Execution):
   DISPATCH → DATA-COLLECT → MAT-MGMT

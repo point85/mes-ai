@@ -1,7 +1,7 @@
 """
 PROD-ORDER: Pydantic schemas for the Production Order REST API.
 
-Create / Read / Update schemas for ProductionOrder, plus action schemas
+Create / Read / Update schemas for OperationsRequest, plus action schemas
 for release and complete transitions.
 """
 
