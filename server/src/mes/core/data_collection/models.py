@@ -58,7 +58,7 @@ class DataDefinition(BaseModel):
         comment="Unit of measure — FK to units_of_measure.symbol",
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=True, index=True,
         comment="Route step where this data is collected (null = any step)",
     )

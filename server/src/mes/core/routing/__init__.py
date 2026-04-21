@@ -1,7 +1,7 @@
 """
 ROUTE-DEF / ROUTE-ENGINE: Routing module.
 
-Route *definition* models (ProcessRoute, RouteStep, StepParameter) live in
+Route *definition* models (OperationsDefinition, ProcessSegment, SegmentParameter) live in
 the product_def module since they are tightly coupled to ProductDefinition.
 
 This module will house the ROUTE-ENGINE (Layer 2) — runtime logic for:

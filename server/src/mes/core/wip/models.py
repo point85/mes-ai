@@ -51,7 +51,7 @@ class Unit(BaseModel):
         comment="Output material produced by this unit. Used for dispatch capability matching.",
     )
     current_step_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=True, index=True,
         comment="The route step where the unit currently sits (null if completed or not started)",
     )
@@ -75,8 +75,8 @@ class Unit(BaseModel):
     material: Mapped["MaterialDefinition | None"] = relationship(  # noqa: F821
         "MaterialDefinition", foreign_keys=[material_id],
     )
-    current_step: Mapped["RouteStep | None"] = relationship(  # noqa: F821
-        "RouteStep", foreign_keys=[current_step_id], lazy="joined",
+    current_step: Mapped["ProcessSegment | None"] = relationship(  # noqa: F821
+        "ProcessSegment", foreign_keys=[current_step_id], lazy="joined",
     )
     history: Mapped[list["UnitHistory"]] = relationship(
         "UnitHistory", back_populates="unit", cascade="all, delete-orphan",
@@ -121,7 +121,7 @@ class Lot(BaseModel):
         comment="Total quantity in this lot",
     )
     current_step_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=True, index=True,
     )
     current_equipment_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -143,8 +143,8 @@ class Lot(BaseModel):
     material: Mapped["MaterialDefinition | None"] = relationship(  # noqa: F821
         "MaterialDefinition", foreign_keys=[material_id],
     )
-    current_step: Mapped["RouteStep | None"] = relationship(  # noqa: F821
-        "RouteStep", foreign_keys=[current_step_id], lazy="joined",
+    current_step: Mapped["ProcessSegment | None"] = relationship(  # noqa: F821
+        "ProcessSegment", foreign_keys=[current_step_id], lazy="joined",
     )
     history: Mapped[list["LotHistory"]] = relationship(
         "LotHistory", back_populates="lot", cascade="all, delete-orphan",
@@ -172,7 +172,7 @@ class UnitHistory(BaseModel):
         nullable=False, index=True,
     )
     step_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=False, index=True,
     )
     equipment_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -235,7 +235,7 @@ class LotHistory(BaseModel):
         nullable=False, index=True,
     )
     step_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=False, index=True,
     )
     equipment_id: Mapped[uuid.UUID | None] = mapped_column(

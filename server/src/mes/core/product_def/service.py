@@ -2,7 +2,7 @@
 PROD-DEF: Business logic service for the product definition domain.
 
 Provides CRUD operations for ProductDefinition, BillOfMaterial, BOMItem,
-ProcessRoute, RouteStep, StepParameter, StepTransition.
+OperationsDefinition, ProcessSegment, SegmentParameter, ProcessSegmentDependency.
 """
 
 from __future__ import annotations
@@ -25,15 +25,15 @@ from .models import (
     BillOfMaterial,
     BOMItem,
     Disposition,
-    ProcessRoute,
+    OperationsDefinition,
     ProductDefinition,
-    RouteMaterialAssignment,
-    RouteProductAssignment,
-    RouteStep,
-    StepEquipmentRequirement,
-    StepMaterialRequirement,
-    StepParameter,
-    StepTransition,
+    OperationsDefinitionMaterialAssignment,
+    OperationsDefinitionProductAssignment,
+    ProcessSegment,
+    SegmentEquipmentRequirement,
+    SegmentMaterialRequirement,
+    SegmentParameter,
+    ProcessSegmentDependency,
 )
 
 logger = logging.getLogger("mes.product_def")
@@ -193,13 +193,13 @@ class ProductDefService:
 
         # Clone routes
         route_rows = await session.execute(
-            select(ProcessRoute).where(
-                ProcessRoute.product_id == source_id,
-                ProcessRoute.is_active.is_(True),
+            select(OperationsDefinition).where(
+                OperationsDefinition.product_id == source_id,
+                OperationsDefinition.is_active.is_(True),
             )
         )
         for src_route in route_rows.scalars().all():
-            new_route = ProcessRoute(
+            new_route = OperationsDefinition(
                 product_id=new_product.id,
                 name=src_route.name,
                 version=src_route.version,
@@ -212,13 +212,13 @@ class ProductDefService:
             # Clone steps, building old_step_id → new_step_id map for transitions
             step_id_map: dict[UUID, UUID] = {}
             step_rows = await session.execute(
-                select(RouteStep).where(
-                    RouteStep.route_id == src_route.id,
-                    RouteStep.is_active.is_(True),
+                select(ProcessSegment).where(
+                    ProcessSegment.route_id == src_route.id,
+                    ProcessSegment.is_active.is_(True),
                 )
             )
             for src_step in step_rows.scalars().all():
-                new_step = RouteStep(
+                new_step = ProcessSegment(
                     route_id=new_route.id,
                     sequence=src_step.sequence,
                     name=src_step.name,
@@ -234,13 +234,13 @@ class ProductDefService:
 
                 # Clone step parameters
                 param_rows = await session.execute(
-                    select(StepParameter).where(
-                        StepParameter.step_id == src_step.id,
-                        StepParameter.is_active.is_(True),
+                    select(SegmentParameter).where(
+                        SegmentParameter.step_id == src_step.id,
+                        SegmentParameter.is_active.is_(True),
                     )
                 )
                 for src_param in param_rows.scalars().all():
-                    new_param = StepParameter(
+                    new_param = SegmentParameter(
                         step_id=new_step.id,
                         name=src_param.name,
                         data_type=src_param.data_type,
@@ -256,16 +256,16 @@ class ProductDefService:
             # Clone step transitions (now that all steps exist with mapped IDs)
             for old_step_id, new_step_id in step_id_map.items():
                 trans_rows = await session.execute(
-                    select(StepTransition).where(
-                        StepTransition.from_step_id == old_step_id,
-                        StepTransition.is_active.is_(True),
+                    select(ProcessSegmentDependency).where(
+                        ProcessSegmentDependency.from_step_id == old_step_id,
+                        ProcessSegmentDependency.is_active.is_(True),
                     )
                 )
                 for src_trans in trans_rows.scalars().all():
                     new_to_id = step_id_map.get(src_trans.to_step_id)
                     if new_to_id is None:
                         continue
-                    new_trans = StepTransition(
+                    new_trans = ProcessSegmentDependency(
                         from_step_id=new_step_id,
                         to_step_id=new_to_id,
                         condition=src_trans.condition,
@@ -385,39 +385,39 @@ class ProductDefService:
         logger.info("Created BOM item %s in BOM %s", item.id, bom_id)
         return item
 
-    # ─── ProcessRoute operations ─────────────────────────────────────
+    # ─── OperationsDefinition operations ─────────────────────────────────────
 
     @staticmethod
     async def list_routes(
         session: AsyncSession,
         product_id: UUID,
         params: PaginationParams,
-    ) -> tuple[Sequence[ProcessRoute], str | None, bool]:
+    ) -> tuple[Sequence[OperationsDefinition], str | None, bool]:
         """List routes for a product."""
         await ProductDefService.get_product(session, product_id)
-        stmt = select(ProcessRoute).where(
-            ProcessRoute.product_id == product_id,
-            ProcessRoute.is_active.is_(True),
+        stmt = select(OperationsDefinition).where(
+            OperationsDefinition.product_id == product_id,
+            OperationsDefinition.is_active.is_(True),
         )
-        return await paginate_query(session, stmt, ProcessRoute, params)
+        return await paginate_query(session, stmt, OperationsDefinition, params)
 
     @staticmethod
-    async def get_route(session: AsyncSession, route_id: UUID) -> ProcessRoute:
+    async def get_route(session: AsyncSession, route_id: UUID) -> OperationsDefinition:
         """Get a route by ID."""
-        stmt = select(ProcessRoute).where(
-            ProcessRoute.id == route_id,
-            ProcessRoute.is_active.is_(True),
+        stmt = select(OperationsDefinition).where(
+            OperationsDefinition.id == route_id,
+            OperationsDefinition.is_active.is_(True),
         )
         result = await session.execute(stmt)
         route = result.scalar_one_or_none()
         if route is None:
-            raise NotFoundException(resource="ProcessRoute", resource_id=str(route_id))
+            raise NotFoundException(resource="OperationsDefinition", resource_id=str(route_id))
         return route
 
     @staticmethod
     async def create_route(
         session: AsyncSession, product_id: UUID, **kwargs: Any
-    ) -> ProcessRoute:
+    ) -> OperationsDefinition:
         """Create a new route for a product."""
         await ProductDefService.get_product(session, product_id)
 
@@ -425,7 +425,7 @@ class ProductDefService:
         if kwargs.get("is_default"):
             await ProductDefService._unset_default_route(session, product_id)
 
-        route = ProcessRoute(product_id=product_id, **kwargs)
+        route = OperationsDefinition(product_id=product_id, **kwargs)
         session.add(route)
         await session.flush()
 
@@ -438,7 +438,7 @@ class ProductDefService:
     @staticmethod
     async def update_route(
         session: AsyncSession, route_id: UUID, **kwargs: Any
-    ) -> ProcessRoute:
+    ) -> OperationsDefinition:
         """Update a route."""
         route = await ProductDefService.get_route(session, route_id)
 
@@ -457,10 +457,10 @@ class ProductDefService:
         session: AsyncSession, product_id: UUID
     ) -> None:
         """Unset the is_default flag on the current default route for a product."""
-        stmt = select(ProcessRoute).where(
-            ProcessRoute.product_id == product_id,
-            ProcessRoute.is_default.is_(True),
-            ProcessRoute.is_active.is_(True),
+        stmt = select(OperationsDefinition).where(
+            OperationsDefinition.product_id == product_id,
+            OperationsDefinition.is_default.is_(True),
+            OperationsDefinition.is_active.is_(True),
         )
         result = await session.execute(stmt)
         current_default = result.scalar_one_or_none()
@@ -470,55 +470,55 @@ class ProductDefService:
     @staticmethod
     async def get_route_with_steps(
         session: AsyncSession, route_id: UUID
-    ) -> ProcessRoute:
+    ) -> OperationsDefinition:
         """Get a route with its steps eagerly loaded."""
         stmt = (
-            select(ProcessRoute)
-            .where(ProcessRoute.id == route_id, ProcessRoute.is_active.is_(True))
-            .options(selectinload(ProcessRoute.steps))
+            select(OperationsDefinition)
+            .where(OperationsDefinition.id == route_id, OperationsDefinition.is_active.is_(True))
+            .options(selectinload(OperationsDefinition.steps))
         )
         result = await session.execute(stmt)
         route = result.scalar_one_or_none()
         if route is None:
-            raise NotFoundException(resource="ProcessRoute", resource_id=str(route_id))
+            raise NotFoundException(resource="OperationsDefinition", resource_id=str(route_id))
         return route
 
-    # ─── RouteStep operations ────────────────────────────────────────
+    # ─── ProcessSegment operations ────────────────────────────────────────
 
     @staticmethod
     async def list_steps(
         session: AsyncSession,
         route_id: UUID,
         params: PaginationParams,
-    ) -> tuple[Sequence[RouteStep], str | None, bool]:
+    ) -> tuple[Sequence[ProcessSegment], str | None, bool]:
         """List steps within a route."""
         await ProductDefService.get_route(session, route_id)
-        stmt = select(RouteStep).where(
-            RouteStep.route_id == route_id,
-            RouteStep.is_active.is_(True),
+        stmt = select(ProcessSegment).where(
+            ProcessSegment.route_id == route_id,
+            ProcessSegment.is_active.is_(True),
         )
-        return await paginate_query(session, stmt, RouteStep, params)
+        return await paginate_query(session, stmt, ProcessSegment, params)
 
     @staticmethod
-    async def get_step(session: AsyncSession, step_id: UUID) -> RouteStep:
+    async def get_step(session: AsyncSession, step_id: UUID) -> ProcessSegment:
         """Get a route step by ID."""
-        stmt = select(RouteStep).where(
-            RouteStep.id == step_id,
-            RouteStep.is_active.is_(True),
+        stmt = select(ProcessSegment).where(
+            ProcessSegment.id == step_id,
+            ProcessSegment.is_active.is_(True),
         )
         result = await session.execute(stmt)
         step = result.scalar_one_or_none()
         if step is None:
-            raise NotFoundException(resource="RouteStep", resource_id=str(step_id))
+            raise NotFoundException(resource="ProcessSegment", resource_id=str(step_id))
         return step
 
     @staticmethod
     async def create_step(
         session: AsyncSession, route_id: UUID, **kwargs: Any
-    ) -> RouteStep:
+    ) -> ProcessSegment:
         """Create a new step within a route."""
         await ProductDefService.get_route(session, route_id)
-        step = RouteStep(route_id=route_id, **kwargs)
+        step = ProcessSegment(route_id=route_id, **kwargs)
         session.add(step)
         await session.flush()
         logger.info("Created step %s (seq=%s) in route %s", step.id, step.sequence, route_id)
@@ -527,7 +527,7 @@ class ProductDefService:
     @staticmethod
     async def update_step(
         session: AsyncSession, step_id: UUID, **kwargs: Any
-    ) -> RouteStep:
+    ) -> ProcessSegment:
         """Update a route step."""
         step = await ProductDefService.get_step(session, step_id)
         for key, value in kwargs.items():
@@ -536,29 +536,29 @@ class ProductDefService:
         await session.flush()
         return step
 
-    # ─── StepParameter operations ────────────────────────────────────
+    # ─── SegmentParameter operations ────────────────────────────────────
 
     @staticmethod
-    async def list_step_parameters(
+    async def list_segment_parameters(
         session: AsyncSession,
         step_id: UUID,
         params: PaginationParams,
-    ) -> tuple[Sequence[StepParameter], str | None, bool]:
+    ) -> tuple[Sequence[SegmentParameter], str | None, bool]:
         """List parameters for a step."""
         await ProductDefService.get_step(session, step_id)
-        stmt = select(StepParameter).where(
-            StepParameter.step_id == step_id,
-            StepParameter.is_active.is_(True),
+        stmt = select(SegmentParameter).where(
+            SegmentParameter.step_id == step_id,
+            SegmentParameter.is_active.is_(True),
         )
-        return await paginate_query(session, stmt, StepParameter, params)
+        return await paginate_query(session, stmt, SegmentParameter, params)
 
     @staticmethod
     async def create_step_parameter(
         session: AsyncSession, step_id: UUID, **kwargs: Any
-    ) -> StepParameter:
+    ) -> SegmentParameter:
         """Create a new parameter specification for a step."""
         await ProductDefService.get_step(session, step_id)
-        param = StepParameter(step_id=step_id, **kwargs)
+        param = SegmentParameter(step_id=step_id, **kwargs)
         session.add(param)
         await session.flush()
         logger.info("Created step parameter %s (%s) for step %s", param.id, param.name, step_id)
@@ -570,21 +570,21 @@ class ProductDefService:
     async def sync_routes_from_erp(
         session: AsyncSession,
         route_dtos: list[Any],
-    ) -> list[ProcessRoute]:
+    ) -> list[OperationsDefinition]:
         """
         Import ERP routing DTOs into the MES database.
 
         For each ProcessRouteDTO:
         1. Resolve product by code → ProductDefinition
-        2. Upsert ProcessRoute (match on product_id + name + version)
+        2. Upsert OperationsDefinition (match on product_id + name + version)
         3. Upsert RouteSteps (match on route_id + sequence)
         4. Resolve work_center_code → work_cell_id via WorkCell.code
 
-        Returns the list of persisted ProcessRoute objects.
+        Returns the list of persisted OperationsDefinition objects.
         """
         from mes.core.physical_model.models import WorkCell
 
-        persisted: list[ProcessRoute] = []
+        persisted: list[OperationsDefinition] = []
 
         for dto in route_dtos:
             # Resolve product by code
@@ -602,12 +602,12 @@ class ProductDefService:
                 )
                 continue
 
-            # Upsert ProcessRoute
+            # Upsert OperationsDefinition
             route_result = await session.execute(
-                select(ProcessRoute).where(
-                    ProcessRoute.product_id == product.id,
-                    ProcessRoute.name == dto.name,
-                    ProcessRoute.version == dto.version,
+                select(OperationsDefinition).where(
+                    OperationsDefinition.product_id == product.id,
+                    OperationsDefinition.name == dto.name,
+                    OperationsDefinition.version == dto.version,
                 )
             )
             route = route_result.scalar_one_or_none()
@@ -615,14 +615,14 @@ class ProductDefService:
             if route is None:
                 # Check if this should be default (first route for this product)
                 existing_routes = await session.execute(
-                    select(ProcessRoute).where(
-                        ProcessRoute.product_id == product.id,
-                        ProcessRoute.is_active.is_(True),
+                    select(OperationsDefinition).where(
+                        OperationsDefinition.product_id == product.id,
+                        OperationsDefinition.is_active.is_(True),
                     )
                 )
                 is_first = existing_routes.scalar_one_or_none() is None
 
-                route = ProcessRoute(
+                route = OperationsDefinition(
                     product_id=product.id,
                     name=dto.name,
                     version=dto.version,
@@ -663,9 +663,9 @@ class ProductDefService:
             # Upsert RouteSteps
             for step_dto in dto.steps:
                 step_result = await session.execute(
-                    select(RouteStep).where(
-                        RouteStep.route_id == route.id,
-                        RouteStep.sequence == step_dto.sequence,
+                    select(ProcessSegment).where(
+                        ProcessSegment.route_id == route.id,
+                        ProcessSegment.sequence == step_dto.sequence,
                     )
                 )
                 step = step_result.scalar_one_or_none()
@@ -674,7 +674,7 @@ class ProductDefService:
                 erp_op = str(step_dto.sequence)
 
                 if step is None:
-                    step = RouteStep(
+                    step = ProcessSegment(
                         route_id=route.id,
                         sequence=step_dto.sequence,
                         name=step_dto.name,
@@ -755,43 +755,43 @@ class ProductDefService:
         await session.flush()
         logger.info("Deleted disposition %s", disposition_id)
 
-    # ─── StepTransition operations ───────────────────────────────────
+    # ─── ProcessSegmentDependency operations ───────────────────────────────────
 
     @staticmethod
-    async def list_step_transitions(
+    async def list_process_segment_dependencies(
         session: AsyncSession,
         step_id: UUID,
         params: PaginationParams,
-    ) -> tuple[Sequence[StepTransition], str | None, bool]:
+    ) -> tuple[Sequence[ProcessSegmentDependency], str | None, bool]:
         """List outgoing transitions for a step."""
         await ProductDefService.get_step(session, step_id)
-        stmt = select(StepTransition).where(
-            StepTransition.from_step_id == step_id,
-            StepTransition.is_active.is_(True),
+        stmt = select(ProcessSegmentDependency).where(
+            ProcessSegmentDependency.from_step_id == step_id,
+            ProcessSegmentDependency.is_active.is_(True),
         )
-        return await paginate_query(session, stmt, StepTransition, params)
+        return await paginate_query(session, stmt, ProcessSegmentDependency, params)
 
     @staticmethod
     async def get_step_transition(
         session: AsyncSession, transition_id: UUID,
-    ) -> StepTransition:
+    ) -> ProcessSegmentDependency:
         """Get a step transition by ID."""
-        stmt = select(StepTransition).where(
-            StepTransition.id == transition_id,
-            StepTransition.is_active.is_(True),
+        stmt = select(ProcessSegmentDependency).where(
+            ProcessSegmentDependency.id == transition_id,
+            ProcessSegmentDependency.is_active.is_(True),
         )
         result = await session.execute(stmt)
         transition = result.scalar_one_or_none()
         if transition is None:
             raise NotFoundException(
-                resource="StepTransition", resource_id=str(transition_id),
+                resource="ProcessSegmentDependency", resource_id=str(transition_id),
             )
         return transition
 
     @staticmethod
     async def create_step_transition(
         session: AsyncSession, from_step_id: UUID, **kwargs: Any,
-    ) -> StepTransition:
+    ) -> ProcessSegmentDependency:
         """Create a new transition from a step."""
         from_step = await ProductDefService.get_step(session, from_step_id)
         # Validate to_step exists and belongs to the same route
@@ -802,7 +802,7 @@ class ProductDefService:
                 f"to_step {to_step_id} belongs to route {to_step.route_id}, "
                 f"but from_step {from_step_id} belongs to route {from_step.route_id}"
             )
-        transition = StepTransition(from_step_id=from_step_id, **kwargs)
+        transition = ProcessSegmentDependency(from_step_id=from_step_id, **kwargs)
         session.add(transition)
         await session.flush()
         logger.info(
@@ -814,7 +814,7 @@ class ProductDefService:
     @staticmethod
     async def update_step_transition(
         session: AsyncSession, transition_id: UUID, **kwargs: Any,
-    ) -> StepTransition:
+    ) -> ProcessSegmentDependency:
         """Update a step transition."""
         transition = await ProductDefService.get_step_transition(
             session, transition_id,
@@ -843,50 +843,50 @@ class ProductDefService:
     async def list_all_routes(
         session: AsyncSession,
         params: PaginationParams,
-    ) -> tuple[Sequence[ProcessRoute], str | None, bool]:
+    ) -> tuple[Sequence[OperationsDefinition], str | None, bool]:
         """List all active routes (not scoped to a product)."""
-        stmt = select(ProcessRoute).where(ProcessRoute.is_active.is_(True))
-        return await paginate_query(session, stmt, ProcessRoute, params)
+        stmt = select(OperationsDefinition).where(OperationsDefinition.is_active.is_(True))
+        return await paginate_query(session, stmt, OperationsDefinition, params)
 
     @staticmethod
     async def create_standalone_route(
         session: AsyncSession, **kwargs: Any,
-    ) -> ProcessRoute:
+    ) -> OperationsDefinition:
         """Create a route that is not bound to a single product."""
-        route = ProcessRoute(**kwargs)
+        route = OperationsDefinition(**kwargs)
         session.add(route)
         await session.flush()
         logger.info("Created standalone route %s (%s)", route.id, route.name)
         return route
 
-    # ─── RouteProductAssignment operations ───────────────────────────
+    # ─── OperationsDefinitionProductAssignment operations ───────────────────────────
 
     @staticmethod
     async def list_route_products(
         session: AsyncSession,
         route_id: UUID,
         params: PaginationParams,
-    ) -> tuple[Sequence[RouteProductAssignment], str | None, bool]:
+    ) -> tuple[Sequence[OperationsDefinitionProductAssignment], str | None, bool]:
         """List product assignments for a route."""
         await ProductDefService.get_route(session, route_id)
-        stmt = select(RouteProductAssignment).where(
-            RouteProductAssignment.route_id == route_id,
-            RouteProductAssignment.is_active.is_(True),
+        stmt = select(OperationsDefinitionProductAssignment).where(
+            OperationsDefinitionProductAssignment.route_id == route_id,
+            OperationsDefinitionProductAssignment.is_active.is_(True),
         )
-        return await paginate_query(session, stmt, RouteProductAssignment, params)
+        return await paginate_query(session, stmt, OperationsDefinitionProductAssignment, params)
 
     @staticmethod
     async def assign_product_to_route(
         session: AsyncSession, route_id: UUID, product_id: UUID,
-    ) -> RouteProductAssignment:
+    ) -> OperationsDefinitionProductAssignment:
         """Assign a product to a route (many-to-many)."""
         await ProductDefService.get_route(session, route_id)
         await ProductDefService.get_product(session, product_id)
 
         # Check for existing assignment (including soft-deleted)
-        stmt = select(RouteProductAssignment).where(
-            RouteProductAssignment.route_id == route_id,
-            RouteProductAssignment.product_id == product_id,
+        stmt = select(OperationsDefinitionProductAssignment).where(
+            OperationsDefinitionProductAssignment.route_id == route_id,
+            OperationsDefinitionProductAssignment.product_id == product_id,
         )
         result = await session.execute(stmt)
         existing = result.scalar_one_or_none()
@@ -900,7 +900,7 @@ class ProductDefService:
             await session.flush()
             return existing
 
-        assignment = RouteProductAssignment(route_id=route_id, product_id=product_id)
+        assignment = OperationsDefinitionProductAssignment(route_id=route_id, product_id=product_id)
         session.add(assignment)
         await session.flush()
         logger.info("Assigned product %s to route %s", product_id, route_id)
@@ -911,16 +911,16 @@ class ProductDefService:
         session: AsyncSession, route_id: UUID, product_id: UUID,
     ) -> None:
         """Remove a product assignment from a route (soft-delete)."""
-        stmt = select(RouteProductAssignment).where(
-            RouteProductAssignment.route_id == route_id,
-            RouteProductAssignment.product_id == product_id,
-            RouteProductAssignment.is_active.is_(True),
+        stmt = select(OperationsDefinitionProductAssignment).where(
+            OperationsDefinitionProductAssignment.route_id == route_id,
+            OperationsDefinitionProductAssignment.product_id == product_id,
+            OperationsDefinitionProductAssignment.is_active.is_(True),
         )
         result = await session.execute(stmt)
         assignment = result.scalar_one_or_none()
         if assignment is None:
             raise NotFoundException(
-                resource="RouteProductAssignment",
+                resource="OperationsDefinitionProductAssignment",
                 resource_id=f"route={route_id}, product={product_id}",
             )
         assignment.is_active = False
@@ -949,26 +949,26 @@ class ProductDefService:
         await session.flush()
         logger.info("Deleted step %s", step_id)
 
-    # ─── RouteMaterialAssignment operations ──────────────────────────
+    # ─── OperationsDefinitionMaterialAssignment operations ──────────────────────────
 
     @staticmethod
     async def list_route_materials(
         session: AsyncSession,
         route_id: UUID,
         params: PaginationParams,
-    ) -> tuple[Sequence[RouteMaterialAssignment], str | None, bool]:
+    ) -> tuple[Sequence[OperationsDefinitionMaterialAssignment], str | None, bool]:
         """List material assignments for a route."""
         await ProductDefService.get_route(session, route_id)
-        stmt = select(RouteMaterialAssignment).where(
-            RouteMaterialAssignment.route_id == route_id,
-            RouteMaterialAssignment.is_active.is_(True),
+        stmt = select(OperationsDefinitionMaterialAssignment).where(
+            OperationsDefinitionMaterialAssignment.route_id == route_id,
+            OperationsDefinitionMaterialAssignment.is_active.is_(True),
         )
-        return await paginate_query(session, stmt, RouteMaterialAssignment, params)
+        return await paginate_query(session, stmt, OperationsDefinitionMaterialAssignment, params)
 
     @staticmethod
     async def assign_material_to_route(
         session: AsyncSession, route_id: UUID, material_id: UUID,
-    ) -> RouteMaterialAssignment:
+    ) -> OperationsDefinitionMaterialAssignment:
         """Assign a material to a route (many-to-many)."""
         from mes.core.material.service import MaterialService
 
@@ -976,9 +976,9 @@ class ProductDefService:
         await MaterialService.get_material(session, material_id)
 
         # Check for existing assignment (including soft-deleted)
-        stmt = select(RouteMaterialAssignment).where(
-            RouteMaterialAssignment.route_id == route_id,
-            RouteMaterialAssignment.material_id == material_id,
+        stmt = select(OperationsDefinitionMaterialAssignment).where(
+            OperationsDefinitionMaterialAssignment.route_id == route_id,
+            OperationsDefinitionMaterialAssignment.material_id == material_id,
         )
         result = await session.execute(stmt)
         existing = result.scalar_one_or_none()
@@ -992,7 +992,7 @@ class ProductDefService:
             await session.flush()
             return existing
 
-        assignment = RouteMaterialAssignment(route_id=route_id, material_id=material_id)
+        assignment = OperationsDefinitionMaterialAssignment(route_id=route_id, material_id=material_id)
         session.add(assignment)
         await session.flush()
         logger.info("Assigned material %s to route %s", material_id, route_id)
@@ -1003,16 +1003,16 @@ class ProductDefService:
         session: AsyncSession, route_id: UUID, material_id: UUID,
     ) -> None:
         """Remove a material assignment from a route (soft-delete)."""
-        stmt = select(RouteMaterialAssignment).where(
-            RouteMaterialAssignment.route_id == route_id,
-            RouteMaterialAssignment.material_id == material_id,
-            RouteMaterialAssignment.is_active.is_(True),
+        stmt = select(OperationsDefinitionMaterialAssignment).where(
+            OperationsDefinitionMaterialAssignment.route_id == route_id,
+            OperationsDefinitionMaterialAssignment.material_id == material_id,
+            OperationsDefinitionMaterialAssignment.is_active.is_(True),
         )
         result = await session.execute(stmt)
         assignment = result.scalar_one_or_none()
         if assignment is None:
             raise NotFoundException(
-                resource="RouteMaterialAssignment",
+                resource="OperationsDefinitionMaterialAssignment",
                 resource_id=f"route={route_id}, material={material_id}",
             )
         assignment.is_active = False
@@ -1022,13 +1022,13 @@ class ProductDefService:
     # ─── Step Equipment Requirements (ISA-95 Process Segment) ────────
 
     @staticmethod
-    async def list_step_equipment_requirements(
+    async def list_segment_equipment_requirements(
         session: AsyncSession, step_id: UUID,
-    ) -> Sequence[StepEquipmentRequirement]:
+    ) -> Sequence[SegmentEquipmentRequirement]:
         """List active equipment requirements for a route step."""
-        stmt = select(StepEquipmentRequirement).where(
-            StepEquipmentRequirement.step_id == step_id,
-            StepEquipmentRequirement.is_active.is_(True),
+        stmt = select(SegmentEquipmentRequirement).where(
+            SegmentEquipmentRequirement.step_id == step_id,
+            SegmentEquipmentRequirement.is_active.is_(True),
         )
         result = await session.execute(stmt)
         return result.scalars().all()
@@ -1036,9 +1036,9 @@ class ProductDefService:
     @staticmethod
     async def create_step_equipment_requirement(
         session: AsyncSession, step_id: UUID, **kwargs: Any,
-    ) -> StepEquipmentRequirement:
+    ) -> SegmentEquipmentRequirement:
         """Add an equipment requirement to a route step."""
-        req = StepEquipmentRequirement(step_id=step_id, **kwargs)
+        req = SegmentEquipmentRequirement(step_id=step_id, **kwargs)
         session.add(req)
         await session.flush()
         logger.info("Created equipment requirement %s for step %s", req.id, step_id)
@@ -1047,16 +1047,16 @@ class ProductDefService:
     @staticmethod
     async def update_step_equipment_requirement(
         session: AsyncSession, requirement_id: UUID, **kwargs: Any,
-    ) -> StepEquipmentRequirement:
+    ) -> SegmentEquipmentRequirement:
         """Update an equipment requirement."""
-        stmt = select(StepEquipmentRequirement).where(
-            StepEquipmentRequirement.id == requirement_id,
-            StepEquipmentRequirement.is_active.is_(True),
+        stmt = select(SegmentEquipmentRequirement).where(
+            SegmentEquipmentRequirement.id == requirement_id,
+            SegmentEquipmentRequirement.is_active.is_(True),
         )
         result = await session.execute(stmt)
         req = result.scalar_one_or_none()
         if req is None:
-            raise NotFoundException(resource="StepEquipmentRequirement", resource_id=str(requirement_id))
+            raise NotFoundException(resource="SegmentEquipmentRequirement", resource_id=str(requirement_id))
         for key, value in kwargs.items():
             if value is not None:
                 setattr(req, key, value)
@@ -1068,14 +1068,14 @@ class ProductDefService:
         session: AsyncSession, requirement_id: UUID,
     ) -> None:
         """Soft-delete an equipment requirement."""
-        stmt = select(StepEquipmentRequirement).where(
-            StepEquipmentRequirement.id == requirement_id,
-            StepEquipmentRequirement.is_active.is_(True),
+        stmt = select(SegmentEquipmentRequirement).where(
+            SegmentEquipmentRequirement.id == requirement_id,
+            SegmentEquipmentRequirement.is_active.is_(True),
         )
         result = await session.execute(stmt)
         req = result.scalar_one_or_none()
         if req is None:
-            raise NotFoundException(resource="StepEquipmentRequirement", resource_id=str(requirement_id))
+            raise NotFoundException(resource="SegmentEquipmentRequirement", resource_id=str(requirement_id))
         req.is_active = False
         await session.flush()
         logger.info("Deleted equipment requirement %s", requirement_id)
@@ -1083,23 +1083,23 @@ class ProductDefService:
     # ─── Step Material Requirements (ISA-95 Process Segment) ─────────
 
     @staticmethod
-    async def list_step_material_requirements(
+    async def list_segment_material_requirements(
         session: AsyncSession, step_id: UUID,
-    ) -> Sequence[StepMaterialRequirement]:
+    ) -> Sequence[SegmentMaterialRequirement]:
         """List active material requirements for a route step."""
-        stmt = select(StepMaterialRequirement).where(
-            StepMaterialRequirement.step_id == step_id,
-            StepMaterialRequirement.is_active.is_(True),
-        ).order_by(StepMaterialRequirement.position)
+        stmt = select(SegmentMaterialRequirement).where(
+            SegmentMaterialRequirement.step_id == step_id,
+            SegmentMaterialRequirement.is_active.is_(True),
+        ).order_by(SegmentMaterialRequirement.position)
         result = await session.execute(stmt)
         return result.scalars().all()
 
     @staticmethod
     async def create_step_material_requirement(
         session: AsyncSession, step_id: UUID, **kwargs: Any,
-    ) -> StepMaterialRequirement:
+    ) -> SegmentMaterialRequirement:
         """Add a material requirement to a route step."""
-        req = StepMaterialRequirement(step_id=step_id, **kwargs)
+        req = SegmentMaterialRequirement(step_id=step_id, **kwargs)
         session.add(req)
         await session.flush()
         logger.info("Created material requirement %s for step %s", req.id, step_id)
@@ -1108,16 +1108,16 @@ class ProductDefService:
     @staticmethod
     async def update_step_material_requirement(
         session: AsyncSession, requirement_id: UUID, **kwargs: Any,
-    ) -> StepMaterialRequirement:
+    ) -> SegmentMaterialRequirement:
         """Update a material requirement."""
-        stmt = select(StepMaterialRequirement).where(
-            StepMaterialRequirement.id == requirement_id,
-            StepMaterialRequirement.is_active.is_(True),
+        stmt = select(SegmentMaterialRequirement).where(
+            SegmentMaterialRequirement.id == requirement_id,
+            SegmentMaterialRequirement.is_active.is_(True),
         )
         result = await session.execute(stmt)
         req = result.scalar_one_or_none()
         if req is None:
-            raise NotFoundException(resource="StepMaterialRequirement", resource_id=str(requirement_id))
+            raise NotFoundException(resource="SegmentMaterialRequirement", resource_id=str(requirement_id))
         for key, value in kwargs.items():
             if value is not None:
                 setattr(req, key, value)
@@ -1129,14 +1129,14 @@ class ProductDefService:
         session: AsyncSession, requirement_id: UUID,
     ) -> None:
         """Soft-delete a material requirement."""
-        stmt = select(StepMaterialRequirement).where(
-            StepMaterialRequirement.id == requirement_id,
-            StepMaterialRequirement.is_active.is_(True),
+        stmt = select(SegmentMaterialRequirement).where(
+            SegmentMaterialRequirement.id == requirement_id,
+            SegmentMaterialRequirement.is_active.is_(True),
         )
         result = await session.execute(stmt)
         req = result.scalar_one_or_none()
         if req is None:
-            raise NotFoundException(resource="StepMaterialRequirement", resource_id=str(requirement_id))
+            raise NotFoundException(resource="SegmentMaterialRequirement", resource_id=str(requirement_id))
         req.is_active = False
         await session.flush()
         logger.info("Deleted material requirement %s", requirement_id)

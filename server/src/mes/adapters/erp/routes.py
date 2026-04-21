@@ -322,7 +322,7 @@ async def sync_routings(
     adapter = _get_erp_inbound()
     routes = await adapter.sync_routings(product_id)
 
-    # Persist ERP routes → MES ProcessRoute + RouteStep tables
+    # Persist ERP routes → MES OperationsDefinition + ProcessSegment tables
     from mes.core.product_def.service import ProductDefService
     await ProductDefService.sync_routes_from_erp(db, routes)
     await db.commit()

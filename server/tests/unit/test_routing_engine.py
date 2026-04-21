@@ -6,7 +6,7 @@ Covers:
 - Route resolution priority (explicit → default → fallback)
 - Next step determination (sequential, end-of-route)
 - First step resolution
-- Graph-based routing via StepTransition edges
+- Graph-based routing via ProcessSegmentDependency edges
 - Conditional routing (on_pass, on_fail, on_rework)
 - Disposition routing (MRB operator choices)
 - Linear fallback when no transitions are defined
@@ -190,23 +190,23 @@ def _make_transition(from_step_id, to_step_id, **overrides):
 
 
 class TestStepTransitionModel:
-    """Test StepTransition SQLAlchemy model definition."""
+    """Test ProcessSegmentDependency SQLAlchemy model definition."""
 
     def test_step_transition_tablename(self):
-        from mes.core.product_def.models import StepTransition
-        assert StepTransition.__tablename__ == "step_transitions"
+        from mes.core.product_def.models import ProcessSegmentDependency
+        assert ProcessSegmentDependency.__tablename__ == "process_segment_dependencies"
 
     def test_step_transition_has_base_columns(self):
-        from mes.core.product_def.models import StepTransition
-        col_names = {c.key for c in StepTransition.__mapper__.columns}
+        from mes.core.product_def.models import ProcessSegmentDependency
+        col_names = {c.key for c in ProcessSegmentDependency.__mapper__.columns}
         assert "id" in col_names
         assert "created_at" in col_names
         assert "updated_at" in col_names
         assert "is_active" in col_names
 
     def test_step_transition_has_required_columns(self):
-        from mes.core.product_def.models import StepTransition
-        col_names = {c.key for c in StepTransition.__mapper__.columns}
+        from mes.core.product_def.models import ProcessSegmentDependency
+        col_names = {c.key for c in ProcessSegmentDependency.__mapper__.columns}
         assert "from_step_id" in col_names
         assert "to_step_id" in col_names
         assert "condition" in col_names
@@ -215,14 +215,14 @@ class TestStepTransitionModel:
         assert "label" in col_names
 
     def test_route_step_has_transition_relationships(self):
-        from mes.core.product_def.models import RouteStep
-        rels = {r.key for r in RouteStep.__mapper__.relationships}
+        from mes.core.product_def.models import ProcessSegment
+        rels = {r.key for r in ProcessSegment.__mapper__.relationships}
         assert "outgoing_transitions" in rels
         assert "incoming_transitions" in rels
 
 
 class TestStepTransitionSchemas:
-    """Test Pydantic schemas for StepTransition CRUD."""
+    """Test Pydantic schemas for ProcessSegmentDependency CRUD."""
 
     def test_create_minimal(self):
         from mes.core.product_def.schemas import StepTransitionCreate

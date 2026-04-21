@@ -5,11 +5,11 @@ Given a unit or lot ID, returns a single dict containing everything the
 operator work screen needs:
   - wip: unit/lot details (id, serial/lot number, status, order_id, …)
   - step: current step details (id, name, step_type, sequence, …) or null
-  - step_parameters: spec limits for the step
+  - segment_parameters: spec limits for the step
   - data_definitions: data collection requirements for the step
   - quality_tests: quality tests linked to the step
   - dispositions: available MRB/disposition transitions (empty if not MRB)
-  - route_steps: all steps in the route (for progress tracker)
+  - process_segments: all steps in the route (for progress tracker)
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.core.data_collection.models import DataDefinition
 from mes.core.data_collection.schemas import DataDefinitionRead
-from mes.core.product_def.models import RouteStep, StepParameter
+from mes.core.product_def.models import ProcessSegment, SegmentParameter
 from mes.core.product_def.schemas import RouteStepRead, StepParameterRead
 from mes.core.quality.models import QualityTest
 from mes.core.quality.schemas import QualityTestRead
@@ -64,7 +64,7 @@ async def build_step_context(
     if current_step_id is not None:
         # Step details
         step_result = await session.execute(
-            select(RouteStep).where(RouteStep.id == current_step_id)
+            select(ProcessSegment).where(ProcessSegment.id == current_step_id)
         )
         step = step_result.scalar_one_or_none()
         if step is not None:
@@ -72,9 +72,9 @@ async def build_step_context(
 
         # Step parameters (spec limits)
         param_result = await session.execute(
-            select(StepParameter).where(
-                StepParameter.step_id == current_step_id,
-                StepParameter.is_active.is_(True),
+            select(SegmentParameter).where(
+                SegmentParameter.step_id == current_step_id,
+                SegmentParameter.is_active.is_(True),
             )
         )
         step_params = [
@@ -112,10 +112,10 @@ async def build_step_context(
         )
 
     # 3. Load all route steps for progress tracker
-    route_steps = []
+    process_segments = []
     try:
-        all_steps = await RoutingEngineService.get_route_steps(session, order_id)
-        route_steps = [
+        all_steps = await RoutingEngineService.get_process_segments(session, order_id)
+        process_segments = [
             RouteStepRead.model_validate(s).model_dump() for s in all_steps
         ]
     except Exception:
@@ -125,9 +125,9 @@ async def build_step_context(
         "wip_type": wip_type,
         "wip": wip_data,
         "step": step_data,
-        "step_parameters": step_params,
+        "segment_parameters": step_params,
         "data_definitions": data_defs,
         "quality_tests": quality_tests,
         "dispositions": dispositions,
-        "route_steps": route_steps,
+        "process_segments": process_segments,
     }

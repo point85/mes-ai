@@ -21,15 +21,15 @@ from mes.core.product_def.exceptions import DuplicateProductException
 from mes.core.product_def.models import (
     BillOfMaterial,
     BOMItem,
-    ProcessRoute,
+    OperationsDefinition,
     ProductDefinition,
-    RouteMaterialAssignment,
-    RouteProductAssignment,
-    RouteStep,
-    StepEquipmentRequirement,
-    StepMaterialRequirement,
-    StepParameter,
-    StepTransition,
+    OperationsDefinitionMaterialAssignment,
+    OperationsDefinitionProductAssignment,
+    ProcessSegment,
+    SegmentEquipmentRequirement,
+    SegmentMaterialRequirement,
+    SegmentParameter,
+    ProcessSegmentDependency,
 )
 from mes.core.product_def.schemas import (
     BOMCreate,
@@ -80,22 +80,22 @@ class TestProductDefModels:
         assert BOMItem.__tablename__ == "bom_items"
 
     def test_process_route_tablename(self):
-        assert ProcessRoute.__tablename__ == "process_routes"
+        assert OperationsDefinition.__tablename__ == "operations_definitions"
 
     def test_route_step_tablename(self):
-        assert RouteStep.__tablename__ == "route_steps"
+        assert ProcessSegment.__tablename__ == "process_segments"
 
     def test_step_parameter_tablename(self):
-        assert StepParameter.__tablename__ == "step_parameters"
+        assert SegmentParameter.__tablename__ == "segment_parameters"
 
     def test_step_transition_tablename(self):
-        assert StepTransition.__tablename__ == "step_transitions"
+        assert ProcessSegmentDependency.__tablename__ == "process_segment_dependencies"
 
     def test_all_models_inherit_base_columns(self):
         """All product def entities must have id, created_at, updated_at, is_active."""
         for model_cls in [
             ProductDefinition, BillOfMaterial, BOMItem,
-            ProcessRoute, RouteStep, StepParameter, StepTransition,
+            OperationsDefinition, ProcessSegment, SegmentParameter, ProcessSegmentDependency,
         ]:
             mapper = model_cls.__mapper__
             col_names = {c.key for c in mapper.columns}
@@ -119,23 +119,23 @@ class TestProductDefModels:
         assert "items" in rels
 
     def test_route_has_steps_relationship(self):
-        rels = {r.key for r in ProcessRoute.__mapper__.relationships}
+        rels = {r.key for r in OperationsDefinition.__mapper__.relationships}
         assert "steps" in rels
 
     def test_step_has_parameters_relationship(self):
-        rels = {r.key for r in RouteStep.__mapper__.relationships}
+        rels = {r.key for r in ProcessSegment.__mapper__.relationships}
         assert "parameters" in rels
 
     def test_step_has_outgoing_transitions_relationship(self):
-        rels = {r.key for r in RouteStep.__mapper__.relationships}
+        rels = {r.key for r in ProcessSegment.__mapper__.relationships}
         assert "outgoing_transitions" in rels
 
     def test_step_has_incoming_transitions_relationship(self):
-        rels = {r.key for r in RouteStep.__mapper__.relationships}
+        rels = {r.key for r in ProcessSegment.__mapper__.relationships}
         assert "incoming_transitions" in rels
 
     def test_step_transition_has_from_and_to_step_relationships(self):
-        rels = {r.key for r in StepTransition.__mapper__.relationships}
+        rels = {r.key for r in ProcessSegmentDependency.__mapper__.relationships}
         assert "from_step" in rels
         assert "to_step" in rels
 
@@ -290,7 +290,7 @@ class TestRouteSchemas:
         assert schema.is_default is True
 
 
-# ─── RouteStep schema tests ──────────────────────────────────────────
+# ─── ProcessSegment schema tests ──────────────────────────────────────────
 
 
 class TestRouteStepSchemas:
@@ -349,7 +349,7 @@ class TestRouteStepSchemas:
         assert schema.step_type == "mrb"
 
 
-# ─── StepParameter schema tests ──────────────────────────────────────
+# ─── SegmentParameter schema tests ──────────────────────────────────────
 
 
 class TestStepParameterSchemas:
@@ -425,7 +425,7 @@ class TestRouteStepERPFields:
         assert schema.erp_operation_number == "0030"
 
     def test_route_step_model_has_erp_operation_number(self):
-        col_names = {c.key for c in RouteStep.__mapper__.columns}
+        col_names = {c.key for c in ProcessSegment.__mapper__.columns}
         assert "erp_operation_number" in col_names
 
     def test_service_has_sync_method(self):
@@ -511,27 +511,27 @@ class TestRouteProductAssignment:
     """Tests for the route–product many-to-many support."""
 
     def test_route_product_assignment_tablename(self):
-        assert RouteProductAssignment.__tablename__ == "route_product_assignments"
+        assert OperationsDefinitionProductAssignment.__tablename__ == "operations_definition_product_assignments"
 
     def test_route_product_assignment_has_base_columns(self):
-        col_names = {c.key for c in RouteProductAssignment.__mapper__.columns}
+        col_names = {c.key for c in OperationsDefinitionProductAssignment.__mapper__.columns}
         assert "id" in col_names
         assert "route_id" in col_names
         assert "product_id" in col_names
         assert "is_active" in col_names
 
     def test_route_product_assignment_relationships(self):
-        rels = {r.key for r in RouteProductAssignment.__mapper__.relationships}
+        rels = {r.key for r in OperationsDefinitionProductAssignment.__mapper__.relationships}
         assert "route" in rels
         assert "product" in rels
 
     def test_process_route_product_id_nullable(self):
-        """product_id on ProcessRoute should be nullable for standalone routes."""
-        col = ProcessRoute.__table__.columns["product_id"]
+        """product_id on OperationsDefinition should be nullable for standalone routes."""
+        col = OperationsDefinition.__table__.columns["product_id"]
         assert col.nullable is True
 
     def test_process_route_has_product_assignments_relationship(self):
-        rels = {r.key for r in ProcessRoute.__mapper__.relationships}
+        rels = {r.key for r in OperationsDefinition.__mapper__.relationships}
         assert "product_assignments" in rels
 
     def test_route_product_assignment_create_schema(self):
@@ -582,22 +582,22 @@ class TestRouteMaterialAssignment:
     """Tests for the route–material many-to-many support."""
 
     def test_route_material_assignment_tablename(self):
-        assert RouteMaterialAssignment.__tablename__ == "route_material_assignments"
+        assert OperationsDefinitionMaterialAssignment.__tablename__ == "operations_definition_material_assignments"
 
     def test_route_material_assignment_has_base_columns(self):
-        col_names = {c.key for c in RouteMaterialAssignment.__mapper__.columns}
+        col_names = {c.key for c in OperationsDefinitionMaterialAssignment.__mapper__.columns}
         assert "id" in col_names
         assert "route_id" in col_names
         assert "material_id" in col_names
         assert "is_active" in col_names
 
     def test_route_material_assignment_relationships(self):
-        rels = {r.key for r in RouteMaterialAssignment.__mapper__.relationships}
+        rels = {r.key for r in OperationsDefinitionMaterialAssignment.__mapper__.relationships}
         assert "route" in rels
         assert "material" in rels
 
     def test_process_route_has_material_assignments_relationship(self):
-        rels = {r.key for r in ProcessRoute.__mapper__.relationships}
+        rels = {r.key for r in OperationsDefinition.__mapper__.relationships}
         assert "material_assignments" in rels
 
     def test_route_material_assignment_create_schema(self):
@@ -632,7 +632,7 @@ class TestRouteMaterialAssignment:
 
 
 class TestRouteStepEquipmentClass:
-    """Tests for equipment_class_id on RouteStep."""
+    """Tests for equipment_class_id on ProcessSegment."""
 
     def test_route_step_create_with_equipment_class_id(self):
         schema = RouteStepCreate(
@@ -668,32 +668,32 @@ class TestRouteStepEquipmentClass:
         assert schema.equipment_class_id == ec_id
 
     def test_model_has_equipment_class_id_column(self):
-        assert hasattr(RouteStep, "equipment_class_id")
+        assert hasattr(ProcessSegment, "equipment_class_id")
 
     def test_model_has_equipment_class_relationship(self):
-        assert hasattr(RouteStep, "equipment_class")
+        assert hasattr(ProcessSegment, "equipment_class")
 
     def test_model_has_equipment_requirements_relationship(self):
-        assert hasattr(RouteStep, "equipment_requirements")
+        assert hasattr(ProcessSegment, "equipment_requirements")
 
     def test_model_has_material_requirements_relationship(self):
-        assert hasattr(RouteStep, "material_requirements")
+        assert hasattr(ProcessSegment, "material_requirements")
 
 
 # ─── ISA-95 Process Segment — Step Equipment Requirement ─────────────
 
 
 class TestStepEquipmentRequirement:
-    """Tests for StepEquipmentRequirement model and schemas."""
+    """Tests for SegmentEquipmentRequirement model and schemas."""
 
     def test_model_tablename(self):
-        assert StepEquipmentRequirement.__tablename__ == "step_equipment_requirements"
+        assert SegmentEquipmentRequirement.__tablename__ == "segment_equipment_requirements"
 
     def test_model_has_expected_columns(self):
-        assert hasattr(StepEquipmentRequirement, "step_id")
-        assert hasattr(StepEquipmentRequirement, "equipment_id")
-        assert hasattr(StepEquipmentRequirement, "use_type")
-        assert hasattr(StepEquipmentRequirement, "description")
+        assert hasattr(SegmentEquipmentRequirement, "step_id")
+        assert hasattr(SegmentEquipmentRequirement, "equipment_id")
+        assert hasattr(SegmentEquipmentRequirement, "use_type")
+        assert hasattr(SegmentEquipmentRequirement, "description")
 
     def test_create_schema_defaults(self):
         schema = StepEquipmentRequirementCreate(equipment_id=uuid.uuid4())
@@ -737,7 +737,7 @@ class TestStepEquipmentRequirement:
 
     def test_service_has_equipment_requirement_methods(self):
         from mes.core.product_def.service import ProductDefService
-        assert hasattr(ProductDefService, "list_step_equipment_requirements")
+        assert hasattr(ProductDefService, "list_segment_equipment_requirements")
         assert hasattr(ProductDefService, "create_step_equipment_requirement")
         assert hasattr(ProductDefService, "update_step_equipment_requirement")
         assert hasattr(ProductDefService, "delete_step_equipment_requirement")
@@ -747,19 +747,19 @@ class TestStepEquipmentRequirement:
 
 
 class TestStepMaterialRequirement:
-    """Tests for StepMaterialRequirement model and schemas."""
+    """Tests for SegmentMaterialRequirement model and schemas."""
 
     def test_model_tablename(self):
-        assert StepMaterialRequirement.__tablename__ == "step_material_requirements"
+        assert SegmentMaterialRequirement.__tablename__ == "segment_material_requirements"
 
     def test_model_has_expected_columns(self):
-        assert hasattr(StepMaterialRequirement, "step_id")
-        assert hasattr(StepMaterialRequirement, "material_id")
-        assert hasattr(StepMaterialRequirement, "quantity")
-        assert hasattr(StepMaterialRequirement, "uom")
-        assert hasattr(StepMaterialRequirement, "material_use")
-        assert hasattr(StepMaterialRequirement, "position")
-        assert hasattr(StepMaterialRequirement, "description")
+        assert hasattr(SegmentMaterialRequirement, "step_id")
+        assert hasattr(SegmentMaterialRequirement, "material_id")
+        assert hasattr(SegmentMaterialRequirement, "quantity")
+        assert hasattr(SegmentMaterialRequirement, "uom")
+        assert hasattr(SegmentMaterialRequirement, "material_use")
+        assert hasattr(SegmentMaterialRequirement, "position")
+        assert hasattr(SegmentMaterialRequirement, "description")
 
     def test_create_schema_defaults(self):
         schema = StepMaterialRequirementCreate(
@@ -812,7 +812,7 @@ class TestStepMaterialRequirement:
 
     def test_service_has_material_requirement_methods(self):
         from mes.core.product_def.service import ProductDefService
-        assert hasattr(ProductDefService, "list_step_material_requirements")
+        assert hasattr(ProductDefService, "list_segment_material_requirements")
         assert hasattr(ProductDefService, "create_step_material_requirement")
         assert hasattr(ProductDefService, "update_step_material_requirement")
         assert hasattr(ProductDefService, "delete_step_material_requirement")
@@ -822,7 +822,7 @@ class TestStepMaterialRequirement:
 
 
 class TestRouteStepEquipmentClass:
-    """Tests for equipment_class_id on RouteStep."""
+    """Tests for equipment_class_id on ProcessSegment."""
 
     def test_route_step_create_with_equipment_class_id(self):
         schema = RouteStepCreate(
@@ -858,32 +858,32 @@ class TestRouteStepEquipmentClass:
         assert schema.equipment_class_id == ec_id
 
     def test_model_has_equipment_class_id_column(self):
-        assert hasattr(RouteStep, "equipment_class_id")
+        assert hasattr(ProcessSegment, "equipment_class_id")
 
     def test_model_has_equipment_class_relationship(self):
-        assert hasattr(RouteStep, "equipment_class")
+        assert hasattr(ProcessSegment, "equipment_class")
 
     def test_model_has_equipment_requirements_relationship(self):
-        assert hasattr(RouteStep, "equipment_requirements")
+        assert hasattr(ProcessSegment, "equipment_requirements")
 
     def test_model_has_material_requirements_relationship(self):
-        assert hasattr(RouteStep, "material_requirements")
+        assert hasattr(ProcessSegment, "material_requirements")
 
 
 # ─── ISA-95 Process Segment — Step Equipment Requirement ─────────────
 
 
 class TestStepEquipmentRequirement:
-    """Tests for StepEquipmentRequirement model and schemas."""
+    """Tests for SegmentEquipmentRequirement model and schemas."""
 
     def test_model_tablename(self):
-        assert StepEquipmentRequirement.__tablename__ == "step_equipment_requirements"
+        assert SegmentEquipmentRequirement.__tablename__ == "segment_equipment_requirements"
 
     def test_model_has_expected_columns(self):
-        assert hasattr(StepEquipmentRequirement, "step_id")
-        assert hasattr(StepEquipmentRequirement, "equipment_id")
-        assert hasattr(StepEquipmentRequirement, "use_type")
-        assert hasattr(StepEquipmentRequirement, "description")
+        assert hasattr(SegmentEquipmentRequirement, "step_id")
+        assert hasattr(SegmentEquipmentRequirement, "equipment_id")
+        assert hasattr(SegmentEquipmentRequirement, "use_type")
+        assert hasattr(SegmentEquipmentRequirement, "description")
 
     def test_create_schema_defaults(self):
         schema = StepEquipmentRequirementCreate(equipment_id=uuid.uuid4())
@@ -927,7 +927,7 @@ class TestStepEquipmentRequirement:
 
     def test_service_has_equipment_requirement_methods(self):
         from mes.core.product_def.service import ProductDefService
-        assert hasattr(ProductDefService, "list_step_equipment_requirements")
+        assert hasattr(ProductDefService, "list_segment_equipment_requirements")
         assert hasattr(ProductDefService, "create_step_equipment_requirement")
         assert hasattr(ProductDefService, "update_step_equipment_requirement")
         assert hasattr(ProductDefService, "delete_step_equipment_requirement")
@@ -937,19 +937,19 @@ class TestStepEquipmentRequirement:
 
 
 class TestStepMaterialRequirement:
-    """Tests for StepMaterialRequirement model and schemas."""
+    """Tests for SegmentMaterialRequirement model and schemas."""
 
     def test_model_tablename(self):
-        assert StepMaterialRequirement.__tablename__ == "step_material_requirements"
+        assert SegmentMaterialRequirement.__tablename__ == "segment_material_requirements"
 
     def test_model_has_expected_columns(self):
-        assert hasattr(StepMaterialRequirement, "step_id")
-        assert hasattr(StepMaterialRequirement, "material_id")
-        assert hasattr(StepMaterialRequirement, "quantity")
-        assert hasattr(StepMaterialRequirement, "uom")
-        assert hasattr(StepMaterialRequirement, "material_use")
-        assert hasattr(StepMaterialRequirement, "position")
-        assert hasattr(StepMaterialRequirement, "description")
+        assert hasattr(SegmentMaterialRequirement, "step_id")
+        assert hasattr(SegmentMaterialRequirement, "material_id")
+        assert hasattr(SegmentMaterialRequirement, "quantity")
+        assert hasattr(SegmentMaterialRequirement, "uom")
+        assert hasattr(SegmentMaterialRequirement, "material_use")
+        assert hasattr(SegmentMaterialRequirement, "position")
+        assert hasattr(SegmentMaterialRequirement, "description")
 
     def test_create_schema_defaults(self):
         schema = StepMaterialRequirementCreate(
@@ -1002,7 +1002,7 @@ class TestStepMaterialRequirement:
 
     def test_service_has_material_requirement_methods(self):
         from mes.core.product_def.service import ProductDefService
-        assert hasattr(ProductDefService, "list_step_material_requirements")
+        assert hasattr(ProductDefService, "list_segment_material_requirements")
         assert hasattr(ProductDefService, "create_step_material_requirement")
         assert hasattr(ProductDefService, "update_step_material_requirement")
         assert hasattr(ProductDefService, "delete_step_material_requirement")

@@ -139,18 +139,18 @@ class TestBuildStepContext:
             patch.object(UnitService, "get_unit", new_callable=AsyncMock, return_value=unit),
             patch("mes.core.wip.step_context.RoutingEngineService") as mock_routing,
         ):
-            mock_routing.get_route_steps = AsyncMock(return_value=[])
+            mock_routing.get_process_segments = AsyncMock(return_value=[])
             session = AsyncMock()
             ctx = await build_step_context(session, unit_id=unit_id)
 
         assert ctx["wip_type"] == "unit"
         assert ctx["wip"]["serial_number"] == "SN-001"
         assert ctx["step"] is None
-        assert ctx["step_parameters"] == []
+        assert ctx["segment_parameters"] == []
         assert ctx["data_definitions"] == []
         assert ctx["quality_tests"] == []
         assert ctx["dispositions"] == []
-        assert ctx["route_steps"] == []
+        assert ctx["process_segments"] == []
 
     @pytest.mark.asyncio
     async def test_lot_with_no_current_step(self):
@@ -166,7 +166,7 @@ class TestBuildStepContext:
             patch.object(LotService, "get_lot", new_callable=AsyncMock, return_value=lot),
             patch("mes.core.wip.step_context.RoutingEngineService") as mock_routing,
         ):
-            mock_routing.get_route_steps = AsyncMock(return_value=[])
+            mock_routing.get_process_segments = AsyncMock(return_value=[])
             session = AsyncMock()
             ctx = await build_step_context(session, lot_id=lot_id)
 
@@ -230,7 +230,7 @@ class TestBuildStepContext:
             patch("mes.core.wip.step_context.RoutingEngineService") as mock_routing,
         ):
             mock_routing.get_available_dispositions = AsyncMock(return_value=[])
-            mock_routing.get_route_steps = AsyncMock(return_value=[step_obj])
+            mock_routing.get_process_segments = AsyncMock(return_value=[step_obj])
 
             ctx = await build_step_context(session, unit_id=unit_id)
 
@@ -238,14 +238,14 @@ class TestBuildStepContext:
         assert ctx["step"]["name"] == "Assembly"
         assert ctx["step"]["step_type"] == "standard"
         assert ctx["dispositions"] == []
-        assert len(ctx["route_steps"]) == 1
-        assert ctx["route_steps"][0]["name"] == "Assembly"
+        assert len(ctx["process_segments"]) == 1
+        assert ctx["process_segments"][0]["name"] == "Assembly"
         # Verify all 4 session.execute calls happened (step, params, defs, tests)
         assert len(execute_results) == 4
 
     @pytest.mark.asyncio
-    async def test_route_steps_empty_on_exception(self):
-        """If RoutingEngineService.get_route_steps raises, route_steps is []."""
+    async def test_process_segments_empty_on_exception(self):
+        """If RoutingEngineService.get_process_segments raises, process_segments is []."""
         unit_id = uuid.uuid4()
         unit = _make_unit(id=unit_id, current_step_id=None)
 
@@ -253,11 +253,11 @@ class TestBuildStepContext:
             patch.object(UnitService, "get_unit", new_callable=AsyncMock, return_value=unit),
             patch("mes.core.wip.step_context.RoutingEngineService") as mock_routing,
         ):
-            mock_routing.get_route_steps = AsyncMock(side_effect=RuntimeError("boom"))
+            mock_routing.get_process_segments = AsyncMock(side_effect=RuntimeError("boom"))
             session = AsyncMock()
             ctx = await build_step_context(session, unit_id=unit_id)
 
-        assert ctx["route_steps"] == []
+        assert ctx["process_segments"] == []
 
     @pytest.mark.asyncio
     async def test_step_with_dispositions(self):
@@ -310,7 +310,7 @@ class TestBuildStepContext:
             patch("mes.core.wip.step_context.RoutingEngineService") as mock_routing,
         ):
             mock_routing.get_available_dispositions = AsyncMock(return_value=disposition_data)
-            mock_routing.get_route_steps = AsyncMock(return_value=[])
+            mock_routing.get_process_segments = AsyncMock(return_value=[])
 
             ctx = await build_step_context(session, unit_id=unit_id)
 

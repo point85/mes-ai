@@ -438,14 +438,14 @@ async def update_step(
 
 
 @router.get("/steps/{step_id}/parameters")
-async def list_step_parameters(
+async def list_segment_parameters(
     step_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("product_def.read")),
 ):
     """List parameters for a step."""
-    items, cursor, has_more = await svc.list_step_parameters(session, step_id, params)
+    items, cursor, has_more = await svc.list_segment_parameters(session, step_id, params)
     return list_response(
         [StepParameterRead.model_validate(p).model_dump() for p in items],
         cursor=cursor,
@@ -471,14 +471,14 @@ async def create_step_parameter(
 
 
 @router.get("/steps/{step_id}/transitions")
-async def list_step_transitions(
+async def list_process_segment_dependencies(
     step_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("product_def.read")),
 ):
     """List outgoing transitions for a step."""
-    items, cursor, has_more = await svc.list_step_transitions(session, step_id, params)
+    items, cursor, has_more = await svc.list_process_segment_dependencies(session, step_id, params)
     return list_response(
         [StepTransitionRead.model_validate(t).model_dump() for t in items],
         cursor=cursor,
@@ -697,13 +697,13 @@ async def unassign_material_from_route(
 
 
 @router.get("/steps/{step_id}/equipment-requirements")
-async def list_step_equipment_requirements(
+async def list_segment_equipment_requirements(
     step_id: UUID,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("product_def.read")),
 ):
     """List equipment requirements for a route step."""
-    items = await svc.list_step_equipment_requirements(session, step_id)
+    items = await svc.list_segment_equipment_requirements(session, step_id)
     return list_response(
         [StepEquipmentRequirementRead.model_validate(r).model_dump() for r in items],
     )
@@ -758,13 +758,13 @@ async def delete_step_equipment_requirement(
 
 
 @router.get("/steps/{step_id}/material-requirements")
-async def list_step_material_requirements(
+async def list_segment_material_requirements(
     step_id: UUID,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("product_def.read")),
 ):
     """List material requirements for a route step."""
-    items = await svc.list_step_material_requirements(session, step_id)
+    items = await svc.list_segment_material_requirements(session, step_id)
     return list_response(
         [StepMaterialRequirementRead.model_validate(r).model_dump() for r in items],
     )

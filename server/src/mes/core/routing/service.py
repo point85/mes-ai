@@ -5,10 +5,10 @@ Provides runtime logic for:
 - Determining the first step in a route
 - Determining the next step for a unit/lot given the current step
 - Resolving the assigned route for a production order
-- Graph-based routing via StepTransition edges (rework, MRB, conditional)
+- Graph-based routing via ProcessSegmentDependency edges (rework, MRB, conditional)
 - Fallback to linear sequence-based routing when no transitions are defined
 
-Route definition models (ProcessRoute, RouteStep, StepParameter, StepTransition)
+Route definition models (OperationsDefinition, ProcessSegment, SegmentParameter, ProcessSegmentDependency)
 live in the product_def module since they are tightly coupled to ProductDefinition.
 """
 
@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mes.core.product_def.models import Disposition, ProcessRoute, RouteStep, StepTransition
+from mes.core.product_def.models import Disposition, OperationsDefinition, ProcessSegment, ProcessSegmentDependency
 from mes.core.production.models import ProductionOrder
 from mes.framework.api.exceptions import NotFoundException
 from mes.core.wip.exceptions import NoRouteAssignedException, NoNextStepException
@@ -42,19 +42,19 @@ class RoutingEngineService:
 
     Two routing modes:
     1. **Graph routing** (preferred): When the current step has outgoing
-       StepTransition records, the engine evaluates them against the step
+       ProcessSegmentDependency records, the engine evaluates them against the step
        completion result to pick the next step.
     2. **Linear fallback**: When no transitions are defined for a step,
        the engine falls back to the next step by ascending sequence number.
 
     For MRB / disposition steps, the caller must supply a disposition label
-    that matches a StepTransition.label to select the correct path.
+    that matches a ProcessSegmentDependency.label to select the correct path.
     """
 
     @staticmethod
     async def get_route_for_order(
         session: AsyncSession, order_id: UUID,
-    ) -> ProcessRoute:
+    ) -> OperationsDefinition:
         """
         Resolve the process route for a production order.
 
@@ -74,9 +74,9 @@ class RoutingEngineService:
         # 1. Explicitly assigned route
         if order.route_id is not None:
             route_stmt = (
-                select(ProcessRoute)
-                .where(ProcessRoute.id == order.route_id, ProcessRoute.is_active.is_(True))
-                .options(selectinload(ProcessRoute.steps))
+                select(OperationsDefinition)
+                .where(OperationsDefinition.id == order.route_id, OperationsDefinition.is_active.is_(True))
+                .options(selectinload(OperationsDefinition.steps))
             )
             route_result = await session.execute(route_stmt)
             route = route_result.scalar_one_or_none()
@@ -85,13 +85,13 @@ class RoutingEngineService:
 
         # 2. Product's default active route
         default_stmt = (
-            select(ProcessRoute)
+            select(OperationsDefinition)
             .where(
-                ProcessRoute.product_id == order.product_id,
-                ProcessRoute.is_default.is_(True),
-                ProcessRoute.is_active.is_(True),
+                OperationsDefinition.product_id == order.product_id,
+                OperationsDefinition.is_default.is_(True),
+                OperationsDefinition.is_active.is_(True),
             )
-            .options(selectinload(ProcessRoute.steps))
+            .options(selectinload(OperationsDefinition.steps))
         )
         default_result = await session.execute(default_stmt)
         default_route = default_result.scalar_one_or_none()
@@ -100,13 +100,13 @@ class RoutingEngineService:
 
         # 3. Fallback: first active route for the product
         fallback_stmt = (
-            select(ProcessRoute)
+            select(OperationsDefinition)
             .where(
-                ProcessRoute.product_id == order.product_id,
-                ProcessRoute.is_active.is_(True),
+                OperationsDefinition.product_id == order.product_id,
+                OperationsDefinition.is_active.is_(True),
             )
-            .options(selectinload(ProcessRoute.steps))
-            .order_by(ProcessRoute.created_at)
+            .options(selectinload(OperationsDefinition.steps))
+            .order_by(OperationsDefinition.created_at)
             .limit(1)
         )
         fallback_result = await session.execute(fallback_stmt)
@@ -119,7 +119,7 @@ class RoutingEngineService:
     @staticmethod
     async def get_first_step(
         session: AsyncSession, order_id: UUID,
-    ) -> RouteStep:
+    ) -> ProcessSegment:
         """
         Get the first step in the route for a production order.
         Returns the step with the lowest sequence number.
@@ -138,7 +138,7 @@ class RoutingEngineService:
         current_step_id: UUID | None,
         result: str | None = None,
         disposition: str | None = None,
-    ) -> RouteStep | None:
+    ) -> ProcessSegment | None:
         """
         Determine the next step after current_step_id in the order's route.
 
@@ -150,14 +150,14 @@ class RoutingEngineService:
                              Used to evaluate conditional transitions.
             disposition:     Operator-selected disposition name.
                              Looked up in the Disposition table first;
-                             falls back to StepTransition-based routing.
+                             falls back to ProcessSegmentDependency-based routing.
 
         Returns:
-            The next RouteStep, or None if the route is complete.
+            The next ProcessSegment, or None if the route is complete.
 
         Routing priority:
         1. Disposition-based routing (Disposition table lookup by name + route)
-        2. Graph-based routing (StepTransition edges)
+        2. Graph-based routing (ProcessSegmentDependency edges)
         3. Linear sequence fallback
         """
         if current_step_id is None:
@@ -177,14 +177,14 @@ class RoutingEngineService:
                 )
                 return disp_step
 
-        # ── 2. Graph-based routing (StepTransition) ──────────────────
+        # ── 2. Graph-based routing (ProcessSegmentDependency) ──────────────────
         trans_stmt = (
-            select(StepTransition)
+            select(ProcessSegmentDependency)
             .where(
-                StepTransition.from_step_id == current_step_id,
-                StepTransition.is_active.is_(True),
+                ProcessSegmentDependency.from_step_id == current_step_id,
+                ProcessSegmentDependency.is_active.is_(True),
             )
-            .order_by(StepTransition.priority.desc())
+            .order_by(ProcessSegmentDependency.priority.desc())
         )
         trans_result = await session.execute(trans_stmt)
         transitions = list(trans_result.scalars().all())
@@ -210,18 +210,18 @@ class RoutingEngineService:
         session: AsyncSession,
         route_id: UUID,
         disposition_name: str,
-    ) -> RouteStep | None:
+    ) -> ProcessSegment | None:
         """
-        Look up a RouteStep by its linked Disposition name within the route.
-        Joins RouteStep → Disposition and matches on Disposition.name.
+        Look up a ProcessSegment by its linked Disposition name within the route.
+        Joins ProcessSegment → Disposition and matches on Disposition.name.
         """
         stmt = (
-            select(RouteStep)
-            .join(Disposition, RouteStep.disposition_id == Disposition.id)
+            select(ProcessSegment)
+            .join(Disposition, ProcessSegment.disposition_id == Disposition.id)
             .where(
-                RouteStep.route_id == route_id,
+                ProcessSegment.route_id == route_id,
                 Disposition.name == disposition_name,
-                RouteStep.is_active.is_(True),
+                ProcessSegment.is_active.is_(True),
             )
         )
         result = await session.execute(stmt)
@@ -230,10 +230,10 @@ class RoutingEngineService:
     @staticmethod
     async def _resolve_graph_transition(
         session: AsyncSession,
-        transitions: list[StepTransition],
+        transitions: list[ProcessSegmentDependency],
         result: str | None,
         disposition: str | None,
-    ) -> RouteStep | None:
+    ) -> ProcessSegment | None:
         """
         Evaluate transition edges to find the matching next step.
 
@@ -246,10 +246,10 @@ class RoutingEngineService:
         Returns None only if no transition matches (caller falls back to linear).
         """
         result_condition = _RESULT_TO_CONDITION.get(result or "", "")
-        disposition_match: StepTransition | None = None
-        result_match: StepTransition | None = None
-        always_match: StepTransition | None = None
-        default: StepTransition | None = None
+        disposition_match: ProcessSegmentDependency | None = None
+        result_match: ProcessSegmentDependency | None = None
+        always_match: ProcessSegmentDependency | None = None
+        default: ProcessSegmentDependency | None = None
 
         for t in transitions:
             # Collect disposition matches (highest priority)
@@ -277,18 +277,18 @@ class RoutingEngineService:
             return None
 
         # Load the target step
-        step_stmt = select(RouteStep).where(
-            RouteStep.id == chosen.to_step_id,
-            RouteStep.is_active.is_(True),
+        step_stmt = select(ProcessSegment).where(
+            ProcessSegment.id == chosen.to_step_id,
+            ProcessSegment.is_active.is_(True),
         )
         step_result = await session.execute(step_stmt)
         return step_result.scalar_one_or_none()
 
     @staticmethod
     async def _resolve_linear_next(
-        route: ProcessRoute,
+        route: OperationsDefinition,
         current_step_id: UUID,
-    ) -> RouteStep | None:
+    ) -> ProcessSegment | None:
         """Fall back to next step by ascending sequence number."""
         steps = sorted(route.steps, key=lambda s: s.sequence)
         active_steps = [s for s in steps if s.is_active]
@@ -322,10 +322,10 @@ class RoutingEngineService:
         Queries all other active steps in the same route that have a
         disposition_id set (excluding the current step), joining through
         the Disposition table for name/category.
-        Falls back to StepTransition-based dispositions for backwards compat.
+        Falls back to ProcessSegmentDependency-based dispositions for backwards compat.
         """
         # Find the step to get its route_id
-        step_stmt = select(RouteStep).where(RouteStep.id == step_id)
+        step_stmt = select(ProcessSegment).where(ProcessSegment.id == step_id)
         step_result = await session.execute(step_stmt)
         step = step_result.scalar_one_or_none()
         if step is None:
@@ -333,13 +333,13 @@ class RoutingEngineService:
 
         # Look for steps with a disposition in the same route
         disp_stmt = (
-            select(RouteStep, Disposition)
-            .join(Disposition, RouteStep.disposition_id == Disposition.id)
+            select(ProcessSegment, Disposition)
+            .join(Disposition, ProcessSegment.disposition_id == Disposition.id)
             .where(
-                RouteStep.route_id == step.route_id,
-                RouteStep.is_active.is_(True),
-                RouteStep.disposition_id.isnot(None),
-                RouteStep.id != step_id,
+                ProcessSegment.route_id == step.route_id,
+                ProcessSegment.is_active.is_(True),
+                ProcessSegment.disposition_id.isnot(None),
+                ProcessSegment.id != step_id,
             )
             .order_by(Disposition.name)
         )
@@ -358,15 +358,15 @@ class RoutingEngineService:
                 for rs, disp in rows
             ]
 
-        # Fallback: legacy StepTransition-based dispositions
+        # Fallback: legacy ProcessSegmentDependency-based dispositions
         stmt = (
-            select(StepTransition)
+            select(ProcessSegmentDependency)
             .where(
-                StepTransition.from_step_id == step_id,
-                StepTransition.condition == "disposition",
-                StepTransition.is_active.is_(True),
+                ProcessSegmentDependency.from_step_id == step_id,
+                ProcessSegmentDependency.condition == "disposition",
+                ProcessSegmentDependency.is_active.is_(True),
             )
-            .order_by(StepTransition.priority.desc())
+            .order_by(ProcessSegmentDependency.priority.desc())
         )
         result = await session.execute(stmt)
         transitions = result.scalars().all()
@@ -376,9 +376,9 @@ class RoutingEngineService:
         ]
 
     @staticmethod
-    async def get_route_steps(
+    async def get_process_segments(
         session: AsyncSession, order_id: UUID,
-    ) -> list[RouteStep]:
+    ) -> list[ProcessSegment]:
         """Get all active steps for an order's route, sorted by sequence."""
         route = await RoutingEngineService.get_route_for_order(session, order_id)
         steps = sorted(route.steps, key=lambda s: s.sequence)

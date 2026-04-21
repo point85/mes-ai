@@ -2,7 +2,7 @@
 PROD-DEF: Pydantic schemas for the product definition REST API.
 
 Create/Read/Update schemas for ProductDefinition, BillOfMaterial, BOMItem,
-ProcessRoute, RouteStep, StepParameter.
+OperationsDefinition, ProcessSegment, SegmentParameter.
 """
 
 from __future__ import annotations
@@ -173,7 +173,7 @@ class BOMItemUpdate(BaseModel):
     route_step_id: UUID | None = None
 
 
-# ─── ProcessRoute ────────────────────────────────────────────────────
+# ─── OperationsDefinition ────────────────────────────────────────────────────
 
 
 class RouteCreate(BaseModel):
@@ -210,7 +210,7 @@ class RouteUpdate(BaseModel):
     is_default: bool | None = None
 
 
-# ─── RouteStep ────────────────────────────────────────────────────────
+# ─── ProcessSegment ────────────────────────────────────────────────────────
 
 
 class RouteStepCreate(BaseModel):
@@ -259,7 +259,7 @@ class RouteStepUpdate(BaseModel):
     disposition_id: UUID | None = None
 
 
-# ─── StepParameter ───────────────────────────────────────────────────
+# ─── SegmentParameter ───────────────────────────────────────────────────
 
 
 class StepParameterCreate(BaseModel):
@@ -305,7 +305,7 @@ class StepParameterUpdate(BaseModel):
     is_required: bool | None = None
 
 
-# ─── StepTransition ──────────────────────────────────────────────────
+# ─── ProcessSegmentDependency ──────────────────────────────────────────────────
 
 
 class StepTransitionCreate(BaseModel):

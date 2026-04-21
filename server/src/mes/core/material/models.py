@@ -168,7 +168,7 @@ class MaterialConsumption(BaseModel):
         comment="WIP lot that consumed this material (null if unit-based)",
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=True, index=True,
         comment="Route step at which consumption occurred",
     )

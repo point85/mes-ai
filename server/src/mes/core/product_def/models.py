@@ -5,9 +5,9 @@ Entities:
 - ProductDefinition: A product that can be manufactured (item master)
 - BillOfMaterial:    BOM header — ties a product to its material requirements
 - BOMItem:           BOM line item — a single material requirement with quantity
-- ProcessRoute:      A manufacturing route (sequence of steps) for a product
-- RouteStep:         An individual step/operation within a route
-- StepParameter:     A data parameter spec attached to a route step
+- OperationsDefinition:      A manufacturing route (sequence of steps) for a product
+- ProcessSegment:         An individual step/operation within a route
+- SegmentParameter:     A data parameter spec attached to a route step
 
 Route steps reference work cells from PHYS-MODEL and will later
 reference MaterialDefinition from MAT-MGMT.
@@ -23,8 +23,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
 from mes.core.uom.models import UnitOfMeasure  # noqa: F401 — needed for relationships
-from mes.core.material.models import MaterialDefinition  # noqa: F401 — needed for RouteMaterialAssignment
-from mes.core.physical_model.models import EquipmentClass, Equipment  # noqa: F401 — needed for RouteStep relationships
+from mes.core.material.models import MaterialDefinition  # noqa: F401 — needed for OperationsDefinitionMaterialAssignment
+from mes.core.physical_model.models import EquipmentClass, Equipment  # noqa: F401 — needed for ProcessSegment relationships
 
 
 class Disposition(BaseModel):
@@ -90,8 +90,8 @@ class ProductDefinition(BaseModel):
     boms: Mapped[list["BillOfMaterial"]] = relationship(
         "BillOfMaterial", back_populates="product", cascade="all, delete-orphan",
     )
-    routes: Mapped[list["ProcessRoute"]] = relationship(
-        "ProcessRoute", back_populates="product", cascade="all, delete-orphan",
+    routes: Mapped[list["OperationsDefinition"]] = relationship(
+        "OperationsDefinition", back_populates="product", cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
@@ -159,7 +159,7 @@ class BOMItem(BaseModel):
         comment="Sort order within the BOM",
     )
     route_step_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=True, index=True,
         comment="Optional FK to route step where this material is consumed",
     )
@@ -173,20 +173,20 @@ class BOMItem(BaseModel):
         return f"<BOMItem id={self.id} bom_id={self.bom_id} material={self.material_code}>"
 
 
-class ProcessRoute(BaseModel):
+class OperationsDefinition(BaseModel):
     """
     A manufacturing route — an ordered sequence of steps to produce a product.
-    Routes may be shared across many products via the route_product_assignments
+    Routes may be shared across many products via the operations_definition_product_assignments
     junction table.  The legacy ``product_id`` column is kept nullable for
     backward-compatibility with ERP-synced routes (1:1 with product).
     """
 
-    __tablename__ = "process_routes"
+    __tablename__ = "operations_definitions"
 
     product_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("product_definitions.id"),
         nullable=True, index=True,
-        comment="Legacy 1:1 product FK. Nullable — use route_product_assignments for many:many.",
+        comment="Legacy 1:1 product FK. Nullable — use operations_definition_product_assignments for many:many.",
     )
     version: Mapped[str] = mapped_column(
         String(50), nullable=False, default="1.0",
@@ -202,31 +202,31 @@ class ProcessRoute(BaseModel):
     product: Mapped["ProductDefinition | None"] = relationship(
         "ProductDefinition", back_populates="routes",
     )
-    steps: Mapped[list["RouteStep"]] = relationship(
-        "RouteStep", back_populates="route", cascade="all, delete-orphan",
-        order_by="RouteStep.sequence",
+    steps: Mapped[list["ProcessSegment"]] = relationship(
+        "ProcessSegment", back_populates="route", cascade="all, delete-orphan",
+        order_by="ProcessSegment.sequence",
     )
-    product_assignments: Mapped[list["RouteProductAssignment"]] = relationship(
-        "RouteProductAssignment", back_populates="route", cascade="all, delete-orphan",
+    product_assignments: Mapped[list["OperationsDefinitionProductAssignment"]] = relationship(
+        "OperationsDefinitionProductAssignment", back_populates="route", cascade="all, delete-orphan",
     )
-    material_assignments: Mapped[list["RouteMaterialAssignment"]] = relationship(
-        "RouteMaterialAssignment", back_populates="route", cascade="all, delete-orphan",
+    material_assignments: Mapped[list["OperationsDefinitionMaterialAssignment"]] = relationship(
+        "OperationsDefinitionMaterialAssignment", back_populates="route", cascade="all, delete-orphan",
     )
     def __repr__(self) -> str:
-        return f"<ProcessRoute id={self.id} name={self.name} v={self.version}>"
+        return f"<OperationsDefinition id={self.id} name={self.name} v={self.version}>"
 
 
-class RouteStep(BaseModel):
+class ProcessSegment(BaseModel):
     """
-    An individual step/operation within a ProcessRoute.
+    An individual step/operation within a OperationsDefinition.
     References a WorkCell from PHYS-MODEL to define where work is performed.
     The sequence field defines step ordering (e.g. 10, 20, 30 for easy insertion).
     """
 
-    __tablename__ = "route_steps"
+    __tablename__ = "process_segments"
 
     route_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("process_routes.id"),
+        Uuid, ForeignKey("operations_definitions.id"),
         nullable=False, index=True,
     )
     sequence: Mapped[int] = mapped_column(
@@ -263,8 +263,8 @@ class RouteStep(BaseModel):
     )
 
     # Relationships
-    route: Mapped["ProcessRoute"] = relationship(
-        "ProcessRoute", back_populates="steps",
+    route: Mapped["OperationsDefinition"] = relationship(
+        "OperationsDefinition", back_populates="steps",
     )
     disposition: Mapped["Disposition | None"] = relationship(
         "Disposition", lazy="joined",
@@ -272,44 +272,44 @@ class RouteStep(BaseModel):
     equipment_class: Mapped["EquipmentClass | None"] = relationship(
         "EquipmentClass", lazy="joined",
     )
-    parameters: Mapped[list["StepParameter"]] = relationship(
-        "StepParameter", back_populates="step", cascade="all, delete-orphan",
-        order_by="StepParameter.name",
+    parameters: Mapped[list["SegmentParameter"]] = relationship(
+        "SegmentParameter", back_populates="step", cascade="all, delete-orphan",
+        order_by="SegmentParameter.name",
     )
-    equipment_requirements: Mapped[list["StepEquipmentRequirement"]] = relationship(
-        "StepEquipmentRequirement", back_populates="step", cascade="all, delete-orphan",
+    equipment_requirements: Mapped[list["SegmentEquipmentRequirement"]] = relationship(
+        "SegmentEquipmentRequirement", back_populates="step", cascade="all, delete-orphan",
     )
-    material_requirements: Mapped[list["StepMaterialRequirement"]] = relationship(
-        "StepMaterialRequirement", back_populates="step", cascade="all, delete-orphan",
-        order_by="StepMaterialRequirement.position",
+    material_requirements: Mapped[list["SegmentMaterialRequirement"]] = relationship(
+        "SegmentMaterialRequirement", back_populates="step", cascade="all, delete-orphan",
+        order_by="SegmentMaterialRequirement.position",
     )
-    outgoing_transitions: Mapped[list["StepTransition"]] = relationship(
-        "StepTransition",
-        foreign_keys="StepTransition.from_step_id",
+    outgoing_transitions: Mapped[list["ProcessSegmentDependency"]] = relationship(
+        "ProcessSegmentDependency",
+        foreign_keys="ProcessSegmentDependency.from_step_id",
         back_populates="from_step",
         cascade="all, delete-orphan",
-        order_by="StepTransition.priority.desc()",
+        order_by="ProcessSegmentDependency.priority.desc()",
     )
-    incoming_transitions: Mapped[list["StepTransition"]] = relationship(
-        "StepTransition",
-        foreign_keys="StepTransition.to_step_id",
+    incoming_transitions: Mapped[list["ProcessSegmentDependency"]] = relationship(
+        "ProcessSegmentDependency",
+        foreign_keys="ProcessSegmentDependency.to_step_id",
         back_populates="to_step",
         cascade="all, delete-orphan",
     )
     def __repr__(self) -> str:
-        return f"<RouteStep id={self.id} seq={self.sequence} name={self.name}>"
+        return f"<ProcessSegment id={self.id} seq={self.sequence} name={self.name}>"
 
 
-class StepParameter(BaseModel):
+class SegmentParameter(BaseModel):
     """
-    A data parameter specification attached to a RouteStep.
+    A data parameter specification attached to a ProcessSegment.
     Defines what data should be collected at this step (data type, limits, target).
     """
 
-    __tablename__ = "step_parameters"
+    __tablename__ = "segment_parameters"
 
     step_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=False, index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -341,15 +341,15 @@ class StepParameter(BaseModel):
     )
 
     # Relationships
-    step: Mapped["RouteStep"] = relationship(
-        "RouteStep", back_populates="parameters",
+    step: Mapped["ProcessSegment"] = relationship(
+        "ProcessSegment", back_populates="parameters",
     )
 
     def __repr__(self) -> str:
-        return f"<StepParameter id={self.id} step_id={self.step_id} name={self.name}>"
+        return f"<SegmentParameter id={self.id} step_id={self.step_id} name={self.name}>"
 
 
-class StepEquipmentRequirement(BaseModel):
+class SegmentEquipmentRequirement(BaseModel):
     """
     ISA-95 Process Segment — Equipment Requirement.
 
@@ -363,13 +363,13 @@ class StepEquipmentRequirement(BaseModel):
       - alternate: acceptable substitute
     """
 
-    __tablename__ = "step_equipment_requirements"
+    __tablename__ = "segment_equipment_requirements"
     __table_args__ = (
-        UniqueConstraint("step_id", "equipment_id", name="uq_step_equip_req"),
+        UniqueConstraint("step_id", "equipment_id", name="uq_segment_equip_req"),
     )
 
     step_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=False, index=True,
     )
     equipment_id: Mapped[uuid.UUID] = mapped_column(
@@ -384,19 +384,19 @@ class StepEquipmentRequirement(BaseModel):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    step: Mapped["RouteStep"] = relationship(
-        "RouteStep", back_populates="equipment_requirements",
+    step: Mapped["ProcessSegment"] = relationship(
+        "ProcessSegment", back_populates="equipment_requirements",
     )
     equipment: Mapped["Equipment"] = relationship("Equipment", lazy="joined")
 
     def __repr__(self) -> str:
         return (
-            f"<StepEquipmentRequirement id={self.id} "
+            f"<SegmentEquipmentRequirement id={self.id} "
             f"step={self.step_id} equip={self.equipment_id} use={self.use_type}>"
         )
 
 
-class StepMaterialRequirement(BaseModel):
+class SegmentMaterialRequirement(BaseModel):
     """
     ISA-95 Process Segment — Material Requirement.
 
@@ -409,13 +409,13 @@ class StepMaterialRequirement(BaseModel):
       - produced:  intermediate or finished material output at this step
     """
 
-    __tablename__ = "step_material_requirements"
+    __tablename__ = "segment_material_requirements"
     __table_args__ = (
-        UniqueConstraint("step_id", "material_id", name="uq_step_mat_req"),
+        UniqueConstraint("step_id", "material_id", name="uq_segment_mat_req"),
     )
 
     step_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=False, index=True,
     )
     material_id: Mapped[uuid.UUID] = mapped_column(
@@ -443,8 +443,8 @@ class StepMaterialRequirement(BaseModel):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    step: Mapped["RouteStep"] = relationship(
-        "RouteStep", back_populates="material_requirements",
+    step: Mapped["ProcessSegment"] = relationship(
+        "ProcessSegment", back_populates="material_requirements",
     )
     material: Mapped["MaterialDefinition"] = relationship(
         "MaterialDefinition", lazy="joined",
@@ -452,12 +452,12 @@ class StepMaterialRequirement(BaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"<StepMaterialRequirement id={self.id} "
+            f"<SegmentMaterialRequirement id={self.id} "
             f"step={self.step_id} mat={self.material_id} qty={self.quantity} use={self.material_use}>"
         )
 
 
-class StepTransition(BaseModel):
+class ProcessSegmentDependency(BaseModel):
     """
     A directed edge between two route steps supporting non-linear routing.
 
@@ -477,15 +477,15 @@ class StepTransition(BaseModel):
     the engine falls back to the next step by sequence number.
     """
 
-    __tablename__ = "step_transitions"
+    __tablename__ = "process_segment_dependencies"
 
     from_step_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=False, index=True,
         comment="Source step this transition originates from",
     )
     to_step_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=False, index=True,
         comment="Target step this transition leads to",
     )
@@ -507,31 +507,31 @@ class StepTransition(BaseModel):
     )
 
     # Relationships
-    from_step: Mapped["RouteStep"] = relationship(
-        "RouteStep", foreign_keys=[from_step_id], back_populates="outgoing_transitions",
+    from_step: Mapped["ProcessSegment"] = relationship(
+        "ProcessSegment", foreign_keys=[from_step_id], back_populates="outgoing_transitions",
     )
-    to_step: Mapped["RouteStep"] = relationship(
-        "RouteStep", foreign_keys=[to_step_id], back_populates="incoming_transitions",
+    to_step: Mapped["ProcessSegment"] = relationship(
+        "ProcessSegment", foreign_keys=[to_step_id], back_populates="incoming_transitions",
     )
 
     def __repr__(self) -> str:
         return (
-            f"<StepTransition id={self.id} "
+            f"<ProcessSegmentDependency id={self.id} "
             f"from={self.from_step_id} → to={self.to_step_id} "
             f"condition={self.condition}>"
         )
 
 
-class RouteProductAssignment(BaseModel):
+class OperationsDefinitionProductAssignment(BaseModel):
     """
-    Junction table linking a ProcessRoute to one or more ProductDefinitions.
+    Junction table linking a OperationsDefinition to one or more ProductDefinitions.
     Supports many-to-many: multiple products can share the same manufacturing route.
     """
 
-    __tablename__ = "route_product_assignments"
+    __tablename__ = "operations_definition_product_assignments"
 
     route_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("process_routes.id"),
+        Uuid, ForeignKey("operations_definitions.id"),
         nullable=False, index=True,
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
@@ -540,27 +540,27 @@ class RouteProductAssignment(BaseModel):
     )
 
     # Relationships
-    route: Mapped["ProcessRoute"] = relationship(
-        "ProcessRoute", back_populates="product_assignments",
+    route: Mapped["OperationsDefinition"] = relationship(
+        "OperationsDefinition", back_populates="product_assignments",
     )
     product: Mapped["ProductDefinition"] = relationship("ProductDefinition")
 
     def __repr__(self) -> str:
-        return f"<RouteProductAssignment route={self.route_id} product={self.product_id}>"
+        return f"<OperationsDefinitionProductAssignment route={self.route_id} product={self.product_id}>"
 
 
-class RouteMaterialAssignment(BaseModel):
+class OperationsDefinitionMaterialAssignment(BaseModel):
     """
-    Junction table linking a ProcessRoute to one or more MaterialDefinitions.
+    Junction table linking a OperationsDefinition to one or more MaterialDefinitions.
     Allows any material type (raw, intermediate, finished, etc.) to be assigned
     to a route — e.g. an intermediate material produced by one route and consumed
     by another.
     """
 
-    __tablename__ = "route_material_assignments"
+    __tablename__ = "operations_definition_material_assignments"
 
     route_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("process_routes.id"),
+        Uuid, ForeignKey("operations_definitions.id"),
         nullable=False, index=True,
     )
     material_id: Mapped[uuid.UUID] = mapped_column(
@@ -569,13 +569,13 @@ class RouteMaterialAssignment(BaseModel):
     )
 
     # Relationships
-    route: Mapped["ProcessRoute"] = relationship(
-        "ProcessRoute", back_populates="material_assignments",
+    route: Mapped["OperationsDefinition"] = relationship(
+        "OperationsDefinition", back_populates="material_assignments",
     )
     material: Mapped["MaterialDefinition"] = relationship("MaterialDefinition")
 
     def __repr__(self) -> str:
-        return f"<RouteMaterialAssignment route={self.route_id} material={self.material_id}>"
+        return f"<OperationsDefinitionMaterialAssignment route={self.route_id} material={self.material_id}>"
 
 
 

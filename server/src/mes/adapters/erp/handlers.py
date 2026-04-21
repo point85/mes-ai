@@ -46,7 +46,7 @@ async def on_lot_completed_erp_report(event: MESEvent) -> None:
     from sqlalchemy import select
     from mes.core.wip.models import Lot
     from mes.core.production.models import ProductionOrder
-    from mes.core.product_def.models import RouteStep
+    from mes.core.product_def.models import ProcessSegment
     from mes.adapters.erp.queue import ERPOutboundQueueService
 
     async with async_session_factory() as session:
@@ -69,7 +69,7 @@ async def on_lot_completed_erp_report(event: MESEvent) -> None:
 
             # Look up step → erp_operation_number
             step_result = await session.execute(
-                select(RouteStep).where(RouteStep.id == UUID(step_id_str))
+                select(ProcessSegment).where(ProcessSegment.id == UUID(step_id_str))
             )
             step = step_result.scalar_one_or_none()
             erp_op = step.erp_operation_number if step else None
@@ -115,7 +115,7 @@ async def on_unit_completed_erp_report(event: MESEvent) -> None:
     from sqlalchemy import select
     from mes.core.wip.models import Unit
     from mes.core.production.models import ProductionOrder
-    from mes.core.product_def.models import RouteStep
+    from mes.core.product_def.models import ProcessSegment
     from mes.adapters.erp.queue import ERPOutboundQueueService
 
     async with async_session_factory() as session:
@@ -135,7 +135,7 @@ async def on_unit_completed_erp_report(event: MESEvent) -> None:
                 return
 
             step_result = await session.execute(
-                select(RouteStep).where(RouteStep.id == UUID(step_id_str))
+                select(ProcessSegment).where(ProcessSegment.id == UUID(step_id_str))
             )
             step = step_result.scalar_one_or_none()
             erp_op = step.erp_operation_number if step else None

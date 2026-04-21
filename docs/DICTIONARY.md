@@ -40,13 +40,14 @@
 
 | Term | Definition |
 |---|---|
-| **Product Definition** | The master record describing what a product is — its name, code, version, unit of measure, and type (`discrete` or `process`). Links to BOMs and process routes. |
+| **Product Definition** | The master record describing what a product is — its name, code, version, unit of measure, and type (`discrete` or `process`). Links to BOMs and operations definitions. |
 | **BOM** | **Bill of Materials** — the list of raw materials and sub-components needed to manufacture one unit of a product. Versioned. |
 | **BOM Item** | A single line in a BOM specifying a material, its required quantity, and unit of measure. |
-| **Process Route** | The ordered sequence of manufacturing steps (route steps) required to produce a product. A product can have multiple route versions; one is marked `is_default`. Also known as: *routing*, *recipe* (in process manufacturing). |
-| **Route Step** | A single operation within a process route. Defines what happens at a work cell, the expected cycle time, and the step type: `production`, `inspection`, or `rework`. |
-| **Step Parameter** | A measurable or settable parameter for a route step (e.g., temperature, pressure, torque). Has target value and upper/lower limits. |
-| **Cycle Time** | The expected duration (in seconds) for one unit/lot to complete a route step. Used for scheduling and OEE calculations. |
+| **Operations Definition** | ISA-95 Part 2 "Operations Definition". The ordered sequence of process segments required to produce a product. A product can have multiple versions; one is marked `is_default`. Also known as: *process route*, *routing*, *recipe* (in process manufacturing). Class: `OperationsDefinition` (formerly `ProcessRoute`). |
+| **Process Segment** | ISA-95 Part 2 "Process Segment". A single manufacturing operation within an Operations Definition. Defines the required equipment class, cycle time, and segment type: `production`, `inspection`, or `rework`. Class: `ProcessSegment` (formerly `RouteStep`). |
+| **Segment Parameter** | A measurable or settable parameter for a process segment (e.g., temperature, pressure, torque). Has target value and upper/lower limits. Class: `SegmentParameter` (formerly `StepParameter`). |
+| **Process Segment Dependency** | ISA-95 Part 2 "Process Segment Dependency". A directed edge between two process segments supporting non-linear routing (rework loops, MRB branches, disposition-driven paths). Class: `ProcessSegmentDependency` (formerly `StepTransition`). |
+| **Cycle Time** | The expected duration (in seconds) for one unit/lot to complete a process segment. Used for scheduling and OEE calculations. |
 
 ### Production
 

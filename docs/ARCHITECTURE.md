@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), ISA-95 Part 4 Process Segment model with equipment_class_id on route steps, StepEquipmentRequirement and StepMaterialRequirement tables, 3-tier dispatch equipment resolution (D049–D052, §5.11, §10.3), 1869 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), ISA-95 Part 4 Process Segment model with equipment_class_id on route steps, SegmentEquipmentRequirement and SegmentMaterialRequirement tables, 3-tier dispatch equipment resolution (D049–D052, §5.11, §10.3), 1869 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -408,11 +408,11 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 │                                                               │
 │  ProductDefinition ──1:N──▶ BillOfMaterial ──1:N──▶ BOMItem │
 │        │                                                      │
-│        └──1:N──▶ ProcessRoute ──1:N──▶ RouteStep             │
+│        └──1:N──▶ OperationsDefinition ──1:N──▶ ProcessSegment             │
 │                                         │                     │
 │                                         ├──1:N──▶ StepParam  │
 │                                         ├──M:N──▶ Equipment  │
-│                                         └──N:N──▶ StepTransition │
+│                                         └──N:N──▶ ProcessSegmentDependency │
 │                                           (from_step ──▶ to_step) │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
@@ -470,7 +470,7 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **Area** | `id`, `name`, `code`, `description`, `site_id` | → Site, → ProductionLines |
 | **ProductionLine** | `id`, `name`, `code`, `description`, `area_id` | → Area, → WorkCells |
 | **WorkCell** | `id`, `name`, `code`, `description`, `line_id` | → ProductionLine, → Equipment |
-| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type` (legacy), `capabilities` (JSON, legacy), `equipment_class_id` (nullable FK → EquipmentClass), `state_model_id` (nullable, refs EquipmentStateModel.model_id — null = 100% available), `max_queue_depth` (nullable int — max WIP items allowed in queue, null = unlimited) | → WorkCell, → RouteSteps (M:N), → EquipmentMaterials, → EquipmentClass, → EquipmentCapabilities |
+| **Equipment** | `id`, `name`, `code`, `description`, `work_cell_id`, `equipment_type` (legacy), `capabilities` (JSON, legacy), `equipment_class_id` (nullable FK → EquipmentClass), `state_model_id` (nullable, refs EquipmentStateModel.model_id — null = 100% available), `max_queue_depth` (nullable int — max WIP items allowed in queue, null = unlimited) | → WorkCell, → ProcessSegments (M:N), → EquipmentMaterials, → EquipmentClass, → EquipmentCapabilities |
 | **EquipmentMaterial** | `id`, `equipment_id`, `material_id`, `design_speed`, `design_speed_uom` (FK → UoM rate symbol), `reject_uom` (FK → UoM symbol), `target_oee` (0–100%) | → Equipment, → MaterialDefinition, → UnitOfMeasure (×2) |
 | **EquipmentClass** | `id`, `name`, `code` (unique), `description` | → EquipmentClassProperties, → Equipment members |
 | **EquipmentClassProperty** | `id`, `equipment_class_id`, `name`, `description`, `data_type` (string/float/int/boolean), `uom_id` (nullable FK → UoM symbol), `default_value` | → EquipmentClass, → UnitOfMeasure. Unique on (equipment_class_id, name) |
@@ -484,12 +484,12 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **ProductDefinition** | `id`, `name`, `code`, `version`, `description`, `uom`, `product_type` (discrete/process) | → BillOfMaterials, → ProcessRoutes |
 | **BillOfMaterial** | `id`, `product_id`, `version`, `effective_date`, `expiry_date` | → ProductDefinition, → BOMItems |
 | **BOMItem** | `id`, `bom_id`, `material_id`, `quantity`, `uom`, `position` | → BillOfMaterial, → MaterialDefinition |
-| **ProcessRoute** | `id`, `product_id`, `version`, `name`, `description`, `is_default` | → ProductDefinition, → RouteSteps |
-| **RouteStep** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework/mrb), `work_cell_id` (legacy — prefer equipment_class_id), `equipment_class_id` (nullable FK → EquipmentClass, ISA-95 process segment), `expected_cycle_time_sec`, `erp_operation_number` (nullable — ERP operation/step number for outbound reporting, e.g. '0010') | → ProcessRoute, → WorkCell, → EquipmentClass, → StepParameters, → StepEquipmentRequirements, → StepMaterialRequirements, → outgoing StepTransitions, → incoming StepTransitions |
-| **StepTransition** | `id`, `from_step_id`, `to_step_id`, `condition` (always/on_pass/on_fail/on_rework/disposition), `is_default`, `priority` (higher evaluated first), `label` (nullable — human label for disposition choices) | → RouteStep (from), → RouteStep (to). Directed edge enabling rework loops, MRB branches, and conditional routing. |
-| **StepParameter** | `id`, `step_id`, `name`, `data_type`, `uom`, `target_value`, `lower_limit`, `upper_limit`, `is_required` | → RouteStep |
-| **StepEquipmentRequirement** | `id`, `step_id`, `equipment_id`, `use_type` (required/preferred/alternate), `description` | → RouteStep, → Equipment. Unique on (step_id, equipment_id). ISA-95 process segment equipment requirement (D050). |
-| **StepMaterialRequirement** | `id`, `step_id`, `material_id`, `quantity`, `uom`, `material_use` (consumed/produced), `position`, `description` | → RouteStep, → MaterialDefinition. Unique on (step_id, material_id, material_use). ISA-95 process segment material requirement (D051). |
+| **OperationsDefinition** | `id`, `product_id`, `version`, `name`, `description`, `is_default` | → ProductDefinition, → ProcessSegments |
+| **ProcessSegment** | `id`, `route_id`, `sequence`, `name`, `step_type` (production/inspection/rework/mrb), `work_cell_id` (legacy — prefer equipment_class_id), `equipment_class_id` (nullable FK → EquipmentClass, ISA-95 process segment), `expected_cycle_time_sec`, `erp_operation_number` (nullable — ERP operation/step number for outbound reporting, e.g. '0010') | → OperationsDefinition, → WorkCell, → EquipmentClass, → SegmentParameters, → SegmentEquipmentRequirements, → SegmentMaterialRequirements, → outgoing ProcessSegmentDependencies, → incoming ProcessSegmentDependencies |
+| **ProcessSegmentDependency** | `id`, `from_step_id`, `to_step_id`, `condition` (always/on_pass/on_fail/on_rework/disposition), `is_default`, `priority` (higher evaluated first), `label` (nullable — human label for disposition choices) | → ProcessSegment (from), → ProcessSegment (to). Directed edge enabling rework loops, MRB branches, and conditional routing. |
+| **SegmentParameter** | `id`, `step_id`, `name`, `data_type`, `uom`, `target_value`, `lower_limit`, `upper_limit`, `is_required` | → ProcessSegment |
+| **SegmentEquipmentRequirement** | `id`, `step_id`, `equipment_id`, `use_type` (required/preferred/alternate), `description` | → ProcessSegment, → Equipment. Unique on (step_id, equipment_id). ISA-95 process segment equipment requirement (D050). |
+| **SegmentMaterialRequirement** | `id`, `step_id`, `material_id`, `quantity`, `uom`, `material_use` (consumed/produced), `position`, `description` | → ProcessSegment, → MaterialDefinition. Unique on (step_id, material_id, material_use). ISA-95 process segment material requirement (D051). |
 
 > **ISA-95 Route Ownership Boundary**
 >
@@ -503,14 +503,14 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 >    and which work cells can run it. Calling the ERP on every unit move would introduce
 >    unacceptable latency, tight coupling, and loss of offline resilience.
 > 2. **Data collection anchoring** — Every quality test, data point, material consumption,
->    non-conformance, and history record is captured per `RouteStep`. The step is the foreign-key
+>    non-conformance, and history record is captured per `ProcessSegment`. The step is the foreign-key
 >    anchor for `QualityTest`, `DataPoint`, `MaterialConsumption`, `NonConformance`,
 >    `UnitHistory`, and `LotHistory`.
 > 3. **Outbound reporting** — `ERPOutboundAdapter.report_completion()` reports per-operation
 >    actuals (labor, material, yield). The MES must know which operation just finished to map it
 >    back to the ERP's cost-posting structure.
 > 4. **Shop floor deviation** — The MES may need to deviate from the ERP route at execution time
->    (rework loops, MRB branches, conditional paths via StepTransition graph, skip steps, alternate
+>    (rework loops, MRB branches, conditional paths via ProcessSegmentDependency graph, skip steps, alternate
 >    routes based on equipment availability). The ERP route is the *plan*; the MES route is the
 >    *execution reality*. See §5.8 for graph-based routing.
 >
@@ -527,10 +527,10 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 
 | Entity | Fields | Relations |
 |---|---|---|
-| **Unit** | `id`, `serial_number`, `order_id`, `product_id`, `material_id`, `current_step_id`, `current_equipment_id`, `status` (queued/in_process/completed/scrapped/on_hold), `created_at` | → ProductionOrder, → MaterialDefinition, → RouteStep, → Equipment |
-| **Lot** | `id`, `lot_number`, `order_id`, `product_id`, `material_id`, `quantity`, `current_step_id`, `current_equipment_id`, `status` | → ProductionOrder, → MaterialDefinition, → RouteStep, → Equipment |
-| **UnitHistory** | `id`, `unit_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `result` (pass/fail/rework), `operator_id`, `data_snapshot` (JSON) | → Unit, → RouteStep, → Equipment |
-| **LotHistory** | `id`, `lot_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `quantity_in`, `quantity_out`, `quantity_scrapped`, `operator_id` | → Lot, → RouteStep, → Equipment |
+| **Unit** | `id`, `serial_number`, `order_id`, `product_id`, `material_id`, `current_step_id`, `current_equipment_id`, `status` (queued/in_process/completed/scrapped/on_hold), `created_at` | → ProductionOrder, → MaterialDefinition, → ProcessSegment, → Equipment |
+| **Lot** | `id`, `lot_number`, `order_id`, `product_id`, `material_id`, `quantity`, `current_step_id`, `current_equipment_id`, `status` | → ProductionOrder, → MaterialDefinition, → ProcessSegment, → Equipment |
+| **UnitHistory** | `id`, `unit_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `result` (pass/fail/rework), `operator_id`, `data_snapshot` (JSON) | → Unit, → ProcessSegment, → Equipment |
+| **LotHistory** | `id`, `lot_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `quantity_in`, `quantity_out`, `quantity_scrapped`, `operator_id` | → Lot, → ProcessSegment, → Equipment |
 
 ##### Serial Number & Lot Number Auto-Generation
 
@@ -567,7 +567,7 @@ Variables support Python format-spec for zero-padding, e.g. `{seq:05d}` pads to 
 |---|---|---|
 | **MaterialDefinition** | `id`, `name`, `code`, `description`, `material_type` (raw/intermediate/finished), `uom`, `shelf_life_days` | → MaterialLots |
 | **MaterialLot** | `id`, `material_id`, `lot_number`, `quantity_on_hand`, `quantity_reserved`, `status` (available/reserved/consumed/expired), `received_date`, `expiry_date`, `supplier` | → MaterialDefinition |
-| **MaterialConsumption** | `id`, `unit_id`/`lot_id`, `material_lot_id`, `quantity_consumed`, `consumed_at`, `step_id` | → Unit/Lot, → MaterialLot, → RouteStep |
+| **MaterialConsumption** | `id`, `unit_id`/`lot_id`, `material_lot_id`, `quantity_consumed`, `consumed_at`, `step_id` | → Unit/Lot, → MaterialLot, → ProcessSegment |
 
 > **Material vs. Product**
 >
@@ -615,15 +615,15 @@ Variables support Python format-spec for zero-padding, e.g. `{seq:05d}` pads to 
 
 | Entity | Fields | Relations |
 |---|---|---|
-| **QualityTest** | `id`, `name`, `code`, `description`, `test_type` (inline/offline/destructive), `step_id`, `parameters` (JSON) | → RouteStep |
+| **QualityTest** | `id`, `name`, `code`, `description`, `test_type` (inline/offline/destructive), `step_id`, `parameters` (JSON) | → ProcessSegment |
 | **TestResult** | `id`, `test_id`, `unit_id`/`lot_id`, `result` (pass/fail), `measured_values` (JSON), `operator_id`, `equipment_id`, `tested_at` | → QualityTest, → Unit/Lot |
-| **NonConformance** | `id`, `unit_id`/`lot_id`, `step_id`, `nc_type` (defect/out_of_spec/other), `description`, `disposition` (rework/scrap/use_as_is/return), `status` (open/investigating/resolved/closed), `created_at`, `resolved_at` | → Unit/Lot, → RouteStep |
+| **NonConformance** | `id`, `unit_id`/`lot_id`, `step_id`, `nc_type` (defect/out_of_spec/other), `description`, `disposition` (rework/scrap/use_as_is/return), `status` (open/investigating/resolved/closed), `created_at`, `resolved_at` | → Unit/Lot, → ProcessSegment |
 
 #### Data Collection (DATA-COLLECT)
 
 | Entity | Fields | Relations |
 |---|---|---|
-| **DataDefinition** | `id`, `name`, `code`, `data_type` (numeric/string/boolean/enum), `uom`, `step_id`, `source` (manual/equipment/sensor), `is_required` | → RouteStep |
+| **DataDefinition** | `id`, `name`, `code`, `data_type` (numeric/string/boolean/enum), `uom`, `step_id`, `source` (manual/equipment/sensor), `is_required` | → ProcessSegment |
 | **DataPoint** | `id`, `definition_id`, `unit_id`/`lot_id`, `value_numeric`, `value_string`, `value_boolean`, `collected_at`, `source_equipment_id`, `operator_id` | → DataDefinition, → Unit/Lot |
 
 #### Performance Analysis (PERF-ANALYSIS)
@@ -720,7 +720,7 @@ step_equipment = Table(
     Column("equipment_id", ForeignKey("equipment.id"), primary_key=True),
 )
 
-class RouteStep(Base):
+class ProcessSegment(Base):
     __tablename__ = "route_step"
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
 
@@ -734,12 +734,12 @@ class Equipment(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
 
     # Many-to-Many: equipment can serve multiple steps
-    eligible_steps: Mapped[list["RouteStep"]] = relationship(
+    eligible_steps: Mapped[list["ProcessSegment"]] = relationship(
         secondary=step_equipment, back_populates="eligible_equipment"
     )
 ```
 
-**Used for:** RouteStep↔Equipment (a step can run on multiple equipment, equipment can serve multiple steps).
+**Used for:** ProcessSegment↔Equipment (a step can run on multiple equipment, equipment can serve multiple steps).
 
 #### Many-to-Many with Extra Data (Association Object)
 
@@ -764,8 +764,8 @@ class UserRole(Base):
 | Relationship | SQLAlchemy Pattern | Used In |
 |---|---|---|
 | One-to-Many | `relationship()` + `ForeignKey` | Site→Areas, Line→WorkCells, Order→Units, Route→Steps, etc. |
-| Many-to-One | Same (reverse side) | Equipment→WorkCell, Unit→RouteStep, Unit→Equipment |
-| Many-to-Many | `relationship(secondary=...)` | RouteStep↔Equipment |
+| Many-to-One | Same (reverse side) | Equipment→WorkCell, Unit→ProcessSegment, Unit→Equipment |
+| Many-to-Many | `relationship(secondary=...)` | ProcessSegment↔Equipment |
 | Many-to-Many + data | Association object class | User↔Role (via UserRole) |
 
 All relationship types are fully portable across PostgreSQL, SQL Server, Oracle, and SQLite.
@@ -2020,7 +2020,7 @@ The DISPATCH engine never inspects plugin-specific states. It queries **only** t
 
 ```python
 async def get_eligible_equipment(
-    step: RouteStep, db: AsyncSession
+    step: ProcessSegment, db: AsyncSession
 ) -> list[Equipment]:
     """Return equipment eligible for dispatch at the given step.
     
@@ -2190,7 +2190,7 @@ It supports two complementary routing modes that can coexist on a single route.
 
 #### 5.8.1 Graph-Based Routing (Step Transitions)
 
-When a route step has **StepTransition** records defined (outgoing edges), the engine evaluates
+When a route step has **ProcessSegmentDependency** records defined (outgoing edges), the engine evaluates
 them to determine the next step. This enables non-linear routing patterns:
 
 | Pattern | Description | Example |
@@ -2214,7 +2214,7 @@ When multiple transitions exist for a step, they are evaluated in strict priorit
 Within each tier, transitions are ordered by the `priority` field (descending — higher = first).
 The first match wins. If no transition matches, the engine falls back to linear routing.
 
-**StepTransition condition types:**
+**ProcessSegmentDependency condition types:**
 
 | Condition | When Taken | Requires |
 |---|---|---|
@@ -2486,12 +2486,12 @@ Both demo scenarios seed equipment classes and auto-assign equipment to their cl
 ### 5.11 Process Segment Model (ISA-95 Part 4)
 
 ISA-95 Part 4 defines the **operations definition** — how operations are structured as
-process segments with resource requirements. A `RouteStep` maps to an ISA-95 **process segment**
+process segments with resource requirements. A `ProcessSegment` maps to an ISA-95 **process segment**
 and declares three types of resource requirements:
 
 #### 5.11.1 Motivation
 
-The original RouteStep model had only a `work_cell_id` FK linking it to a specific work cell.
+The original ProcessSegment model had only a `work_cell_id` FK linking it to a specific work cell.
 This had several problems:
 
 - **Tight coupling** — a route step was bound to a single physical work cell, making routes
@@ -2504,15 +2504,15 @@ This had several problems:
 #### 5.11.2 Conceptual Model
 
 ```
-RouteStep (Process Segment)
+ProcessSegment (Process Segment)
  ├── equipment_class_id ──▶ EquipmentClass     (what class of equipment is needed)
  ├── work_cell_id ──▶ WorkCell                  (legacy — backward compatible)
  │
- ├── StepEquipmentRequirement[]                 (specific equipment declarations)
+ ├── SegmentEquipmentRequirement[]                 (specific equipment declarations)
  │    ├── equipment_id ──▶ Equipment
  │    └── use_type (required / preferred / alternate)
  │
- └── StepMaterialRequirement[]                  (step-level BOM)
+ └── SegmentMaterialRequirement[]                  (step-level BOM)
       ├── material_id ──▶ MaterialDefinition
       ├── quantity, uom
       └── material_use (consumed / produced)
@@ -2524,7 +2524,7 @@ The dispatch engine (§10) resolves equipment for a route step using a **3-tier 
 
 | Priority | Source | Behavior |
 |---|---|---|
-| 1 (highest) | `StepEquipmentRequirement` rows | Use the explicitly listed equipment |
+| 1 (highest) | `SegmentEquipmentRequirement` rows | Use the explicitly listed equipment |
 | 2 | `equipment_class_id` | Find all equipment assigned to that class |
 | 3 (legacy) | `work_cell_id` | Find all equipment at that work cell |
 | — | None of the above | Empty options → dispatch blocked |
@@ -2539,7 +2539,7 @@ availability gate → capability gate → capacity gate.
 
 | File | Purpose |
 |---|---|
-| `server/src/mes/core/product_def/models.py` | `StepEquipmentRequirement`, `StepMaterialRequirement` models; `equipment_class_id` on `RouteStep` |
+| `server/src/mes/core/product_def/models.py` | `SegmentEquipmentRequirement`, `SegmentMaterialRequirement` models; `equipment_class_id` on `ProcessSegment` |
 | `server/src/mes/core/product_def/schemas.py` | Create/Read/Update schemas for both requirement types |
 | `server/src/mes/core/product_def/service.py` | CRUD service methods for requirements |
 | `server/src/mes/core/product_def/routes.py` | 8 new REST endpoints (see §6.3) |
@@ -2809,7 +2809,7 @@ availability gate → capability gate → capacity gate.
 | `POST` | `/api/v1/erp/sync/materials` | Sync material master from ERP |
 | `POST` | `/api/v1/erp/sync/products` | Sync product definitions from ERP |
 | `POST` | `/api/v1/erp/sync/boms?product_id=X` | Sync BOMs for a product |
-| `POST` | `/api/v1/erp/sync/routings?product_id=X` | Sync routings from ERP and persist to DB (upsert ProcessRoute + RouteStep) |
+| `POST` | `/api/v1/erp/sync/routings?product_id=X` | Sync routings from ERP and persist to DB (upsert OperationsDefinition + ProcessSegment) |
 | `POST` | `/api/v1/erp/sync/work-centers` | Sync work centers from ERP |
 | `POST` | `/api/v1/erp/report/completion` | Report production completion to ERP |
 | `POST` | `/api/v1/erp/report/consumption` | Report material consumption to ERP |
@@ -3597,7 +3597,7 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 > subscribe to `wip.unit.completed` and `wip.lot.completed` events. Each handler:
 >
 > 1. Looks up the `ProductionOrder.erp_reference` to identify the ERP order
-> 2. Looks up `RouteStep.erp_operation_number` to identify the ERP operation
+> 2. Looks up `ProcessSegment.erp_operation_number` to identify the ERP operation
 > 3. Builds a completion report DTO with quantities (good/reject)
 > 4. Enqueues via `ERPOutboundQueueService.enqueue()` for reliable delivery with retry
 >
@@ -3609,7 +3609,7 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 A common source of confusion: an MES is primarily concerned with the **physical model** defined
 by ISA-95 (sites, areas, lines, work cells, equipment). An ERP, by contrast, deals with
 **logical routing and operations** for cost rollups, capacity planning, and standard costing.
-So why does this MES store `ProcessRoute` and `RouteStep` entities at all?
+So why does this MES store `OperationsDefinition` and `ProcessSegment` entities at all?
 
 **What the ERP owns (Level 4 — out of scope for this MES):**
 
@@ -3637,7 +3637,7 @@ ERP (Level 4)                    MES (Level 3)
 ─────────────                    ─────────────
 Route Master  ──sync_routings()──▶  ROUTE-DEF (local copy persisted via upsert)
                                         │
-                                    ProcessRoute + RouteStep rows
+                                    OperationsDefinition + ProcessSegment rows
                                     (work_center_code → work_cell_id resolved)
                                     (erp_operation_number populated from sequence)
                                         │
@@ -3652,8 +3652,8 @@ Cost Posting  ◀──report_completion()──  WIP-TRACK (actuals per step)
 
 > **Sync Persistence (D043)**: `POST /api/v1/erp/sync/routings` now persists routes to the
 > database. For each `ProcessRouteDTO`, the service resolves the product by code, upserts
-> `ProcessRoute` (match on product_id + name + version), resolves `work_center_code` →
-> `work_cell_id` via `WorkCell.code`, and upserts `RouteStep` rows (match on route_id +
+> `OperationsDefinition` (match on product_id + name + version), resolves `work_center_code` →
+> `work_cell_id` via `WorkCell.code`, and upserts `ProcessSegment` rows (match on route_id +
 > sequence). The first route synced for a product is set as default.
 
 The MES **never** creates routes for new products — it receives them from the ERP via
@@ -3790,7 +3790,7 @@ Both processors:
 - Auto-release the order (`created` → `released`)
 - Are idempotent — skip if an order with the same `erp_reference` already exists
 - Parse `planned_start` / `planned_end` from ISO-8601 strings via `_parse_dt()`
-- Look up the product's default `ProcessRoute` for route assignment
+- Look up the product's default `OperationsDefinition` for route assignment
 
 ##### REST Endpoints
 
@@ -5146,7 +5146,7 @@ then **filters** them through three mandatory gates.
 The dispatch engine resolves the candidate equipment set using a 3-tier priority based on the
 ISA-95 process segment model (§5.11):
 
-1. **StepEquipmentRequirement rows** — if the step has explicit equipment declarations, use those
+1. **SegmentEquipmentRequirement rows** — if the step has explicit equipment declarations, use those
 2. **equipment_class_id** — if the step declares an equipment class, find all equipment in that class
 3. **work_cell_id** (legacy) — find all equipment at the work cell
 4. No constraint → empty set → dispatch blocked

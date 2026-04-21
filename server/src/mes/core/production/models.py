@@ -40,7 +40,7 @@ class ProductionOrder(BaseModel):
         nullable=False, index=True,
     )
     route_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("process_routes.id"),
+        Uuid, ForeignKey("operations_definitions.id"),
         nullable=True, index=True,
         comment="Assigned process route; null means use product's default route",
     )
@@ -105,8 +105,8 @@ class ProductionOrder(BaseModel):
     product: Mapped["ProductDefinition"] = relationship(  # noqa: F821
         "ProductDefinition", foreign_keys=[product_id],
     )
-    route: Mapped["ProcessRoute | None"] = relationship(  # noqa: F821
-        "ProcessRoute", foreign_keys=[route_id],
+    route: Mapped["OperationsDefinition | None"] = relationship(  # noqa: F821
+        "OperationsDefinition", foreign_keys=[route_id],
     )
     units: Mapped[list["Unit"]] = relationship(  # noqa: F821
         "Unit", back_populates="order", cascade="all, delete-orphan",

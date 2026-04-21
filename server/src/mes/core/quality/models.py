@@ -43,7 +43,7 @@ class QualityTest(BaseModel):
         comment="Test type: inline, offline, destructive",
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=True, index=True,
         comment="Optional route step where this test is performed",
     )
@@ -147,7 +147,7 @@ class NonConformance(BaseModel):
         nullable=True, index=True,
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("route_steps.id"),
+        Uuid, ForeignKey("process_segments.id"),
         nullable=True, index=True,
         comment="Route step where the non-conformance was detected",
     )

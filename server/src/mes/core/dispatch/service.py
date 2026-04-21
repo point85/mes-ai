@@ -29,7 +29,7 @@ from mes.framework.api.exceptions import NotFoundException
 from mes.framework.events import event_bus
 
 from mes.core.physical_model.models import Equipment, EquipmentMaterial, WorkCell
-from mes.core.product_def.models import RouteStep, StepEquipmentRequirement
+from mes.core.product_def.models import ProcessSegment, SegmentEquipmentRequirement
 from mes.core.wip.models import Unit, Lot
 from mes.core.performance.models import EquipmentStateLog
 
@@ -132,7 +132,7 @@ class DispatchService:
 
         # ── Get current step and find next step(s) ──────────────────
         curr_step_result = await session.execute(
-            select(RouteStep).where(RouteStep.id == current_step_id)
+            select(ProcessSegment).where(ProcessSegment.id == current_step_id)
         )
         curr_step = curr_step_result.scalar_one_or_none()
         if curr_step is None:
@@ -140,13 +140,13 @@ class DispatchService:
 
         # Find next steps in sequence order
         next_steps_result = await session.execute(
-            select(RouteStep)
+            select(ProcessSegment)
             .where(
-                RouteStep.route_id == curr_step.route_id,
-                RouteStep.sequence > curr_step.sequence,
-                RouteStep.is_active.is_(True),
+                ProcessSegment.route_id == curr_step.route_id,
+                ProcessSegment.sequence > curr_step.sequence,
+                ProcessSegment.is_active.is_(True),
             )
-            .order_by(RouteStep.sequence)
+            .order_by(ProcessSegment.sequence)
         )
         next_steps = next_steps_result.scalars().all()
 
@@ -165,7 +165,7 @@ class DispatchService:
 
         # ── Find eligible equipment at the target step ──────────────
         # ISA-95 Process Segment dispatch priority:
-        #   1. StepEquipmentRequirement rows (specific equipment for this step)
+        #   1. SegmentEquipmentRequirement rows (specific equipment for this step)
         #   2. equipment_class_id on the step (all equipment of that class)
         #   3. work_cell_id (legacy: all equipment in the work cell)
         #   4. No constraint → empty options
@@ -174,9 +174,9 @@ class DispatchService:
 
         # 1. Check step-level equipment requirements
         equip_req_result = await session.execute(
-            select(StepEquipmentRequirement).where(
-                StepEquipmentRequirement.step_id == target_step.id,
-                StepEquipmentRequirement.is_active.is_(True),
+            select(SegmentEquipmentRequirement).where(
+                SegmentEquipmentRequirement.step_id == target_step.id,
+                SegmentEquipmentRequirement.is_active.is_(True),
             )
         )
         equip_reqs = equip_req_result.scalars().all()
@@ -572,7 +572,7 @@ class DispatchService:
         # Resolve step → equipment candidates
         # Priority: step equipment requirements > equipment_class_id > work_cell_id
         step_result = await session.execute(
-            select(RouteStep).where(RouteStep.id == step_id)
+            select(ProcessSegment).where(ProcessSegment.id == step_id)
         )
         step_obj = step_result.scalar_one_or_none()
         if step_obj is None:
@@ -580,9 +580,9 @@ class DispatchService:
 
         # 1. Check step-level equipment requirements
         equip_req_result = await session.execute(
-            select(StepEquipmentRequirement).where(
-                StepEquipmentRequirement.step_id == step_id,
-                StepEquipmentRequirement.is_active.is_(True),
+            select(SegmentEquipmentRequirement).where(
+                SegmentEquipmentRequirement.step_id == step_id,
+                SegmentEquipmentRequirement.is_active.is_(True),
             )
         )
         equip_reqs = equip_req_result.scalars().all()

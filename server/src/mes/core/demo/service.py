@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mes.core.material.models import MaterialDefinition, MaterialLot
 from mes.core.material.service import MaterialLotService, MaterialService
 from mes.core.product_def.models import (
-    BillOfMaterial, BOMItem, ProcessRoute, RouteStep,
+    BillOfMaterial, BOMItem, OperationsDefinition, ProcessSegment,
 )
 from mes.core.product_def.models import Disposition
 from mes.core.product_def.service import ProductDefService
@@ -65,8 +65,8 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     Returns a summary dict with counts and created IDs.
     """
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
-                                "route_steps": 0, "transitions": 0,
-                                "step_parameters": 0, "data_definitions": 0,
+                                "process_segments": 0, "transitions": 0,
+                                "segment_parameters": 0, "data_definitions": 0,
                                 "quality_tests": 0, "material_lots": 0,
                                 "dispositions": 0}
 
@@ -130,7 +130,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
         )
         step_by_seq[s["sequence"]] = step
         if created:
-            summary["route_steps"] += 1
+            summary["process_segments"] += 1
 
     # ── 5. BOM (with route_step_id links) ─────────────────────────────
     bom, bom_created = await _get_or_create_bom(session, product.id, version="1.0")
@@ -178,7 +178,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
             step = step_by_seq[seq]
             for p in params:
                 await ProductDefService.create_step_parameter(session, step.id, **p)
-                summary["step_parameters"] += 1
+                summary["segment_parameters"] += 1
 
     # ── 8. Data Collection Definitions ────────────────────────────────
     for seq, defs in D.DATA_DEFS.items():
@@ -337,8 +337,8 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     Returns a summary dict with counts and created IDs.
     """
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
-                                "route_steps": 0, "transitions": 0,
-                                "step_parameters": 0, "data_definitions": 0,
+                                "process_segments": 0, "transitions": 0,
+                                "segment_parameters": 0, "data_definitions": 0,
                                 "quality_tests": 0, "dispositions": 0}
 
     # ── 1. Materials ──────────────────────────────────────────────────
@@ -387,7 +387,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
         )
         step_by_seq[s["sequence"]] = step
         if created:
-            summary["route_steps"] += 1
+            summary["process_segments"] += 1
 
     # ── 5. BOM (with route_step_id links) ─────────────────────────────
     bom, bom_created = await _get_or_create_bom(session, product.id, version="1.0")
@@ -435,7 +435,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             step = step_by_seq[seq]
             for p in params:
                 await ProductDefService.create_step_parameter(session, step.id, **p)
-                summary["step_parameters"] += 1
+                summary["segment_parameters"] += 1
 
     # ── 8. Data Collection Definitions ────────────────────────────────
     for seq, defs in E.DATA_DEFS.items():
@@ -610,10 +610,10 @@ async def _get_or_create_route(
 ) -> tuple[Any, bool]:
     """Return (route, created) — reuses existing route by product+name."""
     result = await session.execute(
-        select(ProcessRoute).where(
-            ProcessRoute.product_id == product_id,
-            ProcessRoute.name == name,
-            ProcessRoute.is_active.is_(True),
+        select(OperationsDefinition).where(
+            OperationsDefinition.product_id == product_id,
+            OperationsDefinition.name == name,
+            OperationsDefinition.is_active.is_(True),
         )
     )
     existing = result.scalar_one_or_none()
@@ -646,10 +646,10 @@ async def _get_or_create_step(
 ) -> tuple[Any, bool]:
     """Return (step, created) — reuses existing step by route+sequence."""
     result = await session.execute(
-        select(RouteStep).where(
-            RouteStep.route_id == route_id,
-            RouteStep.sequence == sequence,
-            RouteStep.is_active.is_(True),
+        select(ProcessSegment).where(
+            ProcessSegment.route_id == route_id,
+            ProcessSegment.sequence == sequence,
+            ProcessSegment.is_active.is_(True),
         )
     )
     existing = result.scalar_one_or_none()

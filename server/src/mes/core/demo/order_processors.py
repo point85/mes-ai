@@ -32,7 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.adapters.erp.inbound_queue import OrderProcessor, ProcessorResult
-from mes.core.product_def.models import ProductDefinition, ProcessRoute
+from mes.core.product_def.models import ProductDefinition, OperationsDefinition
 from mes.core.production.models import ProductionOrder
 from mes.core.production.service import ProductionOrderService
 from mes.core.wip.service import LotService, UnitService
@@ -69,12 +69,12 @@ async def _resolve_product(
 
 async def _resolve_route(
     session: AsyncSession, product_id: UUID,
-) -> ProcessRoute | None:
+) -> OperationsDefinition | None:
     """Return the first active route for a product, or None."""
     result = await session.execute(
-        select(ProcessRoute).where(
-            ProcessRoute.product_id == product_id,
-            ProcessRoute.is_active.is_(True),
+        select(OperationsDefinition).where(
+            OperationsDefinition.product_id == product_id,
+            OperationsDefinition.is_active.is_(True),
         )
     )
     return result.scalar_one_or_none()
