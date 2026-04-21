@@ -314,4 +314,174 @@ These short identifiers are used in architecture docs, code paths, commit messag
 
 ---
 
-*Last updated: 2026-02-22*
+## 5. ISA-95 Alignment Map (Phase 6 Refactor Contract)
+
+> **Purpose:** This is the naming contract for the ISA-95 refactor (Phase 6 / P6). Every rename, addition, and deletion listed here will be applied across ORM models, Pydantic schemas, DB tables, REST paths, and event topics. Nothing here is implemented yet — this section is the **plan of record**. Each downstream refactor step (1–12) MUST match this map. Deviations require updating this section first.
+>
+> **Target database:** `mes_ai_s95` (empty, no Alembic history). A single fresh Alembic baseline will be generated at the end of Step 12.
+>
+> **Convention:**
+> - **Class** names use ISA-95 Part 2/3/4 object names verbatim where practical (e.g., `ProcessSegment`, `OperationsRequest`, `OperationsResponse`).
+> - **Table** names are `snake_case` plural of the class name (e.g., `process_segments`, `operations_requests`).
+> - **Module** names under `server/src/mes/core/` match the ISA-95 object domain (e.g., `operations/`, `process_segment/`).
+> - **REST** paths are kebab-case plural of the resource (e.g., `/api/v1/operations-requests`).
+> - **Events** are dot-notation on the ISA-95 object name (e.g., `operations.request.released`, `segment.response.completed`).
+
+### 5.1 Renames (current → ISA-95)
+
+#### Product Definition domain (Part 2: Process Segment / Operations Definition)
+
+| Current class | Current table | ISA-95 class | ISA-95 table | Notes |
+|---|---|---|---|---|
+| `ProcessRoute` | `process_routes` | `OperationsDefinition` | `operations_definitions` | ISA-95 Part 2 "Operations Definition". Represents the manufacturing recipe / route for a product. |
+| `RouteStep` | `route_steps` | `ProcessSegment` | `process_segments` | ISA-95 Part 2 "Process Segment". A single manufacturing operation within an Operations Definition. |
+| `StepTransition` | `step_transitions` | `ProcessSegmentDependency` | `process_segment_dependencies` | ISA-95 Part 2 "Process Segment Dependency". Graph edges between segments (including disposition-driven transitions). |
+| `StepParameter` | `step_parameters` | `SegmentParameter` | `segment_parameters` | Parameter specification attached to a process segment (setpoint, limits). |
+| `StepEquipmentRequirement` | `step_equipment_requirements` | `SegmentEquipmentRequirement` | `segment_equipment_requirements` | ISA-95 Part 2 "Equipment Requirement" scoped to a segment. |
+| `StepMaterialRequirement` | `step_material_requirements` | `SegmentMaterialRequirement` | `segment_material_requirements` | ISA-95 Part 2 "Material Requirement" scoped to a segment. |
+| `RouteProductAssignment` | `route_product_assignments` | `OperationsDefinitionProductAssignment` | `operations_definition_product_assignments` | Many-to-many: which products this Operations Definition produces. |
+| `RouteMaterialAssignment` | `route_material_assignments` | `OperationsDefinitionMaterialAssignment` | `operations_definition_material_assignments` | Many-to-many: declared input materials for the Operations Definition. |
+| `ProductDefinition` | `product_definitions` | `ProductDefinition` | `product_definitions` | **No rename** — ISA-95 Part 2 name is already correct. |
+| `BillOfMaterial` | `bills_of_material` | `ProductProduction​Rule` *(no — see notes)* | `bills_of_material` | **Keep current name.** ISA-95 Part 2 calls this "Material Specification" but "BOM" is the universally understood industry term. Decision: keep as `BillOfMaterial`, cross-reference in docs. |
+| `BOMItem` | `bom_items` | `BOMItem` | `bom_items` | **No rename** (consistent with `BillOfMaterial`). |
+| `Disposition` | `dispositions` | `Disposition` | `dispositions` | **No rename** — operational concept, not an ISA-95 object. |
+
+#### Production / Operations Management domain (Part 3: Operations Management)
+
+| Current class | Current table | ISA-95 class | ISA-95 table | Notes |
+|---|---|---|---|---|
+| `ProductionOrder` | `production_orders` | `OperationsRequest` | `operations_requests` | ISA-95 Part 3 "Operations Request". Directive from ERP/scheduler to execute a quantity of an Operations Definition. |
+| *(none — new)* | *(none)* | `OperationsSchedule` | `operations_schedules` | **New.** ISA-95 Part 3 "Operations Schedule". Groups one or more Operations Requests into a dispatchable schedule window. Optional in Phase 6; scaffolded in Step 5. |
+| *(none — new)* | *(none)* | `OperationsResponse` | `operations_responses` | **New.** ISA-95 Part 3 "Operations Response". The as-performed aggregate record for a completed Operations Request. Composed of Segment Responses + Resource Actuals. |
+| Module `production/` | — | Module `operations/` | — | Directory rename. All imports updated. |
+
+#### WIP / Tracking domain (Part 3: Segment Response + Part 4: Resource Actuals)
+
+| Current class | Current table | ISA-95 class | ISA-95 table | Notes |
+|---|---|---|---|---|
+| `Unit` | `units` | `Unit` | `units` | **No rename.** Serialized item identity is retained (ISA-95 does not define a serialized-unit object; `Unit` is our operational concept). |
+| `Lot` | `lots` | `Lot` | `lots` | **No rename.** Same reasoning. |
+| `UnitHistory` | `unit_histories` | `SegmentResponseUnit` | `segment_response_units` | ISA-95 Part 3 "Segment Response" specialization for a unit traversing a segment. One row per unit × segment execution. |
+| `LotHistory` | `lot_histories` | `SegmentResponseLot` | `segment_response_lots` | ISA-95 Part 3 "Segment Response" specialization for a lot. |
+| *(none — new)* | *(none)* | `MaterialActual` | `material_actuals` | **New.** ISA-95 Part 4 "Material Actual" — what was actually consumed/produced per Segment Response. |
+| *(none — new)* | *(none)* | `EquipmentActual` | `equipment_actuals` | **New.** ISA-95 Part 4 "Equipment Actual" — which equipment actually performed the segment, time in/out, state. |
+| *(none — new)* | *(none)* | `PersonnelActual` | `personnel_actuals` | **New.** ISA-95 Part 4 "Personnel Actual" — who (operator) performed the segment. |
+
+#### Physical Model domain (Part 1: Physical Asset Hierarchy)
+
+| Current class | Current table | ISA-95 class | ISA-95 table | Notes |
+|---|---|---|---|---|
+| `Site` | `sites` | `Site` | `sites` | **No rename.** |
+| `Area` | `areas` | `Area` | `areas` | **No rename.** |
+| `ProductionLine` | `production_lines` | `ProductionLine` | `production_lines` | **No rename.** ISA-95 uses "Production Line" under the "WorkCenter" supertype — acceptable as-is. |
+| `WorkCell` | `work_cells` | `WorkCell` | `work_cells` | **No rename.** ISA-95 "Work Unit" is broader; `WorkCell` stays as our leaf grouping. |
+| `Equipment` | `equipment` | `Equipment` | `equipment` | **No rename.** |
+| `EquipmentClass` | `equipment_classes` | `EquipmentClass` | `equipment_classes` | **No rename.** ISA-95 Part 2 term. |
+| `EquipmentClassProperty` | `equipment_class_properties` | `EquipmentClassProperty` | `equipment_class_properties` | **No rename.** |
+| `EquipmentCapability` | `equipment_capabilities` | `EquipmentCapability` | `equipment_capabilities` | **No rename.** |
+| `EquipmentCapabilityProperty` | `equipment_capability_properties` | `EquipmentCapabilityProperty` | `equipment_capability_properties` | **No rename.** |
+| `EquipmentMaterial` | `equipment_materials` | `EquipmentMaterial` | `equipment_materials` | **No rename.** |
+| *(none — optional)* | *(none)* | `Personnel` | `personnel` | **Deferred (Step 2 skipped).** ISA-95 Part 2 "Personnel". `PersonnelActual` (Step 6) will reference an operator by UUID string only; the full Personnel entity is out of scope for Phase 6. |
+| *(none — optional)* | *(none)* | `PersonnelClass` | `personnel_classes` | **Deferred (Step 2 skipped).** |
+| *(none — optional)* | *(none)* | `PhysicalAsset` | `physical_assets` | **Deferred (Step 2 skipped).** Non-equipment tangibles (tools, fixtures, molds) are out of scope for Phase 6. |
+
+### 5.2 Deletions (Step 7 — drop legacy edges)
+
+The following columns/attributes are dropped outright. No data migration (fresh database).
+
+| Entity | Column / attribute | Reason |
+|---|---|---|
+| `OperationsDefinition` (née `ProcessRoute`) | `product_id` (FK) | Legacy 1:1 product link; replaced by `OperationsDefinitionProductAssignment` (many-to-many). |
+| `ProcessSegment` (née `RouteStep`) | `work_cell_id` (FK) | Legacy direct WorkCell link; replaced by `SegmentEquipmentRequirement` referencing `EquipmentClass`. |
+| `Equipment` | `equipment_type` (string) | Free-form string; replaced by `EquipmentClass` FK. |
+| `Equipment` | `capabilities` (JSON) | Unstructured blob; replaced by `EquipmentCapability` + `EquipmentCapabilityProperty` rows. |
+
+### 5.3 Out-of-scope / removals (Step 11)
+
+Classes marked for deletion if no consumer remains after the rename sweep. Each will be re-verified before deletion in Step 11.
+
+| Candidate class | Module | Disposition |
+|---|---|---|
+| `demo/` module contents | `core/demo/` | Evaluate — demo fixtures may be regenerated against new schema. Defer decision to Step 11. |
+| Any `*_legacy` helpers in `routing/service.py` | `core/routing/` | Delete after call sites removed in Steps 4 and 7. |
+
+### 5.4 REST path renames (Step 8)
+
+| Current path | New path | Binds to |
+|---|---|---|
+| `/api/v1/process-routes` | `/api/v1/operations-definitions` | `OperationsDefinition` |
+| `/api/v1/route-steps` | `/api/v1/process-segments` | `ProcessSegment` |
+| `/api/v1/step-transitions` | `/api/v1/process-segment-dependencies` | `ProcessSegmentDependency` |
+| `/api/v1/step-parameters` | `/api/v1/segment-parameters` | `SegmentParameter` |
+| `/api/v1/production-orders` | `/api/v1/operations-requests` | `OperationsRequest` |
+| *(new)* | `/api/v1/operations-schedules` | `OperationsSchedule` |
+| *(new)* | `/api/v1/operations-responses` | `OperationsResponse` |
+| `/api/v1/unit-histories` | `/api/v1/segment-responses/units` | `SegmentResponseUnit` |
+| `/api/v1/lot-histories` | `/api/v1/segment-responses/lots` | `SegmentResponseLot` |
+| *(new)* | `/api/v1/material-actuals` | `MaterialActual` |
+| *(new)* | `/api/v1/equipment-actuals` | `EquipmentActual` |
+| *(new)* | `/api/v1/personnel-actuals` | `PersonnelActual` |
+
+Unchanged paths: `/api/v1/sites`, `/api/v1/areas`, `/api/v1/production-lines`, `/api/v1/work-cells`, `/api/v1/equipment`, `/api/v1/equipment-classes`, `/api/v1/product-definitions`, `/api/v1/boms`, `/api/v1/dispositions`, `/api/v1/units`, `/api/v1/lots`, `/api/v1/materials`, `/api/v1/dispatch/*`, `/api/v1/quality/*`, `/api/v1/uom/*`.
+
+### 5.5 Event topic renames (Step 9)
+
+| Current topic | New topic |
+|---|---|
+| `production.order.created` | `operations.request.created` |
+| `production.order.released` | `operations.request.released` |
+| `production.order.started` | `operations.request.started` |
+| `production.order.completed` | `operations.request.completed` |
+| `production.order.closed` | `operations.request.closed` |
+| `routing.step.entered` | `segment.response.started` |
+| `routing.step.exited` | `segment.response.completed` |
+| `routing.step.failed` | `segment.response.failed` |
+
+Unchanged topic prefixes: `wip.*`, `dispatch.*`, `quality.*`, `equipment.*`, `material.*`, `uom.*`, `plugin.*`.
+
+### 5.6 Plugin-facing API changes (Step 10)
+
+Extension point `dispatch_strategy`: no signature change (still operates on `Unit`/`Lot` and a candidate `Equipment` list).
+
+Extension point `operation_hook`: parameter renames only.
+- `production_order` → `operations_request`
+- `route_step` → `process_segment`
+- `unit_history` → `segment_response`
+
+`MESPlugin` base class: no change.
+
+### 5.7 Module directory renames
+
+| Current path | New path |
+|---|---|
+| `server/src/mes/core/production/` | `server/src/mes/core/operations/` |
+| `server/src/mes/core/routing/` | `server/src/mes/core/routing/` *(kept — routing engine is a service, not an ISA-95 object)* |
+| `server/src/mes/core/product_def/` | `server/src/mes/core/product_def/` *(kept — houses Operations Definitions + Segments; rename deferred)* |
+| `server/src/mes/core/wip/` | `server/src/mes/core/wip/` *(kept — houses Units, Lots, and Segment Responses; contents renamed per 5.1)* |
+
+### 5.8 Module ID updates
+
+Additions/renames to the Module ID table in §2:
+
+| Module ID | Full Name | Code Path | Status |
+|---|---|---|---|
+| `OPS-REQUEST` | Operations Request (replaces `PROD-ORDER`) | `server/src/mes/core/operations/` | Renamed |
+| `OPS-SCHEDULE` | Operations Schedule | `server/src/mes/core/operations/` | New |
+| `OPS-RESPONSE` | Operations Response | `server/src/mes/core/operations/` | New |
+| `RES-ACTUALS` | Resource Actuals (Material/Equipment/Personnel Actuals) | `server/src/mes/core/wip/` | New |
+| ~~`PERSONNEL`~~ | ~~Personnel Model~~ | ~~`server/src/mes/core/personnel/`~~ | **Deferred (Step 2 skipped)** |
+
+### 5.9 What is explicitly NOT changing
+
+- `BaseModel` contract (`id`, `created_at`, `updated_at`, `is_active`). Unchanged.
+- Soft-delete behavior. Unchanged.
+- Response envelope `{ data, meta, errors }`. Unchanged.
+- UOM domain (already ISA-95-compatible). Unchanged.
+- Dispatch domain classes (`DispatchService`, strategies). Unchanged — dispatch is an operational engine, not an ISA-95 object.
+- OEE / performance domain classes. Unchanged — KPIs are computed views, not ISA-95 objects.
+- Genealogy domain — remains a query-only aggregate built from Segment Responses, Material Actuals, Equipment Actuals, and Test Results.
+- Authentication, plugin framework, event bus, data layer, REST framework. Unchanged.
+
+---
+
+*Last updated: 2026-04-21*

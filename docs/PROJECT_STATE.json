@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-20",
-  "lastSessionId": "S034",
+  "lastUpdated": "2026-04-21",
+  "lastSessionId": "S035",
 
   "phases": [
     {
@@ -244,6 +244,27 @@
     },
     {
       "id": "P6",
+      "name": "ISA-95 Alignment Refactor",
+      "status": "in-progress",
+      "description": "Refactor the entire codebase to use ISA-95 terminology (Parts 1-4). Rename classes/tables/REST paths/events to match the standard, delete legacy edges, add Resource Actuals. New empty database 'mes_ai_s95'. Single fresh Alembic baseline generated at end. Naming contract in DICTIONARY.md Section 5.",
+      "tasks": [
+        { "id": "T6.0",  "name": "Step 0: ISA-95 Alignment Map in DICTIONARY.md Section 5 (naming contract)", "status": "complete" },
+        { "id": "T6.1",  "name": "Step 1: PROJECT_STATE.json P6 phase + SESSION_LOG.md entry", "status": "complete" },
+        { "id": "T6.2",  "name": "Step 2 (optional): Personnel + PhysicalAsset scaffolding", "status": "skipped" },
+        { "id": "T6.3",  "name": "Step 3: Part 1 physical hierarchy polish", "status": "not-started" },
+        { "id": "T6.4",  "name": "Step 4: Part 2 rename — ProcessRoute->OperationsDefinition, RouteStep->ProcessSegment, StepTransition->ProcessSegmentDependency, StepParameter/EquipmentRequirement/MaterialRequirement->Segment*", "status": "not-started" },
+        { "id": "T6.5",  "name": "Step 5: Part 3 rename — ProductionOrder->OperationsRequest, module production/->operations/, add OperationsSchedule+OperationsResponse, UnitHistory/LotHistory->SegmentResponseUnit/Lot", "status": "not-started" },
+        { "id": "T6.6",  "name": "Step 6: Part 4 resource actuals — MaterialActual, EquipmentActual, PersonnelActual", "status": "not-started" },
+        { "id": "T6.7",  "name": "Step 7: Drop legacy edges — ProcessRoute.product_id, RouteStep.work_cell_id, Equipment.equipment_type, Equipment.capabilities", "status": "not-started" },
+        { "id": "T6.8",  "name": "Step 8: REST API path renames per DICTIONARY.md 5.4", "status": "not-started" },
+        { "id": "T6.9",  "name": "Step 9: Event topic renames per DICTIONARY.md 5.5", "status": "not-started" },
+        { "id": "T6.10", "name": "Step 10: Plugin-facing API parameter renames per DICTIONARY.md 5.6", "status": "not-started" },
+        { "id": "T6.11", "name": "Step 11: Delete/consolidate out-of-scope classes per DICTIONARY.md 5.3", "status": "not-started" },
+        { "id": "T6.12", "name": "Step 12: Final docs pass + single fresh Alembic baseline against mes_ai_s95 + seed UoM", "status": "not-started" }
+      ]
+    },
+    {
+      "id": "P7",
       "name": "Testing & CI",
       "status": "not-started",
       "description": "Automated test harness, CI pipeline, mock simulation layer",
@@ -251,8 +272,8 @@
     }
   ],
 
-  "currentPhase": "P5",
-  "currentTask": "S034: ISA-95 Part 4 Process Segment on route steps — equipment_class_id, StepEquipmentRequirement, StepMaterialRequirement models + dispatch 3-tier equipment resolution + 8 new REST endpoints + DT-CLIENT equipment class dropdown + 1869 tests passing. Ready for P6, personnel requirements, or next feature work.",
+  "currentPhase": "P6",
+  "currentTask": "S035: ISA-95 Alignment Refactor in progress. Step 0 (DICTIONARY.md Section 5 — naming contract) complete. Step 1 (this update) in progress. Target database mes_ai_s95 created empty. Next: user approval to proceed to Step 2/3.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
