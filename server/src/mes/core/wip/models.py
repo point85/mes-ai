@@ -282,3 +282,167 @@ class SegmentResponseLot(BaseModel):
             f"<SegmentResponseLot id={self.id} lot_id={self.lot_id} "
             f"step_id={self.step_id} qty_in={self.quantity_in}>"
         )
+
+
+
+# ─────────────────────────────────────────────────────────────────
+# ISA-95 Part 4 Resource Actuals (Phase 6 Step 6 scaffolds)
+# ─────────────────────────────────────────────────────────────────
+#
+# MaterialActual, EquipmentActual, and PersonnelActual record what
+# resources were actually used during execution of a process segment.
+# Each actual is associated with a single Segment Response — either
+# a SegmentResponseUnit or a SegmentResponseLot — via nullable
+# foreign keys (exactly one of the two is expected to be set).
+#
+# Scaffold only — no services / routes / events are wired in Phase 6.
+# Consumers land in later phases.
+
+
+class MaterialActual(BaseModel):
+    """
+    ISA-95 Part 4 "Material Actual".
+
+    Records material actually consumed or produced while executing a
+    Process Segment. One row per (segment response, material lot / def)
+    pair. Quantity sign convention: positive values for consumption,
+    negative values for production (or use ``direction`` to disambiguate).
+    """
+
+    __tablename__ = "material_actuals"
+
+    segment_response_unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("segment_response_units.id"),
+        nullable=True, index=True,
+    )
+    segment_response_lot_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("segment_response_lots.id"),
+        nullable=True, index=True,
+    )
+    material_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("material_definitions.id"),
+        nullable=True, index=True,
+        comment="Material definition consumed / produced.",
+    )
+    material_lot_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, nullable=True, index=True,
+        comment="Optional reference to a specific inbound MaterialLot (by id).",
+    )
+    direction: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="consumed",
+        comment="'consumed' or 'produced'.",
+    )
+    quantity: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0,
+    )
+    uom: Mapped[str | None] = mapped_column(
+        String(32), nullable=True,
+        comment="Unit of measure code (e.g. 'EA', 'KG').",
+    )
+    recorded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    recorded_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MaterialActual id={self.id} material_id={self.material_id} "
+            f"direction={self.direction} qty={self.quantity}>"
+        )
+
+
+class EquipmentActual(BaseModel):
+    """
+    ISA-95 Part 4 "Equipment Actual".
+
+    Records which equipment actually executed a Process Segment, along
+    with time-in/time-out and (optionally) the equipment state snapshot.
+    """
+
+    __tablename__ = "equipment_actuals"
+
+    segment_response_unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("segment_response_units.id"),
+        nullable=True, index=True,
+    )
+    segment_response_lot_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("segment_response_lots.id"),
+        nullable=True, index=True,
+    )
+    equipment_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("equipment.id"),
+        nullable=False, index=True,
+    )
+    state: Mapped[str | None] = mapped_column(
+        String(32), nullable=True,
+        comment="Equipment state during the segment (e.g. 'running', 'idle').",
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    started_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True,
+    )
+    ended_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<EquipmentActual id={self.id} equipment_id={self.equipment_id} "
+            f"state={self.state}>"
+        )
+
+
+class PersonnelActual(BaseModel):
+    """
+    ISA-95 Part 4 "Personnel Actual".
+
+    Records which operator(s) actually performed a Process Segment.
+
+    The full ISA-95 Personnel entity is deferred (Step 2 skipped), so
+    ``person_id`` is a bare UUID string with no FK. It is typically the
+    AUTH user id of the operator who signed in at the workstation.
+    """
+
+    __tablename__ = "personnel_actuals"
+
+    segment_response_unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("segment_response_units.id"),
+        nullable=True, index=True,
+    )
+    segment_response_lot_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("segment_response_lots.id"),
+        nullable=True, index=True,
+    )
+    person_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, nullable=False, index=True,
+        comment="Operator user id (from AUTH module). No FK — Personnel entity deferred.",
+    )
+    role: Mapped[str | None] = mapped_column(
+        String(64), nullable=True,
+        comment="Operational role during the segment (e.g. 'operator', 'inspector').",
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    started_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True,
+    )
+    ended_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<PersonnelActual id={self.id} person_id={self.person_id} "
+            f"role={self.role}>"
+        )

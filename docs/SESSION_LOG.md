@@ -3125,6 +3125,17 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
   - **DICTIONARY.md §1 Production table**: "Production Order" row replaced with "Operations Request (formerly *Production Order*)" plus new rows for Operations Schedule and Operations Response; Unit History / Lot History rows replaced with Segment Response (Unit) / Segment Response (Lot); Genealogy entry updated to reference `SegmentResponseUnit`. §2 module registry: `PROD-ORDER` → `OPS-REQUEST` with new code path.
 - **Tests after Step 5**: 1869 passing, same 2 pre-existing failures as Step 4 (`test_lot_lifecycle.py::TestLotMove::test_move_to_explicit_target_step`, `test_unit_lifecycle.py::TestUnitMove::test_move_to_explicit_target_step`). One transient failure during Step 5 (`test_sync_operations_requests` — fixture path miss) resolved by renaming the ERP fixture JSON file to match the new method name.
 - Awaiting user approval to proceed to Step 6 (add Part 4 Resource Actuals: `MaterialActual`, `EquipmentActual`, `PersonnelActual`).
+- Step 6 complete — Part 4 Resource Actuals added as scaffolds to `server/src/mes/core/wip/models.py`:
+  - **3 new classes** appended: `MaterialActual` (table `material_actuals`), `EquipmentActual` (table `equipment_actuals`), `PersonnelActual` (table `personnel_actuals`).
+  - **FK shape**: each actual carries nullable `segment_response_unit_id` (FK → `segment_response_units.id`) + nullable `segment_response_lot_id` (FK → `segment_response_lots.id`); exactly one of the two is expected to be set per row. This avoids a polymorphic association at this scaffold stage and keeps the schema additive.
+  - `MaterialActual` fields: nullable `material_id` (FK → `material_definitions.id`), nullable `material_lot_id` (bare UUID, no FK — MaterialLot lives in a separate module), `direction` ∈ {`consumed`, `produced`}, `quantity` (float), `uom`, `recorded_at` (+ UTC).
+  - `EquipmentActual` fields: required `equipment_id` (FK → `equipment.id`), `state`, `started_at`/`ended_at` (+ UTC).
+  - `PersonnelActual` fields: required `person_id` (bare UUID — AUTH user id, no FK since Personnel entity is deferred per Step 2 skip), `role`, `started_at`/`ended_at` (+ UTC).
+  - **No services / routes / events / schemas** wired. Consumers land in later phases. No migrations written (fresh baseline in Step 12).
+  - **DICTIONARY.md §1**: new "Resource Actuals (ISA-95 Part 4, Phase 6 Step 6 scaffolds)" subsection added.
+  - **ARCHITECTURE.md**: WIP data-model table extended with 3 new rows for the actuals.
+- **Tests after Step 6**: 1869 passing, same 2 pre-existing failures. `Base.metadata` contains `material_actuals`, `equipment_actuals`, `personnel_actuals`. App loads 268 routes.
+- Awaiting user approval to proceed to Step 7 (drop legacy edges + rename deferred FK columns and relationship attribute names).
 
 ### To Resume
 Say: *"Resume MES AI project — Phase 6 refactor"*. The AI will read `PROJECT_STATE.json` (`currentPhase: P6`), then `DICTIONARY.md` §5 (the naming contract), then this log entry.

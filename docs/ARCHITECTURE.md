@@ -531,6 +531,9 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 | **Lot** | `id`, `lot_number`, `order_id`, `product_id`, `material_id`, `quantity`, `current_step_id`, `current_equipment_id`, `status` | → OperationsRequest, → MaterialDefinition, → ProcessSegment, → Equipment |
 | **SegmentResponseUnit** | `id`, `unit_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `result` (pass/fail/rework), `operator_id`, `data_snapshot` (JSON) | → Unit, → ProcessSegment, → Equipment |
 | **SegmentResponseLot** | `id`, `lot_id`, `step_id`, `equipment_id`, `entered_at`, `exited_at`, `quantity_in`, `quantity_out`, `quantity_scrapped`, `operator_id` | → Lot, → ProcessSegment, → Equipment |
+| **MaterialActual** *(Phase 6 Step 6 scaffold)* | `id`, `segment_response_unit_id`, `segment_response_lot_id`, `material_id`, `material_lot_id`, `direction` (consumed/produced), `quantity`, `uom`, `recorded_at`(+utc) | → SegmentResponseUnit \| SegmentResponseLot, → MaterialDefinition |
+| **EquipmentActual** *(Phase 6 Step 6 scaffold)* | `id`, `segment_response_unit_id`, `segment_response_lot_id`, `equipment_id`, `state`, `started_at`(+utc), `ended_at`(+utc) | → SegmentResponseUnit \| SegmentResponseLot, → Equipment |
+| **PersonnelActual** *(Phase 6 Step 6 scaffold)* | `id`, `segment_response_unit_id`, `segment_response_lot_id`, `person_id` (UUID, no FK — Personnel entity deferred), `role`, `started_at`(+utc), `ended_at`(+utc) | → SegmentResponseUnit \| SegmentResponseLot |
 
 ##### Serial Number & Lot Number Auto-Generation
 

@@ -88,6 +88,14 @@
 | **Material Lot** | A specific received batch of a material with quantity, supplier, expiry date, and status: `available`, `reserved`, `consumed`, `expired`. |
 | **Material Consumption** | A record that a specific quantity of a material lot was consumed by a unit or lot at a specific route step. Enables material traceability. |
 
+### Resource Actuals *(ISA-95 Part 4, Phase 6 Step 6 scaffolds)*
+
+| Term | Definition |
+|---|---|
+| **Material Actual** *(new, scaffold)* | ISA-95 Part 4 record of material actually consumed or produced while executing a Process Segment. Class: `MaterialActual`, table: `material_actuals`. Links to a Segment Response (unit or lot) and optionally a Material Definition / Material Lot. `direction` ∈ {`consumed`, `produced`}. |
+| **Equipment Actual** *(new, scaffold)* | ISA-95 Part 4 record of which equipment actually executed a Process Segment, with time-in / time-out and state snapshot. Class: `EquipmentActual`, table: `equipment_actuals`. |
+| **Personnel Actual** *(new, scaffold)* | ISA-95 Part 4 record of which operator performed a Process Segment. Class: `PersonnelActual`, table: `personnel_actuals`. `person_id` is a bare UUID (AUTH user id); the full ISA-95 Personnel entity is deferred. |
+
 ### Performance
 
 | Term | Definition |
