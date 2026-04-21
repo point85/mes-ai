@@ -3093,8 +3093,16 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 
 ### Where We Stopped
 - Steps 0 and 1 complete.
-- Target DB ready.
-- Awaiting user approval to proceed to Step 2 (optional Personnel/PhysicalAsset scaffolding) or skip to Step 3 (Part 1 physical hierarchy polish).
+- Step 2 skipped (Personnel/PhysicalAsset deferred; `PersonnelActual` in Step 6 will use UUID-string reference only).
+- Step 3 complete — docstring polish in `server/src/mes/core/physical_model/models.py`:
+  - Module docstring: rewrote Part 1 entity list to show the ISA-95 role-based equipment hierarchy (Enterprise → Site → Area → Work Center → Work Unit) and named ProductionLine as a Work Center specialization, WorkCell as a Work Unit specialization. Added `EquipmentMaterial` to the Part 2 list.
+  - `Site` docstring: removed incorrect "ISA-95 Level 2" phrasing (which conflated the automation pyramid with the role-based hierarchy); now says "Site" is the second level of the role-based equipment hierarchy.
+  - `Area` docstring: clarified as third level, contains Work Centers.
+  - `ProductionLine` docstring: explicitly labeled as an ISA-95 Work Center specialization; listed the four ISA-95 Work Center subtypes.
+  - `WorkCell` docstring: removed stale "manual or automated" claim (no `type` field exists); explicitly labeled as an ISA-95 Work Unit specialization; listed the three ISA-95 Work Unit subtypes.
+  - `Equipment` docstring: added cross-reference to Step 7 legacy-column removal (`equipment_type`, `capabilities`).
+- No schema changes, no test impact. Class names and table names unchanged per DICTIONARY.md §5.1.
+- Awaiting user approval to proceed to Step 4 (Part 2 rename: ProcessRoute → OperationsDefinition, RouteStep → ProcessSegment, etc.).
 
 ### To Resume
 Say: *"Resume MES AI project — Phase 6 refactor"*. The AI will read `PROJECT_STATE.json` (`currentPhase: P6`), then `DICTIONARY.md` §5 (the naming contract), then this log entry.

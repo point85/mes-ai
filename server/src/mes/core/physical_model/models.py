@@ -1,18 +1,24 @@
 """
 PHYS-MODEL: SQLAlchemy models for the ISA-95 physical asset hierarchy.
 
-Entities (Part 1 — Physical Hierarchy):
-- Site:           Top-level organizational unit (factory / plant)
-- Area:           Logical grouping within a site (department / shop)
-- ProductionLine: A linear arrangement of work cells within an area
-- WorkCell:       A station where operations are performed (manual or automated)
-- Equipment:      An individual machine or device within a work cell
+Entities (Part 1 — Role-Based Equipment Hierarchy):
+    Enterprise (implicit) → Site → Area → Work Center → Work Unit
+
+- Site:           A single manufacturing facility. Second level of the ISA-95
+                  role-based equipment hierarchy (Enterprise being the first).
+- Area:           A logical grouping within a Site (e.g. department, shop).
+- ProductionLine: A specialization of ISA-95 "Work Center" for discrete / mixed
+                  manufacturing. Contains an ordered set of Work Cells.
+- WorkCell:       A specialization of ISA-95 "Work Unit". A station where one or
+                  more pieces of equipment perform a specific operation.
+- Equipment:      A single machine, tool, or device that resides in a Work Cell.
 
 Entities (Part 2 — Equipment Capability Model):
 - EquipmentClass:              Groups equipment by what they can do (e.g. Filler, Labeler)
 - EquipmentClassProperty:      Typed property definitions for a class
 - EquipmentCapability:         Specific capability declaration for an equipment instance
 - EquipmentCapabilityProperty: Actual property values for a capability
+- EquipmentMaterial:           Equipment × MaterialDefinition setup record (design speed, UoMs, target OEE)
 """
 
 from __future__ import annotations
@@ -30,8 +36,11 @@ import datetime as _dt
 
 class Site(BaseModel):
     """
-    ISA-95 Level 2 — Enterprise Site / Plant.
-    Top of the physical hierarchy. A single MES instance may manage one or more sites.
+    ISA-95 Part 1 — Site.
+
+    Second level of the role-based equipment hierarchy (Enterprise → **Site** →
+    Area → Work Center → Work Unit). Represents a single manufacturing
+    facility / plant. A MES instance may manage one or more Sites.
     """
 
     __tablename__ = "sites"
@@ -57,8 +66,11 @@ class Site(BaseModel):
 
 class Area(BaseModel):
     """
-    ISA-95 — Area within a Site.
-    Represents a logical grouping such as a department, shop, or building wing.
+    ISA-95 Part 1 — Area.
+
+    Third level of the role-based equipment hierarchy. A logical grouping
+    within a Site such as a department, shop, or building wing. Contains one
+    or more Work Centers (here represented by ProductionLine).
     """
 
     __tablename__ = "areas"
@@ -83,8 +95,13 @@ class Area(BaseModel):
 
 class ProductionLine(BaseModel):
     """
-    ISA-95 — Production Line within an Area.
-    A linear arrangement of work cells that process units sequentially.
+    ISA-95 Part 1 — Production Line (a specialization of **Work Center**).
+
+    Fourth level of the role-based equipment hierarchy. An ordered arrangement
+    of Work Cells that process units sequentially. ISA-95 defines four Work
+    Center subtypes (Process Cell, Production Unit, Production Line, Storage
+    Zone); this model uses Production Line as the canonical subtype for
+    discrete and mixed-mode manufacturing.
     """
 
     __tablename__ = "production_lines"
@@ -109,9 +126,12 @@ class ProductionLine(BaseModel):
 
 class WorkCell(BaseModel):
     """
-    ISA-95 — Work Cell within a Production Line.
-    A station where manufacturing operations are performed.
-    Can be manual (human-operated) or automated (machine-driven).
+    ISA-95 Part 1 — Work Cell (a specialization of **Work Unit**).
+
+    Fifth (leaf) level of the role-based equipment hierarchy. A station where
+    manufacturing operations are performed by one or more pieces of Equipment.
+    ISA-95 defines three Work Unit subtypes (Unit, Work Cell, Storage Unit);
+    this model uses Work Cell as the canonical leaf grouping.
     """
 
     __tablename__ = "work_cells"
@@ -137,10 +157,18 @@ class WorkCell(BaseModel):
 
 class Equipment(BaseModel):
     """
-    ISA-95 — Equipment within a Work Cell.
-    An individual machine, tool, or device that performs operations on units.
-    Status is a simplified dispatch-level status; detailed state machine
-    is handled by pluggable equipment_state_model plugins (see D025).
+    ISA-95 Part 1 — Equipment.
+
+    An individual machine, tool, or device residing in a Work Cell that
+    performs operations on units or lots. Classification by function is via
+    ``equipment_class_id`` (ISA-95 Part 2 Equipment Class).
+
+    Detailed runtime state is handled by pluggable equipment_state_model
+    plugins (see decision D025); this model only carries the dispatch-level
+    attributes needed by the core scheduler.
+
+    Legacy columns ``equipment_type`` and ``capabilities`` are scheduled for
+    removal in Step 7 of the ISA-95 refactor (see DICTIONARY.md §5.2).
     """
 
     __tablename__ = "equipment"
