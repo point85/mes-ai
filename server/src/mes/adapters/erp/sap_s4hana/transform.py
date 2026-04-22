@@ -12,7 +12,7 @@ SAP uses German-origin abbreviations for many fields:
   VORNR → Operation/Activity Number
   STLNR → BOM Number
 
-This layer normalizes those into MES ProductionOrderDTO, MaterialDefinitionDTO, etc.
+This layer normalizes those into MES OperationsRequestDTO, MaterialDefinitionDTO, etc.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     RouteStepDTO,
     WorkCellDTO,
 )
@@ -46,9 +46,9 @@ class SAPS4HANATransformLayer(ERPTransformLayer):
 
     # ── Inbound transforms ──────────────────────────────────────────
 
-    def to_production_order(self, erp_data: dict[str, Any]) -> ProductionOrderDTO:
-        """Map SAP production order fields to ProductionOrderDTO."""
-        return ProductionOrderDTO(
+    def to_operations_request(self, erp_data: dict[str, Any]) -> OperationsRequestDTO:
+        """Map SAP production order fields to OperationsRequestDTO."""
+        return OperationsRequestDTO(
             erp_reference=erp_data.get("ManufacturingOrder", erp_data.get("AUFNR", "")),
             product_code=erp_data.get("Material", erp_data.get("MATNR", "")),
             quantity_ordered=int(erp_data.get("TotalQuantity", erp_data.get("GAMNG", 0))),

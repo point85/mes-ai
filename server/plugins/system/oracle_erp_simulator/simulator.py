@@ -29,7 +29,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 from mes.adapters.erp.interfaces import ERPInboundAdapter, ERPOutboundAdapter
@@ -103,7 +103,7 @@ class OracleSimulatorInboundAdapter(ERPInboundAdapter):
 
     async def sync_operations_requests(
         self, since: datetime | None = None,
-    ) -> list[ProductionOrderDTO]:
+    ) -> list[OperationsRequestDTO]:
         await self._simulate_latency()
         self._maybe_fail("sync_operations_requests")
 
@@ -115,7 +115,7 @@ class OracleSimulatorInboundAdapter(ERPInboundAdapter):
                 if (o.get("PlannedStartDate") or "") >= since_iso
             ]
 
-        return [self._transform.to_production_order(o) for o in orders]
+        return [self._transform.to_operations_request(o) for o in orders]
 
     async def sync_materials(
         self, since: datetime | None = None,
@@ -177,7 +177,7 @@ class OracleSimulatorInboundAdapter(ERPInboundAdapter):
                 return True
         return False
 
-    def add_production_order(self, oracle_order: dict) -> None:
+    def add_operations_request(self, oracle_order: dict) -> None:
         """Inject an additional Oracle-format work order into the simulator."""
         self._orders.append(oracle_order)
 

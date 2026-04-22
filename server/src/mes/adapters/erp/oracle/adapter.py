@@ -21,7 +21,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 from mes.adapters.erp.interfaces import ERPInboundAdapter, ERPOutboundAdapter
@@ -63,7 +63,7 @@ class OracleInboundAdapter(ERPInboundAdapter):
 
     async def sync_operations_requests(
         self, since: datetime | None = None,
-    ) -> list[ProductionOrderDTO]:
+    ) -> list[OperationsRequestDTO]:
         """Fetch work orders, optionally filtered by last-updated date."""
         filters = [
             f"OrganizationCode='{oracle_settings.ORACLE_ORGANIZATION_CODE}'",
@@ -75,7 +75,7 @@ class OracleInboundAdapter(ERPInboundAdapter):
             oracle_settings.ORACLE_WORK_ORDER_PATH,
             q_filter=";".join(filters),
         )
-        return [self._transform.to_production_order(o) for o in raw_orders]
+        return [self._transform.to_operations_request(o) for o in raw_orders]
 
     async def sync_materials(
         self, since: datetime | None = None,

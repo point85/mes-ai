@@ -25,7 +25,7 @@ from .dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 from .interfaces import ERPInboundAdapter, ERPOutboundAdapter, ERPTransformLayer
@@ -78,9 +78,9 @@ class MockERPInboundAdapter(ERPInboundAdapter):
 
     async def sync_operations_requests(
         self, since: datetime | None = None,
-    ) -> list[ProductionOrderDTO]:
+    ) -> list[OperationsRequestDTO]:
         data = await self._read_fixture("operations_requests.json")
-        return [self._transform.to_production_order(d) for d in data]
+        return [self._transform.to_operations_request(d) for d in data]
 
     async def sync_materials(
         self, since: datetime | None = None,

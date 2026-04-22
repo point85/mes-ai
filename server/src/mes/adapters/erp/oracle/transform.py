@@ -10,7 +10,7 @@ Oracle Cloud ERP uses CamelCase field names in REST responses:
   WorkCenterName   → Work center
   OperationSequenceNumber → Routing step sequence
 
-This layer normalizes those into MES ProductionOrderDTO, MaterialDefinitionDTO, etc.
+This layer normalizes those into MES OperationsRequestDTO, MaterialDefinitionDTO, etc.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     RouteStepDTO,
     WorkCellDTO,
 )
@@ -44,9 +44,9 @@ class OracleTransformLayer(ERPTransformLayer):
 
     # ── Inbound transforms ──────────────────────────────────────────
 
-    def to_production_order(self, erp_data: dict[str, Any]) -> ProductionOrderDTO:
-        """Map Oracle work order fields to ProductionOrderDTO."""
-        return ProductionOrderDTO(
+    def to_operations_request(self, erp_data: dict[str, Any]) -> OperationsRequestDTO:
+        """Map Oracle work order fields to OperationsRequestDTO."""
+        return OperationsRequestDTO(
             erp_reference=str(erp_data.get("WorkOrderNumber", "")),
             product_code=erp_data.get("ItemNumber", ""),
             quantity_ordered=int(erp_data.get("PlannedQuantity", erp_data.get("Quantity", 0))),

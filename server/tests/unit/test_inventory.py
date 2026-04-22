@@ -354,9 +354,9 @@ class TestActionSchemas:
             from_location_id=uuid.uuid4(),
             to_location_id=uuid.uuid4(),
             quantity=20.0,
-            reference_type="production_order",
+            reference_type="operations_request",
         )
-        assert r.reference_type == "production_order"
+        assert r.reference_type == "operations_request"
 
     def test_pick_request_rejects_invalid_reference_type(self):
         with pytest.raises(ValidationError):

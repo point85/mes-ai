@@ -28,7 +28,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     QualityResultReport,
     RouteStepDTO,
     ScrapReport,
@@ -60,9 +60,9 @@ from mes.adapters.erp.queue import (
 # ═══════════════════════════════════════════════════════════════════
 
 
-class TestProductionOrderDTO:
+class TestOperationsRequestDTO:
     def test_minimal(self):
-        dto = ProductionOrderDTO(
+        dto = OperationsRequestDTO(
             erp_reference="PO-001",
             product_code="WIDGET-A",
             quantity_ordered=100,
@@ -73,7 +73,7 @@ class TestProductionOrderDTO:
 
     def test_full(self):
         now = datetime.now(timezone.utc)
-        dto = ProductionOrderDTO(
+        dto = OperationsRequestDTO(
             erp_reference="PO-002",
             product_code="GADGET-X",
             quantity_ordered=50,
@@ -90,7 +90,7 @@ class TestProductionOrderDTO:
 
     def test_quantity_must_be_positive(self):
         with pytest.raises(ValidationError):
-            ProductionOrderDTO(
+            OperationsRequestDTO(
                 erp_reference="PO-BAD",
                 product_code="X",
                 quantity_ordered=0,
@@ -234,11 +234,11 @@ class TestQualityResultReport:
 
 
 class TestMockERPTransformLayer:
-    def test_passthrough_production_order(self):
+    def test_passthrough_operations_request(self):
         layer = MockERPTransformLayer()
         data = {"erp_reference": "PO-1", "product_code": "W", "quantity_ordered": 10}
-        result = layer.to_production_order(data)
-        assert isinstance(result, ProductionOrderDTO)
+        result = layer.to_operations_request(data)
+        assert isinstance(result, OperationsRequestDTO)
         assert result.erp_reference == "PO-1"
 
     def test_passthrough_material(self):
@@ -266,7 +266,7 @@ class TestMockERPInboundAdapter:
         await adapter.connect()
         orders = await adapter.sync_operations_requests()
         assert len(orders) == 3
-        assert all(isinstance(o, ProductionOrderDTO) for o in orders)
+        assert all(isinstance(o, OperationsRequestDTO) for o in orders)
         assert orders[0].erp_reference == "PO-2026-001"
 
     @pytest.mark.asyncio

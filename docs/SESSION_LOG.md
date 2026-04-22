@@ -3251,3 +3251,45 @@ Say: *"Proceed with Step 9"*. The AI will rename event topic strings (`productio
 
 ### To Resume
 Say: *"Proceed with Step 10"*. The AI will perform the Step 10 plugin-facing API renames per DICTIONARY.md §5.6: rename `operation_hook` parameters `production_order` -> `operations_request`, `route_step` -> `process_segment`, `unit_history` -> `segment_response` in the extension point signatures and any sample/system plugins.
+
+---
+
+## Session S0xx - Step 10: Plugin-facing API parameter renames (Phase 6 / T6.10)
+
+**Phase**: P6 - ISA-95 refactor
+**Objective**: Align plugin-facing identifiers with renamed ORM/schema entities per DICTIONARY.md 5.6. User chose full-cleanup scope (docs + BOMItem column + ProductionOrderDTO + related methods).
+
+### What Happened
+1. No concrete `operation_hook` callables exist in the framework yet, so the canonical parameter mapping from 5.6 is documented for future implementations rather than applied to live code.
+2. Extended the same rename mapping to plugin-adjacent surfaces currently in use:
+   - `ProductionOrderDTO` -> `OperationsRequestDTO` in:
+     - `server/src/mes/adapters/erp/dtos.py` (class definition)
+     - `server/src/mes/adapters/erp/interfaces.py`, `mock_adapter.py`, `inbound_queue.py`
+     - `server/src/mes/adapters/erp/oracle/adapter.py`, `oracle/transform.py`
+     - `server/src/mes/adapters/erp/sap_s4hana/adapter.py`, `sap_s4hana/transform.py`
+     - `server/plugins/system/oracle_erp_simulator/simulator.py`
+     - `server/plugins/system/sap_erp_simulator/simulator.py`
+   - `to_production_order` -> `to_operations_request` (ERPTransformLayer + vendor transforms)
+   - `add_production_order` -> `add_operations_request` (Oracle + SAP ERP simulator plugins)
+   - `BOMItem.route_step_id` -> `BOMItem.process_segment_id` in:
+     - `server/src/mes/core/product_def/models.py` (ORM column)
+     - `server/src/mes/core/product_def/schemas.py` (3 schema fields)
+     - `server/src/mes/core/product_def/service.py` (query filter)
+     - `server/src/mes/core/demo/service.py` (BOM seeding for both electronics + CPG)
+     - TS clients: `run_time/src/types/index.ts`, `erp_simulator/src/api/erp.ts` + `ConsumptionPage.tsx`, `design_time/src/types/productDef.ts` + `ProductDetailPage.tsx`
+   - Inventory reference tag `"production_order"` -> `"operations_request"`:
+     - `server/src/mes/core/inventory/models.py` (column comments)
+     - `server/src/mes/core/inventory/schemas.py` (REFERENCE_TYPES set)
+3. Updated tests: `test_erp_adapters.py`, `test_oracle_adapter.py`, `test_oracle_erp_simulator.py`, `test_sap_erp_simulator.py`, `test_sap_s4hana_adapter.py`, `test_inventory.py` (imports + class names + assertions).
+4. Intentionally left unchanged:
+   - `SAP_PRODUCTION_ORDER_PATH` constant and SAP OData endpoint `/sap/opu/.../api_production_order_2_srv/...` - SAP-native identifiers.
+   - Auth role permission scopes `production.order.*` in `auth/service.py` - 5.9 authentication unchanged.
+5. Updated docs:
+   - `DICTIONARY.md` 5.6 marked Complete with new table of applied renames and "intentionally unchanged" note.
+   - `PROJECT_STATE.json` T6.10 -> `complete`.
+
+### Outcomes
+- `python -m pytest tests` -> **1865 passing**, same 2 pre-existing async-mock failures. Baseline unchanged.
+
+### To Resume
+Say: *"Proceed with Step 11"*. Step 11 is module directory renames per DICTIONARY.md 5.7 (the only actual directory rename planned: `server/src/mes/core/production/` -> already moved to `operations/` in Step 4; the other entries are marked kept). Step 11 will verify there are no lingering `production/` paths or imports and update the Module ID table per 5.8.

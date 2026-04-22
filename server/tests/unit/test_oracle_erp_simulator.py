@@ -22,7 +22,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 
@@ -59,7 +59,7 @@ class TestOracleSimulatorWorkOrders:
         await adapter.connect()
         orders = await adapter.sync_operations_requests()
         assert len(orders) == 5
-        assert all(isinstance(o, ProductionOrderDTO) for o in orders)
+        assert all(isinstance(o, OperationsRequestDTO) for o in orders)
 
     @pytest.mark.asyncio
     async def test_order_field_mapping(self, adapter):
@@ -104,7 +104,7 @@ class TestOracleSimulatorWorkOrders:
     @pytest.mark.asyncio
     async def test_add_work_order(self, adapter):
         await adapter.connect()
-        adapter.add_production_order({
+        adapter.add_operations_request({
             "WorkOrderNumber": "WO-TEST-999",
             "ItemNumber": "FG-WIDGET-100",
             "PlannedQuantity": 10,
@@ -424,7 +424,7 @@ class TestOracleSimulatorInboundLifecycle:
         a2 = _make_inbound()
         await a1.connect()
         await a2.connect()
-        a1.add_production_order({
+        a1.add_operations_request({
             "WorkOrderNumber": "WO-TEST-999",
             "ItemNumber": "X",
             "PlannedQuantity": 1,

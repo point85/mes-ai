@@ -24,7 +24,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 from mes.adapters.erp.sap_s4hana.config import SAPSettings
@@ -65,8 +65,8 @@ class TestSAPTransformProductionOrder:
             "MfgOrderStatus": "REL",
             "MRPController": "001",
         }
-        dto = self.tf.to_production_order(sap_data)
-        assert isinstance(dto, ProductionOrderDTO)
+        dto = self.tf.to_operations_request(sap_data)
+        assert isinstance(dto, OperationsRequestDTO)
         assert dto.erp_reference == "000001234567"
         assert dto.product_code == "FG-WIDGET-100"
         assert dto.quantity_ordered == 100
@@ -88,7 +88,7 @@ class TestSAPTransformProductionOrder:
             "WERKS": "2000",
             "AUART": "PP02",
         }
-        dto = self.tf.to_production_order(sap_data)
+        dto = self.tf.to_operations_request(sap_data)
         assert dto.erp_reference == "000009999999"
         assert dto.product_code == "RAW-STEEL-50"
         assert dto.quantity_ordered == 500
@@ -102,7 +102,7 @@ class TestSAPTransformProductionOrder:
             "Material": "MAT-A",
             "TotalQuantity": "10",
         }
-        dto = self.tf.to_production_order(sap_data)
+        dto = self.tf.to_operations_request(sap_data)
         # SAP default priority is "2" (High → 700)
         assert dto.priority == 700
 

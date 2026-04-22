@@ -21,7 +21,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 
@@ -58,7 +58,7 @@ class TestSAPSimulatorProductionOrders:
         await adapter.connect()
         orders = await adapter.sync_operations_requests()
         assert len(orders) == 5
-        assert all(isinstance(o, ProductionOrderDTO) for o in orders)
+        assert all(isinstance(o, OperationsRequestDTO) for o in orders)
 
     @pytest.mark.asyncio
     async def test_order_field_mapping(self, adapter):
@@ -102,9 +102,9 @@ class TestSAPSimulatorProductionOrders:
         assert orders[0].erp_reference == "000001000301"
 
     @pytest.mark.asyncio
-    async def test_add_production_order(self, adapter):
+    async def test_add_operations_request(self, adapter):
         await adapter.connect()
-        adapter.add_production_order({
+        adapter.add_operations_request({
             "ManufacturingOrder": "000009999999",
             "Material": "FG-WIDGET-100",
             "TotalQuantity": "10",
@@ -428,7 +428,7 @@ class TestSAPSimulatorInboundLifecycle:
         a2 = _make_inbound()
         await a1.connect()
         await a2.connect()
-        a1.add_production_order({
+        a1.add_operations_request({
             "ManufacturingOrder": "000099999999",
             "Material": "X",
             "TotalQuantity": "1",

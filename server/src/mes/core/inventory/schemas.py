@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 
 LOCATION_TYPES = {"receiving", "storage", "rip", "staging", "shipping"}
 TRANSACTION_TYPES = {"receive", "putaway", "pick", "move", "consume", "adjust"}
-REFERENCE_TYPES = {"production_order", "unit", "lot"}
+REFERENCE_TYPES = {"operations_request", "unit", "lot"}
 
 
 # ═══════════════════════════════════════════════════════════════════

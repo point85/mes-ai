@@ -22,7 +22,7 @@ from .dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 
@@ -53,7 +53,7 @@ class ERPInboundAdapter(ABC):
     @abstractmethod
     async def sync_operations_requests(
         self, since: datetime | None = None,
-    ) -> list[ProductionOrderDTO]:
+    ) -> list[OperationsRequestDTO]:
         """Fetch new or changed production orders from ERP."""
         ...
 
@@ -188,9 +188,9 @@ class ERPTransformLayer:
     The base implementation is a pass-through (mock/testing).
     """
 
-    def to_production_order(self, erp_data: dict[str, Any]) -> ProductionOrderDTO:
-        """Transform raw ERP data into a ProductionOrderDTO."""
-        return ProductionOrderDTO(**erp_data)
+    def to_operations_request(self, erp_data: dict[str, Any]) -> OperationsRequestDTO:
+        """Transform raw ERP data into a OperationsRequestDTO."""
+        return OperationsRequestDTO(**erp_data)
 
     def from_completion(self, report: CompletionReport) -> dict[str, Any]:
         """Transform a CompletionReport into ERP-specific format."""

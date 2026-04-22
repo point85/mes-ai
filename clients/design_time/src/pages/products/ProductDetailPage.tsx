@@ -88,13 +88,13 @@ export default function ProductDetailPage() {
   const { data: dispResp } = useDispositions();
   const dispMap = new Map((dispResp?.data ?? []).map((d) => [d.id, d]));
 
-  // Group BOM items by route_step_id for quick lookup
+  // Group BOM items by process_segment_id for quick lookup
   const stepMaterialsMap = new Map<string, BOMItem[]>();
   for (const item of bomItems) {
-    if (item.route_step_id) {
-      const list = stepMaterialsMap.get(item.route_step_id) ?? [];
+    if (item.process_segment_id) {
+      const list = stepMaterialsMap.get(item.process_segment_id) ?? [];
       list.push(item);
-      stepMaterialsMap.set(item.route_step_id, list);
+      stepMaterialsMap.set(item.process_segment_id, list);
     }
   }
 

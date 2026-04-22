@@ -21,7 +21,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 from mes.adapters.erp.interfaces import ERPInboundAdapter, ERPOutboundAdapter
@@ -63,7 +63,7 @@ class SAPS4HANAInboundAdapter(ERPInboundAdapter):
 
     async def sync_operations_requests(
         self, since: datetime | None = None,
-    ) -> list[ProductionOrderDTO]:
+    ) -> list[OperationsRequestDTO]:
         """Fetch production orders, optionally filtered by last-changed date."""
         filter_expr = None
         if since:
@@ -80,7 +80,7 @@ class SAPS4HANAInboundAdapter(ERPInboundAdapter):
             sap_settings.SAP_PRODUCTION_ORDER_PATH + "/OperationsRequest",
             filter_expr=filter_expr,
         )
-        return [self._transform.to_production_order(o) for o in raw_orders]
+        return [self._transform.to_operations_request(o) for o in raw_orders]
 
     async def sync_materials(
         self, since: datetime | None = None,

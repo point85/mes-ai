@@ -456,16 +456,28 @@ Event `source` field updated from `"production"` → `"operations"` in all opera
 
 Unchanged topic prefixes: `wip.*`, `dispatch.*`, `quality.*`, `equipment.*`, `material.*`, `uom.*`, `plugin.*`.
 
-### 5.6 Plugin-facing API changes (Step 10)
+### 5.6 Plugin-facing API changes (Step 10) — **Complete ✓**
 
 Extension point `dispatch_strategy`: no signature change (still operates on `Unit`/`Lot` and a candidate `Equipment` list).
 
-Extension point `operation_hook`: parameter renames only.
+Extension point `operation_hook`: canonical parameter-name mapping for when concrete `operation_hook` callables are wired (no concrete hook implementations exist yet in the framework; this mapping fixes the terminology for future hooks).
 - `production_order` → `operations_request`
 - `route_step` → `process_segment`
 - `unit_history` → `segment_response`
 
 `MESPlugin` base class: no change.
+
+**Additional consistency renames applied in Step 10** (not strictly extension-point params, but same rename mapping applied to currently-existing plugin-adjacent code surfaces):
+
+| Previous name | New name | Location |
+|---|---|---|
+| `ProductionOrderDTO` | `OperationsRequestDTO` | `server/src/mes/adapters/erp/dtos.py` (+ all ERP adapters/simulators) |
+| `to_production_order` | `to_operations_request` | `ERPTransformLayer` + `Oracle`/`SAP` transforms |
+| `add_production_order` | `add_operations_request` | Oracle/SAP ERP simulator plugins |
+| `BOMItem.route_step_id` | `BOMItem.process_segment_id` | ORM column + schemas + service + demo + 3 TS clients |
+| `reference_type="production_order"` | `reference_type="operations_request"` | Inventory movement tag |
+
+**Intentionally unchanged**: `SAP_PRODUCTION_ORDER_PATH` and the SAP OData endpoint path `/sap/opu/.../api_production_order_2_srv/...` in `sap_s4hana/config.py` — these are SAP-native identifiers. Auth role permission scopes `production.order.*` in `framework/auth/service.py` — §5.9 authentication unchanged.
 
 ### 5.7 Module directory renames
 

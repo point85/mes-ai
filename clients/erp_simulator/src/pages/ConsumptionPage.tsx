@@ -159,7 +159,7 @@ export default function ConsumptionPage() {
               >
                 <option value="">— pick a material —</option>
                 {bomItems.map((item) => {
-                  const step = item.route_step_id ? stepMap.get(item.route_step_id) : null;
+                  const step = item.process_segment_id ? stepMap.get(item.process_segment_id) : null;
                   return (
                     <option key={item.id} value={item.id}>
                       {item.material_code} — {item.quantity} {item.uom}

@@ -29,7 +29,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 from mes.adapters.erp.interfaces import ERPInboundAdapter, ERPOutboundAdapter
@@ -106,7 +106,7 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
 
     async def sync_operations_requests(
         self, since: datetime | None = None,
-    ) -> list[ProductionOrderDTO]:
+    ) -> list[OperationsRequestDTO]:
         await self._simulate_latency()
         self._maybe_fail("sync_operations_requests")
 
@@ -118,7 +118,7 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
                 if (o.get("MfgOrderPlannedStartDate") or "") >= since_iso
             ]
 
-        return [self._transform.to_production_order(o) for o in orders]
+        return [self._transform.to_operations_request(o) for o in orders]
 
     async def sync_materials(
         self, since: datetime | None = None,
@@ -153,7 +153,7 @@ class SAPSimulatorInboundAdapter(ERPInboundAdapter):
 
     # ── Data mutation helpers (for test setup and simulator GUI) ──
 
-    def add_production_order(self, sap_order: dict) -> None:
+    def add_operations_request(self, sap_order: dict) -> None:
         """Inject an additional SAP-format order into the simulator."""
         self._orders.append(sap_order)
 

@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 # ── Inbound DTOs (ERP → MES) ──────────────────────────────────────────────
 
-class ProductionOrderDTO(BaseModel):
+class OperationsRequestDTO(BaseModel):
     """Production order received from ERP."""
 
     erp_reference: str = Field(..., description="ERP-native order identifier")

@@ -25,7 +25,7 @@ from mes.adapters.erp.dtos import (
     MaterialDefinitionDTO,
     ProcessRouteDTO,
     ProductDefinitionDTO,
-    ProductionOrderDTO,
+    OperationsRequestDTO,
     WorkCellDTO,
 )
 from mes.adapters.erp.oracle.config import OracleSettings
@@ -67,8 +67,8 @@ class TestOracleTransformProductionOrder:
             "WorkOrderStatusCode": "Released",
             "WorkOrderId": 12345,
         }
-        dto = self.tf.to_production_order(oracle_data)
-        assert isinstance(dto, ProductionOrderDTO)
+        dto = self.tf.to_operations_request(oracle_data)
+        assert isinstance(dto, OperationsRequestDTO)
         assert dto.erp_reference == "WO-100001"
         assert dto.product_code == "FG-WIDGET-100"
         assert dto.quantity_ordered == 100
@@ -87,7 +87,7 @@ class TestOracleTransformProductionOrder:
             "UOMCode": "KG",
             "OrganizationCode": "M2",
         }
-        dto = self.tf.to_production_order(oracle_data)
+        dto = self.tf.to_operations_request(oracle_data)
         assert dto.erp_reference == "WO-200001"
         assert dto.product_code == "RAW-STEEL-50"
         assert dto.quantity_ordered == 500
@@ -101,7 +101,7 @@ class TestOracleTransformProductionOrder:
             "ItemNumber": "MAT-A",
             "PlannedQuantity": 10,
         }
-        dto = self.tf.to_production_order(oracle_data)
+        dto = self.tf.to_operations_request(oracle_data)
         assert dto.priority == 500  # None priority → 500
 
 

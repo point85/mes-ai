@@ -11,7 +11,7 @@ depending on the concrete ``OrderProcessor`` implementation.
 Architecture
 ────────────
 1. **Persist** — ``ERPInboundQueueService.enqueue()`` stores the raw
-   ``ProductionOrderDTO`` as a JSON payload with status ``pending``.
+   ``OperationsRequestDTO`` as a JSON payload with status ``pending``.
 2. **Process** — ``ERPInboundQueueService.process_queue()`` selects a
    batch of ``pending``/``retry`` rows and delegates each to the active
    ``OrderProcessor``.
@@ -71,7 +71,7 @@ class ERPInboundOrder(BaseModel):
 
     erp_reference: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True,
-        comment="ERP-native order identifier (from ProductionOrderDTO)",
+        comment="ERP-native order identifier (from OperationsRequestDTO)",
     )
     product_code: Mapped[str] = mapped_column(
         String(100), nullable=False,
@@ -79,7 +79,7 @@ class ERPInboundOrder(BaseModel):
     )
     payload: Mapped[str] = mapped_column(
         Text, nullable=False,
-        comment="Full ProductionOrderDTO serialized as JSON",
+        comment="Full OperationsRequestDTO serialized as JSON",
     )
     status: Mapped[str] = mapped_column(
         String(20), default="pending", nullable=False, index=True,
@@ -243,7 +243,7 @@ class OrderProcessor(ABC):
 
         Args:
             session: Active SQLAlchemy async session (caller manages commit).
-            payload: Deserialized ProductionOrderDTO dict.
+            payload: Deserialized OperationsRequestDTO dict.
 
         Returns:
             ProcessorResult with the created order ID and optional WIP IDs.
@@ -300,7 +300,7 @@ class ERPInboundQueueService:
 
         Args:
             session: Active DB session (caller manages commit).
-            payload: ProductionOrderDTO dict.
+            payload: OperationsRequestDTO dict.
             max_attempts: Max processing attempts.
 
         Returns:

@@ -129,18 +129,18 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
         if created:
             summary["process_segments"] += 1
 
-    # ── 5. BOM (with route_step_id links) ─────────────────────────────
+    # ── 5. BOM (with process_segment_id links) ─────────────────────────────
     bom, bom_created = await _get_or_create_bom(session, product.id, version="1.0")
     if bom_created:
         for item in D.BOM_ITEMS:
             item_kwargs = {k: v for k, v in item.items() if k != "step_sequence"}
             step_seq = item.get("step_sequence")
             if step_seq and step_seq in step_by_seq:
-                item_kwargs["route_step_id"] = step_by_seq[step_seq].id
+                item_kwargs["process_segment_id"] = step_by_seq[step_seq].id
             await ProductDefService.create_bom_item(session, bom.id, **item_kwargs)
             summary["bom_items"] += 1
     else:
-        # Patch existing BOM items that are missing route_step_id
+        # Patch existing BOM items that are missing process_segment_id
         result = await session.execute(
             select(BOMItem).where(BOMItem.bom_id == bom.id, BOMItem.is_active.is_(True))
         )
@@ -148,8 +148,8 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
         for item in D.BOM_ITEMS:
             bi = existing_items.get(item["material_code"])
             step_seq = item.get("step_sequence")
-            if bi and step_seq and step_seq in step_by_seq and bi.route_step_id is None:
-                bi.route_step_id = step_by_seq[step_seq].id
+            if bi and step_seq and step_seq in step_by_seq and bi.process_segment_id is None:
+                bi.process_segment_id = step_by_seq[step_seq].id
 
     # ── 6. Transitions ────────────────────────────────────────────────
     if route_created:
@@ -381,18 +381,18 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
         if created:
             summary["process_segments"] += 1
 
-    # ── 5. BOM (with route_step_id links) ─────────────────────────────
+    # ── 5. BOM (with process_segment_id links) ─────────────────────────────
     bom, bom_created = await _get_or_create_bom(session, product.id, version="1.0")
     if bom_created:
         for item in E.BOM_ITEMS:
             item_kwargs = {k: v for k, v in item.items() if k != "step_sequence"}
             step_seq = item.get("step_sequence")
             if step_seq and step_seq in step_by_seq:
-                item_kwargs["route_step_id"] = step_by_seq[step_seq].id
+                item_kwargs["process_segment_id"] = step_by_seq[step_seq].id
             await ProductDefService.create_bom_item(session, bom.id, **item_kwargs)
             summary["bom_items"] += 1
     else:
-        # Patch existing BOM items that are missing route_step_id
+        # Patch existing BOM items that are missing process_segment_id
         result = await session.execute(
             select(BOMItem).where(BOMItem.bom_id == bom.id, BOMItem.is_active.is_(True))
         )
@@ -400,8 +400,8 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
         for item in E.BOM_ITEMS:
             bi = existing_items.get(item["material_code"])
             step_seq = item.get("step_sequence")
-            if bi and step_seq and step_seq in step_by_seq and bi.route_step_id is None:
-                bi.route_step_id = step_by_seq[step_seq].id
+            if bi and step_seq and step_seq in step_by_seq and bi.process_segment_id is None:
+                bi.process_segment_id = step_by_seq[step_seq].id
 
     # ── 6. Transitions ────────────────────────────────────────────────
     if route_created:

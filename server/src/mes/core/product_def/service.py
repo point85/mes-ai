@@ -377,7 +377,7 @@ class ProductDefService:
         """Return BOM items linked to a specific route step."""
         stmt = (
             select(BOMItem)
-            .where(BOMItem.route_step_id == step_id, BOMItem.is_active.is_(True))
+            .where(BOMItem.process_segment_id == step_id, BOMItem.is_active.is_(True))
             .order_by(BOMItem.position)
         )
         result = await session.execute(stmt)

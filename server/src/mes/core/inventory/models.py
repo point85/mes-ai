@@ -172,11 +172,11 @@ class InventoryTransaction(BaseModel):
     )
     reference_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, nullable=True,
-        comment="Optional FK to production_order, unit, or lot for traceability",
+        comment="Optional FK to operations_request, unit, or lot for traceability",
     )
     reference_type: Mapped[str | None] = mapped_column(
         String(30), nullable=True,
-        comment="Type of reference: production_order, unit, lot",
+        comment="Type of reference: operations_request, unit, lot",
     )
     reason: Mapped[str | None] = mapped_column(
         String(255), nullable=True,
