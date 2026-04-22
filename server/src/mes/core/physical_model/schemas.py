@@ -409,6 +409,7 @@ class EquipmentCapabilityPropertyRead(BaseModel):
     capability_id: UUID
     class_property_id: UUID
     property_name: str | None = None
+    uom_id: UUID | None = None
     value: str
     is_active: bool
     created_at: datetime

@@ -482,6 +482,12 @@ class EquipmentCapabilityProperty(BaseModel):
         requiring callers to resolve the class_property_id separately."""
         return self.class_property.name if self.class_property is not None else None
 
+    @property
+    def uom_id(self) -> uuid.UUID | None:
+        """Convenience accessor exposing the related class property's UoM id
+        (populated via selectin load) so API schemas can surface it."""
+        return self.class_property.uom_id if self.class_property is not None else None
+
     def __repr__(self) -> str:
         return (
             f"<EquipmentCapabilityProperty id={self.id} "

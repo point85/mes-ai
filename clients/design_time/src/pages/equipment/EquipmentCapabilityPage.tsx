@@ -35,11 +35,10 @@ export default function EquipmentCapabilityPage() {
   const capabilities: EquipmentCapabilityRead[] = data?.data ?? [];
   const equipmentClasses = classesResp?.data ?? [];
 
-  // Hide capabilities whose end_time is already in the past.
+  // Show all capabilities; flag ones whose end_time is already in the past.
   const now = Date.now();
-  const visibleCapabilities = capabilities.filter(
-    (c) => !c.end_time || new Date(c.end_time).getTime() > now,
-  );
+  const isExpired = (c: EquipmentCapabilityRead): boolean =>
+    !!c.end_time && new Date(c.end_time).getTime() <= now;
 
   // ─── New/Edit capability form state ───────────────────────────────
   const [showForm, setShowForm] = useState(false);
@@ -355,17 +354,23 @@ export default function EquipmentCapabilityPage() {
       )}
 
       {/* Capability cards */}
-      {!isLoading && !error && visibleCapabilities.length === 0 && !showForm && (
+      {!isLoading && !error && capabilities.length === 0 && !showForm && (
         <p className="text-sm text-gray-400 text-center py-8">
           No capabilities declared. Click "Add Capability" to define one.
         </p>
       )}
 
       <div className="space-y-4">
-        {visibleCapabilities.map((cap) => (
+        {capabilities.map((cap) => {
+          const expired = isExpired(cap);
+          return (
           <div
             key={cap.id}
-            className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+            className={`rounded-lg border p-4 shadow-sm ${
+              expired
+                ? "border-gray-300 bg-gray-50 opacity-75"
+                : "border-gray-200 bg-white"
+            }`}
           >
             <div className="flex items-start justify-between">
               <div className="space-y-1">
@@ -381,6 +386,11 @@ export default function EquipmentCapabilityPage() {
                   >
                     {cap.capability_type}
                   </span>
+                  {expired && (
+                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-amber-300">
+                      Expired
+                    </span>
+                  )}
                   {cap.equipment_class_id && (
                     <span className="text-sm text-gray-600">
                       {classMap.get(cap.equipment_class_id) ?? cap.equipment_class_id}
@@ -427,20 +437,27 @@ export default function EquipmentCapabilityPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {cap.properties.map((p) => (
-                      <tr key={p.id}>
-                        <td className="py-1 pr-4 text-gray-700 font-mono">
-                          {p.property_name ?? p.class_property_id}
-                        </td>
-                        <td className="py-1 text-gray-900">{p.value}</td>
-                      </tr>
-                    ))}
+                    {cap.properties.map((p) => {
+                      const uom = p.uom_id ? uomMap.get(p.uom_id) : "";
+                      return (
+                        <tr key={p.id}>
+                          <td className="py-1 pr-4 text-gray-700 font-mono">
+                            {p.property_name ?? p.class_property_id}
+                          </td>
+                          <td className="py-1 text-gray-900">
+                            {p.value}
+                            {uom && <span className="ml-1 text-gray-500">{uom}</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

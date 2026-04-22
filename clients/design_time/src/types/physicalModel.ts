@@ -245,6 +245,7 @@ export interface EquipmentCapabilityPropertyRead {
   capability_id: string;
   class_property_id: string;
   property_name: string | null;
+  uom_id: string | null;
   value: string;
   is_active: boolean;
   created_at: string;

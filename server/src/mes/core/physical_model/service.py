@@ -896,8 +896,10 @@ class PhysicalModelService:
                 )
                 session.add(prop)
             await session.flush()
-            # Reload to get properties
-            cap = await PhysicalModelService.get_capability(session, cap.id)
+
+        # Always reload so the `properties` relationship is eagerly loaded
+        # (Pydantic would otherwise trigger a lazy-load on the async session).
+        cap = await PhysicalModelService.get_capability(session, cap.id)
 
         logger.info("Created capability %s for equipment %s", cap.id, equip_id)
         return cap
@@ -921,7 +923,8 @@ class PhysicalModelService:
             exclude_id=cap.id,
         )
         await session.flush()
-        return cap
+        # Reload with properties eagerly loaded for serialization.
+        return await PhysicalModelService.get_capability(session, cap.id)
 
     @staticmethod
     async def delete_capability(
