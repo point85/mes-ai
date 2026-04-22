@@ -400,3 +400,111 @@ MATERIAL_STORAGE_MAP: dict[str, str] = {
     "PKG-LABEL":     "SB-WH-B01",
     "PKG-CASE":      "SB-WH-B01",
 }
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: Process Segment → Equipment Class (dispatch constraint)
+# ---------------------------------------------------------------------------
+# Each process segment declares what class of equipment it needs; the
+# dispatcher uses this to narrow the candidate set before applying
+# SegmentEquipmentRequirement preferences below.
+
+STEP_EQUIPMENT_CLASS: dict[int, str] = {
+    10: "MIXER",        # Blending
+    20: "PASTEURIZER",  # Pasteurization
+    30: "ANALYZER",     # Quality Testing
+    40: "FILLER",       # Filling & Capping
+    50: "LABELER",      # Labeling & Packing
+    60: "TANK",         # Re-Blend (Rework)
+    70: "ANALYZER",     # MRB Review (lab bench)
+}
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: Segment Equipment Requirements
+# ---------------------------------------------------------------------------
+# Specific-equipment preferences that augment the class-level constraint above.
+# use_type: "required" | "preferred" | "alternate"
+
+SEGMENT_EQUIPMENT_REQUIREMENTS: list[dict] = [
+    # Blending — only one mixer
+    {"step_sequence": 10, "equipment_code": "TM-100",  "use_type": "required",  "description": "Primary blending mixer"},
+    # Pasteurization — only one pasteurizer
+    {"step_sequence": 20, "equipment_code": "PS-200",  "use_type": "required",  "description": "HTST pasteurizer"},
+    # QC — analytical bench
+    {"step_sequence": 30, "equipment_code": "QC-300",  "use_type": "required",  "description": "Lab analyzer"},
+    # Filling — dual fillers for load balancing
+    {"step_sequence": 40, "equipment_code": "FL-400A", "use_type": "preferred", "description": "Primary filler"},
+    {"step_sequence": 40, "equipment_code": "FL-400B", "use_type": "alternate", "description": "Secondary filler (load balancing)"},
+    # Labeling / Packing
+    {"step_sequence": 50, "equipment_code": "LP-500",  "use_type": "required",  "description": "Labeler / case packer"},
+    # Rework
+    {"step_sequence": 60, "equipment_code": "RW-600",  "use_type": "required",  "description": "Adjustment / rework tank"},
+    # MRB — reuses the QC analyzer
+    {"step_sequence": 70, "equipment_code": "QC-300",  "use_type": "preferred", "description": "MRB review at QC bench"},
+]
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: Segment Material Requirements
+# ---------------------------------------------------------------------------
+# Declarative per-segment consumed/produced materials.  Complements the
+# product-specific BillOfMaterial (BOMItem) by describing the segment's
+# material behavior independent of any particular product.
+
+SEGMENT_MATERIAL_REQUIREMENTS: list[dict] = [
+    # 10 — Blending: consume raws, produce blended juice
+    {"step_sequence": 10, "material_code": "RM-OJ-CONC",    "quantity": 200.0,  "uom": "kg", "material_use": "consumed", "position": 10, "description": "Orange juice concentrate"},
+    {"step_sequence": 10, "material_code": "RM-WATER",      "quantity": 800.0,  "uom": "L",  "material_use": "consumed", "position": 20, "description": "Purified water"},
+    {"step_sequence": 10, "material_code": "RM-SUGAR",      "quantity": 50.0,   "uom": "kg", "material_use": "consumed", "position": 30, "description": "Cane sugar"},
+    {"step_sequence": 10, "material_code": "RM-CITRIC",     "quantity": 2.0,    "uom": "kg", "material_use": "consumed", "position": 40, "description": "Citric acid"},
+    {"step_sequence": 10, "material_code": "RM-VITC",       "quantity": 0.5,    "uom": "kg", "material_use": "consumed", "position": 50, "description": "Vitamin C powder"},
+    {"step_sequence": 10, "material_code": "SF-JUICE-BLEND","quantity": 1000.0, "uom": "L",  "material_use": "produced", "position": 60, "description": "Blended juice (batch output)"},
+    # 20 — Pasteurization: heat-treated but same material; no consume/produce needed
+    # 40 — Filling & Capping
+    {"step_sequence": 40, "material_code": "SF-JUICE-BLEND","quantity": 1000.0, "uom": "L",  "material_use": "consumed", "position": 10, "description": "Blended juice input"},
+    {"step_sequence": 40, "material_code": "PKG-BOTTLE-1L", "quantity": 1000.0, "uom": "EA", "material_use": "consumed", "position": 20, "description": "1 L PET bottles"},
+    {"step_sequence": 40, "material_code": "PKG-CAP",       "quantity": 1000.0, "uom": "EA", "material_use": "consumed", "position": 30, "description": "Bottle caps"},
+    # 50 — Labeling & Packing: produces the finished good
+    {"step_sequence": 50, "material_code": "PKG-LABEL",     "quantity": 1000.0, "uom": "EA", "material_use": "consumed", "position": 10, "description": "Product labels"},
+    {"step_sequence": 50, "material_code": "PKG-CASE",      "quantity": 84.0,   "uom": "EA", "material_use": "consumed", "position": 20, "description": "Shipping cases (12-pack)"},
+    {"step_sequence": 50, "material_code": "FG-OJ-1L",      "quantity": 1000.0, "uom": "EA", "material_use": "produced", "position": 30, "description": "Finished Premium Orange Juice 1 L"},
+]
+
+# ---------------------------------------------------------------------------
+# OperationsDefinition ↔ Material assignments (route-level raw materials)
+# ---------------------------------------------------------------------------
+# Declares every material referenced anywhere in the bottling route.  Lets
+# the ERP/MES see the full raw-material list for a route at a glance.
+
+ROUTE_MATERIAL_ASSIGNMENTS: list[str] = [
+    "RM-OJ-CONC", "RM-WATER", "RM-SUGAR", "RM-CITRIC", "RM-VITC",
+    "SF-JUICE-BLEND",
+    "PKG-BOTTLE-1L", "PKG-CAP", "PKG-LABEL", "PKG-CASE",
+    "FG-OJ-1L",
+]
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: Equipment Capabilities (declared capability of each instance)
+# ---------------------------------------------------------------------------
+# Each capability entry is:
+#   equipment_code           → equipment instance
+#   equipment_class_code     → what class of work this declares capability for
+#   capability_type          → available | committed | unattainable
+#   reason                   → free-text status line
+#   properties (optional)    → list of {"property_name", "value"} pairs.
+#                              property_name must match an EquipmentClassProperty
+#                              name defined above; seed code looks up the
+#                              class_property_id at insert time.
+
+EQUIPMENT_CAPABILITIES: list[dict] = [
+    {"equipment_code": "TM-100",  "equipment_class_code": "MIXER",       "capability_type": "available", "reason": "Nominal",
+     "properties": [{"property_name": "max_volume_l", "value": "1500"}, {"property_name": "max_rpm", "value": "250"}]},
+    {"equipment_code": "PS-200",  "equipment_class_code": "PASTEURIZER", "capability_type": "available", "reason": "Nominal",
+     "properties": [{"property_name": "max_temp_c", "value": "85"}, {"property_name": "hold_time_s", "value": "15"}]},
+    {"equipment_code": "QC-300",  "equipment_class_code": "ANALYZER",    "capability_type": "available", "reason": "Nominal"},
+    {"equipment_code": "FL-400A", "equipment_class_code": "FILLER",      "capability_type": "available", "reason": "Nominal",
+     "properties": [{"property_name": "max_fill_rate", "value": "300"}, {"property_name": "min_fill_vol_ml", "value": "200"}]},
+    {"equipment_code": "FL-400B", "equipment_class_code": "FILLER",      "capability_type": "available", "reason": "Nominal",
+     "properties": [{"property_name": "max_fill_rate", "value": "300"}, {"property_name": "min_fill_vol_ml", "value": "200"}]},
+    {"equipment_code": "LP-500",  "equipment_class_code": "LABELER",     "capability_type": "available", "reason": "Nominal",
+     "properties": [{"property_name": "max_label_rate", "value": "350"}]},
+    {"equipment_code": "RW-600",  "equipment_class_code": "TANK",        "capability_type": "available", "reason": "Adjustment tank"},
+]

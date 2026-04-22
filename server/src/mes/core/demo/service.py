@@ -69,7 +69,14 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                                 "process_segments": 0, "transitions": 0,
                                 "segment_parameters": 0, "data_definitions": 0,
                                 "quality_tests": 0, "material_lots": 0,
-                                "dispositions": 0}
+                                "dispositions": 0,
+                                "segment_material_requirements": 0,
+                                "route_material_assignments": 0}
+
+    # ── 0. Ensure demo-specific UOMs exist (°Bx, pH, CFU/mL, ...) ───
+    # Must run BEFORE materials — MaterialDefinition.uom has an FK to
+    # units_of_measure.symbol.
+    await _ensure_demo_uoms(session)
 
     # ── 1. Materials ──────────────────────────────────────────────────
     mat_ids: dict[str, UUID] = {}
@@ -166,9 +173,6 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
             )
             summary["transitions"] += 1
 
-    # ── 6b. Ensure demo-specific UOMs exist ─────────────────────────
-    await _ensure_demo_uoms(session)
-
     # ── 7. Step Parameters ────────────────────────────────────────────
     if route_created:
         for seq, params in D.STEP_PARAMS.items():
@@ -194,6 +198,36 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
         session, code=qt_code, step_id=qc_step.id, **qt_kwargs,
     ):
         summary["quality_tests"] += 1
+
+    # ── 10. Segment Material Requirements (ISA-95 Part 2) ─────────────
+    if hasattr(D, "SEGMENT_MATERIAL_REQUIREMENTS"):
+        for req in D.SEGMENT_MATERIAL_REQUIREMENTS:
+            step = step_by_seq.get(req["step_sequence"])
+            mat_id = mat_ids.get(req["material_code"])
+            if step is None or mat_id is None:
+                continue
+            if await _get_or_create_segment_material_requirement(
+                session,
+                step_id=step.id,
+                material_id=mat_id,
+                quantity=req["quantity"],
+                uom=req["uom"],
+                material_use=req["material_use"],
+                position=req.get("position", 0),
+                description=req.get("description"),
+            ):
+                summary["segment_material_requirements"] += 1
+
+    # ── 11. OperationsDefinition ↔ Material assignments ───────────────
+    if hasattr(D, "ROUTE_MATERIAL_ASSIGNMENTS"):
+        for code in D.ROUTE_MATERIAL_ASSIGNMENTS:
+            mat_id = mat_ids.get(code)
+            if mat_id is None:
+                continue
+            if await _get_or_create_route_material_assignment(
+                session, route_id=route.id, material_id=mat_id,
+            ):
+                summary["route_material_assignments"] += 1
 
     await session.commit()
     logger.info("CPG ERP demo data seeded: %s", summary)
@@ -268,6 +302,64 @@ async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
     # ── 4b. Equipment Classes (ISA-95 Part 2) ─────────────────────────
     ec_counts = await _seed_equipment_classes(session, D, equip_map)
     summary.update(ec_counts)
+
+    # Reload class_map (codes → ids) — needed for segment linking below
+    class_map = await _equipment_class_id_map(session)
+
+    # ── 4c. Back-fill ProcessSegment.equipment_class_id ───────────────
+    summary["segment_equipment_class_assignments"] = 0
+    if hasattr(D, "STEP_EQUIPMENT_CLASS"):
+        summary["segment_equipment_class_assignments"] = (
+            await _assign_segment_equipment_classes(
+                session,
+                route_name=D.ROUTE_NAME,
+                step_class_map=D.STEP_EQUIPMENT_CLASS,
+                class_id_map=class_map,
+            )
+        )
+
+    # ── 4d. Segment Equipment Requirements ────────────────────────────
+    summary["segment_equipment_requirements"] = 0
+    if hasattr(D, "SEGMENT_EQUIPMENT_REQUIREMENTS"):
+        step_by_seq = await _segments_by_sequence(session, D.ROUTE_NAME)
+        for req in D.SEGMENT_EQUIPMENT_REQUIREMENTS:
+            step = step_by_seq.get(req["step_sequence"])
+            equip_id = equip_map.get(req["equipment_code"])
+            if step is None or equip_id is None:
+                continue
+            if await _get_or_create_segment_equipment_requirement(
+                session,
+                step_id=step.id,
+                equipment_id=equip_id,
+                use_type=req.get("use_type", "preferred"),
+                description=req.get("description"),
+            ):
+                summary["segment_equipment_requirements"] += 1
+
+    # ── 4e. Equipment Capabilities (ISA-95 Part 4) ────────────────────
+    summary["equipment_capabilities"] = 0
+    if hasattr(D, "EQUIPMENT_CAPABILITIES"):
+        prop_lookup = await _equipment_class_property_lookup(session)
+        for cap in D.EQUIPMENT_CAPABILITIES:
+            equip_id = equip_map.get(cap["equipment_code"])
+            class_id = class_map.get(cap["equipment_class_code"])
+            if equip_id is None or class_id is None:
+                continue
+            class_props = prop_lookup.get(cap["equipment_class_code"], {})
+            properties: list[dict[str, Any]] = []
+            for p in cap.get("properties", []):
+                cp_id = class_props.get(p["property_name"])
+                if cp_id is not None:
+                    properties.append({"class_property_id": cp_id, "value": p["value"]})
+            if await _get_or_create_equipment_capability(
+                session,
+                equipment_id=equip_id,
+                equipment_class_id=class_id,
+                capability_type=cap.get("capability_type", "available"),
+                reason=cap.get("reason"),
+                properties=properties,
+            ):
+                summary["equipment_capabilities"] += 1
 
     # ── 5. Storage Locations ──────────────────────────────────────────
     summary["storage_locations"] = 0
