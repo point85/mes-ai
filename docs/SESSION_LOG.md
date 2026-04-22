@@ -3363,3 +3363,67 @@ All 12 steps (T6.0 through T6.12) complete. Remaining `PROD-ORDER` / `production
 
 ### To Resume
 Phase 6 is done. Next logical phase is P7 (Testing & CI) or continuing feature development on the aligned schema.
+
+---
+
+## Session S036 — 2026-04-21
+
+**Phase**: Post-P6 — Demo seed enrichment & Design-time UI CRUD completeness
+**Objective**: Enrich the two demo datasets with additional seed constants, then audit and close the CRUD gaps in the design_time React client.
+
+### What Happened
+
+**Part A — Demo seed enrichment**
+1. **SMT (electronics) demo seed** — `server/src/mes/core/demo/electronics_data.py`: added 8 new seed constants covering additional SMT equipment, BOM lines, and quality tests to exercise more of the renamed schema.
+2. **CPG Orange Juice demo seed** — `server/src/mes/core/demo/cpg_data.py`: added 5 new seed constants (additional process segments, equipment requirements, and quality sampling points).
+3. Both seeds validated end-to-end against `mes_ai_s95`; 1865-passing baseline held.
+
+**Part B — Design-time client CRUD audit**
+Performed a page-by-page CRUD audit of `clients/design_time/` and identified 8 gaps: missing Delete on 6 list pages (Area/Line/WorkCell/Equipment/NC/QualityTest), a disabled "coming soon" Product delete button, and no Edit capability on EquipmentCapabilityPage.
+
+**Part C — Server-side closure**
+1. Added soft-delete service methods on `PhysicalModelService`: `delete_area`, `delete_line`, `delete_work_cell`, `delete_equipment`. Each calls the corresponding `get_*`, sets `is_active=False`, flushes, logs.
+2. Added `QualityTestService.delete_test` and `NonConformanceService.delete_nc`. Modified `NonConformanceService.get_nc` and `list_ncs` to filter `NonConformance.is_active.is_(True)` so soft-deleted NCs are hidden.
+3. Added 6 new DELETE routes (status 204):
+   - `DELETE /areas/{area_id}`, `DELETE /lines/{line_id}`, `DELETE /work-cells/{wc_id}`, `DELETE /equipment/{equip_id}` — permission `physical_model.delete`.
+   - `DELETE /quality/tests/{test_id}`, `DELETE /quality/non-conformances/{nc_id}` — permission `quality.delete`.
+4. No server changes needed for product delete (already existed at `product_def/routes.py`) or equipment-capability update (already existed as `PATCH /equipment-capabilities/{cap_id}`).
+
+**Part D — Client API + types**
+1. `clients/design_time/src/api/physicalModel.ts`: added `deleteArea`, `deleteLine`, `deleteWorkCell`, `deleteEquipment`, `updateEquipmentCapability`.
+2. `clients/design_time/src/api/quality.ts`: added `deleteQualityTest`, `deleteNonConformance`.
+3. `clients/design_time/src/api/productDef.ts`: added `deleteProduct`.
+4. `clients/design_time/src/types/physicalModel.ts`: added `EquipmentCapabilityUpdate` interface (mirrors server schema — top-level fields only; properties are not updatable via PATCH).
+
+**Part E — Client hooks (TanStack Query)**
+1. `usePhysicalModel.ts`: added `useDeleteArea`, `useDeleteLine`, `useDeleteWorkCell`, `useDeleteEquipment`, `useUpdateEquipmentCapability` (5 new mutation hooks with cache invalidation).
+2. `useQuality.ts`: added `useDeleteQualityTest`, `useDeleteNonConformance`.
+3. `useProductDef.ts`: added `useDeleteProduct`.
+
+**Part F — Page wiring (8 pages)**
+1. `AreaListPage.tsx`, `LineListPage.tsx`, `WorkCellListPage.tsx`, `EquipmentListPage.tsx`, `NCListPage.tsx`, `QualityTestListPage.tsx`: added `TrashIcon` import, delete hook, `handleDelete` with `confirm()`, and trash button with `hover:bg-red-50 hover:text-red-600` styling following the canonical SiteListPage pattern.
+2. `ProductListPage.tsx`: replaced the disabled "coming soon" trash button with a functional delete wired to `useDeleteProduct`.
+3. `EquipmentCapabilityPage.tsx`: added Edit mode — `editingCap` state, `PencilSquareIcon` button on each capability card, form reuse with branching in `handleSave` (create vs update). Property values intentionally hidden in edit mode because the server `EquipmentCapabilityUpdate` schema excludes `properties`.
+
+### Outcomes
+- All 8 audit gaps closed end-to-end (server → API → hooks → pages).
+- `get_errors` clean across all modified client files; `get_errors` clean on all modified server files.
+- Test baseline held: **1865 passing**, same 2 pre-existing async-mock failures (`test_lot_lifecycle::TestLotMove::test_move_to_explicit_target_step`, `test_unit_lifecycle::TestUnitMove::test_move_to_explicit_target_step`).
+
+### Files Modified
+Server:
+- `server/src/mes/core/demo/electronics_data.py`
+- `server/src/mes/core/demo/cpg_data.py`
+- `server/src/mes/core/physical_model/service.py`
+- `server/src/mes/core/physical_model/routes.py`
+- `server/src/mes/core/quality/service.py`
+- `server/src/mes/core/quality/routes.py`
+
+Client (`clients/design_time/src/`):
+- `api/physicalModel.ts`, `api/quality.ts`, `api/productDef.ts`
+- `types/physicalModel.ts`
+- `hooks/usePhysicalModel.ts`, `hooks/useQuality.ts`, `hooks/useProductDef.ts`
+- `pages/areas/AreaListPage.tsx`, `pages/lines/LineListPage.tsx`, `pages/work-cells/WorkCellListPage.tsx`, `pages/equipment/EquipmentListPage.tsx`, `pages/equipment/EquipmentCapabilityPage.tsx`, `pages/quality/NCListPage.tsx`, `pages/quality/QualityTestListPage.tsx`, `pages/products/ProductListPage.tsx`
+
+### To Resume
+Say: *"Resume MES AI project"*. Next logical work: either begin P7 (Testing & CI), or continue filling design_time UX gaps (bulk actions, undo, confirm-dialog component to replace `window.confirm`).
