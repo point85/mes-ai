@@ -153,11 +153,11 @@ export async function seedElectronicsErpData(): Promise<SeedSummary> {
 // ── Inbound Sync ──────────────────────────────────────────────────────────
 
 export async function syncProductionOrders(): Promise<ProductionOrder[]> {
-  return unwrapData(await api.post("/erp/sync/production-orders"));
+  return unwrapData(await api.post("/erp/sync/operations-requests"));
 }
 
 export async function readProductionOrders(): Promise<DBProductionOrder[]> {
-  return unwrapData(await api.get("/orders", { params: { limit: 200 } }));
+  return unwrapData(await api.get("/operations-requests", { params: { limit: 200 } }));
 }
 
 export interface OrderCreatePayload {
@@ -187,7 +187,7 @@ export interface OrderUpdatePayload {
 export async function createProductionOrder(
   payload: OrderCreatePayload,
 ): Promise<DBProductionOrder> {
-  return unwrapData(await api.post("/orders", payload));
+  return unwrapData(await api.post("/operations-requests", payload));
 }
 
 export async function updateProductionOrder(
@@ -195,12 +195,12 @@ export async function updateProductionOrder(
   payload: OrderUpdatePayload,
 ): Promise<DBProductionOrder> {
   return unwrapData(
-    await api.patch(`/orders/${encodeURIComponent(id)}`, payload),
+    await api.patch(`/operations-requests/${encodeURIComponent(id)}`, payload),
   );
 }
 
 export async function deleteProductionOrder(id: string): Promise<void> {
-  await api.delete(`/orders/${encodeURIComponent(id)}`);
+  await api.delete(`/operations-requests/${encodeURIComponent(id)}`);
 }
 
 export async function syncMaterials(): Promise<MaterialDefinition[]> {
@@ -306,7 +306,7 @@ export async function readProductRoutes(productId: string): Promise<DBRoute[]> {
 }
 
 export async function readRouteSteps(routeId: string): Promise<DBRouteStep[]> {
-  return unwrapData(await api.get(`/routes/${encodeURIComponent(routeId)}/steps`, { params: { limit: 200 } }));
+  return unwrapData(await api.get(`/operations-definitions/${encodeURIComponent(routeId)}/steps`, { params: { limit: 200 } }));
 }
 
 export async function syncBoms(productId: string): Promise<BillOfMaterial[]> {

@@ -90,7 +90,7 @@ export const scrapLot = (id: string, reason: string) =>
 // ── Routing ──────────────────────────────────────────────────────
 
 export const fetchDispositions = (stepId: string) =>
-  api.get(`/steps/${stepId}/dispositions`).then(unwrap<Disposition[]>);
+  api.get(`/process-segments/${stepId}/dispositions`).then(unwrap<Disposition[]>);
 
 // ── Dispatch ─────────────────────────────────────────────────────
 
@@ -141,7 +141,7 @@ export const recordQualityResult = (payload: {
 // ── Orders ───────────────────────────────────────────────────────
 
 export const fetchOrders = (params?: { status?: string }) =>
-  api.get("/orders", { params }).then(unwrapList<ProductionOrder>);
+  api.get("/operations-requests", { params }).then(unwrapList<ProductionOrder>);
 
 export const createOrder = (payload: {
   order_number: string;
@@ -151,22 +151,22 @@ export const createOrder = (payload: {
   priority?: number;
   erp_reference?: string | null;
   notes?: string | null;
-}) => api.post("/orders", payload).then(unwrap<ProductionOrder>);
+}) => api.post("/operations-requests", payload).then(unwrap<ProductionOrder>);
 
 export const updateOrder = (id: string, payload: Record<string, unknown>) =>
-  api.patch(`/orders/${id}`, payload).then(unwrap<ProductionOrder>);
+  api.patch(`/operations-requests/${id}`, payload).then(unwrap<ProductionOrder>);
 
 export const deleteOrder = (id: string) =>
-  api.delete(`/orders/${id}`);
+  api.delete(`/operations-requests/${id}`);
 
 export const releaseOrder = (orderId: string) =>
-  api.post(`/orders/${orderId}/release`).then(unwrap<ProductionOrder>);
+  api.post(`/operations-requests/${orderId}/release`).then(unwrap<ProductionOrder>);
 
 export const completeOrder = (orderId: string) =>
-  api.post(`/orders/${orderId}/complete`).then(unwrap<ProductionOrder>);
+  api.post(`/operations-requests/${orderId}/complete`).then(unwrap<ProductionOrder>);
 
 export const closeOrder = (orderId: string) =>
-  api.post(`/orders/${orderId}/close`).then(unwrap<ProductionOrder>);
+  api.post(`/operations-requests/${orderId}/close`).then(unwrap<ProductionOrder>);
 
 // ── Products (read-only for order creation) ──────────────────────
 
@@ -204,7 +204,7 @@ export const fetchShiftSummary = (hours = 8) =>
 // ── Material Consumption ─────────────────────────────────────────
 
 export const fetchStepBomItems = (stepId: string) =>
-  api.get(`/steps/${stepId}/bom-items`).then(unwrap<BOMItem[]>);
+  api.get(`/process-segments/${stepId}/bom-items`).then(unwrap<BOMItem[]>);
 
 export const fetchMaterials = () =>
   api.get("/materials").then(unwrapList<Material>);

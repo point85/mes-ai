@@ -416,24 +416,28 @@ Classes marked for deletion if no consumer remains after the rename sweep. Each 
 | `demo/` module contents | `core/demo/` | Evaluate — demo fixtures may be regenerated against new schema. Defer decision to Step 11. |
 | Any `*_legacy` helpers in `routing/service.py` | `core/routing/` | Delete after call sites removed in Steps 4 and 7. |
 
-### 5.4 REST path renames (Step 8)
+### 5.4 REST path renames (Step 8) — **Complete ✓**
 
-| Current path | New path | Binds to |
+| Previous path | New path | Binds to |
 |---|---|---|
-| `/api/v1/process-routes` | `/api/v1/operations-definitions` | `OperationsDefinition` |
-| `/api/v1/route-steps` | `/api/v1/process-segments` | `ProcessSegment` |
-| `/api/v1/step-transitions` | `/api/v1/process-segment-dependencies` | `ProcessSegmentDependency` |
-| `/api/v1/step-parameters` | `/api/v1/segment-parameters` | `SegmentParameter` |
-| `/api/v1/production-orders` | `/api/v1/operations-requests` | `OperationsRequest` |
-| *(new)* | `/api/v1/operations-schedules` | `OperationsSchedule` |
-| *(new)* | `/api/v1/operations-responses` | `OperationsResponse` |
-| `/api/v1/unit-histories` | `/api/v1/segment-responses/units` | `SegmentResponseUnit` |
-| `/api/v1/lot-histories` | `/api/v1/segment-responses/lots` | `SegmentResponseLot` |
-| *(new)* | `/api/v1/material-actuals` | `MaterialActual` |
-| *(new)* | `/api/v1/equipment-actuals` | `EquipmentActual` |
-| *(new)* | `/api/v1/personnel-actuals` | `PersonnelActual` |
+| ~~`/api/v1/routes`~~ | `/api/v1/operations-definitions` | `OperationsDefinition` |
+| ~~`/api/v1/steps`~~ | `/api/v1/process-segments` | `ProcessSegment` |
+| ~~`/api/v1/transitions`~~ | `/api/v1/process-segment-dependencies` | `ProcessSegmentDependency` |
+| ~~`/api/v1/step-equipment-requirements`~~ | `/api/v1/segment-equipment-requirements` | `SegmentEquipmentRequirement` |
+| ~~`/api/v1/step-material-requirements`~~ | `/api/v1/segment-material-requirements` | `SegmentMaterialRequirement` |
+| ~~`/api/v1/orders`~~ | `/api/v1/operations-requests` | `OperationsRequest` |
+| ~~`/api/v1/erp/sync/production-orders`~~ | `/api/v1/erp/sync/operations-requests` | ERP inbound sync |
+| *(deferred — not yet implemented)* | `/api/v1/operations-schedules` | `OperationsSchedule` |
+| *(deferred — not yet implemented)* | `/api/v1/operations-responses` | `OperationsResponse` |
+| *(deferred — not yet implemented)* | `/api/v1/segment-responses/units` | `SegmentResponseUnit` |
+| *(deferred — not yet implemented)* | `/api/v1/segment-responses/lots` | `SegmentResponseLot` |
+| *(deferred — not yet implemented)* | `/api/v1/material-actuals` | `MaterialActual` |
+| *(deferred — not yet implemented)* | `/api/v1/equipment-actuals` | `EquipmentActual` |
+| *(deferred — not yet implemented)* | `/api/v1/personnel-actuals` | `PersonnelActual` |
 
-Unchanged paths: `/api/v1/sites`, `/api/v1/areas`, `/api/v1/production-lines`, `/api/v1/work-cells`, `/api/v1/equipment`, `/api/v1/equipment-classes`, `/api/v1/product-definitions`, `/api/v1/boms`, `/api/v1/dispositions`, `/api/v1/units`, `/api/v1/lots`, `/api/v1/materials`, `/api/v1/dispatch/*`, `/api/v1/quality/*`, `/api/v1/uom/*`.
+Sub-resource paths consistently follow the renamed parents, e.g. `/api/v1/operations-definitions/{route_id}/process-segments`, `/api/v1/process-segments/{step_id}/dependencies`, `/api/v1/process-segments/{step_id}/parameters`, `/api/v1/products/{product_id}/operations-definitions`.
+
+Unchanged paths: `/api/v1/sites`, `/api/v1/areas`, `/api/v1/lines`, `/api/v1/work-cells`, `/api/v1/equipment`, `/api/v1/equipment-classes`, `/api/v1/products`, `/api/v1/boms`, `/api/v1/dispositions`, `/api/v1/units`, `/api/v1/lots`, `/api/v1/materials`, `/api/v1/dispatch/*`, `/api/v1/quality/*`, `/api/v1/uom/*`.
 
 ### 5.5 Event topic renames (Step 9)
 

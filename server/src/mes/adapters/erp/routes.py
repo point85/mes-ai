@@ -218,7 +218,7 @@ async def erp_health():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@router.post("/sync/production-orders", response_model=dict)
+@router.post("/sync/operations-requests", response_model=dict)
 async def sync_operations_requests(
     since: datetime | None = Query(None, description="Only fetch orders changed after this timestamp"),
     enqueue: bool = Query(True, description="Persist orders to the inbound queue for processing"),

@@ -30,7 +30,7 @@ Endpoints — Lots:
 - GET    /api/v1/lots/{lot_id}/history     Get processing history
 
 Endpoints — Routing:
-- GET    /api/v1/steps/{step_id}/dispositions  Available disposition choices for MRB steps
+- GET    /api/v1/process-segments/{step_id}/dispositions  Available disposition choices for MRB steps
 """
 
 from __future__ import annotations
@@ -423,7 +423,7 @@ async def get_segment_response_lots(
 # ═══════════════════════════════════════════════════════════════════
 
 
-@router.get("/steps/{step_id}/dispositions")
+@router.get("/process-segments/{step_id}/dispositions")
 async def get_step_dispositions(
     step_id: UUID,
     session: AsyncSession = Depends(get_db_session),

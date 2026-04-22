@@ -303,7 +303,7 @@ async def create_bom_item(
     return success_response(BOMItemRead.model_validate(item).model_dump())
 
 
-@router.get("/steps/{step_id}/bom-items")
+@router.get("/process-segments/{step_id}/bom-items")
 async def list_step_bom_items(
     step_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -319,7 +319,7 @@ async def list_step_bom_items(
 # ─── Routes ───────────────────────────────────────────────────────────
 
 
-@router.get("/products/{product_id}/routes")
+@router.get("/products/{product_id}/operations-definitions")
 async def list_routes(
     product_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
@@ -336,7 +336,7 @@ async def list_routes(
     )
 
 
-@router.post("/products/{product_id}/routes", status_code=201)
+@router.post("/products/{product_id}/operations-definitions", status_code=201)
 async def create_route(
     product_id: UUID,
     body: RouteCreate,
@@ -349,7 +349,7 @@ async def create_route(
     return success_response(RouteRead.model_validate(route).model_dump())
 
 
-@router.get("/routes/{route_id}")
+@router.get("/operations-definitions/{route_id}")
 async def get_route(
     route_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -360,7 +360,7 @@ async def get_route(
     return success_response(RouteRead.model_validate(route).model_dump())
 
 
-@router.put("/routes/{route_id}")
+@router.put("/operations-definitions/{route_id}")
 async def update_route(
     route_id: UUID,
     body: RouteUpdate,
@@ -378,7 +378,7 @@ async def update_route(
 # ─── Route Steps ──────────────────────────────────────────────────────
 
 
-@router.get("/routes/{route_id}/steps")
+@router.get("/operations-definitions/{route_id}/process-segments")
 async def list_steps(
     route_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
@@ -395,7 +395,7 @@ async def list_steps(
     )
 
 
-@router.post("/routes/{route_id}/steps", status_code=201)
+@router.post("/operations-definitions/{route_id}/process-segments", status_code=201)
 async def create_step(
     route_id: UUID,
     body: RouteStepCreate,
@@ -408,7 +408,7 @@ async def create_step(
     return success_response(RouteStepRead.model_validate(step).model_dump())
 
 
-@router.get("/steps/{step_id}")
+@router.get("/process-segments/{step_id}")
 async def get_step(
     step_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -419,7 +419,7 @@ async def get_step(
     return success_response(RouteStepRead.model_validate(step).model_dump())
 
 
-@router.put("/steps/{step_id}")
+@router.put("/process-segments/{step_id}")
 async def update_step(
     step_id: UUID,
     body: RouteStepUpdate,
@@ -437,7 +437,7 @@ async def update_step(
 # ─── Step Parameters ──────────────────────────────────────────────────
 
 
-@router.get("/steps/{step_id}/parameters")
+@router.get("/process-segments/{step_id}/parameters")
 async def list_segment_parameters(
     step_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
@@ -454,7 +454,7 @@ async def list_segment_parameters(
     )
 
 
-@router.post("/steps/{step_id}/parameters", status_code=201)
+@router.post("/process-segments/{step_id}/parameters", status_code=201)
 async def create_step_parameter(
     step_id: UUID,
     body: StepParameterCreate,
@@ -470,7 +470,7 @@ async def create_step_parameter(
 # ─── Step Transitions ────────────────────────────────────────────────
 
 
-@router.get("/steps/{step_id}/transitions")
+@router.get("/process-segments/{step_id}/dependencies")
 async def list_process_segment_dependencies(
     step_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
@@ -487,7 +487,7 @@ async def list_process_segment_dependencies(
     )
 
 
-@router.post("/steps/{step_id}/transitions", status_code=201)
+@router.post("/process-segments/{step_id}/dependencies", status_code=201)
 async def create_step_transition(
     step_id: UUID,
     body: StepTransitionCreate,
@@ -502,7 +502,7 @@ async def create_step_transition(
     return success_response(StepTransitionRead.model_validate(transition).model_dump())
 
 
-@router.get("/transitions/{transition_id}")
+@router.get("/process-segment-dependencies/{transition_id}")
 async def get_step_transition(
     transition_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -513,7 +513,7 @@ async def get_step_transition(
     return success_response(StepTransitionRead.model_validate(transition).model_dump())
 
 
-@router.put("/transitions/{transition_id}")
+@router.put("/process-segment-dependencies/{transition_id}")
 async def update_step_transition(
     transition_id: UUID,
     body: StepTransitionUpdate,
@@ -528,7 +528,7 @@ async def update_step_transition(
     return success_response(StepTransitionRead.model_validate(transition).model_dump())
 
 
-@router.delete("/transitions/{transition_id}", status_code=204)
+@router.delete("/process-segment-dependencies/{transition_id}", status_code=204)
 async def delete_step_transition(
     transition_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -542,7 +542,7 @@ async def delete_step_transition(
 # ─── Standalone Routes (Route Editor) ────────────────────────────────
 
 
-@router.get("/routes")
+@router.get("/operations-definitions")
 async def list_all_routes(
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
@@ -558,7 +558,7 @@ async def list_all_routes(
     )
 
 
-@router.post("/routes", status_code=201)
+@router.post("/operations-definitions", status_code=201)
 async def create_standalone_route(
     body: RouteCreate,
     session: AsyncSession = Depends(get_db_session),
@@ -573,7 +573,7 @@ async def create_standalone_route(
 # ─── Route–Product Assignments ───────────────────────────────────────
 
 
-@router.get("/routes/{route_id}/products")
+@router.get("/operations-definitions/{route_id}/products")
 async def list_route_products(
     route_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
@@ -590,7 +590,7 @@ async def list_route_products(
     )
 
 
-@router.post("/routes/{route_id}/products", status_code=201)
+@router.post("/operations-definitions/{route_id}/products", status_code=201)
 async def assign_product_to_route(
     route_id: UUID,
     body: RouteProductAssignmentCreate,
@@ -607,7 +607,7 @@ async def assign_product_to_route(
     )
 
 
-@router.delete("/routes/{route_id}/products/{product_id}", status_code=204)
+@router.delete("/operations-definitions/{route_id}/products/{product_id}", status_code=204)
 async def unassign_product_from_route(
     route_id: UUID,
     product_id: UUID,
@@ -622,7 +622,7 @@ async def unassign_product_from_route(
 # ─── Standalone Route Delete ─────────────────────────────────────────
 
 
-@router.delete("/routes/{route_id}", status_code=204)
+@router.delete("/operations-definitions/{route_id}", status_code=204)
 async def delete_standalone_route(
     route_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -633,7 +633,7 @@ async def delete_standalone_route(
     await session.commit()
 
 
-@router.delete("/steps/{step_id}", status_code=204)
+@router.delete("/process-segments/{step_id}", status_code=204)
 async def delete_step(
     step_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -647,7 +647,7 @@ async def delete_step(
 # ─── Route–Material Assignments ──────────────────────────────────────
 
 
-@router.get("/routes/{route_id}/materials")
+@router.get("/operations-definitions/{route_id}/materials")
 async def list_route_materials(
     route_id: UUID,
     params: PaginationParams = Depends(get_pagination_params),
@@ -664,7 +664,7 @@ async def list_route_materials(
     )
 
 
-@router.post("/routes/{route_id}/materials", status_code=201)
+@router.post("/operations-definitions/{route_id}/materials", status_code=201)
 async def assign_material_to_route(
     route_id: UUID,
     body: RouteMaterialAssignmentCreate,
@@ -681,7 +681,7 @@ async def assign_material_to_route(
     )
 
 
-@router.delete("/routes/{route_id}/materials/{material_id}", status_code=204)
+@router.delete("/operations-definitions/{route_id}/materials/{material_id}", status_code=204)
 async def unassign_material_from_route(
     route_id: UUID,
     material_id: UUID,
@@ -696,7 +696,7 @@ async def unassign_material_from_route(
 # ── Step Equipment Requirements (ISA-95 Process Segment) ────────────
 
 
-@router.get("/steps/{step_id}/equipment-requirements")
+@router.get("/process-segments/{step_id}/equipment-requirements")
 async def list_segment_equipment_requirements(
     step_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -709,7 +709,7 @@ async def list_segment_equipment_requirements(
     )
 
 
-@router.post("/steps/{step_id}/equipment-requirements", status_code=201)
+@router.post("/process-segments/{step_id}/equipment-requirements", status_code=201)
 async def create_step_equipment_requirement(
     step_id: UUID,
     body: StepEquipmentRequirementCreate,
@@ -726,7 +726,7 @@ async def create_step_equipment_requirement(
     )
 
 
-@router.patch("/step-equipment-requirements/{requirement_id}")
+@router.patch("/segment-equipment-requirements/{requirement_id}")
 async def update_step_equipment_requirement(
     requirement_id: UUID,
     body: StepEquipmentRequirementUpdate,
@@ -743,7 +743,7 @@ async def update_step_equipment_requirement(
     )
 
 
-@router.delete("/step-equipment-requirements/{requirement_id}", status_code=204)
+@router.delete("/segment-equipment-requirements/{requirement_id}", status_code=204)
 async def delete_step_equipment_requirement(
     requirement_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -757,7 +757,7 @@ async def delete_step_equipment_requirement(
 # ── Step Material Requirements (ISA-95 Process Segment) ─────────────
 
 
-@router.get("/steps/{step_id}/material-requirements")
+@router.get("/process-segments/{step_id}/material-requirements")
 async def list_segment_material_requirements(
     step_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -770,7 +770,7 @@ async def list_segment_material_requirements(
     )
 
 
-@router.post("/steps/{step_id}/material-requirements", status_code=201)
+@router.post("/process-segments/{step_id}/material-requirements", status_code=201)
 async def create_step_material_requirement(
     step_id: UUID,
     body: StepMaterialRequirementCreate,
@@ -787,7 +787,7 @@ async def create_step_material_requirement(
     )
 
 
-@router.patch("/step-material-requirements/{requirement_id}")
+@router.patch("/segment-material-requirements/{requirement_id}")
 async def update_step_material_requirement(
     requirement_id: UUID,
     body: StepMaterialRequirementUpdate,
@@ -804,7 +804,7 @@ async def update_step_material_requirement(
     )
 
 
-@router.delete("/step-material-requirements/{requirement_id}", status_code=204)
+@router.delete("/segment-material-requirements/{requirement_id}", status_code=204)
 async def delete_step_material_requirement(
     requirement_id: UUID,
     session: AsyncSession = Depends(get_db_session),

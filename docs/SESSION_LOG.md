@@ -3179,3 +3179,41 @@ Say: *"Resume MES AI project — Phase 6 refactor"*. The AI will read `PROJECT_S
 
 ### To Resume
 Say: *"Proceed with Step 8"*. The AI will rename the FastAPI routers per DICTIONARY.md §5.4 (e.g. `/api/v1/process-routes` → `/api/v1/operations-definitions`) and update consumers.
+
+---
+
+## Session S0xx — Step 8: REST path renames (Phase 6 / T6.8)
+
+**Phase**: P6 — ISA-95 refactor  
+**Objective**: Align REST endpoint paths with renamed ORM/schema entities per DICTIONARY.md §5.4.
+
+### What Happened
+1. Applied path renames in server routers:
+   - `server/src/mes/core/product_def/routes.py`:
+     - `/routes*` → `/operations-definitions*` (12 endpoints incl. nested `/products`, `/materials`, `/process-segments`)
+     - `/products/{product_id}/routes` → `/products/{product_id}/operations-definitions`
+     - `/steps*` → `/process-segments*` (8 endpoints incl. `/parameters`, `/dependencies`, `/bom-items`, `/equipment-requirements`, `/material-requirements`)
+     - `/steps/{step_id}/transitions` → `/process-segments/{step_id}/dependencies`
+     - `/transitions/{transition_id}` → `/process-segment-dependencies/{transition_id}`
+     - `/step-equipment-requirements/{id}` → `/segment-equipment-requirements/{id}`
+     - `/step-material-requirements/{id}` → `/segment-material-requirements/{id}`
+   - `server/src/mes/core/operations/routes.py`: `/orders*` → `/operations-requests*` (8 endpoints incl. `/release`, `/complete`, `/close`). Tag renamed to `Operations Requests`.
+   - `server/src/mes/adapters/erp/routes.py`: `/sync/production-orders` → `/sync/operations-requests`.
+   - `server/src/mes/core/wip/routes.py`: `/steps/{step_id}/dispositions` → `/process-segments/{step_id}/dispositions`.
+2. Updated TypeScript client API callers to match:
+   - `clients/design_time/src/api/productDef.ts` — all `/routes`, `/steps`, `/transitions` references updated.
+   - `clients/run_time/src/api/runtime.ts` — `/orders`, `/steps`, `/steps/.../bom-items`, `/steps/.../dispositions` updated.
+   - `clients/erp_simulator/src/api/erp.ts` — `/orders`, `/routes/.../steps`, `/erp/sync/production-orders` updated.
+   - React Router UI paths (`/routes`, `/orders` as Sidebar links / DashboardPage navigation targets) were intentionally **not** renamed — they are frontend UI URLs, not API paths.
+3. Deferred "new" endpoints from §5.4 (operations-schedules, operations-responses, segment-responses/units, segment-responses/lots, material-actuals, equipment-actuals, personnel-actuals) — not part of the existing REST surface; they will be added when the corresponding read/write use cases are built.
+4. Updated docs:
+   - `DICTIONARY.md` §5.4 marked Complete ✓ with strikethrough of old paths, sub-resource note, and "deferred" annotations on not-yet-implemented endpoints.
+   - `PROJECT_STATE.json` T6.8 → `complete`.
+
+### Outcomes
+- `from mes.main import app` loads all routers at the new paths; inventory confirms 23 renamed endpoints present, 0 old paths remaining.
+- `python -m pytest tests` → **1865 passing**, only the 2 pre-existing async-mock failures remain. Baseline unchanged.
+- Awaiting approval to proceed to Step 9 (event topic renames per DICTIONARY §5.5).
+
+### To Resume
+Say: *"Proceed with Step 9"*. The AI will rename event topic strings (`production.order.*` → `operations.request.*`, etc.) in `events.py` files and subscriber decorators per DICTIONARY.md §5.5.

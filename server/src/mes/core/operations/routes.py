@@ -34,14 +34,14 @@ from .schemas import (
 )
 from .service import OperationsRequestService
 
-router = APIRouter(prefix="/api/v1", tags=["Production Orders"])
+router = APIRouter(prefix="/api/v1", tags=["Operations Requests"])
 svc = OperationsRequestService
 
 
 # ─── List / query ────────────────────────────────────────────────────
 
 
-@router.get("/orders")
+@router.get("/operations-requests")
 async def list_orders(
     status: str | None = Query(None, description="Filter by status"),
     product_id: UUID | None = Query(None, description="Filter by product ID"),
@@ -61,7 +61,7 @@ async def list_orders(
     )
 
 
-@router.get("/orders/{order_id}")
+@router.get("/operations-requests/{order_id}")
 async def get_order(
     order_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -75,7 +75,7 @@ async def get_order(
 # ─── Mutations ───────────────────────────────────────────────────────
 
 
-@router.post("/orders", status_code=201)
+@router.post("/operations-requests", status_code=201)
 async def create_order(
     body: OrderCreate,
     session: AsyncSession = Depends(get_db_session),
@@ -87,7 +87,7 @@ async def create_order(
     return success_response(OrderRead.model_validate(order).model_dump())
 
 
-@router.patch("/orders/{order_id}")
+@router.patch("/operations-requests/{order_id}")
 async def update_order(
     order_id: UUID,
     body: OrderUpdate,
@@ -100,7 +100,7 @@ async def update_order(
     return success_response(OrderRead.model_validate(order).model_dump())
 
 
-@router.delete("/orders/{order_id}", status_code=204)
+@router.delete("/operations-requests/{order_id}", status_code=204)
 async def delete_order(
     order_id: UUID,
     session: AsyncSession = Depends(get_db_session),
@@ -114,7 +114,7 @@ async def delete_order(
 # ─── Lifecycle actions ───────────────────────────────────────────────
 
 
-@router.post("/orders/{order_id}/release")
+@router.post("/operations-requests/{order_id}/release")
 async def release_order(
     order_id: UUID,
     body: OrderReleaseRequest | None = None,
@@ -127,7 +127,7 @@ async def release_order(
     return success_response(OrderRead.model_validate(order).model_dump())
 
 
-@router.post("/orders/{order_id}/complete")
+@router.post("/operations-requests/{order_id}/complete")
 async def complete_order(
     order_id: UUID,
     body: OrderCompleteRequest | None = None,
@@ -140,7 +140,7 @@ async def complete_order(
     return success_response(OrderRead.model_validate(order).model_dump())
 
 
-@router.post("/orders/{order_id}/close")
+@router.post("/operations-requests/{order_id}/close")
 async def close_order(
     order_id: UUID,
     session: AsyncSession = Depends(get_db_session),

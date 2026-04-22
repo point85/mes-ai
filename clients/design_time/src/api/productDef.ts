@@ -115,7 +115,7 @@ export async function fetchRoutes(productId: string): Promise<ApiListResponse<Pr
 }
 
 export async function fetchRoute(routeId: string): Promise<ProcessRoute> {
-  const { data } = await api.get<ApiResponse<ProcessRoute>>(`/routes/${routeId}`);
+  const { data } = await api.get<ApiResponse<ProcessRoute>>(`/operations-definitions/${routeId}`);
   return data.data;
 }
 
@@ -129,7 +129,7 @@ export async function createRoute(productId: string, body: RouteCreate): Promise
 
 export async function updateRoute(routeId: string, body: RouteUpdate): Promise<ProcessRoute> {
   const { data } = await api.put<ApiResponse<ProcessRoute>>(
-    `/routes/${routeId}`,
+    `/operations-definitions/${routeId}`,
     body,
   );
   return data.data;
@@ -139,7 +139,7 @@ export async function updateRoute(routeId: string, body: RouteUpdate): Promise<P
 
 export async function fetchRouteSteps(routeId: string): Promise<ApiListResponse<RouteStep>> {
   const { data } = await api.get<ApiListResponse<RouteStep>>(
-    `/routes/${routeId}/steps`,
+    `/operations-definitions/${routeId}/steps`,
     { params: { limit: "200" } },
   );
   return data;
@@ -150,7 +150,7 @@ export async function createRouteStep(
   body: RouteStepCreate,
 ): Promise<RouteStep> {
   const { data } = await api.post<ApiResponse<RouteStep>>(
-    `/routes/${routeId}/steps`,
+    `/operations-definitions/${routeId}/steps`,
     body,
   );
   return data.data;
@@ -161,7 +161,7 @@ export async function updateRouteStep(
   body: RouteStepUpdate,
 ): Promise<RouteStep> {
   const { data } = await api.put<ApiResponse<RouteStep>>(
-    `/steps/${stepId}`,
+    `/process-segments/${stepId}`,
     body,
   );
   return data.data;
@@ -173,7 +173,7 @@ export async function fetchStepParameters(
   stepId: string,
 ): Promise<ApiListResponse<StepParameter>> {
   const { data } = await api.get<ApiListResponse<StepParameter>>(
-    `/steps/${stepId}/parameters`,
+    `/process-segments/${stepId}/parameters`,
     { params: { limit: "200" } },
   );
   return data;
@@ -184,7 +184,7 @@ export async function createStepParameter(
   body: StepParameterCreate,
 ): Promise<StepParameter> {
   const { data } = await api.post<ApiResponse<StepParameter>>(
-    `/steps/${stepId}/parameters`,
+    `/process-segments/${stepId}/parameters`,
     body,
   );
   return data.data;
@@ -196,7 +196,7 @@ export async function fetchStepTransitions(
   stepId: string,
 ): Promise<ApiListResponse<StepTransition>> {
   const { data } = await api.get<ApiListResponse<StepTransition>>(
-    `/steps/${stepId}/transitions`,
+    `/process-segments/${stepId}/transitions`,
     { params: { limit: "200" } },
   );
   return data;
@@ -207,7 +207,7 @@ export async function createStepTransition(
   body: StepTransitionCreate,
 ): Promise<StepTransition> {
   const { data } = await api.post<ApiResponse<StepTransition>>(
-    `/steps/${stepId}/transitions`,
+    `/process-segments/${stepId}/transitions`,
     body,
   );
   return data.data;
@@ -218,27 +218,27 @@ export async function updateStepTransition(
   body: StepTransitionUpdate,
 ): Promise<StepTransition> {
   const { data } = await api.put<ApiResponse<StepTransition>>(
-    `/transitions/${transitionId}`,
+    `/process-segment-dependencies/${transitionId}`,
     body,
   );
   return data.data;
 }
 
 export async function deleteStepTransition(transitionId: string): Promise<void> {
-  await api.delete(`/transitions/${transitionId}`);
+  await api.delete(`/process-segment-dependencies/${transitionId}`);
 }
 
 // ─── Standalone Routes (Route Editor) ─────────────────────────────────
 
 export async function fetchAllRoutes(): Promise<ApiListResponse<ProcessRoute>> {
-  const { data } = await api.get<ApiListResponse<ProcessRoute>>("/routes", {
+  const { data } = await api.get<ApiListResponse<ProcessRoute>>("/operations-definitions", {
     params: { limit: "200" },
   });
   return data;
 }
 
 export async function createStandaloneRoute(body: RouteCreate): Promise<ProcessRoute> {
-  const { data } = await api.post<ApiResponse<ProcessRoute>>("/routes", body);
+  const { data } = await api.post<ApiResponse<ProcessRoute>>("/operations-definitions", body);
   return data.data;
 }
 
@@ -248,7 +248,7 @@ export async function fetchRouteProducts(
   routeId: string,
 ): Promise<ApiListResponse<RouteProductAssignment>> {
   const { data } = await api.get<ApiListResponse<RouteProductAssignment>>(
-    `/routes/${routeId}/products`,
+    `/operations-definitions/${routeId}/products`,
     { params: { limit: "200" } },
   );
   return data;
@@ -259,7 +259,7 @@ export async function assignProductToRoute(
   body: RouteProductAssignmentCreate,
 ): Promise<RouteProductAssignment> {
   const { data } = await api.post<ApiResponse<RouteProductAssignment>>(
-    `/routes/${routeId}/products`,
+    `/operations-definitions/${routeId}/products`,
     body,
   );
   return data.data;
@@ -269,22 +269,22 @@ export async function unassignProductFromRoute(
   routeId: string,
   productId: string,
 ): Promise<void> {
-  await api.delete(`/routes/${routeId}/products/${productId}`);
+  await api.delete(`/operations-definitions/${routeId}/products/${productId}`);
 }
 
 // ─── Route Update / Delete ────────────────────────────────────────────
 
 export async function updateStandaloneRoute(id: string, body: RouteUpdate): Promise<ProcessRoute> {
-  const { data } = await api.put<ApiResponse<ProcessRoute>>(`/routes/${id}`, body);
+  const { data } = await api.put<ApiResponse<ProcessRoute>>(`/operations-definitions/${id}`, body);
   return data.data;
 }
 
 export async function deleteRoute(routeId: string): Promise<void> {
-  await api.delete(`/routes/${routeId}`);
+  await api.delete(`/operations-definitions/${routeId}`);
 }
 
 export async function deleteStep(stepId: string): Promise<void> {
-  await api.delete(`/steps/${stepId}`);
+  await api.delete(`/process-segments/${stepId}`);
 }
 
 // ─── Route–Material Assignments ───────────────────────────────────────
@@ -293,7 +293,7 @@ export async function fetchRouteMaterials(
   routeId: string,
 ): Promise<ApiListResponse<RouteMaterialAssignment>> {
   const { data } = await api.get<ApiListResponse<RouteMaterialAssignment>>(
-    `/routes/${routeId}/materials`,
+    `/operations-definitions/${routeId}/materials`,
     { params: { limit: "200" } },
   );
   return data;
@@ -304,7 +304,7 @@ export async function assignMaterialToRoute(
   body: RouteMaterialAssignmentCreate,
 ): Promise<RouteMaterialAssignment> {
   const { data } = await api.post<ApiResponse<RouteMaterialAssignment>>(
-    `/routes/${routeId}/materials`,
+    `/operations-definitions/${routeId}/materials`,
     body,
   );
   return data.data;
@@ -314,7 +314,7 @@ export async function unassignMaterialFromRoute(
   routeId: string,
   materialId: string,
 ): Promise<void> {
-  await api.delete(`/routes/${routeId}/materials/${materialId}`);
+  await api.delete(`/operations-definitions/${routeId}/materials/${materialId}`);
 }
 
 // ─── Dispositions ─────────────────────────────────────────────────────
