@@ -131,22 +131,44 @@ class PluginManager:
 
     # ── Loading & Starting (for installed+enabled plugins) ─────────────
 
-    async def load_and_start(self, installed_ids: set[str] | None = None) -> list[str]:
+    async def load_and_start(
+        self, installed_ids: set[str] | dict[str, dict[str, Any]] | None = None,
+    ) -> list[str]:
         """
         Load and start all plugins that are installed + enabled.
 
         Args:
-            installed_ids: Set of plugin IDs that are installed+enabled in DB.
-                          If None, loads ALL discovered plugins (backward compat).
+            installed_ids: Either
+                - a set of plugin IDs that are installed+enabled in DB, or
+                - a mapping of plugin_id -> config dict (parameter_values merged
+                  with config_overrides) so user-supplied values reach
+                  ``initialize(config)`` on server restart.
+                If None, loads ALL discovered plugins (backward compat).
 
         Returns:
             List of successfully started plugin IDs.
         """
         started: list[str] = []
+        id_filter: set[str] | None
+        config_map: dict[str, dict[str, Any]]
+        if installed_ids is None:
+            id_filter = None
+            config_map = {}
+        elif isinstance(installed_ids, dict):
+            id_filter = set(installed_ids.keys())
+            config_map = installed_ids
+        else:
+            id_filter = installed_ids
+            config_map = {}
+
         for plugin_id, info in self._plugins.items():
-            if installed_ids is not None and plugin_id not in installed_ids:
+            if id_filter is not None and plugin_id not in id_filter:
                 continue
             try:
+                # Propagate persisted configuration so initialize() sees the
+                # same values the user entered via the DT-CLIENT.
+                if plugin_id in config_map:
+                    info._parameter_values = config_map[plugin_id]  # type: ignore[attr-defined]
                 await self._load_plugin(info)
                 await self._start_plugin(plugin_id, info)
                 started.append(plugin_id)

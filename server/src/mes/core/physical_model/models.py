@@ -475,6 +475,13 @@ class EquipmentCapabilityProperty(BaseModel):
         "EquipmentClassProperty", lazy="selectin",
     )
 
+    @property
+    def property_name(self) -> str | None:
+        """Convenience accessor exposing the related class property's name
+        (populated via selectin load) so API schemas can surface it without
+        requiring callers to resolve the class_property_id separately."""
+        return self.class_property.name if self.class_property is not None else None
+
     def __repr__(self) -> str:
         return (
             f"<EquipmentCapabilityProperty id={self.id} "

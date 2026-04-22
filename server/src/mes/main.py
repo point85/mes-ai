@@ -74,11 +74,12 @@ async def lifespan(app: FastAPI):
     # Discover all plugins from system + user directories
     await plugin_manager.discover_all()
 
-    # Determine which plugins are installed + enabled from DB
-    installed_ids = await _get_installed_enabled_plugin_ids()
+    # Determine which plugins are installed + enabled from DB (with their config)
+    installed_configs = await _get_installed_enabled_plugin_ids()
 
-    # Load and start installed + enabled plugins
-    await plugin_manager.load_and_start(installed_ids)
+    # Load and start installed + enabled plugins, passing each plugin's
+    # user-provided configuration through to initialize().
+    await plugin_manager.load_and_start(installed_configs)
 
     # Register plugin routes
     for router in await plugin_manager.get_plugin_routes():
@@ -112,8 +113,15 @@ async def lifespan(app: FastAPI):
     logger.info("MES AI server stopped")
 
 
-async def _get_installed_enabled_plugin_ids() -> set[str]:
-    """Query the DB for plugin_config rows where installed=True AND enabled=True."""
+async def _get_installed_enabled_plugin_ids() -> dict[str, dict]:
+    """Query the DB for plugin_config rows where installed=True AND enabled=True.
+
+    Returns a mapping of ``plugin_id -> merged_config`` (manifest parameter_values
+    with config_overrides applied on top), so the plugin manager can pass the
+    user-provided configuration into each plugin's ``initialize(config)`` at
+    startup. Previously this only returned IDs, which meant on server restart
+    plugins lost their UI-entered values (e.g. MES_ERP_BASE_URL).
+    """
     try:
         from mes.framework.db import async_session_factory
         from mes.framework.plugin.models import PluginConfig
@@ -121,16 +129,24 @@ async def _get_installed_enabled_plugin_ids() -> set[str]:
 
         async with async_session_factory() as session:
             result = await session.execute(
-                select(PluginConfig.plugin_id).where(
+                select(
+                    PluginConfig.plugin_id,
+                    PluginConfig.parameter_values,
+                    PluginConfig.config_overrides,
+                ).where(
                     PluginConfig.installed.is_(True),
                     PluginConfig.enabled.is_(True),
                     PluginConfig.is_active.is_(True),
                 )
             )
-            return {row[0] for row in result.all()}
+            out: dict[str, dict] = {}
+            for plugin_id, param_values, overrides in result.all():
+                merged = {**(param_values or {}), **(overrides or {})}
+                out[plugin_id] = merged
+            return out
     except Exception as exc:
         logger.warning("Could not query plugin_config (DB may not be ready): %s", exc)
-        return set()
+        return {}
 
 
 def _register_demo_order_processor() -> None:
