@@ -15,6 +15,13 @@ from typing import Any
 from mes.framework.plugin import MESPlugin
 
 
+def _apply(target: Any, attr: str, value: Any) -> None:
+    """Set attr on target only when value is a non-empty string/primitive."""
+    if value is None or value == "":
+        return
+    setattr(target, attr, value)
+
+
 class SAPS4HANAPlugin(MESPlugin):
     """Plugin wrapper for the SAP S/4HANA ERP adapter pair."""
 
@@ -27,6 +34,19 @@ class SAPS4HANAPlugin(MESPlugin):
             SAPS4HANAInboundAdapter,
             SAPS4HANAOutboundAdapter,
         )
+        from mes.adapters.erp.sap_s4hana.config import sap_settings
+        from mes.config import settings
+
+        # Propagate plugin manifest parameter values into the global settings
+        # objects that the SAP client/adapter read from.
+        _apply(settings, "ERP_BASE_URL", config.get("base_url"))
+        _apply(settings, "ERP_AUTH_TYPE", config.get("auth_type"))
+        _apply(settings, "ERP_CLIENT_ID", config.get("client_id"))
+        _apply(settings, "ERP_CLIENT_SECRET", config.get("client_secret"))
+        _apply(settings, "ERP_TOKEN_URL", config.get("token_url"))
+        _apply(sap_settings, "SAP_PLANT", config.get("plant"))
+        _apply(sap_settings, "SAP_COMPANY_CODE", config.get("company_code"))
+
         self._inbound = SAPS4HANAInboundAdapter()
         self._outbound = SAPS4HANAOutboundAdapter()
 

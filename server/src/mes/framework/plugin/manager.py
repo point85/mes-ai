@@ -235,8 +235,11 @@ class PluginManager:
 
         instance = plugin_class()
 
-        # Initialize with resolved config
+        # Initialize with resolved config (manifest defaults + parameter_values set by enable_plugin)
         config = self._resolve_config(manifest)
+        parameter_values = getattr(info, "_parameter_values", None)
+        if parameter_values:
+            config.update(parameter_values)
         await instance.initialize(config)
 
         # Register event handlers

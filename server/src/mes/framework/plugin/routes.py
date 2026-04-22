@@ -462,10 +462,10 @@ async def enable_plugin_route(
             detail=f"Plugin '{plugin_id}' must be installed before enabling",
         )
 
-    # Validate required parameters before enabling
-    errors = plugin_manager.validate_parameters(
-        info.manifest, db_cfg.parameter_values,
-    )
+    # Validate required parameters before enabling — consider both install-time
+    # parameter_values and runtime config_overrides (saved via "Save Configuration").
+    effective_values = {**(db_cfg.parameter_values or {}), **(db_cfg.config_overrides or {})}
+    errors = plugin_manager.validate_parameters(info.manifest, effective_values)
     if errors:
         raise HTTPException(status_code=422, detail={"errors": errors})
 
@@ -476,7 +476,7 @@ async def enable_plugin_route(
 
     # Load and start the plugin at runtime
     try:
-        await plugin_manager.enable_plugin(plugin_id, db_cfg.parameter_values)
+        await plugin_manager.enable_plugin(plugin_id, effective_values)
     except Exception as exc:
         info.error = str(exc)
         logger.error("Failed to enable plugin '%s': %s", plugin_id, exc)

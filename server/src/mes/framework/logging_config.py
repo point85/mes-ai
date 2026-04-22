@@ -42,9 +42,24 @@ def configure_logging() -> Path:
 
     level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
     fmt = logging.Formatter(
-        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        fmt="%(asctime)s.%(msecs)03d %(tz)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+    # Inject local timezone offset (e.g. "-07:00") into every record.
+    import time as _time
+
+    class _LocalTZFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            lt = _time.localtime(record.created)
+            off_sec = -_time.altzone if lt.tm_isdst else -_time.timezone
+            sign = "+" if off_sec >= 0 else "-"
+            hh, rem = divmod(abs(off_sec), 3600)
+            mm = rem // 60
+            record.tz = f"{sign}{hh:02d}:{mm:02d}"
+            return True
+
+    tz_filter = _LocalTZFilter()
 
     file_handler = logging.handlers.RotatingFileHandler(
         log_path,
@@ -54,12 +69,14 @@ def configure_logging() -> Path:
     )
     file_handler.setLevel(level)
     file_handler.setFormatter(fmt)
+    file_handler.addFilter(tz_filter)
 
     handlers: list[logging.Handler] = [file_handler]
     if settings.LOG_TO_CONSOLE:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(level)
         console_handler.setFormatter(fmt)
+        console_handler.addFilter(tz_filter)
         handlers.append(console_handler)
 
     # Attach to root so everything propagates in.

@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     LOG_BACKUP_COUNT: int = 5  # keep N rotated files
     LOG_TO_CONSOLE: bool = True
 
+    # --- ERP Adapter (ERP-ADAPTER) ---
+    # Generic settings shared by SAP / Oracle / other ERP adapters.
+    # Plugins overwrite these at runtime from their manifest parameter values.
+    ERP_BASE_URL: str = ""
+    ERP_AUTH_TYPE: str = "oauth2"  # oauth2 | basic | api_key
+    ERP_CLIENT_ID: str = ""
+    ERP_CLIENT_SECRET: str = ""
+    ERP_TOKEN_URL: str = ""
+
     model_config = SettingsConfigDict(
         env_prefix="MES_",
         env_file=".env",
