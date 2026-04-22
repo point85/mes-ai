@@ -28,6 +28,7 @@ import {
 import { useAllEquipment } from "../../hooks/usePhysicalModel";
 import { useStateModels } from "../../hooks/usePerformance";
 import type { ParameterSchema } from "../../types";
+import { formatApiError } from "../../api/errors";
 
 /** Known enum values for select controls. */
 const AUTH_MODE_OPTIONS = ["negotiate", "bearer", "basic"];
@@ -224,6 +225,27 @@ export default function PluginDetailPage() {
           <strong>Error:</strong> {plugin.error}
         </div>
       )}
+
+      {/* Mutation error banner — surfaces 422 "Required parameter missing",
+          503 adapter-connect failures, etc. so enable/install failures are visible. */}
+      {(() => {
+        const muts: Array<[string, { error: unknown } | undefined]> = [
+          ["Enable failed", enableMut.error ? { error: enableMut.error } : undefined],
+          ["Disable failed", disableMut.error ? { error: disableMut.error } : undefined],
+          ["Install failed", installMut.error ? { error: installMut.error } : undefined],
+          ["Uninstall failed", uninstallMut.error ? { error: uninstallMut.error } : undefined],
+          ["Save configuration failed", updateConfigMut.error ? { error: updateConfigMut.error } : undefined],
+        ];
+        const active = muts.find(([, v]) => v !== undefined);
+        if (!active) return null;
+        const [label, holder] = active;
+        return (
+          <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+            <strong>{label}:</strong>{" "}
+            {formatApiError(holder!.error, "Request failed — see server log for details.")}
+          </div>
+        );
+      })()}
 
       {/* Info grid */}
       <div className="grid grid-cols-2 gap-4">

@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     # --- Logging (LOG-CONFIG) ---
     LOG_DIR: str = "logs"
     LOG_FILE: str = "mes_server.log"
-    LOG_LEVEL: str = "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
+    LOG_LEVEL: str = "WARNING"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
     LOG_MAX_BYTES: int = 10 * 1024 * 1024  # 10 MB per file before rotation
     LOG_BACKUP_COUNT: int = 5  # keep N rotated files
     LOG_TO_CONSOLE: bool = True

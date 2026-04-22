@@ -75,6 +75,13 @@ class UnauthorizedException(MESException):
     error_code = "UNAUTHORIZED"
 
 
+class ServiceUnavailableException(MESException):
+    """Raised when a dependency (plugin, adapter, external service) is not available."""
+
+    status_code = 503
+    error_code = "SERVICE_UNAVAILABLE"
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """
     Register global exception handlers on the FastAPI app.

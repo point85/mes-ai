@@ -105,11 +105,10 @@ def _get_erp_inbound():
     from mes.main import plugin_manager
     adapter = plugin_manager.get_adapter_by_type("erp_inbound")
     if adapter is None:
-        from mes.framework.api.exceptions import MESException
-        raise MESException(
+        from mes.framework.api.exceptions import ServiceUnavailableException
+        raise ServiceUnavailableException(
             message="No ERP inbound adapter is running. Install and enable an ERP plugin.",
-            status_code=503,
-            error_code="ERP_ADAPTER_UNAVAILABLE",
+            details={"error_code": "ERP_ADAPTER_UNAVAILABLE"},
         )
     return adapter
 
@@ -118,11 +117,10 @@ def _get_erp_outbound():
     from mes.main import plugin_manager
     adapter = plugin_manager.get_adapter_by_type("erp_outbound")
     if adapter is None:
-        from mes.framework.api.exceptions import MESException
-        raise MESException(
+        from mes.framework.api.exceptions import ServiceUnavailableException
+        raise ServiceUnavailableException(
             message="No ERP outbound adapter is running. Install and enable an ERP plugin.",
-            status_code=503,
-            error_code="ERP_ADAPTER_UNAVAILABLE",
+            details={"error_code": "ERP_ADAPTER_UNAVAILABLE"},
         )
     return adapter
 
