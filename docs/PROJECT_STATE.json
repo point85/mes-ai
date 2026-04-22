@@ -245,7 +245,7 @@
     {
       "id": "P6",
       "name": "ISA-95 Alignment Refactor",
-      "status": "in-progress",
+      "status": "complete",
       "description": "Refactor the entire codebase to use ISA-95 terminology (Parts 1-4). Rename classes/tables/REST paths/events to match the standard, delete legacy edges, add Resource Actuals. New empty database 'mes_ai_s95'. Single fresh Alembic baseline generated at end. Naming contract in DICTIONARY.md Section 5.",
       "tasks": [
         { "id": "T6.0",  "name": "Step 0: ISA-95 Alignment Map in DICTIONARY.md Section 5 (naming contract)", "status": "complete" },
@@ -260,7 +260,7 @@
         { "id": "T6.9",  "name": "Step 9: Event topic renames per DICTIONARY.md 5.5", "status": "complete" },
         { "id": "T6.10", "name": "Step 10: Plugin-facing API parameter renames per DICTIONARY.md 5.6", "status": "complete" },
         { "id": "T6.11", "name": "Step 11: Delete/consolidate out-of-scope classes per DICTIONARY.md 5.3 + directory/Module ID updates per 5.7-5.8", "status": "complete" },
-        { "id": "T6.12", "name": "Step 12: Final docs pass + single fresh Alembic baseline against mes_ai_s95 + seed UoM", "status": "not-started" }
+        { "id": "T6.12", "name": "Step 12: Final docs pass + single fresh Alembic baseline against mes_ai_s95 + seed UoM", "status": "complete" }
       ]
     },
     {

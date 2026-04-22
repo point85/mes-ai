@@ -513,6 +513,23 @@ Changes to the Module ID registry (`PROJECT_STATE.json` + §2 table):
 - Genealogy domain — remains a query-only aggregate built from Segment Responses, Material Actuals, Equipment Actuals, and Test Results.
 - Authentication, plugin framework, event bus, data layer, REST framework. Unchanged.
 
+### 5.10 Alembic baseline regeneration (Step 12) — **Complete ✓**
+
+All pre-refactor migrations in `server/alembic/versions/` (30 files accumulated through Phase 6) were deleted and a single fresh autogenerate baseline was generated against the empty `mes_ai_s95` database.
+
+| Item | Result |
+|------|--------|
+| Pre-existing migrations removed | 30 files deleted from `server/alembic/versions/` |
+| New baseline revision | `4c5fc92755a4 — initial_schema_isa95_baseline` |
+| `alembic upgrade head` on empty DB | ✓ succeeds |
+| `alembic downgrade base` | ✓ succeeds (round-trip clean) |
+| `alembic check` after upgrade | ✓ no drift detected |
+| Cyclic FK resolved | `equipment.current_material_id` → `equipment_materials.id` marked `use_alter=True`; migration emits `op.create_foreign_key(...)` after both tables exist, matching `op.drop_constraint(...)` in downgrade |
+| Model change | `server/src/mes/core/physical_model/models.py` — explicit FK name `fk_equipment_current_material_id` with `use_alter=True` |
+| Test suite after rebuild | 1865 passing + 2 pre-existing async-mock failures (baseline unchanged) |
+
+The ORM metadata is the single source of truth going forward; the first post-baseline change will produce a fresh migration on top of `4c5fc92755a4`.
+
 ---
 
 *Last updated: 2026-04-21*

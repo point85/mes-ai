@@ -3324,3 +3324,42 @@ Say: *"Proceed with Step 11"*. Step 11 is module directory renames per DICTIONAR
 
 ### To Resume
 Say: *"Proceed with Step 12"*. Step 12 is the final migration regeneration: delete existing `server/alembic/versions/*.py`, generate a single fresh baseline Alembic migration against the renamed schema into the empty `mes_ai_s95` database, and verify `alembic upgrade head` succeeds on a clean database.
+
+---
+
+## Session S0xx - Step 12: Final Alembic baseline + UoM seed (Phase 6 / T6.12)
+
+**Phase**: P6 - ISA-95 refactor (FINAL STEP)
+**Objective**: Delete all accumulated pre-refactor migrations and generate a single fresh Alembic baseline against the renamed ISA-95 schema into the empty `mes_ai_s95` database. Seed built-in units of measure.
+
+### What Happened
+1. **Deleted 30 accumulated migration files** in `server/alembic/versions/` dating from 2026-02-27 through 2026-04-20.
+2. **First autogenerate attempt failed** on `alembic upgrade head` with `UndefinedTableError: relation "equipment_materials" does not exist`. Root cause: cyclic FK between `equipment.current_material_id -> equipment_materials.id` and `equipment_materials.equipment_id -> equipment.id` (alembic emitted SAWarning during autogenerate: `Cannot correctly sort tables; there are unresolvable cycles`).
+3. **Fix - model change**: Added `use_alter=True, name="fk_equipment_current_material_id"` to the `current_material_id` ForeignKey in `server/src/mes/core/physical_model/models.py`, telling SQLAlchemy to emit the FK as a separate `ALTER TABLE` after both tables exist.
+4. **Fix - migration hand-edit**: Autogenerate with use_alter=True left the FK inside the `op.create_table('equipment', ...)` block (silently skipping it at runtime) without emitting a post-create `op.create_foreign_key(...)`. Manually edited the generated migration to:
+   - Remove the `ForeignKeyConstraint(['current_material_id'], ['equipment_materials.id'], ...)` from the equipment `create_table` args.
+   - Add `op.create_foreign_key('fk_equipment_current_material_id', 'equipment', 'equipment_materials', ['current_material_id'], ['id'])` right after `equipment_materials` is created.
+   - Add matching `op.drop_constraint('fk_equipment_current_material_id', 'equipment', type_='foreignkey')` before `op.drop_table('equipment_state_logs')` in downgrade so the cycle is broken before equipment_materials is dropped.
+5. **Regenerated + applied**: New baseline revision `4c5fc92755a4 - initial_schema_isa95_baseline` (filename `20260421_1800_4c5fc92755a4_initial_schema_isa95_baseline.py`). Dropped the polluted `public` schema from the prior failed attempt and re-ran `alembic upgrade head` cleanly.
+6. **Validation**:
+   - `alembic upgrade head` on empty DB: OK.
+   - `alembic downgrade base` followed by `alembic upgrade head`: round-trip clean.
+   - `alembic check` after upgrade: "No new upgrade operations detected" - zero drift between models and schema.
+7. **UoM seed**: Ran `scripts/seed_uom.py` against mes_ai_s95 - seeded 19 base + 5 rate built-in units of measure.
+8. **Docs**:
+   - `DICTIONARY.md` 5.10 added (Alembic baseline regeneration) marked Complete.
+   - `PROJECT_STATE.json` T6.12 -> `complete`; Phase P6 status `in-progress` -> `complete`.
+
+### Outcomes
+- `python -m pytest tests` -> **1865 passing**, same 2 pre-existing async-mock failures. Baseline unchanged across the entire P6 refactor.
+- `server/alembic/versions/` now contains exactly ONE migration file representing the fully ISA-95-aligned schema.
+- `mes_ai_s95` database contains the renamed schema plus seeded UoM data, ready for demo/dev use.
+
+### Phase 6 (ISA-95 Alignment Refactor) - COMPLETE
+All 12 steps (T6.0 through T6.12) complete. Remaining `PROD-ORDER` / `production.order.*` / `production_order` references in the workspace are limited to:
+- `docs/SESSION_LOG.md`, `docs/MES_SURVEY.md` - historical narrative.
+- `server/src/mes/framework/auth/service.py` - permission scope strings (intentionally unchanged per 5.9).
+- `server/src/mes/adapters/erp/sap_s4hana/config.py` - SAP-native OData endpoint paths (intentionally unchanged per 5.9).
+
+### To Resume
+Phase 6 is done. Next logical phase is P7 (Testing & CI) or continuing feature development on the aligned schema.

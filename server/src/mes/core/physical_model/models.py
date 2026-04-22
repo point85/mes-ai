@@ -189,7 +189,14 @@ class Equipment(BaseModel):
         comment="Max WIP items (units + lots) allowed in input queue. Null = unlimited.",
     )
     current_material_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("equipment_materials.id"), nullable=True, default=None,
+        Uuid,
+        ForeignKey(
+            "equipment_materials.id",
+            use_alter=True,
+            name="fk_equipment_current_material_id",
+        ),
+        nullable=True,
+        default=None,
         comment="Currently running equipment-material setup. Null = no material set up.",
     )
     current_job_number: Mapped[str | None] = mapped_column(
