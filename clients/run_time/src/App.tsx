@@ -9,7 +9,7 @@ import OrdersPage from "./pages/OrdersPage";
 import EventsPage from "./pages/EventsPage";
 import InventoryPage from "./pages/InventoryPage";
 
-const WS_TOPICS = ["wip.*", "production.order.*", "dispatch.*", "quality.*", "data.*", "equipment.state.*"];
+const WS_TOPICS = ["wip.*", "operations.request.*", "dispatch.*", "quality.*", "data.*", "equipment.state.*"];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");

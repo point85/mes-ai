@@ -3384,9 +3384,10 @@ class MESEvent:
 | `wip.unit.scrapped` | WIP-TRACK | `{unit_id, step_id, reason}` |
 | `wip.unit.held` | WIP-TRACK | `{unit_id, reason}` |
 | `wip.lot.*` | WIP-TRACK | (Same pattern as unit events, with `lot_id`, `quantity_out`, `quantity_scrapped`) |
-| `production.order.released` | OPS-REQUEST | `{order_id, product_id, quantity}` |
-| `production.order.started` | OPS-REQUEST | `{order_id}` |
-| `production.order.completed` | OPS-REQUEST | `{order_id, quantity_completed}` |
+| `operations.request.created` | OPS-REQUEST | `{order_id, order_number, product_id}` |
+| `operations.request.released` | OPS-REQUEST | `{order_id, product_id, quantity}` |
+| `operations.request.started` | OPS-REQUEST | `{order_id}` |
+| `operations.request.completed` | OPS-REQUEST | `{order_id, quantity_completed}` |
 | `equipment.state.changed` | PHYS-MODEL | `{equipment_id, old_state, new_state, reason}` |
 | `production.counter.updated` | PERF-ANALYSIS | `{equipment_id, good_delta, reject_delta, rework_delta, source_plugin}` |
 | `performance.oee.calculated` | PERF-ANALYSIS | `{equipment_id, oee}` |

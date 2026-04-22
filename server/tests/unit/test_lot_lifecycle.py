@@ -552,7 +552,7 @@ class TestOrderLifecycle:
         assert order.status == "completed"
         assert order.actual_end is not None
         event = mock_publish.call_args[0][0]
-        assert event.event_type == "production.order.completed"
+        assert event.event_type == "operations.request.completed"
 
     @pytest.mark.asyncio
     @patch("mes.core.operations.service.OperationsRequestService.get_order", new_callable=AsyncMock)

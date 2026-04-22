@@ -3217,3 +3217,37 @@ Say: *"Proceed with Step 8"*. The AI will rename the FastAPI routers per DICTION
 
 ### To Resume
 Say: *"Proceed with Step 9"*. The AI will rename event topic strings (`production.order.*` → `operations.request.*`, etc.) in `events.py` files and subscriber decorators per DICTIONARY.md §5.5.
+
+---
+
+## Session S0xx - Step 9: Event topic renames (Phase 6 / T6.9)
+
+**Phase**: P6 - ISA-95 refactor
+**Objective**: Align event topic namespace with renamed ORM entities per DICTIONARY.md 5.5.
+
+### What Happened
+1. Renamed event topic strings in [server/src/mes/core/operations/events.py](server/src/mes/core/operations/events.py):
+   - `production.order.created` -> `operations.request.created`
+   - `production.order.released` -> `operations.request.released`
+   - `production.order.started` -> `operations.request.started`
+   - `production.order.completed` -> `operations.request.completed`
+   - Also updated `source="production"` -> `source="operations"` and module docstring `PROD-ORDER` -> `OPS-REQUEST`.
+2. Updated test assertions:
+   - `server/tests/unit/test_operations_request.py` - 4 event_type asserts + 1 source assert.
+   - `server/tests/unit/test_lot_lifecycle.py` - 1 event_type assert.
+3. Updated TypeScript clients:
+   - `clients/run_time/src/App.tsx` - WebSocket topic subscription `production.order.*` -> `operations.request.*`.
+   - `clients/run_time/src/pages/EventsPage.tsx` - UI category filter prefix + badge-color branch.
+4. Deferred topics (per §5.5 but not yet emitted by code): `production.order.closed` -> `operations.request.closed`, and all three `routing.step.*` -> `segment.response.*` topics. Will be wired when segment-response lifecycle events are implemented.
+5. Permission scope strings (`production.order.*` in `auth/service.py` role definitions) intentionally left unchanged - §5.9 declares authentication unchanged, and no routes use `require_permission("production.order...")`, so there is no runtime impact.
+6. Updated docs:
+   - `DICTIONARY.md` §5.5 marked Complete with strikethrough of old topics and Status column noting Renamed vs Deferred.
+   - `ARCHITECTURE.md` event topic catalog (§8) updated to the new `operations.request.*` names.
+   - `PROJECT_STATE.json` T6.9 -> `complete`.
+
+### Outcomes
+- `python -m pytest tests` -> **1865 passing**, same 2 pre-existing async-mock failures. Baseline unchanged.
+- Workspace sweep confirms zero `production.order.*` references outside `docs/` (historical permission docs) and `auth/service.py` (permission scopes, intentionally retained).
+
+### To Resume
+Say: *"Proceed with Step 10"*. The AI will perform the Step 10 plugin-facing API renames per DICTIONARY.md §5.6: rename `operation_hook` parameters `production_order` -> `operations_request`, `route_step` -> `process_segment`, `unit_history` -> `segment_response` in the extension point signatures and any sample/system plugins.

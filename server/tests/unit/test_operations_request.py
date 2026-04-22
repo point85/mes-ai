@@ -235,24 +235,24 @@ class TestOrderTransitions:
 class TestProductionOrderEvents:
     def test_order_created_event(self):
         ev = order_created("id1", "ORD-1", "prod-1")
-        assert ev.event_type == "production.order.created"
-        assert ev.source == "production"
+        assert ev.event_type == "operations.request.created"
+        assert ev.source == "operations"
         assert ev.payload["order_id"] == "id1"
         assert ev.payload["order_number"] == "ORD-1"
 
     def test_order_released_event(self):
         ev = order_released("id1", "prod-1", 100)
-        assert ev.event_type == "production.order.released"
+        assert ev.event_type == "operations.request.released"
         assert ev.payload["quantity"] == 100
 
     def test_order_started_event(self):
         ev = order_started("id1")
-        assert ev.event_type == "production.order.started"
+        assert ev.event_type == "operations.request.started"
         assert ev.payload["order_id"] == "id1"
 
     def test_order_completed_event(self):
         ev = order_completed("id1", 95)
-        assert ev.event_type == "production.order.completed"
+        assert ev.event_type == "operations.request.completed"
         assert ev.payload["quantity_completed"] == 95
 
 

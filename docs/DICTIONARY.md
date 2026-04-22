@@ -439,18 +439,20 @@ Sub-resource paths consistently follow the renamed parents, e.g. `/api/v1/operat
 
 Unchanged paths: `/api/v1/sites`, `/api/v1/areas`, `/api/v1/lines`, `/api/v1/work-cells`, `/api/v1/equipment`, `/api/v1/equipment-classes`, `/api/v1/products`, `/api/v1/boms`, `/api/v1/dispositions`, `/api/v1/units`, `/api/v1/lots`, `/api/v1/materials`, `/api/v1/dispatch/*`, `/api/v1/quality/*`, `/api/v1/uom/*`.
 
-### 5.5 Event topic renames (Step 9)
+### 5.5 Event topic renames (Step 9) — **Complete ✓**
 
-| Current topic | New topic |
-|---|---|
-| `production.order.created` | `operations.request.created` |
-| `production.order.released` | `operations.request.released` |
-| `production.order.started` | `operations.request.started` |
-| `production.order.completed` | `operations.request.completed` |
-| `production.order.closed` | `operations.request.closed` |
-| `routing.step.entered` | `segment.response.started` |
-| `routing.step.exited` | `segment.response.completed` |
-| `routing.step.failed` | `segment.response.failed` |
+| Previous topic | New topic | Status |
+|---|---|---|
+| ~~`production.order.created`~~ | `operations.request.created` | Renamed in `events.py` |
+| ~~`production.order.released`~~ | `operations.request.released` | Renamed in `events.py` |
+| ~~`production.order.started`~~ | `operations.request.started` | Renamed in `events.py` |
+| ~~`production.order.completed`~~ | `operations.request.completed` | Renamed in `events.py` |
+| ~~`production.order.closed`~~ | `operations.request.closed` | Deferred (not yet emitted by code) |
+| ~~`routing.step.entered`~~ | `segment.response.started` | Deferred (not yet emitted by code) |
+| ~~`routing.step.exited`~~ | `segment.response.completed` | Deferred (not yet emitted by code) |
+| ~~`routing.step.failed`~~ | `segment.response.failed` | Deferred (not yet emitted by code) |
+
+Event `source` field updated from `"production"` → `"operations"` in all operations-request events. Client WebSocket subscriptions (`App.tsx`) and UI event category filters (`EventsPage.tsx`) updated.
 
 Unchanged topic prefixes: `wip.*`, `dispatch.*`, `quality.*`, `equipment.*`, `material.*`, `uom.*`, `plugin.*`.
 
