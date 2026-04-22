@@ -385,3 +385,142 @@ EQUIPMENT_CLASS_MAP: dict[str, str] = {
     "FCT-200":  "TESTER",
     "RW-BENCH": "MANUAL",
 }
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: Process Segment → Equipment Class (dispatch constraint)
+# ---------------------------------------------------------------------------
+# Each process segment declares what class of equipment it needs; the
+# dispatcher uses this to narrow the candidate set before applying
+# SegmentEquipmentRequirement preferences below.
+
+STEP_EQUIPMENT_CLASS: dict[int, str] = {
+    10: "PRINTER",      # Solder Paste Application
+    20: "PLACEMENT",    # SMD Placement
+    30: "OVEN",         # Reflow Soldering
+    40: "INSPECTION",   # Automated Optical Inspection
+    50: "WAVE_SOLDER",  # Through-Hole & Conformal Coat
+    60: "TESTER",       # Functional Test
+    70: "MANUAL",       # Rework Station
+    80: "MANUAL",       # MRB Review
+}
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: Segment Equipment Requirements
+# ---------------------------------------------------------------------------
+# Specific-equipment preferences that augment the class-level constraint above.
+# use_type: "required" | "preferred" | "alternate"
+
+SEGMENT_EQUIPMENT_REQUIREMENTS: list[dict] = [
+    # SMD Placement: dual pick-and-place — either is acceptable
+    {"step_sequence": 20, "equipment_code": "PNP-800A", "use_type": "preferred", "description": "Primary pick-and-place"},
+    {"step_sequence": 20, "equipment_code": "PNP-800B", "use_type": "alternate", "description": "Secondary pick-and-place (load balancing)"},
+    # Wave-solder + conformal coat — only one line, must use it
+    {"step_sequence": 50, "equipment_code": "WS-100",   "use_type": "required",  "description": "Only wave-solder + conformal coat line"},
+    # Functional Test — calibrated fixture required
+    {"step_sequence": 60, "equipment_code": "FCT-200",  "use_type": "required",  "description": "Calibrated FCT fixture"},
+    # Rework and MRB share the same bench
+    {"step_sequence": 70, "equipment_code": "RW-BENCH", "use_type": "required",  "description": "Manual rework bench"},
+    {"step_sequence": 80, "equipment_code": "RW-BENCH", "use_type": "required",  "description": "MRB review at rework bench"},
+]
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: Segment Material Requirements
+# ---------------------------------------------------------------------------
+# Declarative per-segment consumed/produced materials.  Complements the
+# product-specific BillOfMaterial (BOMItem) by describing the segment's
+# material behavior independent of any particular product.
+
+SEGMENT_MATERIAL_REQUIREMENTS: list[dict] = [
+    # 10 — Solder Paste Application
+    {"step_sequence": 10, "material_code": "RM-PCB-BLANK",  "quantity": 1.0, "uom": "EA", "material_use": "consumed", "position": 10, "description": "Bare PCB blank"},
+    {"step_sequence": 10, "material_code": "RM-SOLDER-PST", "quantity": 5.0, "uom": "g",  "material_use": "consumed", "position": 20, "description": "Solder paste deposit"},
+    # 20 — SMD Placement
+    {"step_sequence": 20, "material_code": "RM-SMD-KIT",    "quantity": 1.0, "uom": "EA", "material_use": "consumed", "position": 10, "description": "SMD component kit"},
+    # 30 — Reflow Soldering
+    {"step_sequence": 30, "material_code": "SF-POP-PCB",    "quantity": 1.0, "uom": "EA", "material_use": "produced", "position": 10, "description": "Populated PCB (SMD only)"},
+    # 50 — Through-Hole & Conformal Coat
+    {"step_sequence": 50, "material_code": "RM-THRU-KIT",   "quantity": 1.0, "uom": "EA", "material_use": "consumed", "position": 10, "description": "Through-hole components"},
+    {"step_sequence": 50, "material_code": "RM-FLUX",       "quantity": 2.0, "uom": "mL", "material_use": "consumed", "position": 20, "description": "Wave-solder flux"},
+    {"step_sequence": 50, "material_code": "RM-CONFORMAL",  "quantity": 3.0, "uom": "mL", "material_use": "consumed", "position": 30, "description": "Conformal coating"},
+    # 60 — Functional Test: produces the finished ECB, ESD bag applied
+    {"step_sequence": 60, "material_code": "FG-ECB-100",    "quantity": 1.0, "uom": "EA", "material_use": "produced", "position": 10, "description": "Finished Electronic Controller Board"},
+    {"step_sequence": 60, "material_code": "PKG-ESD-BAG",   "quantity": 1.0, "uom": "EA", "material_use": "consumed", "position": 20, "description": "ESD protective bag"},
+]
+
+# ---------------------------------------------------------------------------
+# OperationsDefinition ↔ Material assignments (route-level raw materials)
+# ---------------------------------------------------------------------------
+# Declares every material referenced anywhere in the SMT route.  Lets the
+# ERP/MES see the full raw-material list for a route at a glance.
+
+ROUTE_MATERIAL_ASSIGNMENTS: list[str] = [
+    "RM-PCB-BLANK", "RM-SMD-KIT", "RM-THRU-KIT",
+    "RM-SOLDER-PST", "RM-FLUX", "RM-CONFORMAL",
+    "SF-POP-PCB", "PKG-ESD-BAG",
+]
+
+# ---------------------------------------------------------------------------
+# Material Lots  (initial raw-material inventory)
+# ---------------------------------------------------------------------------
+
+MATERIAL_LOTS: list[dict] = [
+    {"material_code": "RM-PCB-BLANK",  "lot_number": "LOT-PCB-2026A",  "quantity_on_hand": 2000.0,  "supplier": "PCBTech Inc."},
+    {"material_code": "RM-SMD-KIT",    "lot_number": "LOT-SMD-2026A",  "quantity_on_hand": 1500.0,  "supplier": "Arrow Electronics"},
+    {"material_code": "RM-THRU-KIT",   "lot_number": "LOT-THRU-2026A", "quantity_on_hand": 1500.0,  "supplier": "Digi-Key"},
+    {"material_code": "RM-SOLDER-PST", "lot_number": "LOT-SLDR-2026A", "quantity_on_hand": 50000.0, "supplier": "Kester"},
+    {"material_code": "RM-FLUX",       "lot_number": "LOT-FLUX-2026A", "quantity_on_hand": 20000.0, "supplier": "Kester"},
+    {"material_code": "RM-CONFORMAL",  "lot_number": "LOT-CONF-2026A", "quantity_on_hand": 30000.0, "supplier": "HumiSeal"},
+    {"material_code": "PKG-ESD-BAG",   "lot_number": "LOT-ESDB-2026A", "quantity_on_hand": 2500.0,  "supplier": "Desco Industries"},
+]
+
+# ---------------------------------------------------------------------------
+# Storage Locations  (inventory module)
+# ---------------------------------------------------------------------------
+
+STORAGE_LOCATIONS: list[dict] = [
+    {"code": "EB-RECV-01", "name": "Electronics Receiving Dock", "location_type": "receiving", "description": "Inbound goods receipt area"},
+    {"code": "EB-WH-SMT",  "name": "SMT Component Warehouse",    "location_type": "storage",  "aisle": "A", "bay": "01", "tier": "01", "description": "SMD kits, paste, through-hole kits, flux, coating"},
+    {"code": "EB-WH-PKG",  "name": "Packaging Warehouse",        "location_type": "storage",  "aisle": "B", "bay": "01", "tier": "01", "description": "ESD bags and shipping materials"},
+    {"code": "EB-STG-01",  "name": "Line-Side Staging",          "location_type": "staging",  "description": "Pre-production staging at SMT line"},
+    {"code": "EB-RIP-SMT", "name": "RIP — SMT Line",            "location_type": "rip",      "description": "Raw-and-In-Process at SMT line"},
+    {"code": "EB-SHIP-01", "name": "Finished Goods Shipping",    "location_type": "shipping", "description": "Outbound ECB units"},
+]
+
+# Map raw-material codes → warehouse location they're putaway to after receipt
+MATERIAL_STORAGE_MAP: dict[str, str] = {
+    "RM-PCB-BLANK":  "EB-WH-SMT",
+    "RM-SMD-KIT":    "EB-WH-SMT",
+    "RM-THRU-KIT":   "EB-WH-SMT",
+    "RM-SOLDER-PST": "EB-WH-SMT",
+    "RM-FLUX":       "EB-WH-SMT",
+    "RM-CONFORMAL":  "EB-WH-SMT",
+    "PKG-ESD-BAG":   "EB-WH-PKG",
+}
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: Equipment Capabilities (declared capability of each instance)
+# ---------------------------------------------------------------------------
+# Each capability entry is:
+#   equipment_code           → equipment instance
+#   equipment_class_code     → what class of work this declares capability for
+#   capability_type          → available | committed | unattainable
+#   reason                   → free-text status line
+#   properties (optional)    → list of {"property_name", "value"} pairs.
+#                              property_name must match an EquipmentClassProperty
+#                              name defined above; seed code looks up the
+#                              class_property_id at insert time.
+
+EQUIPMENT_CAPABILITIES: list[dict] = [
+    {"equipment_code": "SP-200",   "equipment_class_code": "PRINTER",     "capability_type": "available", "reason": "Nominal",
+     "properties": [{"property_name": "max_board_size", "value": "460x305"}]},
+    {"equipment_code": "PNP-800A", "equipment_class_code": "PLACEMENT",   "capability_type": "available", "reason": "Nominal",
+     "properties": [{"property_name": "max_cph", "value": "80000"}, {"property_name": "feeder_slots", "value": "120"}]},
+    {"equipment_code": "PNP-800B", "equipment_class_code": "PLACEMENT",   "capability_type": "available", "reason": "Nominal",
+     "properties": [{"property_name": "max_cph", "value": "80000"}, {"property_name": "feeder_slots", "value": "120"}]},
+    {"equipment_code": "RO-500",   "equipment_class_code": "OVEN",        "capability_type": "available", "reason": "Nominal",
+     "properties": [{"property_name": "zone_count", "value": "5"}, {"property_name": "max_temp_c", "value": "260"}]},
+    {"equipment_code": "AOI-300",  "equipment_class_code": "INSPECTION",  "capability_type": "available", "reason": "Nominal"},
+    {"equipment_code": "WS-100",   "equipment_class_code": "WAVE_SOLDER", "capability_type": "available", "reason": "Nominal"},
+    {"equipment_code": "FCT-200",  "equipment_class_code": "TESTER",      "capability_type": "available", "reason": "Nominal"},
+    {"equipment_code": "RW-BENCH", "equipment_class_code": "MANUAL",      "capability_type": "available", "reason": "Manual rework bench"},
+]

@@ -40,7 +40,7 @@ from mes.core.quality.service import QualityTestService
 from mes.core.physical_model.service import PhysicalModelService
 from mes.core.physical_model.models import (
     Site, Area, ProductionLine, WorkCell, Equipment, EquipmentMaterial,
-    EquipmentClass, EquipmentClassProperty,
+    EquipmentClass, EquipmentClassProperty, EquipmentCapability,
 )
 from mes.core.inventory.models import StorageLocation
 from mes.core.inventory.service import (
@@ -335,7 +335,15 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
                                 "process_segments": 0, "transitions": 0,
                                 "segment_parameters": 0, "data_definitions": 0,
-                                "quality_tests": 0, "dispositions": 0}
+                                "quality_tests": 0, "dispositions": 0,
+                                "material_lots": 0,
+                                "segment_material_requirements": 0,
+                                "route_material_assignments": 0}
+
+    # ── 0. Ensure demo-specific UOMs exist (mL, g, mm, °C, ...) ─────
+    # Must run BEFORE materials — MaterialDefinition.uom has an FK to
+    # units_of_measure.symbol.
+    await _ensure_demo_uoms(session)
 
     # ── 1. Materials ──────────────────────────────────────────────────
     mat_ids: dict[str, UUID] = {}
@@ -343,6 +351,21 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
         mat = await _get_or_create_material(session, m)
         mat_ids[m["code"]] = mat.id
         summary["materials"] += 1
+
+    # ── 1b. Material Lots (initial raw-material inventory) ────────────
+    for ml in E.MATERIAL_LOTS:
+        mat_id = mat_ids.get(ml["material_code"])
+        if mat_id is None:
+            continue
+        created = await _get_or_create_material_lot(
+            session,
+            material_id=mat_id,
+            lot_number=ml["lot_number"],
+            quantity_on_hand=ml["quantity_on_hand"],
+            supplier=ml.get("supplier"),
+        )
+        if created:
+            summary["material_lots"] += 1
 
     # ── 2. Product ────────────────────────────────────────────────────
     product = await _get_or_create_product(session, E.PRODUCT)
@@ -418,9 +441,6 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             )
             summary["transitions"] += 1
 
-    # ── 6b. Ensure demo-specific UOMs exist ─────────────────────────
-    await _ensure_demo_uoms(session)
-
     # ── 7. Step Parameters ────────────────────────────────────────────
     if route_created:
         for seq, params in E.STEP_PARAMS.items():
@@ -447,6 +467,34 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     ):
         summary["quality_tests"] += 1
 
+    # ── 10. Segment Material Requirements (ISA-95 Part 2) ─────────────
+    for req in E.SEGMENT_MATERIAL_REQUIREMENTS:
+        step = step_by_seq.get(req["step_sequence"])
+        mat_id = mat_ids.get(req["material_code"])
+        if step is None or mat_id is None:
+            continue
+        if await _get_or_create_segment_material_requirement(
+            session,
+            step_id=step.id,
+            material_id=mat_id,
+            quantity=req["quantity"],
+            uom=req["uom"],
+            material_use=req["material_use"],
+            position=req.get("position", 0),
+            description=req.get("description"),
+        ):
+            summary["segment_material_requirements"] += 1
+
+    # ── 11. OperationsDefinition ↔ Material assignments ───────────────
+    for code in E.ROUTE_MATERIAL_ASSIGNMENTS:
+        mat_id = mat_ids.get(code)
+        if mat_id is None:
+            continue
+        if await _get_or_create_route_material_assignment(
+            session, route_id=route.id, material_id=mat_id,
+        ):
+            summary["route_material_assignments"] += 1
+
     await session.commit()
     logger.info("Electronics ERP demo data seeded: %s", summary)
     return summary
@@ -460,7 +508,12 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
     """
     summary: dict[str, Any] = {"sites": 0, "areas": 0,
                                 "production_lines": 0, "work_cells": 0,
-                                "equipment": 0, "equipment_materials": 0}
+                                "equipment": 0, "equipment_materials": 0,
+                                "segment_equipment_class_assignments": 0,
+                                "segment_equipment_requirements": 0,
+                                "equipment_capabilities": 0,
+                                "storage_locations": 0,
+                                "inventory_received": 0}
 
     # ── 1. Site → Area → Line ─────────────────────────────────────────
     site = await _get_or_create_site(session, **E.SITE)
@@ -519,6 +572,108 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
     # ── 4b. Equipment Classes (ISA-95 Part 2) ─────────────────────────
     ec_counts = await _seed_equipment_classes(session, E, equip_map)
     summary.update(ec_counts)
+
+    # Reload class_map (codes → ids) — needed for segment linking below
+    class_map = await _equipment_class_id_map(session)
+
+    # ── 4c. Back-fill ProcessSegment.equipment_class_id ───────────────
+    # Links each segment to the equipment class that can perform it.
+    # Requires ERP data (segments) to already exist.
+    if hasattr(E, "STEP_EQUIPMENT_CLASS"):
+        summary["segment_equipment_class_assignments"] = (
+            await _assign_segment_equipment_classes(
+                session,
+                route_name=E.ROUTE_NAME,
+                step_class_map=E.STEP_EQUIPMENT_CLASS,
+                class_id_map=class_map,
+            )
+        )
+
+    # ── 4d. Segment Equipment Requirements ────────────────────────────
+    if hasattr(E, "SEGMENT_EQUIPMENT_REQUIREMENTS"):
+        step_by_seq = await _segments_by_sequence(session, E.ROUTE_NAME)
+        for req in E.SEGMENT_EQUIPMENT_REQUIREMENTS:
+            step = step_by_seq.get(req["step_sequence"])
+            equip_id = equip_map.get(req["equipment_code"])
+            if step is None or equip_id is None:
+                continue
+            if await _get_or_create_segment_equipment_requirement(
+                session,
+                step_id=step.id,
+                equipment_id=equip_id,
+                use_type=req.get("use_type", "preferred"),
+                description=req.get("description"),
+            ):
+                summary["segment_equipment_requirements"] += 1
+
+    # ── 4e. Equipment Capabilities (ISA-95 Part 4) ────────────────────
+    if hasattr(E, "EQUIPMENT_CAPABILITIES"):
+        # Build {class_code: {property_name: class_property_id}}
+        prop_lookup = await _equipment_class_property_lookup(session)
+        for cap in E.EQUIPMENT_CAPABILITIES:
+            equip_id = equip_map.get(cap["equipment_code"])
+            class_id = class_map.get(cap["equipment_class_code"])
+            if equip_id is None or class_id is None:
+                continue
+            # Resolve property names to class_property_ids
+            class_props = prop_lookup.get(cap["equipment_class_code"], {})
+            properties: list[dict[str, Any]] = []
+            for p in cap.get("properties", []):
+                cp_id = class_props.get(p["property_name"])
+                if cp_id is not None:
+                    properties.append({"class_property_id": cp_id, "value": p["value"]})
+            if await _get_or_create_equipment_capability(
+                session,
+                equipment_id=equip_id,
+                equipment_class_id=class_id,
+                capability_type=cap.get("capability_type", "available"),
+                reason=cap.get("reason"),
+                properties=properties,
+            ):
+                summary["equipment_capabilities"] += 1
+
+    # ── 5. Storage Locations ──────────────────────────────────────────
+    loc_map: dict[str, UUID] = {}
+    for loc in E.STORAGE_LOCATIONS:
+        sl = await _get_or_create_storage_location(
+            session, site.id, **loc,
+        )
+        loc_map[loc["code"]] = sl.id
+        summary["storage_locations"] += 1
+
+    # ── 6. Receive material lots into warehouse storage ───────────────
+    # Receive → receiving dock, putaway → material-specific warehouse.
+    recv_loc_id = loc_map.get("EB-RECV-01")
+    if recv_loc_id:
+        lot_rows = await _material_lot_list(session)
+        for lot in lot_rows:
+            mat_code = lot["material_code"]
+            storage_code = E.MATERIAL_STORAGE_MAP.get(mat_code)
+            if storage_code is None or lot["quantity_on_hand"] <= 0:
+                continue
+            storage_loc_id = loc_map.get(storage_code)
+            if storage_loc_id is None:
+                continue
+            # Idempotent: skip if already received
+            if await _inventory_already_received(session, lot["lot_id"], storage_loc_id):
+                continue
+            qty = lot["quantity_on_hand"]
+            await InventoryTransactionService.receive(
+                session,
+                material_lot_id=lot["lot_id"],
+                to_location_id=recv_loc_id,
+                quantity=qty,
+                reason="Electronics demo seed — initial goods receipt",
+            )
+            await InventoryTransactionService.putaway(
+                session,
+                material_lot_id=lot["lot_id"],
+                from_location_id=recv_loc_id,
+                to_location_id=storage_loc_id,
+                quantity=qty,
+                reason="Electronics demo seed — initial putaway",
+            )
+            summary["inventory_received"] += 1
 
     await session.commit()
     logger.info("Electronics plant demo data seeded: %s", summary)
@@ -946,3 +1101,200 @@ async def _seed_equipment_classes(
         await session.flush()
 
     return counts
+
+
+# ---------------------------------------------------------------------------
+# ISA-95 Part 2: helpers for segment/equipment linking and capabilities
+# ---------------------------------------------------------------------------
+
+async def _equipment_class_id_map(session: AsyncSession) -> dict[str, UUID]:
+    """Return {equipment_class.code: id} for all classes in the DB."""
+    result = await session.execute(
+        select(EquipmentClass.code, EquipmentClass.id)
+    )
+    return {code: cid for code, cid in result.all()}
+
+
+async def _equipment_class_property_lookup(
+    session: AsyncSession,
+) -> dict[str, dict[str, UUID]]:
+    """Return {class_code: {property_name: class_property_id}} for all classes."""
+    result = await session.execute(
+        select(
+            EquipmentClass.code,
+            EquipmentClassProperty.name,
+            EquipmentClassProperty.id,
+        ).join(
+            EquipmentClassProperty,
+            EquipmentClassProperty.equipment_class_id == EquipmentClass.id,
+        )
+    )
+    lookup: dict[str, dict[str, UUID]] = {}
+    for class_code, prop_name, prop_id in result.all():
+        lookup.setdefault(class_code, {})[prop_name] = prop_id
+    return lookup
+
+
+async def _segments_by_sequence(
+    session: AsyncSession, route_name: str,
+) -> dict[int, ProcessSegment]:
+    """Return {sequence: ProcessSegment} for all segments of the named route."""
+    result = await session.execute(
+        select(ProcessSegment)
+        .join(OperationsDefinition,
+              OperationsDefinition.id == ProcessSegment.route_id)
+        .where(OperationsDefinition.name == route_name)
+    )
+    segs = result.scalars().all()
+    return {s.sequence: s for s in segs}
+
+
+async def _assign_segment_equipment_classes(
+    session: AsyncSession,
+    route_name: str,
+    step_class_map: dict[int, str],
+    class_id_map: dict[str, UUID],
+) -> int:
+    """Back-fill ProcessSegment.equipment_class_id for each (seq, class_code)."""
+    segs = await _segments_by_sequence(session, route_name)
+    changed = 0
+    for seq, class_code in step_class_map.items():
+        seg = segs.get(seq)
+        class_id = class_id_map.get(class_code)
+        if seg is None or class_id is None:
+            continue
+        if seg.equipment_class_id != class_id:
+            seg.equipment_class_id = class_id
+            changed += 1
+    if changed:
+        await session.flush()
+    return changed
+
+
+async def _get_or_create_segment_equipment_requirement(
+    session: AsyncSession,
+    *,
+    step_id: UUID,
+    equipment_id: UUID,
+    use_type: str = "preferred",
+    description: str | None = None,
+) -> bool:
+    """Create a SegmentEquipmentRequirement unless one already exists for
+    (step_id, equipment_id, use_type).  Returns True if created."""
+    from mes.core.product_def.models import SegmentEquipmentRequirement
+
+    result = await session.execute(
+        select(SegmentEquipmentRequirement).where(
+            SegmentEquipmentRequirement.step_id == step_id,
+            SegmentEquipmentRequirement.equipment_id == equipment_id,
+            SegmentEquipmentRequirement.use_type == use_type,
+        )
+    )
+    if result.scalar_one_or_none() is not None:
+        return False
+
+    await ProductDefService.create_step_equipment_requirement(
+        session,
+        step_id=step_id,
+        equipment_id=equipment_id,
+        use_type=use_type,
+        description=description,
+    )
+    return True
+
+
+async def _get_or_create_segment_material_requirement(
+    session: AsyncSession,
+    *,
+    step_id: UUID,
+    material_id: UUID,
+    quantity: float,
+    uom: str,
+    material_use: str,
+    position: int = 0,
+    description: str | None = None,
+) -> bool:
+    """Create a SegmentMaterialRequirement unless one already exists for
+    (step_id, material_id, material_use).  Returns True if created."""
+    from mes.core.product_def.models import SegmentMaterialRequirement
+
+    result = await session.execute(
+        select(SegmentMaterialRequirement).where(
+            SegmentMaterialRequirement.step_id == step_id,
+            SegmentMaterialRequirement.material_id == material_id,
+            SegmentMaterialRequirement.material_use == material_use,
+        )
+    )
+    if result.scalar_one_or_none() is not None:
+        return False
+
+    await ProductDefService.create_step_material_requirement(
+        session,
+        step_id=step_id,
+        material_id=material_id,
+        quantity=quantity,
+        uom=uom,
+        material_use=material_use,
+        position=position,
+        description=description,
+    )
+    return True
+
+
+async def _get_or_create_route_material_assignment(
+    session: AsyncSession,
+    *,
+    route_id: UUID,
+    material_id: UUID,
+) -> bool:
+    """Assign a material to the OperationsDefinition unless already assigned.
+    Returns True if a new assignment was created."""
+    from mes.core.product_def.models import OperationsDefinitionMaterialAssignment
+
+    result = await session.execute(
+        select(OperationsDefinitionMaterialAssignment).where(
+            OperationsDefinitionMaterialAssignment.route_id == route_id,
+            OperationsDefinitionMaterialAssignment.material_id == material_id,
+            OperationsDefinitionMaterialAssignment.is_active.is_(True),
+        )
+    )
+    if result.scalar_one_or_none() is not None:
+        return False
+
+    await ProductDefService.assign_material_to_route(
+        session, route_id, material_id,
+    )
+    return True
+
+
+async def _get_or_create_equipment_capability(
+    session: AsyncSession,
+    *,
+    equipment_id: UUID,
+    equipment_class_id: UUID,
+    capability_type: str = "available",
+    reason: str | None = None,
+    properties: list[dict[str, Any]] | None = None,
+) -> bool:
+    """Create an EquipmentCapability unless one already exists for
+    (equipment_id, equipment_class_id, capability_type).  Returns True if
+    created."""
+    result = await session.execute(
+        select(EquipmentCapability).where(
+            EquipmentCapability.equipment_id == equipment_id,
+            EquipmentCapability.equipment_class_id == equipment_class_id,
+            EquipmentCapability.capability_type == capability_type,
+        )
+    )
+    if result.scalar_one_or_none() is not None:
+        return False
+
+    await PhysicalModelService.create_capability(
+        session,
+        equip_id=equipment_id,
+        equipment_class_id=equipment_class_id,
+        capability_type=capability_type,
+        reason=reason,
+        properties=properties or [],
+    )
+    return True
