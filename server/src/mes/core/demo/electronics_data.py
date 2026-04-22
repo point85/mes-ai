@@ -327,14 +327,14 @@ WORK_CELLS: list[dict] = [
 ]
 
 EQUIPMENT: list[dict] = [
-    {"code": "SP-200",   "name": "Stencil Printer SP-200",   "work_cell_code": "WC-PASTE",  "equipment_type": "printer",     "state_model": "packml",   "max_queue_depth": 1},
-    {"code": "PNP-800A", "name": "Pick-and-Place PNP-800A",  "work_cell_code": "WC-PLACE",  "equipment_type": "placement",   "state_model": "packml",   "max_queue_depth": 2},
-    {"code": "PNP-800B", "name": "Pick-and-Place PNP-800B",  "work_cell_code": "WC-PLACE",  "equipment_type": "placement",   "state_model": "packml",   "max_queue_depth": 2},
-    {"code": "RO-500",   "name": "5-Zone Reflow Oven",       "work_cell_code": "WC-REFLOW", "equipment_type": "oven",        "state_model": "semi_e10", "max_queue_depth": 5},
-    {"code": "AOI-300",  "name": "AOI Camera System",        "work_cell_code": "WC-AOI",    "equipment_type": "inspection",  "state_model": "packml",   "max_queue_depth": 1},
-    {"code": "WS-100",   "name": "Wave Solder + Coat Station","work_cell_code": "WC-THT",   "equipment_type": "wave_solder", "state_model": "semi_e10", "max_queue_depth": 1},
-    {"code": "FCT-200",  "name": "Functional Test Fixture",  "work_cell_code": "WC-TEST",   "equipment_type": "tester",      "state_model": "semi_e10", "max_queue_depth": 1},
-    {"code": "RW-BENCH", "name": "Rework Bench",             "work_cell_code": "WC-REWORK", "equipment_type": "manual",      "state_model": "semi_e10", "max_queue_depth": 3},
+    {"code": "SP-200",   "name": "Stencil Printer SP-200",   "work_cell_code": "WC-PASTE",  "state_model": "packml",   "max_queue_depth": 1},
+    {"code": "PNP-800A", "name": "Pick-and-Place PNP-800A",  "work_cell_code": "WC-PLACE",  "state_model": "packml",   "max_queue_depth": 2},
+    {"code": "PNP-800B", "name": "Pick-and-Place PNP-800B",  "work_cell_code": "WC-PLACE",  "state_model": "packml",   "max_queue_depth": 2},
+    {"code": "RO-500",   "name": "5-Zone Reflow Oven",       "work_cell_code": "WC-REFLOW", "state_model": "semi_e10", "max_queue_depth": 5},
+    {"code": "AOI-300",  "name": "AOI Camera System",        "work_cell_code": "WC-AOI",    "state_model": "packml",   "max_queue_depth": 1},
+    {"code": "WS-100",   "name": "Wave Solder + Coat Station","work_cell_code": "WC-THT",   "state_model": "semi_e10", "max_queue_depth": 1},
+    {"code": "FCT-200",  "name": "Functional Test Fixture",  "work_cell_code": "WC-TEST",   "state_model": "semi_e10", "max_queue_depth": 1},
+    {"code": "RW-BENCH", "name": "Rework Bench",             "work_cell_code": "WC-REWORK", "state_model": "semi_e10", "max_queue_depth": 3},
 ]
 
 # Equipment-material assignments  (design speed in units/hr, target OEE %)

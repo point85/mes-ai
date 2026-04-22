@@ -164,9 +164,7 @@ class EquipmentCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
-    equipment_type: str | None = Field(None, max_length=100)
     equipment_class_id: UUID | None = Field(None, description="ISA-95 Part 2 equipment class ID")
-    capabilities: dict[str, Any] | None = None
     state_model_id: str | None = Field(None, max_length=50, description="State machine model ID (e.g. 'packml'). Null = 100% available.")
     max_queue_depth: int | None = Field(None, ge=1, description="Max WIP items in input queue. Null = unlimited.")
 
@@ -179,9 +177,7 @@ class EquipmentRead(BaseModel):
     code: str
     description: str | None = None
     work_cell_id: UUID
-    equipment_type: str | None = None
     equipment_class_id: UUID | None = None
-    capabilities: dict[str, Any] | None = None
     state_model_id: str | None = None
     max_queue_depth: int | None = None
     is_active: bool
@@ -197,9 +193,7 @@ class EquipmentUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     code: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
-    equipment_type: str | None = None
     equipment_class_id: UUID | None = None
-    capabilities: dict[str, Any] | None = None
     state_model_id: str | None = None
     max_queue_depth: int | None = Field(None, ge=1, description="Max WIP items in input queue. Null = unlimited.")
 

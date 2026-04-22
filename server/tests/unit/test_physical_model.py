@@ -186,15 +186,8 @@ class TestWorkCellSchemas:
 class TestEquipmentSchemas:
     def test_equipment_create_defaults(self):
         schema = EquipmentCreate(name="CNC Mill", code="EQ-001")
-        assert schema.capabilities is None
-
-    def test_equipment_create_with_capabilities(self):
-        schema = EquipmentCreate(
-            name="CNC Mill",
-            code="EQ-001",
-            capabilities={"max_rpm": 12000, "axes": 5},
-        )
-        assert schema.capabilities["max_rpm"] == 12000
+        assert schema.name == "CNC Mill"
+        assert schema.code == "EQ-001"
 
     def test_equipment_read_full(self):
         now = datetime.now(timezone.utc)
@@ -206,11 +199,8 @@ class TestEquipmentSchemas:
             is_active=True,
             created_at=now,
             updated_at=now,
-            equipment_type="CNC",
-            capabilities={"speed": 100},
         )
-        assert schema.equipment_type == "CNC"
-        assert schema.capabilities == {"speed": 100}
+        assert schema.code == "ML-01"
 
 
 # ─── Event tests ─────────────────────────────────────────────────────

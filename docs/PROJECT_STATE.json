@@ -255,7 +255,7 @@
         { "id": "T6.4",  "name": "Step 4: Part 2 rename — ProcessRoute->OperationsDefinition, RouteStep->ProcessSegment, StepTransition->ProcessSegmentDependency, StepParameter/EquipmentRequirement/MaterialRequirement->Segment*", "status": "complete" },
         { "id": "T6.5",  "name": "Step 5: Part 3 rename — ProductionOrder->OperationsRequest, module production/->operations/, add OperationsSchedule+OperationsResponse, UnitHistory/LotHistory->SegmentResponseUnit/Lot", "status": "complete" },
         { "id": "T6.6",  "name": "Step 6: Part 4 resource actuals — MaterialActual, EquipmentActual, PersonnelActual", "status": "complete" },
-        { "id": "T6.7",  "name": "Step 7: Drop legacy edges — ProcessRoute.product_id, RouteStep.work_cell_id, Equipment.equipment_type, Equipment.capabilities", "status": "not-started" },
+        { "id": "T6.7",  "name": "Step 7: Drop legacy edges — ProcessRoute.product_id, RouteStep.work_cell_id, Equipment.equipment_type, Equipment.capabilities", "status": "complete" },
         { "id": "T6.8",  "name": "Step 8: REST API path renames per DICTIONARY.md 5.4", "status": "not-started" },
         { "id": "T6.9",  "name": "Step 9: Event topic renames per DICTIONARY.md 5.5", "status": "not-started" },
         { "id": "T6.10", "name": "Step 10: Plugin-facing API parameter renames per DICTIONARY.md 5.6", "status": "not-started" },

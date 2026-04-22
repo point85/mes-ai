@@ -396,16 +396,16 @@ These short identifiers are used in architecture docs, code paths, commit messag
 | *(none — optional)* | *(none)* | `PersonnelClass` | `personnel_classes` | **Deferred (Step 2 skipped).** |
 | *(none — optional)* | *(none)* | `PhysicalAsset` | `physical_assets` | **Deferred (Step 2 skipped).** Non-equipment tangibles (tools, fixtures, molds) are out of scope for Phase 6. |
 
-### 5.2 Deletions (Step 7 — drop legacy edges)
+### 5.2 Deletions (Step 7 — drop legacy edges) — **Complete ✓**
 
-The following columns/attributes are dropped outright. No data migration (fresh database).
+The following columns/attributes have been dropped. No data migration (fresh database).
 
-| Entity | Column / attribute | Reason |
+| Entity | Column / attribute | Replacement |
 |---|---|---|
-| `OperationsDefinition` (née `ProcessRoute`) | `product_id` (FK) | Legacy 1:1 product link; replaced by `OperationsDefinitionProductAssignment` (many-to-many). |
-| `ProcessSegment` (née `RouteStep`) | `work_cell_id` (FK) | Legacy direct WorkCell link; replaced by `SegmentEquipmentRequirement` referencing `EquipmentClass`. |
-| `Equipment` | `equipment_type` (string) | Free-form string; replaced by `EquipmentClass` FK. |
-| `Equipment` | `capabilities` (JSON) | Unstructured blob; replaced by `EquipmentCapability` + `EquipmentCapabilityProperty` rows. |
+| `OperationsDefinition` (née `ProcessRoute`) | ~~`product_id` (FK)~~ | `OperationsDefinitionProductAssignment` (M2M junction). |
+| `ProcessSegment` (née `RouteStep`) | ~~`work_cell_id` (FK)~~ | `SegmentEquipmentRequirement` + `ProcessSegment.equipment_class_id` FK. |
+| `Equipment` | ~~`equipment_type` (string)~~ | `Equipment.equipment_class_id` FK to `EquipmentClass`. |
+| `Equipment` | ~~`capabilities` (JSON)~~ | `EquipmentCapability` + `EquipmentCapabilityProperty` rows. Plugin-specific per-equipment config lives on `PluginConfig.config_overrides["equipment_mappings"]` keyed by equipment code. |
 
 ### 5.3 Out-of-scope / removals (Step 11)
 

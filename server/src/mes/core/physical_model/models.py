@@ -26,7 +26,7 @@ from __future__ import annotations
 import datetime as _dt
 import uuid
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, JSON, Uuid, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Uuid, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -166,9 +166,6 @@ class Equipment(BaseModel):
     Detailed runtime state is handled by pluggable equipment_state_model
     plugins (see decision D025); this model only carries the dispatch-level
     attributes needed by the core scheduler.
-
-    Legacy columns ``equipment_type`` and ``capabilities`` are scheduled for
-    removal in Step 7 of the ISA-95 refactor (see DICTIONARY.md §5.2).
     """
 
     __tablename__ = "equipment"
@@ -179,17 +176,9 @@ class Equipment(BaseModel):
     work_cell_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("work_cells.id"), nullable=False, index=True,
     )
-    equipment_type: Mapped[str | None] = mapped_column(
-        String(100), nullable=True,
-        comment="Free-form equipment type classification (legacy — prefer equipment_class_id)",
-    )
     equipment_class_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("equipment_classes.id"), nullable=True, index=True,
-        comment="ISA-95 Part 2 equipment class (e.g. Filler, Labeler). Formal replacement for equipment_type.",
-    )
-    capabilities: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True,
-        comment="Freeform JSON describing equipment capabilities (legacy — prefer EquipmentCapability)",
+        comment="ISA-95 Part 2 equipment class (e.g. Filler, Labeler).",
     )
     state_model_id: Mapped[str | None] = mapped_column(
         String(50), nullable=True, index=True,

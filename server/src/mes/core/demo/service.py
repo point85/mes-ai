@@ -26,7 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mes.core.material.models import MaterialDefinition, MaterialLot
 from mes.core.material.service import MaterialLotService, MaterialService
 from mes.core.product_def.models import (
-    BillOfMaterial, BOMItem, OperationsDefinition, ProcessSegment,
+    BillOfMaterial, BOMItem, OperationsDefinition,
+    OperationsDefinitionProductAssignment, ProcessSegment,
 )
 from mes.core.product_def.models import Disposition
 from mes.core.product_def.service import ProductDefService
@@ -110,7 +111,6 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
 
     # ── 5. Steps ──────────────────────────────────────────────────────
     step_by_seq: dict[int, Any] = {}
-    wc_ids = await _work_cell_id_map(session)
 
     for s in D.STEPS:
         step_kwargs: dict[str, Any] = {
@@ -122,9 +122,6 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
         disp_code = s.get("disposition_code")
         if disp_code and disp_code in disp_by_code:
             step_kwargs["disposition_id"] = disp_by_code[disp_code].id
-        wc_code = s.get("work_cell_code")
-        if wc_code and wc_code in wc_ids:
-            step_kwargs["work_cell_id"] = wc_ids[wc_code]
         step, created = await _get_or_create_step(
             session, route.id, sequence=s["sequence"], **step_kwargs,
         )
@@ -239,7 +236,6 @@ async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
             session, wc_id,
             code=eq["code"],
             name=eq["name"],
-            equipment_type=eq.get("equipment_type"),
             state_model_id=eq.get("state_model"),
             max_queue_depth=eq.get("max_queue_depth"),
         )
@@ -367,7 +363,6 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
 
     # ── 5. Steps ──────────────────────────────────────────────────────
     step_by_seq: dict[int, Any] = {}
-    wc_ids = await _work_cell_id_map(session)
 
     for s in E.STEPS:
         step_kwargs: dict[str, Any] = {
@@ -379,9 +374,6 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
         disp_code = s.get("disposition_code")
         if disp_code and disp_code in disp_by_code:
             step_kwargs["disposition_id"] = disp_by_code[disp_code].id
-        wc_code = s.get("work_cell_code")
-        if wc_code and wc_code in wc_ids:
-            step_kwargs["work_cell_id"] = wc_ids[wc_code]
         step, created = await _get_or_create_step(
             session, route.id, sequence=s["sequence"], **step_kwargs,
         )
@@ -495,7 +487,6 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
             session, wc_id,
             code=eq["code"],
             name=eq["name"],
-            equipment_type=eq.get("equipment_type"),
             state_model_id=eq.get("state_model"),
             max_queue_depth=eq.get("max_queue_depth"),
         )
@@ -610,8 +601,14 @@ async def _get_or_create_route(
 ) -> tuple[Any, bool]:
     """Return (route, created) — reuses existing route by product+name."""
     result = await session.execute(
-        select(OperationsDefinition).where(
-            OperationsDefinition.product_id == product_id,
+        select(OperationsDefinition)
+        .join(
+            OperationsDefinitionProductAssignment,
+            OperationsDefinitionProductAssignment.route_id == OperationsDefinition.id,
+        )
+        .where(
+            OperationsDefinitionProductAssignment.product_id == product_id,
+            OperationsDefinitionProductAssignment.is_active.is_(True),
             OperationsDefinition.name == name,
             OperationsDefinition.is_active.is_(True),
         )
@@ -772,12 +769,6 @@ async def _get_or_create_equipment_material(
     return True
 
 
-async def _work_cell_id_map(session: AsyncSession) -> dict[str, UUID]:
-    """Return {code: id} for all active work cells."""
-    result = await session.execute(
-        select(WorkCell.code, WorkCell.id).where(WorkCell.is_active.is_(True))
-    )
-    return {row[0]: row[1] for row in result.all()}
 
 
 async def _material_id_map(session: AsyncSession) -> dict[str, UUID]:

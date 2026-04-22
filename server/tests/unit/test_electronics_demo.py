@@ -306,11 +306,6 @@ class TestElecDataPhysicalModel:
         for eq in EQUIPMENT:
             assert eq["max_queue_depth"] >= 1
 
-    def test_equipment_types_non_empty(self):
-        from mes.core.demo.electronics_data import EQUIPMENT
-        for eq in EQUIPMENT:
-            assert eq["equipment_type"], f"{eq['code']} missing equipment_type"
-
 
 class TestElecDataEquipmentMaterials:
     """Verify equipment-material assignments."""

@@ -309,13 +309,13 @@ WORK_CELLS: list[dict] = [
 ]
 
 EQUIPMENT: list[dict] = [
-    {"code": "TM-100",   "name": "Tank Mixer TM-100",     "work_cell_code": "WC-BLEND",  "equipment_type": "mixer",       "state_model": "semi_e10",  "max_queue_depth": 2},
-    {"code": "PS-200",   "name": "HTST Pasteurizer PS-200","work_cell_code": "WC-PAST",   "equipment_type": "pasteurizer", "state_model": "packml",    "max_queue_depth": 1},
-    {"code": "QC-300",   "name": "Lab Analyzer QC-300",    "work_cell_code": "WC-QC",     "equipment_type": "analyzer",    "state_model": "semi_e10",  "max_queue_depth": 3},
-    {"code": "FL-400A",  "name": "Filler FL-400A",         "work_cell_code": "WC-FILL",   "equipment_type": "filler",      "state_model": "packml",    "max_queue_depth": 2},
-    {"code": "FL-400B",  "name": "Filler FL-400B",         "work_cell_code": "WC-FILL",   "equipment_type": "filler",      "state_model": "packml",    "max_queue_depth": 2},
-    {"code": "LP-500",   "name": "Labeler/Packer LP-500",  "work_cell_code": "WC-PACK",   "equipment_type": "labeler",     "state_model": "packml",    "max_queue_depth": 2},
-    {"code": "RW-600",   "name": "Adjustment Tank RW-600", "work_cell_code": "WC-REWORK", "equipment_type": "tank",        "state_model": "semi_e10",  "max_queue_depth": 2},
+    {"code": "TM-100",   "name": "Tank Mixer TM-100",     "work_cell_code": "WC-BLEND",  "state_model": "semi_e10",  "max_queue_depth": 2},
+    {"code": "PS-200",   "name": "HTST Pasteurizer PS-200","work_cell_code": "WC-PAST",   "state_model": "packml",    "max_queue_depth": 1},
+    {"code": "QC-300",   "name": "Lab Analyzer QC-300",    "work_cell_code": "WC-QC",     "state_model": "semi_e10",  "max_queue_depth": 3},
+    {"code": "FL-400A",  "name": "Filler FL-400A",         "work_cell_code": "WC-FILL",   "state_model": "packml",    "max_queue_depth": 2},
+    {"code": "FL-400B",  "name": "Filler FL-400B",         "work_cell_code": "WC-FILL",   "state_model": "packml",    "max_queue_depth": 2},
+    {"code": "LP-500",   "name": "Labeler/Packer LP-500",  "work_cell_code": "WC-PACK",   "state_model": "packml",    "max_queue_depth": 2},
+    {"code": "RW-600",   "name": "Adjustment Tank RW-600", "work_cell_code": "WC-REWORK", "state_model": "semi_e10",  "max_queue_depth": 2},
 ]
 
 # Equipment–material assignments  (design speed, target OEE)

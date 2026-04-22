@@ -189,7 +189,6 @@ class RouteRead(BaseModel):
     """Schema for returning process route data."""
 
     id: UUID
-    product_id: UUID | None = None
     version: str
     name: str
     description: str | None = None
@@ -219,7 +218,6 @@ class RouteStepCreate(BaseModel):
     sequence: int = Field(..., ge=1)
     name: str = Field(..., min_length=1, max_length=255)
     step_type: str = Field("production", pattern=r"^(production|inspection|rework|mrb)$")
-    work_cell_id: UUID | None = None
     equipment_class_id: UUID | None = Field(None, description="ISA-95 equipment class required at this step")
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50, description="ERP operation number for outbound reporting")
@@ -234,7 +232,6 @@ class RouteStepRead(BaseModel):
     sequence: int
     name: str
     step_type: str
-    work_cell_id: UUID | None = None
     equipment_class_id: UUID | None = None
     expected_cycle_time_sec: float | None = None
     erp_operation_number: str | None = None
@@ -252,7 +249,6 @@ class RouteStepUpdate(BaseModel):
     sequence: int | None = Field(None, ge=1)
     name: str | None = Field(None, min_length=1, max_length=255)
     step_type: str | None = Field(None, pattern=r"^(production|inspection|rework|mrb)$")
-    work_cell_id: UUID | None = None
     equipment_class_id: UUID | None = Field(None, description="ISA-95 equipment class required at this step")
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50)

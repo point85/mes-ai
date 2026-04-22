@@ -109,10 +109,10 @@ class TestProductDefModels:
         rels = {r.key for r in ProductDefinition.__mapper__.relationships}
         assert "boms" in rels
 
-    def test_product_has_routes_relationship(self):
-        """ProductDefinition should declare a 'routes' relationship."""
+    def test_product_has_route_assignments_relationship(self):
+        """ProductDefinition links to routes via the product_assignments M2M."""
         rels = {r.key for r in ProductDefinition.__mapper__.relationships}
-        assert "routes" in rels
+        assert "route_assignments" in rels
 
     def test_bom_has_items_relationship(self):
         rels = {r.key for r in BillOfMaterial.__mapper__.relationships}
@@ -323,22 +323,12 @@ class TestRouteStepSchemas:
     def test_step_create_defaults(self):
         schema = RouteStepCreate(sequence=10, name="Step 1")
         assert schema.step_type == "production"
-        assert schema.work_cell_id is None
         assert schema.expected_cycle_time_sec is None
         assert schema.erp_operation_number is None
 
     def test_step_create_invalid_type(self):
         with pytest.raises(Exception):
             RouteStepCreate(sequence=10, name="Bad", step_type="unknown")
-
-    def test_step_create_with_work_cell(self):
-        wc_id = uuid.uuid4()
-        schema = RouteStepCreate(
-            sequence=10,
-            name="Step",
-            work_cell_id=wc_id,
-        )
-        assert schema.work_cell_id == wc_id
 
     def test_step_create_zero_sequence_rejected(self):
         with pytest.raises(Exception):
@@ -525,11 +515,6 @@ class TestRouteProductAssignment:
         assert "route" in rels
         assert "product" in rels
 
-    def test_process_route_product_id_nullable(self):
-        """product_id on OperationsDefinition should be nullable for standalone routes."""
-        col = OperationsDefinition.__table__.columns["product_id"]
-        assert col.nullable is True
-
     def test_process_route_has_product_assignments_relationship(self):
         rels = {r.key for r in OperationsDefinition.__mapper__.relationships}
         assert "product_assignments" in rels
@@ -550,12 +535,11 @@ class TestRouteProductAssignment:
         )
         assert schema.is_active is True
 
-    def test_route_read_product_id_optional(self):
-        """RouteRead should accept null product_id for standalone routes."""
+    def test_route_read_standalone(self):
+        """RouteRead is independent of ProductDefinition (M2M via assignment)."""
         now = datetime.now(timezone.utc)
         schema = RouteRead(
             id=uuid.uuid4(),
-            product_id=None,
             version="1.0",
             name="Standalone Route",
             description=None,
@@ -564,7 +548,7 @@ class TestRouteProductAssignment:
             created_at=now,
             updated_at=now,
         )
-        assert schema.product_id is None
+        assert schema.name == "Standalone Route"
 
     def test_service_has_standalone_route_methods(self):
         from mes.core.product_def.service import ProductDefService

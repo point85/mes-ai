@@ -3139,3 +3139,43 @@ Say: *"Resume MES AI project"* — the AI will read `PROJECT_STATE.json` and thi
 
 ### To Resume
 Say: *"Resume MES AI project — Phase 6 refactor"*. The AI will read `PROJECT_STATE.json` (`currentPhase: P6`), then `DICTIONARY.md` §5 (the naming contract), then this log entry.
+
+---
+
+## Session S0xx — Step 7: Drop legacy edges (Phase 6 / T6.7)
+
+**Phase**: P6 — ISA-95 refactor  
+**Objective**: Drop the 4 legacy columns identified in DICTIONARY.md §5.2 and rewrite all callers.
+
+### What Happened
+1. Dropped columns on ORM models:
+   - `OperationsDefinition.product_id` (1:1 link) — replaced by `OperationsDefinitionProductAssignment` M2M.
+   - `ProcessSegment.work_cell_id` (direct WorkCell link) — replaced by `equipment_class_id` + `SegmentEquipmentRequirement`.
+   - `Equipment.equipment_type` (free-form string) — replaced by `equipment_class_id` FK.
+   - `Equipment.capabilities` (JSON blob) — replaced by `EquipmentCapability` rows.
+2. Dropped the matching Pydantic fields on `RouteStepCreate/Read/Update` and `EquipmentCreate/Read/Update`.
+3. Rewrote every caller of the dropped columns:
+   - `product_def/service.py`: `_clone_product`, `list_routes`, `create_route`, `update_route`, `_unset_default_route`, `sync_routes_from_erp`, `_get_or_create_route` — all now query through `OperationsDefinitionProductAssignment`.
+   - `routing/service.py`: default-route and fallback-route lookups now join through the M2M table.
+   - `demo/order_processors.py` + `demo/service.py`: same M2M join for route discovery; dropped `_work_cell_id_map` helper and `step_kwargs['work_cell_id']`; dropped `equipment_type` kwarg to `_get_or_create_equipment`.
+   - `demo/electronics_data.py` + `demo/cpg_data.py`: dropped inline `"equipment_type"` keys from equipment dicts.
+   - `dispatch/service.py`: removed the `ProcessSegment.work_cell_id` fallback branches in both `evaluate_dispatch` and `get_step_equipment`. Equipment-level `work_cell_id` (kept) is unaffected.
+   - `plugins/system/packml_opcua_counters/plugin.py`: refactored `_discover_opcua_equipment` to read OPC-UA endpoint config from `PluginConfig.config_overrides['equipment_mappings']` keyed by equipment code; updated docstrings.
+4. Added `ProductDefinition.route_assignments` relationship (back-populates `OperationsDefinitionProductAssignment.product`) so the M2M is navigable from both sides.
+5. Updated tests:
+   - `test_physical_model.py`: removed `capabilities` and `equipment_type` assertions from `EquipmentCreate/Read` tests.
+   - `test_product_def.py`: dropped `test_step_create_with_work_cell` and `test_process_route_product_id_nullable`; renamed `test_product_has_routes_relationship` → `test_product_has_route_assignments_relationship`; renamed `test_route_read_product_id_optional` → `test_route_read_standalone` (no `product_id` kwarg).
+   - `test_electronics_demo.py`: removed `test_equipment_types_non_empty`.
+6. Updated docs:
+   - `DICTIONARY.md` §5.2 marked Complete ✓ with strikethrough and replacement columns.
+   - `ARCHITECTURE.md` Equipment and ProcessSegment data-model rows stripped of dropped columns.
+   - `PROJECT_STATE.json` T6.7 → `complete`.
+
+### Outcomes
+- Full workspace scan (src + tests, excluding alembic/) confirms **zero remaining references** to `ProcessSegment.work_cell_id`, `OperationsDefinition.product_id`, `Equipment.equipment_type`, or `Equipment.capabilities`.
+- `from mes.main import app` loads 268 routes.
+- `python -m pytest tests` → **1865 passing**, only the 2 pre-existing async-mock failures (`test_lot_lifecycle::TestLotMove::test_move_to_explicit_target_step` and `test_unit_lifecycle::TestUnitMove::test_move_to_explicit_target_step`) — unchanged baseline.
+- Awaiting approval to proceed to Step 8 (REST path renames per DICTIONARY §5.4).
+
+### To Resume
+Say: *"Proceed with Step 8"*. The AI will rename the FastAPI routers per DICTIONARY.md §5.4 (e.g. `/api/v1/process-routes` → `/api/v1/operations-definitions`) and update consumers.

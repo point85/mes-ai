@@ -191,22 +191,33 @@ class ProductDefService:
                 session.add(new_item)
             await session.flush()
 
-        # Clone routes
+        # Clone routes (via OperationsDefinitionProductAssignment M2M)
         route_rows = await session.execute(
-            select(OperationsDefinition).where(
-                OperationsDefinition.product_id == source_id,
+            select(OperationsDefinition)
+            .join(
+                OperationsDefinitionProductAssignment,
+                OperationsDefinitionProductAssignment.route_id == OperationsDefinition.id,
+            )
+            .where(
+                OperationsDefinitionProductAssignment.product_id == source_id,
+                OperationsDefinitionProductAssignment.is_active.is_(True),
                 OperationsDefinition.is_active.is_(True),
             )
         )
         for src_route in route_rows.scalars().all():
             new_route = OperationsDefinition(
-                product_id=new_product.id,
                 name=src_route.name,
                 version=src_route.version,
                 description=src_route.description,
                 is_default=src_route.is_default,
             )
             session.add(new_route)
+            await session.flush()
+            session.add(
+                OperationsDefinitionProductAssignment(
+                    route_id=new_route.id, product_id=new_product.id,
+                )
+            )
             await session.flush()
 
             # Clone steps, building old_step_id → new_step_id map for transitions
@@ -223,7 +234,6 @@ class ProductDefService:
                     sequence=src_step.sequence,
                     name=src_step.name,
                     step_type=src_step.step_type,
-                    work_cell_id=src_step.work_cell_id,
                     expected_cycle_time_sec=src_step.expected_cycle_time_sec,
                     erp_operation_number=src_step.erp_operation_number,
                     disposition_id=src_step.disposition_id,
@@ -393,11 +403,19 @@ class ProductDefService:
         product_id: UUID,
         params: PaginationParams,
     ) -> tuple[Sequence[OperationsDefinition], str | None, bool]:
-        """List routes for a product."""
+        """List routes assigned to a product (via OperationsDefinitionProductAssignment)."""
         await ProductDefService.get_product(session, product_id)
-        stmt = select(OperationsDefinition).where(
-            OperationsDefinition.product_id == product_id,
-            OperationsDefinition.is_active.is_(True),
+        stmt = (
+            select(OperationsDefinition)
+            .join(
+                OperationsDefinitionProductAssignment,
+                OperationsDefinitionProductAssignment.route_id == OperationsDefinition.id,
+            )
+            .where(
+                OperationsDefinitionProductAssignment.product_id == product_id,
+                OperationsDefinitionProductAssignment.is_active.is_(True),
+                OperationsDefinition.is_active.is_(True),
+            )
         )
         return await paginate_query(session, stmt, OperationsDefinition, params)
 
@@ -418,15 +436,21 @@ class ProductDefService:
     async def create_route(
         session: AsyncSession, product_id: UUID, **kwargs: Any
     ) -> OperationsDefinition:
-        """Create a new route for a product."""
+        """Create a new route and assign it to a product."""
         await ProductDefService.get_product(session, product_id)
 
         # If marking as default, unset any existing default
         if kwargs.get("is_default"):
             await ProductDefService._unset_default_route(session, product_id)
 
-        route = OperationsDefinition(product_id=product_id, **kwargs)
+        route = OperationsDefinition(**kwargs)
         session.add(route)
+        await session.flush()
+        session.add(
+            OperationsDefinitionProductAssignment(
+                route_id=route.id, product_id=product_id,
+            )
+        )
         await session.flush()
 
         await event_bus.publish(
@@ -442,9 +466,15 @@ class ProductDefService:
         """Update a route."""
         route = await ProductDefService.get_route(session, route_id)
 
-        # If setting as default, unset any existing default
+        # If setting as default, unset any existing default across all products this
+        # route is assigned to.
         if kwargs.get("is_default"):
-            await ProductDefService._unset_default_route(session, route.product_id)
+            assignment_stmt = select(OperationsDefinitionProductAssignment).where(
+                OperationsDefinitionProductAssignment.route_id == route.id,
+                OperationsDefinitionProductAssignment.is_active.is_(True),
+            )
+            for a in (await session.execute(assignment_stmt)).scalars().all():
+                await ProductDefService._unset_default_route(session, a.product_id)
 
         for key, value in kwargs.items():
             if value is not None:
@@ -457,10 +487,18 @@ class ProductDefService:
         session: AsyncSession, product_id: UUID
     ) -> None:
         """Unset the is_default flag on the current default route for a product."""
-        stmt = select(OperationsDefinition).where(
-            OperationsDefinition.product_id == product_id,
-            OperationsDefinition.is_default.is_(True),
-            OperationsDefinition.is_active.is_(True),
+        stmt = (
+            select(OperationsDefinition)
+            .join(
+                OperationsDefinitionProductAssignment,
+                OperationsDefinitionProductAssignment.route_id == OperationsDefinition.id,
+            )
+            .where(
+                OperationsDefinitionProductAssignment.product_id == product_id,
+                OperationsDefinitionProductAssignment.is_active.is_(True),
+                OperationsDefinition.is_default.is_(True),
+                OperationsDefinition.is_active.is_(True),
+            )
         )
         result = await session.execute(stmt)
         current_default = result.scalar_one_or_none()
@@ -576,14 +614,11 @@ class ProductDefService:
 
         For each ProcessRouteDTO:
         1. Resolve product by code → ProductDefinition
-        2. Upsert OperationsDefinition (match on product_id + name + version)
-        3. Upsert RouteSteps (match on route_id + sequence)
-        4. Resolve work_center_code → work_cell_id via WorkCell.code
+        2. Upsert OperationsDefinition (match on product assignment + name + version)
+        3. Upsert ProcessSegments (match on route_id + sequence)
 
         Returns the list of persisted OperationsDefinition objects.
         """
-        from mes.core.physical_model.models import WorkCell
-
         persisted: list[OperationsDefinition] = []
 
         for dto in route_dtos:
@@ -602,10 +637,16 @@ class ProductDefService:
                 )
                 continue
 
-            # Upsert OperationsDefinition
+            # Upsert OperationsDefinition (match on product assignment + name + version)
             route_result = await session.execute(
-                select(OperationsDefinition).where(
-                    OperationsDefinition.product_id == product.id,
+                select(OperationsDefinition)
+                .join(
+                    OperationsDefinitionProductAssignment,
+                    OperationsDefinitionProductAssignment.route_id == OperationsDefinition.id,
+                )
+                .where(
+                    OperationsDefinitionProductAssignment.product_id == product.id,
+                    OperationsDefinitionProductAssignment.is_active.is_(True),
                     OperationsDefinition.name == dto.name,
                     OperationsDefinition.version == dto.version,
                 )
@@ -615,21 +656,32 @@ class ProductDefService:
             if route is None:
                 # Check if this should be default (first route for this product)
                 existing_routes = await session.execute(
-                    select(OperationsDefinition).where(
-                        OperationsDefinition.product_id == product.id,
+                    select(OperationsDefinition)
+                    .join(
+                        OperationsDefinitionProductAssignment,
+                        OperationsDefinitionProductAssignment.route_id == OperationsDefinition.id,
+                    )
+                    .where(
+                        OperationsDefinitionProductAssignment.product_id == product.id,
+                        OperationsDefinitionProductAssignment.is_active.is_(True),
                         OperationsDefinition.is_active.is_(True),
                     )
                 )
                 is_first = existing_routes.scalar_one_or_none() is None
 
                 route = OperationsDefinition(
-                    product_id=product.id,
                     name=dto.name,
                     version=dto.version,
                     description=f"Imported from ERP",
                     is_default=is_first,
                 )
                 session.add(route)
+                await session.flush()
+                session.add(
+                    OperationsDefinitionProductAssignment(
+                        route_id=route.id, product_id=product.id,
+                    )
+                )
                 await session.flush()
 
                 await event_bus.publish(
@@ -645,21 +697,6 @@ class ProductDefService:
                     route.name, route.version, product.code,
                 )
 
-            # Build work_center_code → work_cell_id lookup
-            wc_codes = [
-                s.work_center_code for s in dto.steps if s.work_center_code
-            ]
-            wc_map: dict[str, Any] = {}
-            if wc_codes:
-                wc_result = await session.execute(
-                    select(WorkCell).where(
-                        WorkCell.code.in_(wc_codes),
-                        WorkCell.is_active.is_(True),
-                    )
-                )
-                for wc in wc_result.scalars().all():
-                    wc_map[wc.code] = wc.id
-
             # Upsert RouteSteps
             for step_dto in dto.steps:
                 step_result = await session.execute(
@@ -670,7 +707,6 @@ class ProductDefService:
                 )
                 step = step_result.scalar_one_or_none()
 
-                work_cell_id = wc_map.get(step_dto.work_center_code) if step_dto.work_center_code else None
                 erp_op = str(step_dto.sequence)
 
                 if step is None:
@@ -679,21 +715,19 @@ class ProductDefService:
                         sequence=step_dto.sequence,
                         name=step_dto.name,
                         step_type=step_dto.step_type,
-                        work_cell_id=work_cell_id,
                         erp_operation_number=erp_op,
                     )
                     session.add(step)
                 else:
                     step.name = step_dto.name
                     step.step_type = step_dto.step_type
-                    step.work_cell_id = work_cell_id
                     step.erp_operation_number = erp_op
 
-                if step_dto.work_center_code and step_dto.work_center_code not in wc_map:
-                    logger.warning(
-                        "Work center '%s' not found in MES — step %d work_cell_id left null",
-                        step_dto.work_center_code, step_dto.sequence,
-                    )
+                if step_dto.work_center_code:
+                    # Work-center → equipment-class resolution is handled by the
+                    # dispatch layer via SegmentEquipmentRequirement; not stored
+                    # directly on the segment anymore.
+                    pass
 
             await session.flush()
             persisted.append(route)

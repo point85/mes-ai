@@ -90,8 +90,9 @@ class ProductDefinition(BaseModel):
     boms: Mapped[list["BillOfMaterial"]] = relationship(
         "BillOfMaterial", back_populates="product", cascade="all, delete-orphan",
     )
-    routes: Mapped[list["OperationsDefinition"]] = relationship(
-        "OperationsDefinition", back_populates="product", cascade="all, delete-orphan",
+    route_assignments: Mapped[list["OperationsDefinitionProductAssignment"]] = relationship(
+        "OperationsDefinitionProductAssignment",
+        back_populates="product",
     )
 
     def __repr__(self) -> str:
@@ -176,18 +177,12 @@ class BOMItem(BaseModel):
 class OperationsDefinition(BaseModel):
     """
     A manufacturing route — an ordered sequence of steps to produce a product.
-    Routes may be shared across many products via the operations_definition_product_assignments
-    junction table.  The legacy ``product_id`` column is kept nullable for
-    backward-compatibility with ERP-synced routes (1:1 with product).
+    Routes are associated with products via the
+    ``operations_definition_product_assignments`` junction table (many-to-many).
     """
 
     __tablename__ = "operations_definitions"
 
-    product_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("product_definitions.id"),
-        nullable=True, index=True,
-        comment="Legacy 1:1 product FK. Nullable — use operations_definition_product_assignments for many:many.",
-    )
     version: Mapped[str] = mapped_column(
         String(50), nullable=False, default="1.0",
     )
@@ -199,9 +194,6 @@ class OperationsDefinition(BaseModel):
     )
 
     # Relationships
-    product: Mapped["ProductDefinition | None"] = relationship(
-        "ProductDefinition", back_populates="routes",
-    )
     steps: Mapped[list["ProcessSegment"]] = relationship(
         "ProcessSegment", back_populates="route", cascade="all, delete-orphan",
         order_by="ProcessSegment.sequence",
@@ -237,11 +229,6 @@ class ProcessSegment(BaseModel):
     step_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="production",
         comment="Step type: 'production', 'inspection', 'rework', or 'mrb'",
-    )
-    work_cell_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("work_cells.id"),
-        nullable=True, index=True,
-        comment="Legacy direct work-cell link (prefer equipment_class_id for ISA-95 process segments)",
     )
     equipment_class_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("equipment_classes.id"),
@@ -543,7 +530,9 @@ class OperationsDefinitionProductAssignment(BaseModel):
     route: Mapped["OperationsDefinition"] = relationship(
         "OperationsDefinition", back_populates="product_assignments",
     )
-    product: Mapped["ProductDefinition"] = relationship("ProductDefinition")
+    product: Mapped["ProductDefinition"] = relationship(
+        "ProductDefinition", back_populates="route_assignments",
+    )
 
     def __repr__(self) -> str:
         return f"<OperationsDefinitionProductAssignment route={self.route_id} product={self.product_id}>"

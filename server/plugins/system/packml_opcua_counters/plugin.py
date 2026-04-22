@@ -63,12 +63,19 @@ class PackMLOpcuaCountersPlugin(MESPlugin):
         poll_interval_sec:         Fallback polling interval (default 5 s)
         subscription_interval_ms:  OPC-UA publishing interval (default 1000 ms)
 
-    Equipment OPC-UA endpoints are read from equipment metadata
-    (equipment.capabilities JSON field) at startup.  Expected keys:
-        opcua_endpoint:  "opc.tcp://10.0.0.1:4840"
-        opcua_namespace: 2              (namespace index, default 2)
-        opcua_good_node: "Admin.ProdProcessedCount"   (optional override)
-        opcua_reject_node: "Admin.ProdDefectiveCount"  (optional override)
+    Equipment OPC-UA endpoints are read from this plugin's ``PluginConfig``
+    row under ``config_overrides["equipment_mappings"]``.  Expected shape:
+
+        {
+          "equipment_mappings": {
+            "<equipment_code>": {
+              "opcua_endpoint":   "opc.tcp://10.0.0.1:4840",
+              "opcua_namespace":  2,                               # optional
+              "opcua_good_node":  "Admin.ProdProcessedCount",      # optional
+              "opcua_reject_node": "Admin.ProdDefectiveCount"      # optional
+            }
+          }
+        }
     """
 
     def __init__(self) -> None:
@@ -90,8 +97,9 @@ class PackMLOpcuaCountersPlugin(MESPlugin):
         """
         Discover equipment with OPC-UA endpoints and start subscriptions.
 
-        Each equipment with an ``opcua_endpoint`` in its capabilities JSON
-        gets a dedicated asyncio task that subscribes to the PackTag nodes.
+        Each equipment configured via ``PluginConfig.config_overrides
+        ["equipment_mappings"]`` gets a dedicated asyncio task that
+        subscribes to the PackTag nodes.
         """
         self._running = True
         equipment_list = await self._discover_opcua_equipment()
@@ -254,28 +262,56 @@ class PackMLOpcuaCountersPlugin(MESPlugin):
         self,
     ) -> list[tuple[UUID, str, int, str, str]]:
         """
-        Query all active equipment with opcua_endpoint in capabilities.
+        Build the list of (equipment_id, endpoint, namespace, good_node, reject_node)
+        tuples by joining this plugin's ``PluginConfig.config_overrides
+        ["equipment_mappings"]`` against the Equipment table (matched by code).
 
         Returns:
             List of (equipment_id, endpoint_url, namespace, good_node, reject_node)
         """
         from sqlalchemy import select
         from mes.framework.db import async_session_factory
+        from mes.framework.plugin.models import PluginConfig
         from mes.core.physical_model.models import Equipment
 
         results: list[tuple[UUID, str, int, str, str]] = []
 
         async with async_session_factory() as session:
-            stmt = select(Equipment).where(Equipment.is_active.is_(True))
-            rows = await session.execute(stmt)
-            for eq in rows.scalars().all():
-                caps = eq.capabilities or {}
-                endpoint = caps.get("opcua_endpoint")
+            cfg_row = (
+                await session.execute(
+                    select(PluginConfig).where(PluginConfig.plugin_id == SOURCE_ID)
+                )
+            ).scalar_one_or_none()
+
+            mappings: dict[str, dict[str, Any]] = {}
+            if cfg_row is not None:
+                mappings = (cfg_row.config_overrides or {}).get("equipment_mappings", {}) or {}
+
+            if not mappings:
+                logger.info(
+                    "No equipment_mappings configured in PluginConfig[%s] — nothing to discover",
+                    SOURCE_ID,
+                )
+                return results
+
+            codes = list(mappings.keys())
+            eq_rows = (
+                await session.execute(
+                    select(Equipment).where(
+                        Equipment.code.in_(codes),
+                        Equipment.is_active.is_(True),
+                    )
+                )
+            ).scalars().all()
+
+            for eq in eq_rows:
+                cfg = mappings.get(eq.code) or {}
+                endpoint = cfg.get("opcua_endpoint")
                 if not endpoint:
                     continue
-                namespace = int(caps.get("opcua_namespace", 2))
-                good_node = caps.get("opcua_good_node", PACKTAG_GOOD_COUNT)
-                reject_node = caps.get("opcua_reject_node", PACKTAG_DEFECTIVE_COUNT)
+                namespace = int(cfg.get("opcua_namespace", 2))
+                good_node = cfg.get("opcua_good_node", PACKTAG_GOOD_COUNT)
+                reject_node = cfg.get("opcua_reject_node", PACKTAG_DEFECTIVE_COUNT)
                 results.append((eq.id, endpoint, namespace, good_node, reject_node))
 
         logger.info("Discovered %d OPC-UA-enabled equipment", len(results))

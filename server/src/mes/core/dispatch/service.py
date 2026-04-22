@@ -167,8 +167,7 @@ class DispatchService:
         # ISA-95 Process Segment dispatch priority:
         #   1. SegmentEquipmentRequirement rows (specific equipment for this step)
         #   2. equipment_class_id on the step (all equipment of that class)
-        #   3. work_cell_id (legacy: all equipment in the work cell)
-        #   4. No constraint → empty options
+        #   3. No constraint → empty options
 
         equip_rows: list[tuple] = []
 
@@ -208,21 +207,8 @@ class DispatchService:
             equip_result = await session.execute(equip_stmt)
             equip_rows = equip_result.all()
 
-        elif target_step.work_cell_id is not None:
-            # 3. Legacy: find equipment in the specified work cell
-            equip_stmt = (
-                select(Equipment, WorkCell)
-                .join(WorkCell, Equipment.work_cell_id == WorkCell.id)
-                .where(
-                    Equipment.work_cell_id == target_step.work_cell_id,
-                    Equipment.is_active.is_(True),
-                )
-            )
-            equip_result = await session.execute(equip_stmt)
-            equip_rows = equip_result.all()
-
         else:
-            # 4. No equipment constraint — cannot dispatch
+            # 3. No equipment constraint — cannot dispatch
             return DispatchEvaluateResponse(
                 unit_id=unit_id,
                 lot_id=lot_id,
@@ -570,7 +556,7 @@ class DispatchService:
         and whether the WIP is currently assigned to that equipment.
         """
         # Resolve step → equipment candidates
-        # Priority: step equipment requirements > equipment_class_id > work_cell_id
+        # Priority: step equipment requirements > equipment_class_id
         step_result = await session.execute(
             select(ProcessSegment).where(ProcessSegment.id == step_id)
         )
@@ -599,13 +585,6 @@ class DispatchService:
             equip_result = await session.execute(
                 select(Equipment).where(
                     Equipment.equipment_class_id == step_obj.equipment_class_id,
-                    Equipment.is_active.is_(True),
-                ).order_by(Equipment.code)
-            )
-        elif step_obj.work_cell_id is not None:
-            equip_result = await session.execute(
-                select(Equipment).where(
-                    Equipment.work_cell_id == step_obj.work_cell_id,
                     Equipment.is_active.is_(True),
                 ).order_by(Equipment.code)
             )

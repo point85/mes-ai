@@ -21,7 +21,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mes.core.product_def.models import Disposition, OperationsDefinition, ProcessSegment, ProcessSegmentDependency
+from mes.core.product_def.models import (
+    Disposition,
+    OperationsDefinition,
+    OperationsDefinitionProductAssignment,
+    ProcessSegment,
+    ProcessSegmentDependency,
+)
 from mes.core.operations.models import OperationsRequest
 from mes.framework.api.exceptions import NotFoundException
 from mes.core.wip.exceptions import NoRouteAssignedException, NoNextStepException
@@ -83,11 +89,16 @@ class RoutingEngineService:
             if route is not None:
                 return route
 
-        # 2. Product's default active route
+        # 2. Product's default active route (via OperationsDefinitionProductAssignment)
         default_stmt = (
             select(OperationsDefinition)
+            .join(
+                OperationsDefinitionProductAssignment,
+                OperationsDefinitionProductAssignment.route_id == OperationsDefinition.id,
+            )
             .where(
-                OperationsDefinition.product_id == order.product_id,
+                OperationsDefinitionProductAssignment.product_id == order.product_id,
+                OperationsDefinitionProductAssignment.is_active.is_(True),
                 OperationsDefinition.is_default.is_(True),
                 OperationsDefinition.is_active.is_(True),
             )
@@ -101,8 +112,13 @@ class RoutingEngineService:
         # 3. Fallback: first active route for the product
         fallback_stmt = (
             select(OperationsDefinition)
+            .join(
+                OperationsDefinitionProductAssignment,
+                OperationsDefinitionProductAssignment.route_id == OperationsDefinition.id,
+            )
             .where(
-                OperationsDefinition.product_id == order.product_id,
+                OperationsDefinitionProductAssignment.product_id == order.product_id,
+                OperationsDefinitionProductAssignment.is_active.is_(True),
                 OperationsDefinition.is_active.is_(True),
             )
             .options(selectinload(OperationsDefinition.steps))
