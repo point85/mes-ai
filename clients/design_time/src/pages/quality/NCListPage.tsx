@@ -6,10 +6,12 @@ import { useState, useMemo } from "react";
 import {
   PlusIcon,
   PencilSquareIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
 import {
   useNonConformances,
   useUpdateNonConformance,
+  useDeleteNonConformance,
 } from "../../hooks/useQuality";
 import type { NonConformance } from "../../types";
 import NCFormDialog from "./NCFormDialog";
@@ -30,6 +32,7 @@ export default function NCListPage() {
 
   const { data, isLoading, error } = useNonConformances();
   const updateMut = useUpdateNonConformance();
+  const deleteMut = useDeleteNonConformance();
 
   const ncs = data?.data ?? [];
 
@@ -52,6 +55,11 @@ export default function NCListPage() {
 
   const handleClose = (nc: NonConformance) => {
     updateMut.mutate({ id: nc.id, status: "closed" });
+  };
+
+  const handleDelete = (nc: NonConformance) => {
+    if (!confirm(`Delete non-conformance "${nc.description}"?`)) return;
+    deleteMut.mutate(nc.id);
   };
 
   return (
@@ -190,6 +198,13 @@ export default function NCListPage() {
                         title="Edit"
                       >
                         <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(nc)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
                       </button>
                     </div>
                   </td>

@@ -7,6 +7,7 @@ import {
   fetchProducts,
   createProduct,
   updateProduct,
+  deleteProduct,
   fetchBOMs,
   createBOM,
   updateBOM,
@@ -92,6 +93,14 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: ({ id, ...body }: ProductUpdate & { id: string }) =>
       updateProduct(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.products }),
+  });
+}
+
+export function useDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteProduct(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.products }),
   });
 }

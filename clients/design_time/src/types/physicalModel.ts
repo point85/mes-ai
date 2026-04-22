@@ -273,3 +273,11 @@ export interface EquipmentCapabilityRead {
   updated_at: string;
   properties: EquipmentCapabilityPropertyRead[];
 }
+
+export interface EquipmentCapabilityUpdate {
+  equipment_class_id?: string | null;
+  capability_type?: string;
+  reason?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+}

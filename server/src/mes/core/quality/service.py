@@ -114,6 +114,16 @@ class QualityTestService:
         await session.flush()
         return test
 
+    @staticmethod
+    async def delete_test(
+        session: AsyncSession, test_id: UUID,
+    ) -> None:
+        """Soft-delete a quality test definition."""
+        test = await QualityTestService.get_test(session, test_id)
+        test.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted quality test %s", test_id)
+
 
 class TestResultService:
     """Service class for recording and querying quality test results."""
@@ -205,7 +215,10 @@ class NonConformanceService:
         session: AsyncSession, nc_id: UUID,
     ) -> NonConformance:
         """Get a non-conformance by ID."""
-        stmt = select(NonConformance).where(NonConformance.id == nc_id)
+        stmt = select(NonConformance).where(
+            NonConformance.id == nc_id,
+            NonConformance.is_active.is_(True),
+        )
         result = await session.execute(stmt)
         nc = result.scalar_one_or_none()
         if nc is None:
@@ -223,7 +236,7 @@ class NonConformanceService:
         unit_id: UUID | None = None,
     ) -> tuple[Sequence[NonConformance], str | None, bool]:
         """List non-conformances with optional filters."""
-        stmt = select(NonConformance)
+        stmt = select(NonConformance).where(NonConformance.is_active.is_(True))
         if status is not None:
             stmt = stmt.where(NonConformance.status == status)
         if nc_type is not None:
@@ -276,3 +289,13 @@ class NonConformanceService:
             ))
 
         return nc
+
+    @staticmethod
+    async def delete_nc(
+        session: AsyncSession, nc_id: UUID,
+    ) -> None:
+        """Soft-delete a non-conformance record."""
+        nc = await NonConformanceService.get_nc(session, nc_id)
+        nc.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted non-conformance %s", nc_id)

@@ -7,9 +7,10 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   PlusIcon,
   PencilSquareIcon,
+  TrashIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import { useSite, useAreas } from "../../hooks/usePhysicalModel";
+import { useSite, useAreas, useDeleteArea } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
 import type { Area } from "../../types";
 import AreaFormDialog from "./AreaFormDialog";
@@ -30,6 +31,7 @@ export default function AreaListPage() {
 
   const { data: site } = useSite(siteId!);
   const { data, isLoading, error } = useAreas(siteId!);
+  const deleteMut = useDeleteArea();
 
   const siteName = site?.name ?? locState.siteName ?? "…";
   const areas: Area[] = data?.data ?? [];
@@ -41,6 +43,11 @@ export default function AreaListPage() {
       (a) => a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q),
     );
   }, [areas, search]);
+
+  const handleDelete = (area: Area) => {
+    if (!confirm(`Delete area "${area.name}"?`)) return;
+    deleteMut.mutate(area.id);
+  };
 
   return (
     <div className="space-y-6">
@@ -131,6 +138,13 @@ export default function AreaListPage() {
                         title="Edit"
                       >
                         <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(area)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
                       </button>
                     </div>
                   </td>

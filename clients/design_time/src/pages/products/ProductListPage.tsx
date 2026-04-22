@@ -10,7 +10,7 @@ import {
   TrashIcon,
   PencilSquareIcon,
 } from "@heroicons/react/24/outline";
-import { useProducts } from "../../hooks/useProductDef";
+import { useProducts, useDeleteProduct } from "../../hooks/useProductDef";
 import type { Product } from "../../types";
 import ProductFormDialog from "./ProductFormDialog";
 
@@ -20,6 +20,7 @@ export default function ProductListPage() {
   const [typeFilter, setTypeFilter] = useState("");
 
   const { data, isLoading, error } = useProducts();
+  const deleteMut = useDeleteProduct();
   const products = data?.data ?? [];
 
   const types = useMemo(() => {
@@ -30,6 +31,11 @@ export default function ProductListPage() {
   const filtered = typeFilter
     ? products.filter((p) => p.product_type === typeFilter)
     : products;
+
+  const handleDelete = (p: Product) => {
+    if (!confirm(`Delete product "${p.code}" — ${p.name}?`)) return;
+    deleteMut.mutate(p.id);
+  };
 
   return (
     <div className="space-y-6">
@@ -145,9 +151,9 @@ export default function ProductListPage() {
                         <PencilSquareIcon className="h-4 w-4" />
                       </button>
                       <button
-                        disabled
-                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Delete (coming soon)"
+                        onClick={() => handleDelete(p)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Delete"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>

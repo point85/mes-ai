@@ -6,8 +6,9 @@ import { useState, useMemo } from "react";
 import {
   PlusIcon,
   PencilSquareIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
-import { useQualityTests } from "../../hooks/useQuality";
+import { useQualityTests, useDeleteQualityTest } from "../../hooks/useQuality";
 import type { QualityTest } from "../../types";
 import QualityTestFormDialog from "./QualityTestFormDialog";
 
@@ -25,6 +26,7 @@ export default function QualityTestListPage() {
   const [typeFilter, setTypeFilter] = useState("");
 
   const { data, isLoading, error } = useQualityTests();
+  const deleteMut = useDeleteQualityTest();
 
   const tests = data?.data ?? [];
 
@@ -32,6 +34,11 @@ export default function QualityTestListPage() {
     if (!typeFilter) return tests;
     return tests.filter((t) => t.test_type === typeFilter);
   }, [tests, typeFilter]);
+
+  const handleDelete = (t: QualityTest) => {
+    if (!confirm(`Delete quality test "${t.name}"?`)) return;
+    deleteMut.mutate(t.id);
+  };
 
   return (
     <div className="space-y-6">
@@ -132,13 +139,22 @@ export default function QualityTestListPage() {
                     {t.description ?? "—"}
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <button
-                      onClick={() => setEditing(t)}
-                      className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                      title="Edit"
-                    >
-                      <PencilSquareIcon className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setEditing(t)}
+                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                        title="Edit"
+                      >
+                        <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(t)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

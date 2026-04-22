@@ -7,11 +7,13 @@ import {
   fetchQualityTests,
   createQualityTest,
   updateQualityTest,
+  deleteQualityTest,
   fetchTestResults,
   recordTestResult,
   fetchNonConformances,
   createNonConformance,
   updateNonConformance,
+  deleteNonConformance,
 } from "../api/quality";
 import type {
   QualityTestCreate,
@@ -58,6 +60,14 @@ export function useUpdateQualityTest() {
   });
 }
 
+export function useDeleteQualityTest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteQualityTest(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.tests }),
+  });
+}
+
 // ─── Test Results ─────────────────────────────────────────────────────
 
 export function useTestResults(testId?: string, result?: string) {
@@ -97,6 +107,14 @@ export function useUpdateNonConformance() {
   return useMutation({
     mutationFn: ({ id, ...body }: NonConformanceUpdate & { id: string }) =>
       updateNonConformance(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.ncs }),
+  });
+}
+
+export function useDeleteNonConformance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteNonConformance(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.ncs }),
   });
 }

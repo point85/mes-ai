@@ -187,6 +187,17 @@ async def update_area(
     return success_response(AreaRead.model_validate(area).model_dump())
 
 
+@router.delete("/areas/{area_id}", status_code=204)
+async def delete_area(
+    area_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.delete")),
+):
+    """Soft-delete an area."""
+    await svc.delete_area(session, area_id)
+    await session.commit()
+
+
 # ─── Production Lines ────────────────────────────────────────────────
 
 
@@ -258,6 +269,17 @@ async def update_line(
     line = await svc.update_line(session, line_id, **body.model_dump(exclude_unset=True))
     await session.commit()
     return success_response(ProductionLineRead.model_validate(line).model_dump())
+
+
+@router.delete("/lines/{line_id}", status_code=204)
+async def delete_line(
+    line_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.delete")),
+):
+    """Soft-delete a production line."""
+    await svc.delete_line(session, line_id)
+    await session.commit()
 
 
 # ─── Work Cells ───────────────────────────────────────────────────────
@@ -333,6 +355,17 @@ async def update_work_cell(
     return success_response(WorkCellRead.model_validate(wc).model_dump())
 
 
+@router.delete("/work-cells/{wc_id}", status_code=204)
+async def delete_work_cell(
+    wc_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.delete")),
+):
+    """Soft-delete a work cell."""
+    await svc.delete_work_cell(session, wc_id)
+    await session.commit()
+
+
 # ─── Equipment ────────────────────────────────────────────────────────
 
 
@@ -406,6 +439,17 @@ async def update_equipment(
     )
     await session.commit()
     return success_response(EquipmentRead.model_validate(equip).model_dump())
+
+
+@router.delete("/equipment/{equip_id}", status_code=204)
+async def delete_equipment(
+    equip_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.delete")),
+):
+    """Soft-delete equipment."""
+    await svc.delete_equipment(session, equip_id)
+    await session.commit()
 
 
 

@@ -31,6 +31,7 @@ import type {
   EquipmentClassPropertyUpdate,
   EquipmentCapabilityCreate,
   EquipmentCapabilityRead,
+  EquipmentCapabilityUpdate,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -91,6 +92,10 @@ export async function updateArea(areaId: string, body: AreaUpdate): Promise<Area
   return data.data;
 }
 
+export async function deleteArea(areaId: string): Promise<void> {
+  await api.delete(`/areas/${areaId}`);
+}
+
 // ─── Production Lines ─────────────────────────────────────────────────
 
 export async function fetchAllLines(): Promise<ApiListResponse<ProductionLine>> {
@@ -134,6 +139,10 @@ export async function updateLine(
     body,
   );
   return data.data;
+}
+
+export async function deleteLine(lineId: string): Promise<void> {
+  await api.delete(`/lines/${lineId}`);
 }
 
 // ─── Work Cells ──────────────────────────────────────────────────────
@@ -183,6 +192,10 @@ export async function updateWorkCell(
   return data.data;
 }
 
+export async function deleteWorkCell(wcId: string): Promise<void> {
+  await api.delete(`/work-cells/${wcId}`);
+}
+
 // ─── Equipment ────────────────────────────────────────────────────────
 
 export async function fetchAllEquipment(): Promise<ApiListResponse<Equipment>> {
@@ -223,6 +236,10 @@ export async function updateEquipment(
     body,
   );
   return data.data;
+}
+
+export async function deleteEquipment(equipId: string): Promise<void> {
+  await api.delete(`/equipment/${equipId}`);
 }
 
 
@@ -342,6 +359,17 @@ export async function createEquipmentCapability(
 ): Promise<EquipmentCapabilityRead> {
   const { data } = await api.post<ApiResponse<EquipmentCapabilityRead>>(
     `/equipment/${equipId}/capabilities`,
+    body,
+  );
+  return data.data;
+}
+
+export async function updateEquipmentCapability(
+  capId: string,
+  body: EquipmentCapabilityUpdate,
+): Promise<EquipmentCapabilityRead> {
+  const { data } = await api.patch<ApiResponse<EquipmentCapabilityRead>>(
+    `/equipment-capabilities/${capId}`,
     body,
   );
   return data.data;

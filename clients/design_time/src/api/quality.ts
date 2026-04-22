@@ -57,6 +57,10 @@ export async function updateQualityTest(
   return data.data;
 }
 
+export async function deleteQualityTest(id: string): Promise<void> {
+  await api.delete(`/quality/tests/${id}`);
+}
+
 // ─── Test Results ─────────────────────────────────────────────────────
 
 export async function fetchTestResults(
@@ -118,4 +122,8 @@ export async function updateNonConformance(
     body,
   );
   return data.data;
+}
+
+export async function deleteNonConformance(id: string): Promise<void> {
+  await api.delete(`/quality/non-conformances/${id}`);
 }

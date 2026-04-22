@@ -58,6 +58,10 @@ export async function updateProduct(id: string, body: ProductUpdate): Promise<Pr
   return data.data;
 }
 
+export async function deleteProduct(id: string): Promise<void> {
+  await api.delete(`/products/${id}`);
+}
+
 // ─── BOMs ─────────────────────────────────────────────────────────────
 
 export async function fetchBOMs(productId: string): Promise<ApiListResponse<BOM>> {

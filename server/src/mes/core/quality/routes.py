@@ -102,6 +102,17 @@ async def update_test(
     return success_response(QualityTestRead.model_validate(test).model_dump())
 
 
+@router.delete("/tests/{test_id}", status_code=204)
+async def delete_test(
+    test_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("quality.delete")),
+):
+    """Soft-delete a quality test definition."""
+    await QualityTestService.delete_test(session, test_id)
+    await session.commit()
+
+
 # ═══════════════════════════════════════════════════════════════════
 # TestResult endpoints
 # ═══════════════════════════════════════════════════════════════════
@@ -205,3 +216,14 @@ async def update_non_conformance(
     nc = await NonConformanceService.update_nc(session, nc_id, **body.model_dump())
     await session.commit()
     return success_response(NonConformanceRead.model_validate(nc).model_dump())
+
+
+@router.delete("/non-conformances/{nc_id}", status_code=204)
+async def delete_non_conformance(
+    nc_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("quality.delete")),
+):
+    """Soft-delete a non-conformance record."""
+    await NonConformanceService.delete_nc(session, nc_id)
+    await session.commit()

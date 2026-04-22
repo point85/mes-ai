@@ -172,6 +172,14 @@ class PhysicalModelService:
         await session.flush()
         return area
 
+    @staticmethod
+    async def delete_area(session: AsyncSession, area_id: UUID) -> None:
+        """Soft-delete an area by setting is_active=False."""
+        area = await PhysicalModelService.get_area(session, area_id)
+        area.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted area %s", area_id)
+
     # ─── ProductionLine operations ───────────────────────────────────
 
     @staticmethod
@@ -237,6 +245,14 @@ class PhysicalModelService:
                 setattr(line, key, value)
         await session.flush()
         return line
+
+    @staticmethod
+    async def delete_line(session: AsyncSession, line_id: UUID) -> None:
+        """Soft-delete a production line."""
+        line = await PhysicalModelService.get_line(session, line_id)
+        line.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted production line %s", line_id)
 
     @staticmethod
     async def get_line_with_work_cells(
@@ -338,6 +354,14 @@ class PhysicalModelService:
         await session.flush()
         return wc
 
+    @staticmethod
+    async def delete_work_cell(session: AsyncSession, wc_id: UUID) -> None:
+        """Soft-delete a work cell."""
+        wc = await PhysicalModelService.get_work_cell(session, wc_id)
+        wc.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted work cell %s", wc_id)
+
     # ─── Equipment operations ────────────────────────────────────────
 
     @staticmethod
@@ -418,6 +442,14 @@ class PhysicalModelService:
                 setattr(equip, key, value)
         await session.flush()
         return equip
+
+    @staticmethod
+    async def delete_equipment(session: AsyncSession, equip_id: UUID) -> None:
+        """Soft-delete equipment."""
+        equip = await PhysicalModelService.get_equipment(session, equip_id)
+        equip.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted equipment %s", equip_id)
 
     # ─── Equipment–Material Setup operations ─────────────────────────
 

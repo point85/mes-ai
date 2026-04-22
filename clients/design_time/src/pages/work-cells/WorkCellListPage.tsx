@@ -7,9 +7,10 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   PlusIcon,
   PencilSquareIcon,
+  TrashIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import { useLine, useArea, useSite, useWorkCells } from "../../hooks/usePhysicalModel";
+import { useLine, useArea, useSite, useWorkCells, useDeleteWorkCell } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
 import type { WorkCell } from "../../types";
 import WorkCellFormDialog from "./WorkCellFormDialog";
@@ -36,6 +37,7 @@ export default function WorkCellListPage() {
   const { data: area } = useArea(line?.area_id ?? locState.areaId ?? "");
   const { data: site } = useSite(area?.site_id ?? locState.siteId ?? "");
   const { data, isLoading, error } = useWorkCells(lineId!);
+  const deleteMut = useDeleteWorkCell();
 
   const siteName = site?.name ?? locState.siteName ?? "…";
   const siteId = site?.id ?? area?.site_id ?? locState.siteId ?? "";
@@ -51,6 +53,11 @@ export default function WorkCellListPage() {
       (wc) => wc.name.toLowerCase().includes(q) || wc.code.toLowerCase().includes(q),
     );
   }, [workCells, search]);
+
+  const handleDelete = (wc: WorkCell) => {
+    if (!confirm(`Delete work cell "${wc.name}"?`)) return;
+    deleteMut.mutate(wc.id);
+  };
 
   return (
     <div className="space-y-6">
@@ -143,6 +150,13 @@ export default function WorkCellListPage() {
                         title="Edit"
                       >
                         <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(wc)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
                       </button>
                     </div>
                   </td>

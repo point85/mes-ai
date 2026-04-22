@@ -6,12 +6,13 @@
 
 import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { PlusIcon, TrashIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon, PencilSquareIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import {
   useEquipmentCapabilities,
   useEquipmentClasses,
   useEquipmentClassDetail,
   useCreateEquipmentCapability,
+  useUpdateEquipmentCapability,
   useDeleteEquipmentCapability,
 } from "../../hooks/usePhysicalModel";
 import type {
@@ -27,13 +28,15 @@ export default function EquipmentCapabilityPage() {
   const { data, isLoading, error } = useEquipmentCapabilities(equipId!);
   const { data: classesResp } = useEquipmentClasses();
   const createMut = useCreateEquipmentCapability();
+  const updateMut = useUpdateEquipmentCapability();
   const deleteMut = useDeleteEquipmentCapability();
 
   const capabilities: EquipmentCapabilityRead[] = data?.data ?? [];
   const equipmentClasses = classesResp?.data ?? [];
 
-  // ─── New capability form state ───────────────────────────────────
+  // ─── New/Edit capability form state ───────────────────────────────
   const [showForm, setShowForm] = useState(false);
+  const [editingCap, setEditingCap] = useState<EquipmentCapabilityRead | null>(null);
   const [formClassId, setFormClassId] = useState("");
   const [formType, setFormType] = useState("available");
   const [formReason, setFormReason] = useState("");
@@ -57,7 +60,36 @@ export default function EquipmentCapabilityPage() {
     setFormPropertyValues({});
   };
 
-  const handleCreate = async () => {
+  const resetForm = () => {
+    setShowForm(false);
+    setEditingCap(null);
+    setFormClassId("");
+    setFormType("available");
+    setFormReason("");
+    setFormPropertyValues({});
+  };
+
+  const handleEdit = (cap: EquipmentCapabilityRead) => {
+    setEditingCap(cap);
+    setFormClassId(cap.equipment_class_id ?? "");
+    setFormType(cap.capability_type);
+    setFormReason(cap.reason ?? "");
+    setFormPropertyValues({});
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
+    if (editingCap) {
+      await updateMut.mutateAsync({
+        id: editingCap.id,
+        equipment_class_id: formClassId || null,
+        capability_type: formType,
+        reason: formReason || null,
+      });
+      resetForm();
+      return;
+    }
+
     const properties: EquipmentCapabilityPropertyCreate[] = [];
     for (const prop of classProperties) {
       const val = formPropertyValues[prop.id];
@@ -74,11 +106,7 @@ export default function EquipmentCapabilityPage() {
       properties,
     });
 
-    setShowForm(false);
-    setFormClassId("");
-    setFormType("available");
-    setFormReason("");
-    setFormPropertyValues({});
+    resetForm();
   };
 
   const handleDelete = async (capId: string) => {
@@ -122,10 +150,12 @@ export default function EquipmentCapabilityPage() {
         </div>
       )}
 
-      {/* Create form */}
+      {/* Create/edit form */}
       {showForm && (
         <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-4">
-          <h3 className="text-sm font-semibold text-gray-900">New Capability</h3>
+          <h3 className="text-sm font-semibold text-gray-900">
+            {editingCap ? "Edit Capability" : "New Capability"}
+          </h3>
 
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -170,8 +200,8 @@ export default function EquipmentCapabilityPage() {
             </div>
           </div>
 
-          {/* Class property values */}
-          {classProperties.length > 0 && (
+          {/* Class property values — create mode only (server update schema excludes properties) */}
+          {!editingCap && classProperties.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-gray-700 mb-2">Property Values</h4>
               <div className="grid grid-cols-2 gap-3">
@@ -197,26 +227,32 @@ export default function EquipmentCapabilityPage() {
             </div>
           )}
 
-          {createMut.error && (
+          {(createMut.error || updateMut.error) && (
             <p className="text-xs text-red-600">
-              {(createMut.error as { response?: { data?: { detail?: string } } })
-                ?.response?.data?.detail ?? "Failed to create capability"}
+              {((editingCap ? updateMut.error : createMut.error) as { response?: { data?: { detail?: string } } })
+                ?.response?.data?.detail ?? "Failed to save capability"}
             </p>
           )}
 
           <div className="flex justify-end gap-2">
             <button
-              onClick={() => setShowForm(false)}
+              onClick={resetForm}
               className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
-              onClick={handleCreate}
-              disabled={createMut.isPending}
+              onClick={handleSave}
+              disabled={createMut.isPending || updateMut.isPending}
               className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
             >
-              {createMut.isPending ? "Creating…" : "Create"}
+              {editingCap
+                ? updateMut.isPending
+                  ? "Saving…"
+                  : "Save"
+                : createMut.isPending
+                  ? "Creating…"
+                  : "Create"}
             </button>
           </div>
         </div>
@@ -266,13 +302,22 @@ export default function EquipmentCapabilityPage() {
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => handleDelete(cap.id)}
-                className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                title="Delete"
-              >
-                <TrashIcon className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleEdit(cap)}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                  title="Edit"
+                >
+                  <PencilSquareIcon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(cap.id)}
+                  className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                  title="Delete"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {/* Property values */}

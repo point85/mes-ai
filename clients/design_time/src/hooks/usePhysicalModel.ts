@@ -13,20 +13,24 @@ import {
   fetchArea,
   createArea,
   updateArea,
+  deleteArea,
   fetchAllLines,
   fetchLines,
   fetchLine,
   createLine,
   updateLine,
+  deleteLine,
   fetchWorkCells,
   fetchAllWorkCells,
   fetchWorkCell,
   createWorkCell,
   updateWorkCell,
+  deleteWorkCell,
   fetchAllEquipment,
   fetchEquipment,
   createEquipment,
   updateEquipment,
+  deleteEquipment,
   fetchEquipmentMaterials,
   createEquipmentMaterial,
   updateEquipmentMaterial,
@@ -42,9 +46,10 @@ import {
   deleteClassProperty,
   fetchEquipmentCapabilities,
   createEquipmentCapability,
+  updateEquipmentCapability,
   deleteEquipmentCapability,
 } from "../api/physicalModel";
-import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCellCreate, WorkCellUpdate, EquipmentCreate, EquipmentUpdate, EquipmentMaterialCreate, EquipmentMaterialUpdate, EquipmentCapabilityCreate, EquipmentClassCreate, EquipmentClassUpdate, EquipmentClassPropertyCreate, EquipmentClassPropertyUpdate } from "../types";
+import type { SiteCreate, SiteUpdate, AreaCreate, AreaUpdate, ProductionLineCreate, ProductionLineUpdate, WorkCellCreate, WorkCellUpdate, EquipmentCreate, EquipmentUpdate, EquipmentMaterialCreate, EquipmentMaterialUpdate, EquipmentCapabilityCreate, EquipmentCapabilityUpdate, EquipmentClassCreate, EquipmentClassUpdate, EquipmentClassPropertyCreate, EquipmentClassPropertyUpdate } from "../types";
 
 const KEYS = {
   sites: ["sites"] as const,
@@ -139,6 +144,14 @@ export function useUpdateArea() {
   });
 }
 
+export function useDeleteArea() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteArea(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["areas"] }),
+  });
+}
+
 // ─── Lines ────────────────────────────────────────────────────────────
 export function useAllLines() {
   return useQuery({
@@ -176,6 +189,14 @@ export function useUpdateLine() {
   return useMutation({
     mutationFn: ({ id, ...body }: ProductionLineUpdate & { id: string }) =>
       updateLine(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lines"] }),
+  });
+}
+
+export function useDeleteLine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteLine(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lines"] }),
   });
 }
@@ -223,6 +244,14 @@ export function useUpdateWorkCell() {
   });
 }
 
+export function useDeleteWorkCell() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteWorkCell(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workCells"] }),
+  });
+}
+
 // ─── Equipment ────────────────────────────────────────────────────────
 
 export function useAllEquipment() {
@@ -254,6 +283,14 @@ export function useUpdateEquipment() {
   return useMutation({
     mutationFn: ({ id, ...body }: EquipmentUpdate & { id: string }) =>
       updateEquipment(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipment"] }),
+  });
+}
+
+export function useDeleteEquipment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteEquipment(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["equipment"] }),
   });
 }
@@ -388,6 +425,15 @@ export function useCreateEquipmentCapability() {
   return useMutation({
     mutationFn: ({ equipId, ...body }: EquipmentCapabilityCreate & { equipId: string }) =>
       createEquipmentCapability(equipId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipmentCapabilities"] }),
+  });
+}
+
+export function useUpdateEquipmentCapability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: EquipmentCapabilityUpdate & { id: string }) =>
+      updateEquipmentCapability(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["equipmentCapabilities"] }),
   });
 }

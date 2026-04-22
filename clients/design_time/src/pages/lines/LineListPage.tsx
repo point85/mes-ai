@@ -7,9 +7,10 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   PlusIcon,
   PencilSquareIcon,
+  TrashIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import { useArea, useSite, useLines } from "../../hooks/usePhysicalModel";
+import { useArea, useSite, useLines, useDeleteLine } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
 import type { ProductionLine } from "../../types";
 import LineFormDialog from "./LineFormDialog";
@@ -33,6 +34,7 @@ export default function LineListPage() {
   const { data: area } = useArea(areaId!);
   const { data: site } = useSite(area?.site_id ?? locState.siteId ?? "");
   const { data, isLoading, error } = useLines(areaId!);
+  const deleteMut = useDeleteLine();
 
   const siteName = site?.name ?? locState.siteName ?? "…";
   const siteId = site?.id ?? area?.site_id ?? locState.siteId ?? "";
@@ -46,6 +48,11 @@ export default function LineListPage() {
       (l) => l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q),
     );
   }, [lines, search]);
+
+  const handleDelete = (line: ProductionLine) => {
+    if (!confirm(`Delete production line "${line.name}"?`)) return;
+    deleteMut.mutate(line.id);
+  };
 
   return (
     <div className="space-y-6">
@@ -137,6 +144,13 @@ export default function LineListPage() {
                         title="Edit"
                       >
                         <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(line)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
                       </button>
                     </div>
                   </td>

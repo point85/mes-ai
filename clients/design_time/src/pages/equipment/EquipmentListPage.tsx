@@ -5,7 +5,7 @@
 
 import { useState, useMemo } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { PlusIcon, PencilSquareIcon, Cog6ToothIcon, BoltIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PencilSquareIcon, TrashIcon, Cog6ToothIcon, BoltIcon } from "@heroicons/react/24/outline";
 import {
   useWorkCell,
   useLine,
@@ -13,6 +13,7 @@ import {
   useSite,
   useEquipment,
   useEquipmentClasses,
+  useDeleteEquipment,
 } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
 import type { Equipment } from "../../types";
@@ -44,6 +45,7 @@ export default function EquipmentListPage() {
   const { data: site } = useSite(area?.site_id ?? locState.siteId ?? "");
   const { data, isLoading, error } = useEquipment(wcId!);
   const { data: classesResp } = useEquipmentClasses();
+  const deleteMut = useDeleteEquipment();
 
   const classMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -69,6 +71,11 @@ export default function EquipmentListPage() {
       (e) => e.name.toLowerCase().includes(q) || e.code.toLowerCase().includes(q),
     );
   }, [equipmentList, search]);
+
+  const handleDelete = (eq: Equipment) => {
+    if (!confirm(`Delete equipment "${eq.name}"?`)) return;
+    deleteMut.mutate(eq.id);
+  };
 
   return (
     <div className="space-y-6">
@@ -176,6 +183,13 @@ export default function EquipmentListPage() {
                         title="Edit"
                       >
                         <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(eq)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
                       </button>
                     </div>
                   </td>
