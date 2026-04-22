@@ -34,6 +34,10 @@ parameters:
     description: OAuth2 client secret
     required: false
     secret: true
+  - name: token_url
+    type: string
+    description: OAuth2 token endpoint (required when auth_type=oauth2)
+    required: false
   - name: plant
     type: string
     description: SAP plant code (Werk)

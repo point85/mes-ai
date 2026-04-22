@@ -35,6 +35,10 @@ parameters:
     description: OAuth2 client secret
     required: false
     secret: true
+  - name: token_url
+    type: string
+    description: OAuth2 token endpoint / IDCS URL (required when auth_type=oauth2)
+    required: false
   - name: organization_code
     type: string
     description: Oracle manufacturing organization code

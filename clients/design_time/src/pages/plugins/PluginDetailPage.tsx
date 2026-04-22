@@ -32,6 +32,7 @@ import { formatApiError } from "../../api/errors";
 
 /** Known enum values for select controls. */
 const AUTH_MODE_OPTIONS = ["negotiate", "bearer", "basic"];
+const AUTH_TYPE_OPTIONS = ["oauth2", "basic", "api_key"];
 
 /** Resolve the current value for a parameter from config_values or parameter_values. */
 function resolveValue(
@@ -296,6 +297,7 @@ export default function PluginDetailPage() {
                   onChange={(v) => setParam(param.name, v)}
                   equipmentList={equipmentList}
                   stateModelList={stateModelList}
+                  siblingValues={paramValues}
                 />
               ),
             )}
@@ -382,7 +384,23 @@ interface ParameterFieldProps {
   onChange: (value: unknown) => void;
   equipmentList: EquipmentOption[];
   stateModelList: StateModelOption[];
+  /** Values for sibling parameters in the same form — used to derive dynamic
+      labels/help (e.g. client_id label changes based on auth_type). */
+  siblingValues?: Record<string, unknown>;
 }
+
+/**
+ * Dynamic labels for credential fields that depend on the current auth_type.
+ * Keyed as `<param_name>::<auth_type>` → [label, description].
+ */
+const CREDENTIAL_LABEL_OVERRIDES: Record<string, { label: string; description: string }> = {
+  "client_id::oauth2": { label: "Client ID", description: "OAuth2 client ID" },
+  "client_secret::oauth2": { label: "Client Secret", description: "OAuth2 client secret" },
+  "client_id::basic": { label: "Username", description: "HTTP Basic auth username" },
+  "client_secret::basic": { label: "Password", description: "HTTP Basic auth password" },
+  "client_id::api_key": { label: "API Key Name", description: "API key identifier (often unused; leave blank if not required)" },
+  "client_secret::api_key": { label: "API Key", description: "API key value sent in the auth header" },
+};
 
 const INPUT_CLS =
   "flex-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500";
@@ -395,20 +413,29 @@ function ParameterField({
   onChange,
   equipmentList,
   stateModelList,
+  siblingValues,
 }: ParameterFieldProps) {
   const strVal = value != null ? String(value) : "";
 
   // Determine control type based on parameter name, type, and semantic hints
   const control = resolveControl(param);
 
+  // Dynamic label/description: when the field is a credential whose meaning
+  // depends on auth_type, swap the label and help text.
+  const authType = siblingValues ? String(siblingValues["auth_type"] ?? "") : "";
+  const overrideKey = `${param.name}::${authType}`;
+  const override = CREDENTIAL_LABEL_OVERRIDES[overrideKey];
+  const displayLabel = override?.label ?? formatLabel(param.name);
+  const displayDescription = override?.description ?? param.description;
+
   return (
     <div className="flex items-start gap-3">
       <div className="w-48 shrink-0">
         <label className="text-sm font-medium text-gray-700">
-          {formatLabel(param.name)}
+          {displayLabel}
           {param.required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
-        <p className="text-xs text-gray-400 mt-0.5">{param.description}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{displayDescription}</p>
       </div>
 
       {control === "equipment_select" ? (
@@ -432,6 +459,19 @@ function ParameterField({
         >
           <option value="">— Select auth mode —</option>
           {AUTH_MODE_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      ) : control === "auth_type_select" ? (
+        <select
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={SELECT_CLS}
+        >
+          <option value="">— Select authorization type —</option>
+          {AUTH_TYPE_OPTIONS.map((opt) => (
             <option key={opt} value={opt}>
               {opt}
             </option>
@@ -584,6 +624,7 @@ function ParameterArrayField({
               onChange={(v) => updateItem(idx, itemParam.name, v)}
               equipmentList={equipmentList}
               stateModelList={stateModelList}
+              siblingValues={item}
             />
           ))}
         </div>
@@ -595,6 +636,7 @@ function ParameterArrayField({
 type ControlType =
   | "equipment_select"
   | "auth_mode_select"
+  | "auth_type_select"
   | "state_model_select"
   | "boolean_checkbox"
   | "number_input"
@@ -608,6 +650,7 @@ function resolveControl(param: ParameterSchema): ControlType {
   // Semantic matching by parameter name
   if (param.name === "equipment_id") return "equipment_select";
   if (param.name === "auth_mode") return "auth_mode_select";
+  if (param.name === "auth_type") return "auth_type_select";
   if (param.name === "state_model_id") return "state_model_select";
 
   // Type-based matching
@@ -619,6 +662,11 @@ function resolveControl(param: ParameterSchema): ControlType {
 
 /** Convert snake_case parameter name to a readable label. */
 function formatLabel(name: string): string {
+  // Explicit overrides for cases where title-casing doesn't produce the desired label.
+  const OVERRIDES: Record<string, string> = {
+    auth_type: "Authorization Type",
+  };
+  if (OVERRIDES[name]) return OVERRIDES[name];
   return name
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase())
