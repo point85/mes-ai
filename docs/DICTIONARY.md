@@ -407,14 +407,14 @@ The following columns/attributes have been dropped. No data migration (fresh dat
 | `Equipment` | ~~`equipment_type` (string)~~ | `Equipment.equipment_class_id` FK to `EquipmentClass`. |
 | `Equipment` | ~~`capabilities` (JSON)~~ | `EquipmentCapability` + `EquipmentCapabilityProperty` rows. Plugin-specific per-equipment config lives on `PluginConfig.config_overrides["equipment_mappings"]` keyed by equipment code. |
 
-### 5.3 Out-of-scope / removals (Step 11)
+### 5.3 Out-of-scope / removals (Step 11) — **Complete ✓**
 
-Classes marked for deletion if no consumer remains after the rename sweep. Each will be re-verified before deletion in Step 11.
+Deletion candidates re-verified at Step 11; no deletions required.
 
-| Candidate class | Module | Disposition |
+| Candidate | Module | Final disposition |
 |---|---|---|
-| `demo/` module contents | `core/demo/` | Evaluate — demo fixtures may be regenerated against new schema. Defer decision to Step 11. |
-| Any `*_legacy` helpers in `routing/service.py` | `core/routing/` | Delete after call sites removed in Steps 4 and 7. |
+| `demo/` module contents | `core/demo/` | **Kept.** Actively used (routes, service, order_processors, cpg_data, electronics_data). Demo seeding was successfully regenerated against the renamed schema throughout Steps 7–10 and remains on the test green path. |
+| `*_legacy` helpers in `routing/service.py` | `core/routing/` | **Not applicable.** No `*_legacy` identifiers exist in the module; only a single descriptive comment referencing the legacy-fallback dispositions branch remains, which documents still-live behavior. |
 
 ### 5.4 REST path renames (Step 8) — **Complete ✓**
 
@@ -479,25 +479,27 @@ Extension point `operation_hook`: canonical parameter-name mapping for when conc
 
 **Intentionally unchanged**: `SAP_PRODUCTION_ORDER_PATH` and the SAP OData endpoint path `/sap/opu/.../api_production_order_2_srv/...` in `sap_s4hana/config.py` — these are SAP-native identifiers. Auth role permission scopes `production.order.*` in `framework/auth/service.py` — §5.9 authentication unchanged.
 
-### 5.7 Module directory renames
+### 5.7 Module directory renames (Step 11) — **Complete ✓**
 
-| Current path | New path |
-|---|---|
-| `server/src/mes/core/production/` | `server/src/mes/core/operations/` |
-| `server/src/mes/core/routing/` | `server/src/mes/core/routing/` *(kept — routing engine is a service, not an ISA-95 object)* |
-| `server/src/mes/core/product_def/` | `server/src/mes/core/product_def/` *(kept — houses Operations Definitions + Segments; rename deferred)* |
-| `server/src/mes/core/wip/` | `server/src/mes/core/wip/` *(kept — houses Units, Lots, and Segment Responses; contents renamed per 5.1)* |
+| Previous path | New path | Status |
+|---|---|---|
+| ~~`server/src/mes/core/production/`~~ | `server/src/mes/core/operations/` | Renamed (completed in Step 4) |
+| `server/src/mes/core/routing/` | `server/src/mes/core/routing/` | Kept — routing engine is a service, not an ISA-95 object |
+| `server/src/mes/core/product_def/` | `server/src/mes/core/product_def/` | Kept — houses Operations Definitions + Segments; directory rename deferred |
+| `server/src/mes/core/wip/` | `server/src/mes/core/wip/` | Kept — houses Units, Lots, and Segment Responses; contents renamed per §5.1 |
 
-### 5.8 Module ID updates
+Module-level docstring headers (`PROD-ORDER:` → `OPS-REQUEST:`) updated across all files in `server/src/mes/core/operations/` and the corresponding test file.
 
-Additions/renames to the Module ID table in §2:
+### 5.8 Module ID updates (Step 11) — **Complete ✓**
+
+Changes to the Module ID registry (`PROJECT_STATE.json` + §2 table):
 
 | Module ID | Full Name | Code Path | Status |
 |---|---|---|---|
-| `OPS-REQUEST` | Operations Request (replaces `PROD-ORDER`) | `server/src/mes/core/operations/` | Renamed |
-| `OPS-SCHEDULE` | Operations Schedule | `server/src/mes/core/operations/` | New |
-| `OPS-RESPONSE` | Operations Response | `server/src/mes/core/operations/` | New |
-| `RES-ACTUALS` | Resource Actuals (Material/Equipment/Personnel Actuals) | `server/src/mes/core/wip/` | New |
+| ~~`PROD-ORDER`~~ `OPS-REQUEST` | Operations Request Management (formerly Production Order) | `server/src/mes/core/operations/` | **Renamed in registry** |
+| `OPS-SCHEDULE` | Operations Schedule | `server/src/mes/core/operations/` | Deferred — added when scheduling use case is implemented |
+| `OPS-RESPONSE` | Operations Response | `server/src/mes/core/operations/` | Deferred — added when response aggregation use case is implemented |
+| `RES-ACTUALS` | Resource Actuals (Material/Equipment/Personnel Actuals) | `server/src/mes/core/wip/` | Deferred — added when actuals tracking is implemented |
 | ~~`PERSONNEL`~~ | ~~Personnel Model~~ | ~~`server/src/mes/core/personnel/`~~ | **Deferred (Step 2 skipped)** |
 
 ### 5.9 What is explicitly NOT changing

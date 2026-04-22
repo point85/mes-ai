@@ -1,5 +1,5 @@
 """
-Unit tests for the PROD-ORDER (Production Order) module.
+Unit tests for the OPS-REQUEST (Operations Request) module.
 
 Covers:
 - Model instantiation & table mapping

@@ -1,5 +1,5 @@
 """
-PROD-ORDER: Business logic service for production orders.
+OPS-REQUEST: Business logic service for operations requests.
 
 Provides CRUD, status-lifecycle transitions (release, complete), and
 order-level queries.

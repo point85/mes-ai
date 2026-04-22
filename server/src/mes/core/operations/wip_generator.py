@@ -1,5 +1,5 @@
 """
-PROD-ORDER: Background task that generates WIP (lots/units) for released orders.
+OPS-REQUEST: Background task that generates WIP (lots/units) for released operations requests.
 
 Polls the database every ``interval`` seconds for production orders in
 ``released`` status.  For each order:

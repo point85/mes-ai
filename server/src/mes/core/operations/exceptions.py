@@ -1,5 +1,5 @@
 """
-PROD-ORDER: Domain exceptions.
+OPS-REQUEST: Domain exceptions.
 """
 
 from mes.framework.api.exceptions import MESException

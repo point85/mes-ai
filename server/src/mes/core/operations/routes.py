@@ -1,5 +1,5 @@
 """
-PROD-ORDER: REST API routes for production orders.
+OPS-REQUEST: REST API routes for operations requests.
 
 Endpoints:
 - GET    /api/v1/orders                    List orders (optional filters)

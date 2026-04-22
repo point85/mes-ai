@@ -3293,3 +3293,34 @@ Say: *"Proceed with Step 10"*. The AI will perform the Step 10 plugin-facing API
 
 ### To Resume
 Say: *"Proceed with Step 11"*. Step 11 is module directory renames per DICTIONARY.md 5.7 (the only actual directory rename planned: `server/src/mes/core/production/` -> already moved to `operations/` in Step 4; the other entries are marked kept). Step 11 will verify there are no lingering `production/` paths or imports and update the Module ID table per 5.8.
+
+---
+
+## Session S0xx - Step 11: Deletions / directory & Module ID consolidation (Phase 6 / T6.11)
+
+**Phase**: P6 - ISA-95 refactor
+**Objective**: Apply DICTIONARY.md 5.3 (out-of-scope / removals), verify 5.7 (module directory renames), and apply 5.8 (Module ID updates).
+
+### What Happened
+1. **5.3 Out-of-scope / removals** - both deletion candidates re-verified; no deletions required:
+   - `demo/` module: kept. Actively used (`routes.py`, `service.py`, `order_processors.py`, `cpg_data.py`, `electronics_data.py`) and was successfully regenerated against renamed schema in Steps 7-10; remains on the green test path.
+   - `*_legacy` helpers in `core/routing/service.py`: not applicable - no `*_legacy` identifiers exist; only a single descriptive comment about "legacy ProcessSegmentDependency-based dispositions" remains, describing still-live fallback behavior.
+2. **5.7 Module directory renames** - verified complete:
+   - `core/production/` -> `core/operations/` was completed in Step 4. Workspace sweep confirms zero remaining references to `mes.core.production`, `core/production`, or `core\production` (all hits limited to historical docs/SESSION_LOG).
+   - `core/routing/`, `core/product_def/`, `core/wip/` kept per plan.
+3. **5.8 Module ID updates** - applied to registries:
+   - `PROJECT_STATE.json` module registry: `PROD-ORDER` -> `OPS-REQUEST` (name: "Operations Request Management (formerly Production Order)").
+   - Deferred IDs (`OPS-SCHEDULE`, `OPS-RESPONSE`, `RES-ACTUALS`) not yet registered - will be added when their corresponding features are implemented.
+4. **Module docstring headers** updated `PROD-ORDER:` -> `OPS-REQUEST:` in:
+   - `server/src/mes/core/operations/__init__.py`, `exceptions.py`, `routes.py`, `schemas.py`, `service.py`, `wip_generator.py`
+   - `server/tests/unit/test_operations_request.py`
+5. Docs:
+   - `DICTIONARY.md` 5.3, 5.7, 5.8 all marked Complete with final dispositions tables.
+   - `PROJECT_STATE.json` T6.11 -> `complete`; module registry updated.
+
+### Outcomes
+- `python -m pytest tests` -> **1865 passing**, same 2 pre-existing async-mock failures. Baseline unchanged.
+- Remaining `PROD-ORDER` references in the workspace are confined to historical `docs/SESSION_LOG.md` (prior-session narrative), `docs/MES_SURVEY.md` (historical survey predating the refactor), and one legacy-survey entry - all intentional history records.
+
+### To Resume
+Say: *"Proceed with Step 12"*. Step 12 is the final migration regeneration: delete existing `server/alembic/versions/*.py`, generate a single fresh baseline Alembic migration against the renamed schema into the empty `mes_ai_s95` database, and verify `alembic upgrade head` succeeds on a clean database.
