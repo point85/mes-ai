@@ -325,8 +325,7 @@ class TestLotMove:
         to_step = _uuid()
         lot = _make_lot(status="in_process", current_step_id=from_step)
         mock_get.return_value = lot
-        session = AsyncMock()
-        session.flush = AsyncMock()
+        session = _session_returning(None)  # no open history record to close
 
         result = await LotService.move_lot(session, lot.id, target_step_id=to_step)
 

@@ -361,8 +361,7 @@ class TestUnitMove:
         to_step = _uuid()
         unit = _make_unit(status="in_process", current_step_id=from_step)
         mock_get.return_value = unit
-        session = AsyncMock()
-        session.flush = AsyncMock()
+        session = _session_returning(None)  # no open history record to close
 
         await UnitService.move_unit(session, unit.id, target_step_id=to_step)
 

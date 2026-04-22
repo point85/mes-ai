@@ -3427,3 +3427,24 @@ Client (`clients/design_time/src/`):
 
 ### To Resume
 Say: *"Resume MES AI project"*. Next logical work: either begin P7 (Testing & CI), or continue filling design_time UX gaps (bulk actions, undo, confirm-dialog component to replace `window.confirm`).
+
+## Session S037 — 2026-04-22
+
+**Phase**: Post-P6 — Test baseline cleanup
+**Objective**: Fix the two pre-existing async-mock test failures carried forward since Phase 6 Step 5.
+
+### What Happened
+- `test_unit_lifecycle.py::TestUnitMove::test_move_to_explicit_target_step` and `test_lot_lifecycle.py::TestLotMove::test_move_to_explicit_target_step` were both constructing `session = AsyncMock()` directly.
+- Since P6 Step 5 renamed `UnitHistory`/`LotHistory` → `SegmentResponseUnit`/`SegmentResponseLot`, `UnitService.move_unit` / `LotService.move_lot` gained a pre-move query that fetches and closes any open `SegmentResponse*` row for the current step. With a bare `AsyncMock`, the chained `session.execute(...).scalar_one_or_none()` returned a coroutine instead of `None`, so the service crashed with `AttributeError: 'coroutine' object has no attribute 'exited_at'`.
+- Fix: swap both tests to the existing `_session_returning(None)` helper (same pattern the sibling "no next step" / "routing engine next step" tests already use). This makes `scalar_one_or_none()` correctly return `None`, exercising the "no open history to close" branch.
+
+### Outcomes
+- **Full unit test suite: 1867 passing, 0 failing, 0 pre-existing failures.** Prior baseline was 1865 passing + 2 pre-existing failures = 1867 total.
+- No production code changed — test-only fix.
+
+### Files Modified
+- `server/tests/unit/test_unit_lifecycle.py`
+- `server/tests/unit/test_lot_lifecycle.py`
+
+### To Resume
+Say: *"Resume MES AI project"*. Next logical work: begin P7 (Testing & CI — CI pipeline, integration test harness in empty `server/tests/integration/`, mock simulation layer), or continue DT-CLIENT UX polish (reusable confirm-dialog, bulk actions, undo).
