@@ -15,6 +15,7 @@ import {
   useUpdateEquipmentCapability,
   useDeleteEquipmentCapability,
 } from "../../hooks/usePhysicalModel";
+import { useUoMs } from "../../hooks/useUoM";
 import type {
   EquipmentCapabilityRead,
   EquipmentCapabilityPropertyCreate,
@@ -34,17 +35,33 @@ export default function EquipmentCapabilityPage() {
   const capabilities: EquipmentCapabilityRead[] = data?.data ?? [];
   const equipmentClasses = classesResp?.data ?? [];
 
+  // Hide capabilities whose end_time is already in the past.
+  const now = Date.now();
+  const visibleCapabilities = capabilities.filter(
+    (c) => !c.end_time || new Date(c.end_time).getTime() > now,
+  );
+
   // ─── New/Edit capability form state ───────────────────────────────
   const [showForm, setShowForm] = useState(false);
   const [editingCap, setEditingCap] = useState<EquipmentCapabilityRead | null>(null);
   const [formClassId, setFormClassId] = useState("");
   const [formType, setFormType] = useState("available");
   const [formReason, setFormReason] = useState("");
+  const [formStart, setFormStart] = useState("");
+  const [formEnd, setFormEnd] = useState("");
   const [formPropertyValues, setFormPropertyValues] = useState<Record<string, string>>({});
 
   // Load class detail when a class is selected in the form
   const { data: classDetail } = useEquipmentClassDetail(formClassId);
   const classProperties: EquipmentClassProperty[] = classDetail?.properties ?? [];
+
+  // UoM lookup: resolve uom_id -> symbol for display
+  const { data: uomResp } = useUoMs();
+  const uomMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of uomResp?.data ?? []) m.set(u.id, u.symbol);
+    return m;
+  }, [uomResp]);
 
   // Build class name lookup
   const classMap = useMemo(() => {
@@ -66,7 +83,30 @@ export default function EquipmentCapabilityPage() {
     setFormClassId("");
     setFormType("available");
     setFormReason("");
+    setFormStart("");
+    setFormEnd("");
     setFormPropertyValues({});
+  };
+
+  // Convert an ISO/UTC string to the value expected by <input type="datetime-local">
+  // (local wall-clock time with second precision, no trailing Z).
+  const isoToLocalInput = (iso: string | null | undefined): string => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    );
+  };
+
+  // Convert the <input type="datetime-local"> value back to an ISO 8601 UTC
+  // string suitable for the API. Returns null if empty.
+  const localInputToIso = (v: string): string | null => {
+    if (!v) return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
   };
 
   const handleEdit = (cap: EquipmentCapabilityRead) => {
@@ -74,6 +114,8 @@ export default function EquipmentCapabilityPage() {
     setFormClassId(cap.equipment_class_id ?? "");
     setFormType(cap.capability_type);
     setFormReason(cap.reason ?? "");
+    setFormStart(isoToLocalInput(cap.start_time));
+    setFormEnd(isoToLocalInput(cap.end_time));
     setFormPropertyValues({});
     setShowForm(true);
   };
@@ -85,6 +127,8 @@ export default function EquipmentCapabilityPage() {
         equipment_class_id: formClassId || null,
         capability_type: formType,
         reason: formReason || null,
+        start_time: localInputToIso(formStart),
+        end_time: localInputToIso(formEnd),
       });
       resetForm();
       return;
@@ -103,6 +147,8 @@ export default function EquipmentCapabilityPage() {
       equipment_class_id: formClassId || undefined,
       capability_type: formType,
       reason: formReason || undefined,
+      start_time: localInputToIso(formStart),
+      end_time: localInputToIso(formEnd),
       properties,
     });
 
@@ -200,30 +246,80 @@ export default function EquipmentCapabilityPage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700">
+                Start Time <span className="text-gray-400">(optional, local)</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={formStart}
+                onChange={(e) => setFormStart(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700">
+                End Time <span className="text-gray-400">(optional, local)</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={formEnd}
+                onChange={(e) => setFormEnd(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
           {/* Class property values — create mode only (server update schema excludes properties) */}
-          {!editingCap && classProperties.length > 0 && (
+          {!editingCap && (
             <div>
               <h4 className="text-xs font-semibold text-gray-700 mb-2">Property Values</h4>
-              <div className="grid grid-cols-2 gap-3">
-                {classProperties.map((prop) => (
-                  <div key={prop.id}>
-                    <label className="block text-xs text-gray-600">
-                      {prop.name}
-                      <span className="text-gray-400 ml-1">
-                        ({prop.data_type}{prop.uom_id ? `, ${prop.uom_id}` : ""})
-                      </span>
-                    </label>
-                    <input
-                      value={formPropertyValues[prop.id] ?? prop.default_value ?? ""}
-                      onChange={(e) =>
-                        setFormPropertyValues((prev) => ({ ...prev, [prop.id]: e.target.value }))
-                      }
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-                      placeholder={prop.default_value ?? ""}
-                    />
-                  </div>
-                ))}
-              </div>
+              {!formClassId && (
+                <p className="text-xs text-gray-500">
+                  Select an Equipment Class above to enter property values.
+                </p>
+              )}
+              {formClassId && classProperties.length === 0 && (
+                <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                  This Equipment Class has no properties defined. Capability property
+                  values (name, value, UoM) are derived from the class definition.{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/equipment-classes/${formClassId}`)}
+                    className="font-medium underline hover:text-amber-900"
+                  >
+                    Define properties on this class
+                  </button>
+                  , then come back to set their values here.
+                </div>
+              )}
+              {formClassId && classProperties.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {classProperties.map((prop) => {
+                    const uomLabel = prop.uom_id ? uomMap.get(prop.uom_id) ?? "" : "";
+                    return (
+                      <div key={prop.id}>
+                        <label className="block text-xs text-gray-600">
+                          {prop.name}
+                          <span className="text-gray-400 ml-1">
+                            ({prop.data_type}
+                            {uomLabel ? `, ${uomLabel}` : ""})
+                          </span>
+                        </label>
+                        <input
+                          value={formPropertyValues[prop.id] ?? prop.default_value ?? ""}
+                          onChange={(e) =>
+                            setFormPropertyValues((prev) => ({ ...prev, [prop.id]: e.target.value }))
+                          }
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                          placeholder={prop.default_value ?? ""}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -259,14 +355,14 @@ export default function EquipmentCapabilityPage() {
       )}
 
       {/* Capability cards */}
-      {!isLoading && !error && capabilities.length === 0 && !showForm && (
+      {!isLoading && !error && visibleCapabilities.length === 0 && !showForm && (
         <p className="text-sm text-gray-400 text-center py-8">
           No capabilities declared. Click "Add Capability" to define one.
         </p>
       )}
 
       <div className="space-y-4">
-        {capabilities.map((cap) => (
+        {visibleCapabilities.map((cap) => (
           <div
             key={cap.id}
             className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
@@ -296,9 +392,9 @@ export default function EquipmentCapabilityPage() {
                 )}
                 {(cap.start_time || cap.end_time) && (
                   <p className="text-xs text-gray-400">
-                    {cap.start_time && `From: ${new Date(cap.start_time).toLocaleString()}`}
+                    {cap.start_time && `From: ${new Date(cap.start_time).toISOString()}`}
                     {cap.start_time && cap.end_time && " — "}
-                    {cap.end_time && `Until: ${new Date(cap.end_time).toLocaleString()}`}
+                    {cap.end_time && `Until: ${new Date(cap.end_time).toISOString()}`}
                   </p>
                 )}
               </div>

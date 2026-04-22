@@ -1170,10 +1170,21 @@ async def _seed_equipment_classes(
 
     # Create properties
     if hasattr(data_module, "EQUIPMENT_CLASS_PROPERTIES"):
+        # Build a UoM symbol → id lookup so seed data can use human-readable
+        # symbols (e.g. "L", "s"). The DB column stores the UUID.
+        uom_rows = await session.execute(
+            select(UnitOfMeasure.symbol, UnitOfMeasure.id)
+        )
+        uom_symbol_to_id: dict[str, UUID] = {sym: uid for sym, uid in uom_rows.all()}
+
         for prop_data in data_module.EQUIPMENT_CLASS_PROPERTIES:
             pdata = dict(prop_data)
             class_code = pdata.pop("class_code")
             class_id = class_map[class_code]
+            # Translate UoM symbol → id if seed data provided a symbol string
+            uom_val = pdata.get("uom_id")
+            if isinstance(uom_val, str):
+                pdata["uom_id"] = uom_symbol_to_id.get(uom_val)
             await _get_or_create_class_property(session, class_id, **pdata)
             counts["class_properties"] += 1
 

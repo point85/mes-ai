@@ -80,11 +80,13 @@ class UnitOfMeasure(BaseModel):
     numerator_uom: Mapped[UnitOfMeasure | None] = relationship(
         "UnitOfMeasure",
         foreign_keys=[numerator_uom_id],
+        remote_side="UnitOfMeasure.id",
         lazy="selectin",
     )
     denominator_uom: Mapped[UnitOfMeasure | None] = relationship(
         "UnitOfMeasure",
         foreign_keys=[denominator_uom_id],
+        remote_side="UnitOfMeasure.id",
         lazy="selectin",
     )
 

@@ -359,8 +359,8 @@ class EquipmentClassProperty(BaseModel):
         String(20), nullable=False, default="string",
         comment="Data type: string, float, int, boolean",
     )
-    uom_id: Mapped[str | None] = mapped_column(
-        String(20), ForeignKey("units_of_measure.symbol"), nullable=True,
+    uom_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("units_of_measure.id"), nullable=True,
         comment="Unit of measure for this property (nullable for dimensionless values)",
     )
     default_value: Mapped[str | None] = mapped_column(

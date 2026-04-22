@@ -239,3 +239,10 @@ In short: products are what you make; materials are what you use to make them. T
 to regeneate ER diagram
 cd c:\dev\mes_ai\docs\diagrams
 npx --yes -p @mermaid-js/mermaid-cli mmdc -i routing_physical_er.mmd -o routing_physical_er.pdf -f --pdfFit
+
+for equipment capabilities:
+So your workflow is: pick/create an Equipment Class → 
+on its detail page define properties (name/data type/UoM/default) → 
+return to the equipment's Capabilities page → 
+Add Capability → pick that class → the property inputs now show up, 
+you enter values, and save.

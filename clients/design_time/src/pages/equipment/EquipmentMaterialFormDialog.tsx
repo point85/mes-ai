@@ -53,7 +53,10 @@ export default function EquipmentMaterialFormDialog({
     () => (uomData?.data ?? []).filter((u) => u.uom_type === "rate"),
     [uomData],
   );
-  const allUoMs = useMemo(() => uomData?.data ?? [], [uomData]);
+  const nonRateUoMs = useMemo(
+    () => (uomData?.data ?? []).filter((u) => u.uom_type !== "rate"),
+    [uomData],
+  );
 
   const {
     register,
@@ -208,7 +211,7 @@ export default function EquipmentMaterialFormDialog({
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 >
                   <option value="">Select UoM…</option>
-                  {allUoMs.map((u) => (
+                  {nonRateUoMs.map((u) => (
                     <option key={u.symbol} value={u.symbol}>
                       {u.symbol} — {u.name}
                     </option>

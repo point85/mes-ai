@@ -15,6 +15,7 @@ import {
   useClassProperties,
   useDeleteClassProperty,
 } from "../../hooks/usePhysicalModel";
+import { useUoMs } from "../../hooks/useUoM";
 import type { EquipmentClassProperty } from "../../types";
 import ClassPropertyFormDialog from "./ClassPropertyFormDialog";
 
@@ -30,7 +31,12 @@ export default function EquipmentClassDetailPage() {
   const navigate = useNavigate();
   const { data: classDetail, isLoading: loadingClass } = useEquipmentClassDetail(classId ?? "");
   const { data: properties, isLoading: loadingProps } = useClassProperties(classId ?? "");
+  const { data: uomResp } = useUoMs();
   const deleteMut = useDeleteClassProperty();
+
+  const uomSymbolById = new Map<string, string>(
+    (uomResp?.data ?? []).map((u) => [u.id, u.symbol]),
+  );
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<EquipmentClassProperty | null>(null);
@@ -104,7 +110,9 @@ export default function EquipmentClassDetailPage() {
                     {prop.data_type}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-600 font-mono">{prop.uom_id ?? "—"}</td>
+                <td className="px-4 py-3 text-sm text-gray-600 font-mono">
+                  {prop.uom_id ? uomSymbolById.get(prop.uom_id) ?? prop.uom_id : "—"}
+                </td>
                 <td className="px-4 py-3 text-sm text-gray-600">{prop.default_value ?? "—"}</td>
                 <td className="px-4 py-3 text-sm text-gray-500">{prop.description ?? "—"}</td>
                 <td className="px-4 py-3 text-right">

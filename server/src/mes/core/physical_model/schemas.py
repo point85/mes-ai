@@ -354,7 +354,7 @@ class EquipmentClassPropertyCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str | None = None
     data_type: str = Field("string", pattern=r"^(string|float|int|boolean)$")
-    uom_id: str | None = Field(None, max_length=20, description="UoM symbol (e.g. 'bottles/min')")
+    uom_id: UUID | None = Field(None, description="UoM id (FK to units_of_measure.id)")
     default_value: str | None = Field(None, max_length=255)
 
 
@@ -366,7 +366,7 @@ class EquipmentClassPropertyRead(BaseModel):
     name: str
     description: str | None = None
     data_type: str
-    uom_id: str | None = None
+    uom_id: UUID | None = None
     default_value: str | None = None
     is_active: bool
     created_at: datetime
@@ -381,7 +381,7 @@ class EquipmentClassPropertyUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = None
     data_type: str | None = Field(None, pattern=r"^(string|float|int|boolean)$")
-    uom_id: str | None = None
+    uom_id: UUID | None = None
     default_value: str | None = None
 
 

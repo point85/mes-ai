@@ -12,11 +12,11 @@ import logging
 from typing import Any, Sequence
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mes.framework.api.exceptions import NotFoundException
+from mes.framework.api.exceptions import ConflictException, NotFoundException
 from mes.framework.api.pagination import PaginationParams, paginate_query
 from mes.framework.events import event_bus
 
@@ -801,6 +801,60 @@ class PhysicalModelService:
         return cap
 
     @staticmethod
+    async def _assert_no_capability_overlap(
+        session: AsyncSession,
+        *,
+        equipment_id: UUID,
+        equipment_class_id: UUID | None,
+        capability_type: str,
+        start_time: _dt.datetime | None,
+        end_time: _dt.datetime | None,
+        exclude_id: UUID | None = None,
+    ) -> None:
+        """Raise ConflictException if an active capability with the same
+        (equipment, class, type) has a time window that overlaps with the
+        proposed [start_time, end_time). Null start = -infinity, null end
+        = +infinity. Intervals overlap iff s1 < e2 and s2 < e1.
+        """
+        # s1 < e2: (new.start is null) OR (existing.end is null) OR (new.start < existing.end)
+        cond_start = or_(
+            EquipmentCapability.end_time.is_(None),
+            *([] if start_time is None else [start_time < EquipmentCapability.end_time]),
+        )
+        # s2 < e1: (existing.start is null) OR (new.end is null) OR (existing.start < new.end)
+        cond_end = or_(
+            EquipmentCapability.start_time.is_(None),
+            *([] if end_time is None else [EquipmentCapability.start_time < end_time]),
+        )
+        stmt = (
+            select(EquipmentCapability.id)
+            .where(
+                EquipmentCapability.equipment_id == equipment_id,
+                EquipmentCapability.capability_type == capability_type,
+                EquipmentCapability.is_active.is_(True),
+                (
+                    EquipmentCapability.equipment_class_id.is_(None)
+                    if equipment_class_id is None
+                    else EquipmentCapability.equipment_class_id == equipment_class_id
+                ),
+                and_(cond_start, cond_end),
+            )
+            .limit(1)
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(EquipmentCapability.id != exclude_id)
+        existing_id = (await session.execute(stmt)).scalar_one_or_none()
+        if existing_id is not None:
+            raise ConflictException(
+                message=(
+                    f"An active '{capability_type}' capability already exists for this "
+                    f"equipment/class with an overlapping time window (conflicts with "
+                    f"capability {existing_id})."
+                ),
+                details={"conflicting_capability_id": str(existing_id)},
+            )
+
+    @staticmethod
     async def create_capability(
         session: AsyncSession,
         equip_id: UUID,
@@ -814,6 +868,14 @@ class PhysicalModelService:
     ) -> EquipmentCapability:
         # Ensure equipment exists
         await PhysicalModelService.get_equipment(session, equip_id)
+        await PhysicalModelService._assert_no_capability_overlap(
+            session,
+            equipment_id=equip_id,
+            equipment_class_id=equipment_class_id,
+            capability_type=capability_type,
+            start_time=start_time,
+            end_time=end_time,
+        )
         cap = EquipmentCapability(
             equipment_id=equip_id,
             equipment_class_id=equipment_class_id,
@@ -848,6 +910,16 @@ class PhysicalModelService:
         for k, v in kwargs.items():
             if v is not None:
                 setattr(cap, k, v)
+        # Re-check overlap after applying edits (excluding self).
+        await PhysicalModelService._assert_no_capability_overlap(
+            session,
+            equipment_id=cap.equipment_id,
+            equipment_class_id=cap.equipment_class_id,
+            capability_type=cap.capability_type,
+            start_time=cap.start_time,
+            end_time=cap.end_time,
+            exclude_id=cap.id,
+        )
         await session.flush()
         return cap
 

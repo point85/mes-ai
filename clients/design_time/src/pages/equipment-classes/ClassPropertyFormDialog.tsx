@@ -8,6 +8,7 @@ import {
   useCreateClassProperty,
   useUpdateClassProperty,
 } from "../../hooks/usePhysicalModel";
+import { useUoMs } from "../../hooks/useUoM";
 import type { EquipmentClassProperty } from "../../types";
 
 interface Props {
@@ -29,6 +30,8 @@ const DATA_TYPES = ["string", "float", "int", "boolean"];
 export default function ClassPropertyFormDialog({ classId, existing, onClose }: Props) {
   const createMut = useCreateClassProperty();
   const updateMut = useUpdateClassProperty();
+  const { data: uomResp } = useUoMs();
+  const uoms = uomResp?.data ?? [];
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
@@ -90,12 +93,18 @@ export default function ClassPropertyFormDialog({ classId, existing, onClose }: 
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">UoM</label>
-            <input
+            <select
               {...register("uom_id")}
-              className="w-full rounded border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm font-mono"
-              placeholder="e.g. bottles/min"
-            />
-            <p className="text-xs text-gray-400 mt-1">Unit of measure symbol (optional)</p>
+              className="w-full rounded border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+            >
+              <option value="">— None —</option>
+              {uoms.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.symbol} — {u.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Unit of measure (optional)</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Default Value</label>
