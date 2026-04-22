@@ -11,6 +11,7 @@ from mes.framework.auth.routes import router as auth_router
 from mes.framework.events import event_bus
 from mes.framework.events.decorators import get_registered_handlers
 from mes.framework.events.gateway import router as events_router
+from mes.framework.logging_config import configure_logging
 from mes.framework.plugin import PluginManager
 
 # Core module routers (Layer 1+)
@@ -48,6 +49,10 @@ from mes.core.demo.routes import router as demo_router
 from mes.framework.plugin.routes import router as plugin_router
 
 logger = logging.getLogger("mes")
+
+# Initialize file + console logging before the app spins up so import-time
+# log records are captured. Idempotent under uvicorn --reload.
+configure_logging()
 
 # Module-level singletons
 plugin_manager = PluginManager()

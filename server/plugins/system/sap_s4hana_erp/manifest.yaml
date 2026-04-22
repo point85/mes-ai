@@ -9,12 +9,11 @@ author: MES AI Contributors
 comment: >
   Requires SAP S/4HANA Cloud or on-premise with OData V4 enabled.
   Configure via MES_ERP_* and MES_SAP_* environment variables.
-  Install with: pip install mes-ai[sap]
+  Uses OData V4 over HTTP (httpx) — no SAP NW RFC SDK required.
 category: erp
 origin: system
 min_mes_version: "0.1.0"
-pip_dependencies:
-  - "pyrfc>=3.3"
+pip_dependencies: []
 
 parameters:
   - name: base_url
