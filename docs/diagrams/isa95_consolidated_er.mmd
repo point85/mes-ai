@@ -1,0 +1,124 @@
+---
+title: MES AI — Consolidated ISA-95 ER Diagram (as implemented)
+---
+erDiagram
+    %% ============ Part 1: Physical / Role-based hierarchy ============
+    Site ||--o{ Area : "contains"
+    Area ||--o{ ProductionLine : "contains"
+    ProductionLine ||--o{ WorkCell : "contains"
+    WorkCell ||--o{ Equipment : "contains"
+
+    EquipmentClass ||--o{ Equipment : "classifies"
+    EquipmentClass ||--o{ EquipmentClassProperty : "typed props"
+    EquipmentClass ||--o{ EquipmentCapability : "capability kind"
+    Equipment ||--o{ EquipmentCapability : "declares"
+    EquipmentCapability ||--o{ EquipmentCapabilityProperty : "values"
+    EquipmentCapabilityProperty }o--|| EquipmentClassProperty : "conforms to"
+    Equipment ||--o{ EquipmentMaterial : "loaded material"
+    EquipmentMaterial }o--|| MaterialDefinition : ""
+
+    %% ============ UoM ============
+    UnitOfMeasure ||--o{ UnitOfMeasure : "derived from"
+
+    %% ============ Part 2: Material model ============
+    MaterialDefinition }o--|| UnitOfMeasure : "base uom"
+    MaterialDefinition ||--o{ MaterialLot : ""
+    MaterialLot ||--o{ MaterialConsumption : ""
+    MaterialConsumption }o--|| Unit : ""
+    MaterialConsumption }o--|| Lot : ""
+    MaterialConsumption }o--|| ProcessSegment : ""
+
+    %% ============ Part 2: Product definition ============
+    ProductDefinition }o--|| UnitOfMeasure : "base uom"
+    ProductDefinition ||--o{ BillOfMaterial : ""
+    BillOfMaterial ||--o{ BOMItem : ""
+    BOMItem }o--|| ProcessSegment : "consumed at"
+    BOMItem }o--|| UnitOfMeasure : ""
+
+    %% ============ Part 4: Operations Definition (Work Master) ============
+    OperationsDefinition ||--o{ ProcessSegment : "ordered segments"
+    OperationsDefinition ||--o{ OperationsDefinitionProductAssignment : ""
+    OperationsDefinition ||--o{ OperationsDefinitionMaterialAssignment : ""
+    OperationsDefinitionProductAssignment }o--|| ProductDefinition : ""
+    OperationsDefinitionMaterialAssignment }o--|| MaterialDefinition : ""
+
+    ProcessSegment }o--|| EquipmentClass : "required class"
+    ProcessSegment }o--|| Disposition : "routed via"
+    ProcessSegment ||--o{ SegmentParameter : "data spec"
+    ProcessSegment ||--o{ SegmentEquipmentRequirement : "specific eq"
+    ProcessSegment ||--o{ SegmentMaterialRequirement : "materials"
+    ProcessSegment ||--o{ ProcessSegmentDependency : "outgoing"
+    ProcessSegment ||--o{ ProcessSegmentDependency : "incoming"
+    SegmentEquipmentRequirement }o--|| Equipment : ""
+    SegmentMaterialRequirement  }o--|| MaterialDefinition : ""
+    SegmentMaterialRequirement  }o--|| UnitOfMeasure : ""
+    SegmentParameter }o--|| UnitOfMeasure : ""
+
+    %% ============ Part 4: Operations Request / Schedule / Response ============
+    OperationsRequest }o--|| ProductDefinition : ""
+    OperationsRequest }o--|| OperationsDefinition : "based on"
+    OperationsSchedule ||--o{ OperationsRequest : "schedules"
+    OperationsResponse }o--|| OperationsRequest : "reports"
+
+    %% ============ WIP (execution of operations) ============
+    Unit }o--|| OperationsRequest : ""
+    Unit }o--|| ProductDefinition : ""
+    Unit }o--|| MaterialDefinition : ""
+    Unit }o--|| ProcessSegment : "current step"
+    Unit }o--|| Equipment : "current eq"
+
+    Lot }o--|| OperationsRequest : ""
+    Lot }o--|| ProductDefinition : ""
+    Lot }o--|| MaterialDefinition : ""
+    Lot }o--|| ProcessSegment : "current step"
+    Lot }o--|| Equipment : "current eq"
+
+    Unit ||--o{ SegmentResponseUnit : "history"
+    Lot  ||--o{ SegmentResponseLot  : "history"
+    SegmentResponseUnit }o--|| ProcessSegment : ""
+    SegmentResponseUnit }o--|| Equipment : ""
+    SegmentResponseLot  }o--|| ProcessSegment : ""
+    SegmentResponseLot  }o--|| Equipment : ""
+
+    SegmentResponseUnit ||--o{ MaterialActual : ""
+    SegmentResponseLot  ||--o{ MaterialActual : ""
+    SegmentResponseUnit ||--o{ EquipmentActual : ""
+    SegmentResponseLot  ||--o{ EquipmentActual : ""
+    SegmentResponseUnit ||--o{ PersonnelActual : ""
+    SegmentResponseLot  ||--o{ PersonnelActual : ""
+    MaterialActual  }o--|| MaterialDefinition : ""
+    EquipmentActual }o--|| Equipment : ""
+
+    %% ============ Data collection ============
+    DataDefinition }o--|| ProcessSegment : "spec at step"
+    DataDefinition }o--|| UnitOfMeasure : ""
+    DataDefinition ||--o{ DataPoint : "observations"
+    DataPoint }o--|| Unit : ""
+    DataPoint }o--|| Lot : ""
+    DataPoint }o--|| Equipment : ""
+
+    %% ============ Quality ============
+    QualityTest }o--|| ProcessSegment : "performed at"
+    QualityTest ||--o{ TestResult : ""
+    TestResult }o--|| Unit : ""
+    TestResult }o--|| Lot : ""
+    TestResult }o--|| Equipment : ""
+    NonConformance }o--|| Unit : ""
+    NonConformance }o--|| Lot : ""
+    NonConformance }o--|| ProcessSegment : ""
+
+    %% ============ Performance (equipment state & counters) ============
+    Reason ||--o{ Reason : "hierarchy"
+    EquipmentStateModel ||--o{ EquipmentStateLog : ""
+    EquipmentStateLog }o--|| Equipment : ""
+    EquipmentStateLog }o--|| Reason : ""
+    ProductionCounter }o--|| Equipment : ""
+    ProductionCounter }o--|| OperationsRequest : ""
+
+    %% ============ Inventory ============
+    Site ||--o{ StorageLocation : "located at"
+    StorageLocation ||--o{ InventoryBalance : ""
+    MaterialLot ||--o{ InventoryBalance : ""
+    MaterialLot ||--o{ InventoryTransaction : ""
+    StorageLocation ||--o{ InventoryTransaction : "from"
+    StorageLocation ||--o{ InventoryTransaction : "to"

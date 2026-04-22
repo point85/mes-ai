@@ -1,0 +1,29 @@
+---
+title: ISA-95 Part 2 — Product & Material Object Models (as implemented)
+---
+erDiagram
+    %% ---- UoM ----
+    UnitOfMeasure ||--o{ UnitOfMeasure : "derived from"
+
+    %% ---- Material model ----
+    MaterialDefinition }o--|| UnitOfMeasure : "base uom"
+    MaterialDefinition ||--o{ MaterialLot : "lots"
+    MaterialLot ||--o{ MaterialConsumption : "consumed"
+    MaterialConsumption }o--|| Unit : ""
+    MaterialConsumption }o--|| Lot : ""
+    MaterialConsumption }o--|| ProcessSegment : "at step"
+
+    %% ---- Product definition ----
+    ProductDefinition }o--|| UnitOfMeasure : "base uom"
+    ProductDefinition ||--o{ BillOfMaterial : "BOMs"
+    BillOfMaterial ||--o{ BOMItem : "items"
+    BOMItem }o--|| MaterialDefinition : "material"
+    BOMItem }o--|| UnitOfMeasure : ""
+    BOMItem }o--|| ProcessSegment : "consumed at (optional)"
+
+    %% ---- Inventory (material-facing) ----
+    StorageLocation ||--o{ InventoryBalance : ""
+    MaterialLot ||--o{ InventoryBalance : ""
+    MaterialLot ||--o{ InventoryTransaction : "txn"
+    StorageLocation ||--o{ InventoryTransaction : "from"
+    StorageLocation ||--o{ InventoryTransaction : "to"
