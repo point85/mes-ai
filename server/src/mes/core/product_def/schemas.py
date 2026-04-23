@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ─── Disposition ──────────────────────────────────────────────────────
@@ -395,11 +395,23 @@ class RouteMaterialAssignmentRead(BaseModel):
 
 
 class StepEquipmentRequirementCreate(BaseModel):
-    """Schema for adding an equipment requirement to a route step."""
+    """Schema for adding an equipment requirement to a route step.
 
-    equipment_id: UUID
+    Exactly one of ``equipment_class_id`` and ``equipment_id`` must be set.
+    """
+
+    equipment_class_id: UUID | None = None
+    equipment_id: UUID | None = None
     use_type: str = Field("preferred", pattern=r"^(required|preferred|alternate)$")
     description: str | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> "StepEquipmentRequirementCreate":
+        if (self.equipment_class_id is None) == (self.equipment_id is None):
+            raise ValueError(
+                "Exactly one of equipment_class_id or equipment_id must be set.",
+            )
+        return self
 
 
 class StepEquipmentRequirementRead(BaseModel):
@@ -407,7 +419,8 @@ class StepEquipmentRequirementRead(BaseModel):
 
     id: UUID
     step_id: UUID
-    equipment_id: UUID
+    equipment_class_id: UUID | None = None
+    equipment_id: UUID | None = None
     use_type: str
     description: str | None = None
     is_active: bool
@@ -418,7 +431,11 @@ class StepEquipmentRequirementRead(BaseModel):
 
 
 class StepEquipmentRequirementUpdate(BaseModel):
-    """Schema for updating a step equipment requirement."""
+    """Schema for updating a step equipment requirement.
+
+    Note: the class vs. equipment target of an existing requirement is
+    immutable — create a new requirement instead of swapping targets.
+    """
 
     use_type: str | None = Field(None, pattern=r"^(required|preferred|alternate)$")
     description: str | None = None

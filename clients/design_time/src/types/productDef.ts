@@ -175,6 +175,34 @@ export interface RouteStepUpdate {
   disposition_id?: string | null;
 }
 
+// ─── Step Equipment Requirement (ISA-95 Process Segment) ─────────────
+
+export type EquipmentRequirementUseType = "required" | "preferred" | "alternate";
+
+export interface StepEquipmentRequirement {
+  id: string;
+  step_id: string;
+  equipment_class_id: string | null;
+  equipment_id: string | null;
+  use_type: EquipmentRequirementUseType;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StepEquipmentRequirementCreate {
+  equipment_class_id?: string | null;
+  equipment_id?: string | null;
+  use_type?: EquipmentRequirementUseType;
+  description?: string | null;
+}
+
+export interface StepEquipmentRequirementUpdate {
+  use_type?: EquipmentRequirementUseType;
+  description?: string | null;
+}
+
 // ─── Step Parameter ───────────────────────────────────────────────────
 
 export interface StepParameter {

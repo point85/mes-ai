@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -340,29 +340,49 @@ class SegmentEquipmentRequirement(BaseModel):
     """
     ISA-95 Process Segment — Equipment Requirement.
 
-    Specifies that a particular piece of equipment (by ID) is required or
-    preferred at a route step.  Used by the dispatch engine to narrow the
-    candidate set beyond the equipment class constraint on the step.
+    Specifies that a piece of equipment OR an entire equipment class is
+    required / preferred / alternate at a route step.  Exactly one of
+    ``equipment_class_id`` and ``equipment_id`` must be set per row.
+
+    This matches ISA-95 Part 2 ``EquipmentSegmentSpecification``, which can
+    reference either an abstract ``EquipmentClass`` (e.g. "needs an OVEN")
+    or a concrete ``Equipment`` (e.g. "must use RO-500 preferentially").
+
+    The dispatch engine AND-s across all active requirement rows to
+    compute the candidate equipment set for the step.
 
     use_type values:
-      - required:  this specific equipment *must* be used
-      - preferred: use if available, otherwise fall back to class members
+      - required:  must be satisfied
+      - preferred: use if available, otherwise fall back
       - alternate: acceptable substitute
     """
 
     __tablename__ = "segment_equipment_requirements"
     __table_args__ = (
         UniqueConstraint("step_id", "equipment_id", name="uq_segment_equip_req"),
+        UniqueConstraint(
+            "step_id", "equipment_class_id",
+            name="uq_segment_equip_class_req",
+        ),
+        CheckConstraint(
+            "(equipment_id IS NULL) <> (equipment_class_id IS NULL)",
+            name="ck_segment_equip_req_one_target",
+        ),
     )
 
     step_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("process_segments.id"),
         nullable=False, index=True,
     )
-    equipment_id: Mapped[uuid.UUID] = mapped_column(
+    equipment_class_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("equipment_classes.id"),
+        nullable=True, index=True,
+        comment="Equipment class required at this step (mutually exclusive with equipment_id)",
+    )
+    equipment_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("equipment.id"),
-        nullable=False, index=True,
-        comment="Specific equipment instance required at this step",
+        nullable=True, index=True,
+        comment="Specific equipment instance required at this step (mutually exclusive with equipment_class_id)",
     )
     use_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="preferred",
@@ -374,12 +394,20 @@ class SegmentEquipmentRequirement(BaseModel):
     step: Mapped["ProcessSegment"] = relationship(
         "ProcessSegment", back_populates="equipment_requirements",
     )
-    equipment: Mapped["Equipment"] = relationship("Equipment", lazy="joined")
+    equipment_class: Mapped["EquipmentClass | None"] = relationship(
+        "EquipmentClass", lazy="joined",
+    )
+    equipment: Mapped["Equipment | None"] = relationship("Equipment", lazy="joined")
 
     def __repr__(self) -> str:
+        target = (
+            f"class={self.equipment_class_id}"
+            if self.equipment_class_id
+            else f"equip={self.equipment_id}"
+        )
         return (
             f"<SegmentEquipmentRequirement id={self.id} "
-            f"step={self.step_id} equip={self.equipment_id} use={self.use_type}>"
+            f"step={self.step_id} {target} use={self.use_type}>"
         )
 
 

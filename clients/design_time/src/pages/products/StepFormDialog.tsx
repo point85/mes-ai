@@ -11,6 +11,7 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useCreateRouteStep, useUpdateRouteStep, useDispositions } from "../../hooks/useProductDef";
 import { useAllWorkCells, useAllLines, useEquipmentClasses } from "../../hooks/usePhysicalModel";
 import type { RouteStep } from "../../types";
+import EquipmentRequirementsEditor from "./EquipmentRequirementsEditor";
 
 const schema = z.object({
   sequence: z.number().int().min(1, "Sequence ≥ 1"),
@@ -113,7 +114,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
     <Dialog open onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <DialogPanel className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <DialogPanel className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <DialogTitle className="text-lg font-semibold text-gray-900">
               {isEdit ? "Edit Step" : "New Step"}
@@ -207,6 +208,9 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
               </select>
               <p className="mt-1 text-xs text-gray-400">What class of equipment is needed (dispatch uses this)</p>
             </div>
+            {isEdit && step && (
+              <EquipmentRequirementsEditor stepId={step.id} />
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Expected Cycle Time (sec) <span className="text-gray-400">(optional)</span>

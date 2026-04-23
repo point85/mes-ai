@@ -31,6 +31,7 @@ import type {
 } from "../../types";
 import RouteFormDialog from "./RouteFormDialog";
 import StepFormDialog from "./StepFormDialog";
+import StepEquipReqCountBadge from "./StepEquipReqCountBadge";
 import TransitionFormDialog from "./TransitionFormDialog";
 
 const CONDITION_LABELS: Record<string, string> = {
@@ -259,6 +260,7 @@ export default function ProductDetailPage() {
                         </td>
                         <td className="px-4 py-2 text-sm font-medium text-gray-900">
                           {s.name}
+                          <StepEquipReqCountBadge stepId={s.id} />
                         </td>
                         <td className="px-4 py-2">
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">

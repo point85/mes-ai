@@ -40,6 +40,10 @@ import {
   createDisposition,
   updateDisposition,
   deleteDisposition,
+  fetchStepEquipmentRequirements,
+  createStepEquipmentRequirement,
+  updateStepEquipmentRequirement,
+  deleteStepEquipmentRequirement,
 } from "../api/productDef";
 import type {
   ProductCreate,
@@ -58,6 +62,8 @@ import type {
   RouteMaterialAssignmentCreate,
   DispositionCreate,
   DispositionUpdate,
+  StepEquipmentRequirementCreate,
+  StepEquipmentRequirementUpdate,
 } from "../types";
 
 const KEYS = {
@@ -72,6 +78,7 @@ const KEYS = {
   params: (stepId: string) => ["stepParams", stepId] as const,
   transitions: (stepId: string) => ["stepTransitions", stepId] as const,
   dispositions: ["dispositions"] as const,
+  stepEquipReqs: (stepId: string) => ["stepEquipReqs", stepId] as const,
 };
 
 // ─── Products ─────────────────────────────────────────────────────────
@@ -396,5 +403,41 @@ export function useDeleteDisposition() {
   return useMutation({
     mutationFn: (id: string) => deleteDisposition(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.dispositions }),
+  });
+}
+
+// ─── Step Equipment Requirements ─────────────────────────────────────
+
+export function useStepEquipmentRequirements(stepId: string | undefined) {
+  return useQuery({
+    queryKey: stepId ? KEYS.stepEquipReqs(stepId) : ["stepEquipReqs", "none"],
+    queryFn: () => fetchStepEquipmentRequirements(stepId as string),
+    enabled: !!stepId,
+  });
+}
+
+export function useCreateStepEquipmentRequirement(stepId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: StepEquipmentRequirementCreate) =>
+      createStepEquipmentRequirement(stepId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.stepEquipReqs(stepId) }),
+  });
+}
+
+export function useUpdateStepEquipmentRequirement(stepId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: StepEquipmentRequirementUpdate & { id: string }) =>
+      updateStepEquipmentRequirement(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.stepEquipReqs(stepId) }),
+  });
+}
+
+export function useDeleteStepEquipmentRequirement(stepId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteStepEquipmentRequirement(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.stepEquipReqs(stepId) }),
   });
 }

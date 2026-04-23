@@ -30,6 +30,9 @@ import type {
   Disposition,
   DispositionCreate,
   DispositionUpdate,
+  StepEquipmentRequirement,
+  StepEquipmentRequirementCreate,
+  StepEquipmentRequirementUpdate,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -342,4 +345,43 @@ export async function updateDisposition(id: string, body: DispositionUpdate): Pr
 
 export async function deleteDisposition(id: string): Promise<void> {
   await api.delete(`/dispositions/${id}`);
+}
+
+// ─── Step Equipment Requirements (ISA-95 Process Segment) ─────────────
+
+export async function fetchStepEquipmentRequirements(
+  stepId: string,
+): Promise<ApiListResponse<StepEquipmentRequirement>> {
+  const { data } = await api.get<ApiListResponse<StepEquipmentRequirement>>(
+    `/process-segments/${stepId}/equipment-requirements`,
+  );
+  return data;
+}
+
+export async function createStepEquipmentRequirement(
+  stepId: string,
+  body: StepEquipmentRequirementCreate,
+): Promise<StepEquipmentRequirement> {
+  const { data } = await api.post<ApiResponse<StepEquipmentRequirement>>(
+    `/process-segments/${stepId}/equipment-requirements`,
+    body,
+  );
+  return data.data;
+}
+
+export async function updateStepEquipmentRequirement(
+  requirementId: string,
+  body: StepEquipmentRequirementUpdate,
+): Promise<StepEquipmentRequirement> {
+  const { data } = await api.patch<ApiResponse<StepEquipmentRequirement>>(
+    `/segment-equipment-requirements/${requirementId}`,
+    body,
+  );
+  return data.data;
+}
+
+export async function deleteStepEquipmentRequirement(
+  requirementId: string,
+): Promise<void> {
+  await api.delete(`/segment-equipment-requirements/${requirementId}`);
 }
