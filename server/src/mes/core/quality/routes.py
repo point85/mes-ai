@@ -8,6 +8,7 @@ Endpoints:
 - PUT    /api/v1/quality/tests/{test_id}             Update a quality test
 - GET    /api/v1/quality/results                     List test results
 - POST   /api/v1/quality/results                     Record a test result
+- POST   /api/v1/quality/tests/{test_id}/execute     Run test on configured test_equipment adapter
 - GET    /api/v1/quality/results/{result_id}         Get a test result
 - GET    /api/v1/quality/non-conformances            List non-conformances
 - POST   /api/v1/quality/non-conformances            Create a non-conformance
@@ -36,8 +37,14 @@ from .schemas import (
     QualityTestUpdate,
     RecordResultRequest,
     TestResultRead,
+    ExecuteQualityTestRequest,
 )
-from .service import NonConformanceService, QualityTestService, TestResultService
+from .service import (
+    NonConformanceService,
+    QualityTestExecutionService,
+    QualityTestService,
+    TestResultService,
+)
 
 router = APIRouter(prefix="/api/v1/quality", tags=["Quality Management"])
 
@@ -152,6 +159,33 @@ async def record_result(
 ):
     """Record a quality test result."""
     result_obj = await TestResultService.record_result(session, **body.model_dump())
+    await session.commit()
+    return success_response(TestResultRead.model_validate(result_obj).model_dump())
+
+
+@router.post("/tests/{test_id}/execute", status_code=201)
+async def execute_test(
+    test_id: UUID,
+    body: ExecuteQualityTestRequest | None = None,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("quality.create")),
+):
+    """
+    Execute a quality test against the running test_equipment adapter and
+    persist the resulting TestResult.
+
+    Returns 503 if no test_equipment adapter plugin is currently running.
+    """
+    payload = body or ExecuteQualityTestRequest()
+    result_obj = await QualityTestExecutionService.execute(
+        session,
+        test_id=test_id,
+        unit_id=payload.unit_id,
+        lot_id=payload.lot_id,
+        operator_id=payload.operator_id,
+        equipment_id=payload.equipment_id,
+        notes=payload.notes,
+    )
     await session.commit()
     return success_response(TestResultRead.model_validate(result_obj).model_dump())
 

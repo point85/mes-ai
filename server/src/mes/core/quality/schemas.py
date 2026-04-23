@@ -150,6 +150,16 @@ class TestResultRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ExecuteQualityTestRequest(BaseModel):
+    """Schema for executing a quality test against the configured test_equipment adapter."""
+
+    unit_id: UUID | None = None
+    lot_id: UUID | None = None
+    operator_id: UUID | None = None
+    equipment_id: UUID | None = None
+    notes: str | None = None
+
+
 # ═══════════════════════════════════════════════════════════════════
 # NonConformance
 # ═══════════════════════════════════════════════════════════════════

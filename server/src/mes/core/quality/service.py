@@ -299,3 +299,60 @@ class NonConformanceService:
         nc.is_active = False
         await session.flush()
         logger.info("Soft-deleted non-conformance %s", nc_id)
+
+
+class QualityTestExecutionService:
+    """
+    Executes a defined `QualityTest` against the configured `test_equipment`
+    adapter plugin and records the resulting `TestResult`.
+
+    The adapter is resolved at call time via the running `PluginManager`, so
+    swapping `mock-test-equipment` for a real adapter (e.g. an OPC-UA tester)
+    requires no change to this service.
+    """
+
+    @staticmethod
+    async def execute(
+        session: AsyncSession,
+        *,
+        test_id: UUID,
+        unit_id: UUID | None = None,
+        lot_id: UUID | None = None,
+        operator_id: UUID | None = None,
+        equipment_id: UUID | None = None,
+        notes: str | None = None,
+    ) -> TestResult:
+        """Run the quality test on the live test_equipment adapter and persist the result."""
+        # 1. Verify the test definition exists and is active.
+        test = await QualityTestService.get_test(session, test_id)
+
+        # 2. Resolve the running test_equipment adapter plugin.
+        from mes.framework.api.exceptions import ServiceUnavailableException
+        from mes.main import plugin_manager
+
+        adapter = plugin_manager.get_adapter_by_type("test_equipment")
+        if adapter is None:
+            raise ServiceUnavailableException(
+                message=(
+                    "No test_equipment adapter is running. Install and enable a "
+                    "test_equipment plugin (e.g. mock-test-equipment)."
+                ),
+                details={"error_code": "TEST_EQUIPMENT_ADAPTER_UNAVAILABLE"},
+            )
+
+        # 3. Ask the adapter for a measurement. Adapters return a TestResultDTO.
+        dto = await adapter.get_test_result(str(test.id))
+
+        # 4. Persist as a TestResult row (emits pass/fail event via record_result).
+        return await TestResultService.record_result(
+            session,
+            test_id=test.id,
+            unit_id=unit_id,
+            lot_id=lot_id,
+            result=dto.result if dto.result in {"pass", "fail"} else "fail",
+            measured_values=dict(dto.measured_values) if dto.measured_values else None,
+            operator_id=operator_id,
+            equipment_id=equipment_id,
+            tested_at=dto.timestamp,
+            notes=notes,
+        )

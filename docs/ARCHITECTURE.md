@@ -3540,6 +3540,86 @@ Adapter configuration is handled entirely through **plugin parameters** declared
 
 See §7.10 for the config resolution pipeline and §7.11 for the full adapter plugin composition pattern.
 
+#### 9.1.1 Mock Adapter Plugins (MOCK-ERP, MOCK-EQUIP, MOCK-TEST)
+
+The framework ships three vendor-neutral *mock* adapter plugins that implement the
+same abstract base classes as the production adapters but generate or store data
+in memory. They exist so that core MES code can be developed, tested, and
+demoed end-to-end without any external system being available.
+
+| Plugin ID | Wraps | Extension points | Abstract base(s) implemented |
+|---|---|---|---|
+| `mock-erp` | `mes.adapters.erp.mock_adapter` | `erp_inbound`, `erp_outbound` | `ERPInboundAdapter`, `ERPOutboundAdapter` |
+| `mock-equipment` | `mes.adapters.equipment.mock_adapter` | `equipment_driver` | `EquipmentDriver` |
+| `mock-test-equipment` | `mes.adapters.test_equipment.mock_adapter` | `test_equipment` | `TestEquipmentAdapter` |
+
+##### Independence from real adapters
+
+The mock plugins are **independent implementations**, not shims that delegate to
+the SAP / Oracle / OPC-UA / MQTT / STOMP adapters. They share only the abstract
+contract. Concretely:
+
+- Enabling `sap-erp-simulator` or `oracle-erp-simulator` does **not** invoke
+  `mock-erp`. Each ERP simulator carries its own in-memory fixture data
+  (`sap_data.py`, `oracle_data.py`) shaped to match the vendor's wire format
+  (e.g. SAP fields `AUFNR`, `MATNR`, `WERKS`) and runs through the vendor's
+  own transform layer (`SAPTransformLayer`, `OracleTransformLayer`).
+- Enabling `opcua-equipment`, `mqtt-equipment`, or `stomp-jms` does **not**
+  invoke `mock-equipment`. Each protocol adapter holds its own protocol
+  client (`asyncua`, `aiomqtt`, STOMP client).
+- The `PluginManager.get_adapter_by_type(...)` resolver returns the *one*
+  running plugin whose manifest declares the requested extension-point type.
+  Only one ERP adapter and one equipment driver are typically active at a time.
+
+##### Per-plugin behavior
+
+**`mock-erp`** — vendor-neutral ERP stand-in.
+- *Inbound:* serves production orders, materials, products, BOMs from JSON
+  fixtures so `sync_operations_requests()` etc. return realistic payloads.
+- *Outbound:* accepts WIP completions, consumption postings, and scrap
+  reports and stores them in memory for inspection by tests.
+- *Parameters:* `latency_ms` (simulated network delay), `failure_rate`
+  (probability `0.0–1.0` of a synthetic exception per call).
+- *Primary consumer:* unit tests in `tests/unit/test_*erp*.py` and
+  `tests/integration/`. Useful as a default ERP when no vendor simulator is
+  installed.
+
+**`mock-equipment`** — vendor-neutral PLC / machine controller stand-in.
+- Maintains an in-memory tag store. `read_tag()`, `write_tag()`,
+  `subscribe_tag()`, `browse_tags()` operate against that store.
+- Numeric reads can be perturbed by Gaussian noise (`noise_stddev`) so that
+  consumers of OEE/PackML data see realistic variation.
+- *Parameters:* `equipment_id`, `latency_ms`, `failure_rate`,
+  `noise_stddev`.
+- *Primary consumer:* `tests/unit/test_equipment_adapters.py` and the
+  Equipment Simulator GUI when no real PLC/historian is wired up.
+
+**`mock-test-equipment`** — vendor-neutral test/inspection rig stand-in.
+- Generates synthetic `TestResultDTO` records on demand, with a configurable
+  pass probability and per-channel measurement ranges (mean/stddev style).
+- Subscriber callbacks are invoked when `generate_and_notify()` is called,
+  letting integration tests exercise downstream result handlers without a
+  real fixture.
+- *Parameters:* `equipment_id`, `pass_rate` (`0.0–1.0`), optional
+  `measurements` map.
+- *Primary consumer:* the `QualityTestExecutionService` (§9.4.1), unit tests
+  in `tests/unit/test_test_equipment_adapters.py`, and any custom plugin
+  built against the `TestEquipmentAdapter` interface.
+
+##### When to use a mock vs. a real adapter
+
+| Scenario | Recommended adapter |
+|---|---|
+| Unit/integration tests that must run in CI without external services | the `mock-*` plugin |
+| Developer laptop, no SAP/Oracle/PLC available | mock or vendor-specific *simulator* (`sap-erp-simulator`, `oracle-erp-simulator`, `equipment_simulator` GUI) |
+| Demo of vendor-specific field mapping or transform pipeline | the matching `*-simulator` (mock will not exercise vendor-specific transforms) |
+| Production deployment | the matching real adapter (`sap-s4hana-erp`, `opcua-equipment`, etc.) |
+
+The mocks therefore play three roles: (1) the canonical reference
+implementation of each adapter ABC, (2) the default test double for the unit
+suite, and (3) a fallback so the MES never has a hard dependency on any
+external system.
+
 ### 9.2 ERP Adapters (ERP-IBOUND, ERP-OBOUND)
 
 #### 9.2.1 Overview
@@ -4643,6 +4723,43 @@ class FileDropTestAdapter(TestEquipmentAdapter):
 ```
 
 **Mock implementation:** Generates random test results within configurable pass/fail distributions and measurement ranges.
+
+#### 9.4.1 QualityTestExecutionService (core consumer)
+
+The service at `mes.core.quality.service.QualityTestExecutionService` is the core-side consumer of the `test_equipment` adapter. It connects a defined [QualityTest](../server/src/mes/core/quality/models.py) (typically attached to a process-segment step) to whichever plugin is currently providing the `test_equipment` extension point.
+
+**Contract:**
+
+```python
+result = await QualityTestExecutionService.execute(
+    session,
+    test_id=quality_test_id,
+    unit_id=..., lot_id=...,           # either or both — optional
+    operator_id=..., equipment_id=..., # optional provenance
+    notes=...,                         # optional
+)  # → persisted TestResult row
+```
+
+**Flow:**
+
+1. Load and validate the `QualityTest` definition (`NotFoundException` on unknown id).
+2. Resolve the running adapter: `plugin_manager.get_adapter_by_type("test_equipment")`.
+    - If no plugin is running, raise `ServiceUnavailableException` with error code `TEST_EQUIPMENT_ADAPTER_UNAVAILABLE`. Enable e.g. `mock-test-equipment` to satisfy this.
+3. Call `adapter.get_test_result(str(test.id)) → TestResultDTO`.
+4. Map the DTO onto a `TestResult` row (`test_id`, `result`, `measured_values`, `tested_at`, optional `unit_id`/`lot_id`/`operator_id`/`equipment_id`) via `TestResultService.record_result`, which also publishes the `quality.test.passed` or `quality.test.failed` event.
+5. Return the persisted row. The REST route layer commits the session.
+
+**REST surface:**
+
+```
+POST /api/v1/quality/tests/{test_id}/execute
+    body: ExecuteQualityTestRequest { unit_id?, lot_id?, operator_id?, equipment_id?, notes? }
+    → 201 TestResultRead
+    → 404 if the QualityTest id is unknown
+    → 503 if no test_equipment adapter plugin is running
+```
+
+Because the adapter is resolved by extension-point type at call time, swapping `mock-test-equipment` for a real adapter (e.g. a `file_drop_test_results` or OPC-UA tester plugin) requires zero changes to this service or its route.
 
 ### 9.5 Production Counter Data Collection
 
