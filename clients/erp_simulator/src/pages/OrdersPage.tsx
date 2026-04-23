@@ -5,17 +5,14 @@ import {
   updateProductionOrder,
   deleteProductionOrder,
   readProducts,
-  readProductRoutes,
   type DBProductionOrder,
   type DBProduct,
-  type DBRoute,
 } from "../api/erp";
 
 /* ── Create-form state ──────────────────────────────────────────── */
 
 interface CreateForm {
   product_id: string;
-  route_id: string;
   count: number;
   quantity_ordered: number;
   priority: number;
@@ -23,7 +20,6 @@ interface CreateForm {
 
 const defaultCreate: CreateForm = {
   product_id: "",
-  route_id: "",
   count: 3,
   quantity_ordered: 100,
   priority: 0,
@@ -46,9 +42,8 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Products & routes for create form
+  // Products for create form
   const [products, setProducts] = useState<DBProduct[]>([]);
-  const [routes, setRoutes] = useState<DBRoute[]>([]);
 
   // Create form
   const [showCreate, setShowCreate] = useState(false);
@@ -84,22 +79,6 @@ export default function OrdersPage() {
     }
   };
 
-  /* ── Load routes when product changes ─────────────────────────── */
-
-  useEffect(() => {
-    if (!form.product_id) {
-      setRoutes([]);
-      setForm((f) => ({ ...f, route_id: "" }));
-      return;
-    }
-    readProductRoutes(form.product_id)
-      .then((r) => {
-        setRoutes(r);
-        const def = r.find((rt) => rt.is_default);
-        setForm((f) => ({ ...f, route_id: def?.id ?? r[0]?.id ?? "" }));
-      })
-      .catch(() => setRoutes([]));
-  }, [form.product_id]);
 
   /* ── Create N orders ──────────────────────────────────────────── */
 
@@ -118,7 +97,7 @@ export default function OrdersPage() {
         const order = await createProductionOrder({
           order_number: `${prefix}-${ts}-${String(i).padStart(3, "0")}`,
           product_id: form.product_id,
-          route_id: form.route_id || null,
+          route_id: null,
           quantity_ordered: form.quantity_ordered,
           priority: form.priority,
         });
@@ -231,7 +210,7 @@ export default function OrdersPage() {
       {showCreate && (
         <div className="p-4 bg-white rounded-lg border space-y-3">
           <h3 className="font-medium text-sm text-gray-700">Create Production Orders</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {/* Product */}
             <label className="space-y-1">
               <span className="text-xs text-gray-500">Product *</span>
@@ -246,27 +225,6 @@ export default function OrdersPage() {
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.code} — {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {/* Route */}
-            <label className="space-y-1">
-              <span className="text-xs text-gray-500">Route</span>
-              <select
-                value={form.route_id}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, route_id: e.target.value }))
-                }
-                className={inp + " w-full"}
-                disabled={routes.length === 0}
-              >
-                <option value="">— none —</option>
-                {routes.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} v{r.version}
-                    {r.is_default ? " (default)" : ""}
                   </option>
                 ))}
               </select>

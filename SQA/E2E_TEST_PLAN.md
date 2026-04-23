@@ -91,12 +91,12 @@ Navigate to **Dispositions**. Confirm 8 codes exist: `E-START`, `E-PASS-SMD`, `E
 
 ---
 
-## 5. Create and release a production order (ERP Simulator @ :5174)
+## 5. Create and release a production order
 
-1. **Orders → New Order**: product `FG-ECB-100`, quantity `5`, priority `normal`. Save.
-2. The new row should appear with status `created`.
-3. Click **Release**. Row should flip to `released`; server emits `operations.request.released`.
-4. Switch to **RT-CLIENT → Events** (http://localhost:5176) and confirm the release event arrives on the WebSocket feed.
+1. **ERP Simulator @ :5174 → Orders → + Create Orders**: product `FG-ECB-100`, # Orders `5`, Qty per Order `100`, priority `normal`. Click **Create 5 Orders**. Five rows should appear with status `created`. (ERPs create orders; they do not release them — release is a shop-floor action.)
+2. Switch to **RT-CLIENT @ :5176 → Orders**. The five `created` orders should be visible (synced from ERP).
+3. Select an order and click **Release**. Row should flip to `released`; server emits `operations.request.released`.
+4. In **RT-CLIENT → Events**, confirm the release event arrives on the WebSocket feed.
 
 ---
 
@@ -189,10 +189,10 @@ Point the server at the ISA-95 DB: `MES_DATABASE_URL=postgresql+asyncpg://postgr
 - **Products → FG-ECB-100**: BOM has 8 lines; route has 5 process segments with expected cycle times and dispositions.
 - **Dispatch**: confirm `PNP-800A` and `PNP-800B` both appear under the SMD Placement segment (dual-equipment dispatch).
 
-## 4. Create and release a production order (ERP Simulator)
+## 4. Create and release a production order
 
-1. **Orders → New**: product `FG-ECB-100`, quantity `5`, priority `normal` → Save.
-2. Click **Release**. The row should flip to `released` and emit `operations.request.released` on the event bus.
+1. **ERP Simulator → Orders → + Create Orders**: product `FG-ECB-100`, # Orders `5`, Qty per Order `100`, priority `normal` → **Create 5 Orders**. Rows should appear with status `created`. (Order release is a shop-floor action, performed in RT-CLIENT below.)
+2. In **RT-CLIENT → Orders**, select a `created` order and click **Release**. The row should flip to `released` and the server should emit `operations.request.released` on the event bus.
 3. In **RT-CLIENT → Events** tab, confirm the release event arrives via WebSocket.
 
 ## 5. Process WIP through the SMT route (RT-CLIENT)
