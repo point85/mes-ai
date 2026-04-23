@@ -2227,6 +2227,51 @@ The first match wins. If no transition matches, the engine falls back to linear 
 | `on_rework` | Step result = 'rework' | `result` parameter on move |
 | `disposition` | Operator selects this labeled path at an MRB step | `disposition` parameter matching `label` |
 
+##### 5.8.1.1 Dispositions vs. Failure Edges
+
+Dispositions and `on_fail` edges are **not redundant** — they solve different problems. Both
+can coexist on the same step.
+
+| Aspect | `on_fail` edge | Disposition |
+|---|---|---|
+| Arity | Binary (pass/fail) | N-ary (rework / scrap / MRB hold / use-as-is / return-to-vendor / …) |
+| Who decides | Routing engine (automatic) | Human inspector (explicit choice submitted with step result) |
+| Semantic identity | Just a graph arrow | Named `Disposition` entity with code, category, description — visible on NCRs, QMS audit trails, compliance reports |
+| Reuse | Per-edge, per-route | `Disposition` is a shared entity referenced by many routes |
+| Evaluation priority | 2nd tier (RESULT match) | 1st tier (overrides `on_fail`) |
+
+**Two mechanisms carry dispositions in the data model:**
+
+1. **`ProcessSegment.disposition_id`** — the step's **input disposition**: the disposition that
+   routes WIP *into* this step. At a failure/inspection step, the engine enumerates all other
+   steps in the route whose `disposition_id` is set; the inspector picks one of those disposition
+   names, and the engine (`_resolve_disposition`) routes the lot to the matching step.
+   This is the preferred modeling approach — dispositions are defined once and steps "subscribe"
+   to them by FK.
+2. **`ProcessSegmentDependency` with `condition='disposition'`** — a legacy / explicit path:
+   an edge carries a disposition label, evaluated by `_resolve_graph_transition`. Kept for
+   backwards compatibility and for cases where the same disposition should route to different
+   steps from different sources.
+
+**Rule of thumb:**
+
+- Use `on_fail` when failure routing is **automatic and deterministic** (e.g. auto-test fails →
+  retry station; no human judgment).
+- Use **disposition** when a human picks one outcome from a menu of quality decisions, or when
+  the outcome needs a compliance-visible name (ISA-95, QMS, regulated industries).
+- Because disposition is evaluated **first**, an explicit inspector choice (e.g. `USE_AS_IS`)
+  overrides the default `on_fail` edge — a deliberate human override of the graph.
+
+Worked example (electronics seed, step 60 Final Inspection):
+
+| Operator action | Next step | Mechanism |
+|---|---|---|
+| Result = PASS | 80 Pack | `on_pass` edge |
+| Result = FAIL, disposition = REWORK | 70 Rework | disposition (inspector choice) |
+| Result = FAIL, disposition = MRB_HOLD | 85 MRB Hold | disposition (inspector choice) |
+| Result = FAIL, disposition = SCRAP | 99 Scrap | disposition (inspector choice) |
+| Result = FAIL, no disposition | 85 MRB Hold | `on_fail` edge (default fallback) |
+
 #### 5.8.2 Linear Fallback Routing
 
 When a step has **no outgoing transitions**, the engine falls back to the next step by ascending
