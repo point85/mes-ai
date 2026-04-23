@@ -710,6 +710,7 @@ async def get_equipment_class(
     ec = await svc.get_equipment_class(session, class_id)
     data = EquipmentClassDetail.model_validate(ec)
     data.member_count = len(ec.equipment_members) if ec.equipment_members else 0
+    data.members = [EquipmentRead.model_validate(e) for e in (ec.equipment_members or [])]
     return success_response(data.model_dump())
 
 

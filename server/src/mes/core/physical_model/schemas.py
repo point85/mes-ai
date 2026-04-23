@@ -390,6 +390,7 @@ class EquipmentClassDetail(EquipmentClassRead):
 
     properties: list[EquipmentClassPropertyRead] = []
     member_count: int = 0
+    members: list[EquipmentRead] = []
 
 
 # ─── Equipment Capability ───────────────────────────────────────────

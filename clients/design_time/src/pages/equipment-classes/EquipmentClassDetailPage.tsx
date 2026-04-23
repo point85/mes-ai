@@ -18,7 +18,6 @@ import {
 import { useUoMs } from "../../hooks/useUoM";
 import type { EquipmentClassProperty } from "../../types";
 import ClassPropertyFormDialog from "./ClassPropertyFormDialog";
-
 const DATA_TYPE_BADGE: Record<string, string> = {
   string: "bg-blue-100 text-blue-800",
   float: "bg-green-100 text-green-800",
@@ -82,6 +81,52 @@ export default function EquipmentClassDetailPage() {
           <PlusIcon className="h-4 w-4" /> Add Property
         </button>
       </div>
+
+      {/* Members (assigned equipment) */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">
+          Assigned Equipment
+          <span className="ml-2 text-sm font-normal text-gray-500">
+            ({classDetail.members?.length ?? 0})
+          </span>
+        </h2>
+        {!classDetail.members || classDetail.members.length === 0 ? (
+          <p className="text-sm text-gray-400 italic py-4">
+            No equipment has been assigned to this class yet.
+          </p>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200 border rounded-lg overflow-hidden">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Code</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">State Model</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Queue Depth</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Active</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {classDetail.members.map((eq) => (
+                <tr key={eq.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm font-mono font-medium text-gray-900">{eq.code}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{eq.name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{eq.state_model_id ?? "—"}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{eq.max_queue_depth ?? "—"}</td>
+                  <td className="px-4 py-3 text-sm">
+                    {eq.is_active ? (
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">active</span>
+                    ) : (
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">inactive</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <h2 className="text-lg font-semibold text-gray-900 mb-2">Class Properties</h2>
 
       {/* Properties table */}
       {props.length === 0 ? (

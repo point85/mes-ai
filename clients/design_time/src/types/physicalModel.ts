@@ -190,6 +190,7 @@ export interface EquipmentClass {
 export interface EquipmentClassDetail extends EquipmentClass {
   properties: EquipmentClassProperty[];
   member_count: number;
+  members: Equipment[];
 }
 
 export interface EquipmentClassProperty {

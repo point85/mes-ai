@@ -365,13 +365,13 @@ EQUIPMENT_CLASSES: list[dict] = [
 
 EQUIPMENT_CLASS_PROPERTIES: list[dict] = [
     # Placement
-    {"class_code": "PLACEMENT",  "name": "max_cph",       "data_type": "float",  "uom_id": None,  "description": "Max components per hour"},
-    {"class_code": "PLACEMENT",  "name": "feeder_slots",  "data_type": "int",    "uom_id": None,  "description": "Number of feeder slots"},
+    {"class_code": "PLACEMENT",  "name": "max_cph",       "data_type": "float",  "uom_id": "cph",  "default_value": "80000",   "description": "Max components per hour"},
+    {"class_code": "PLACEMENT",  "name": "feeder_slots",  "data_type": "int",    "uom_id": None,   "default_value": "120",     "description": "Number of feeder slots"},
     # Oven
-    {"class_code": "OVEN",       "name": "zone_count",    "data_type": "int",    "uom_id": None,  "description": "Number of heating zones"},
-    {"class_code": "OVEN",       "name": "max_temp_c",    "data_type": "float",  "uom_id": None,  "description": "Max zone temperature (°C)"},
+    {"class_code": "OVEN",       "name": "zone_count",    "data_type": "int",    "uom_id": None,   "default_value": "5",       "description": "Number of heating zones"},
+    {"class_code": "OVEN",       "name": "max_temp_c",    "data_type": "float",  "uom_id": "°C",   "default_value": "260",     "description": "Max zone temperature"},
     # Printer
-    {"class_code": "PRINTER",    "name": "max_board_size", "data_type": "string", "uom_id": None, "description": "Max PCB size (LxW mm)"},
+    {"class_code": "PRINTER",    "name": "max_board_size", "data_type": "string", "uom_id": "mm",  "default_value": "460x305", "description": "Max PCB size (LxW)"},
 ]
 
 # Maps equipment code → equipment class code

@@ -1100,6 +1100,9 @@ _DEMO_UOMS: list[tuple[str, str, str, float, float]] = [
     ("cph",    "components per hour",  "rate",          1.0, 0.0),
     ("mm/s",   "millimetres per second", "rate",        0.001, 0.0),
     ("mm/min", "millimetres per minute", "rate",        0.001 / 60, 0.0),
+    ("RPM",    "revolutions per minute", "rate",        1.0 / 60, 0.0),
+    ("bottle/min", "bottles per minute", "rate",        1.0, 0.0),
+    ("label/min",  "labels per minute",  "rate",        1.0, 0.0),
 ]
 
 
@@ -1239,7 +1242,14 @@ async def _seed_equipment_classes(
             # Translate UoM symbol → id if seed data provided a symbol string
             uom_val = pdata.get("uom_id")
             if isinstance(uom_val, str):
-                pdata["uom_id"] = uom_symbol_to_id.get(uom_val)
+                uom_id = uom_symbol_to_id.get(uom_val)
+                if uom_id is None:
+                    raise ValueError(
+                        f"Unknown UoM symbol '{uom_val}' for equipment class "
+                        f"property {class_code}.{pdata.get('name')}. "
+                        "Add it to _DEMO_UOMS or the built-in UoM seed."
+                    )
+                pdata["uom_id"] = uom_id
             await _get_or_create_class_property(session, class_id, **pdata)
             counts["class_properties"] += 1
 

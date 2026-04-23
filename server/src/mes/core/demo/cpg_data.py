@@ -344,16 +344,16 @@ EQUIPMENT_CLASSES: list[dict] = [
 
 EQUIPMENT_CLASS_PROPERTIES: list[dict] = [
     # Mixer
-    {"class_code": "MIXER",       "name": "max_volume_l",   "data_type": "float",  "uom_id": "L",    "description": "Max batch volume"},
-    {"class_code": "MIXER",       "name": "max_rpm",        "data_type": "float",  "uom_id": None,   "description": "Maximum impeller speed (RPM)"},
+    {"class_code": "MIXER",       "name": "max_volume_l",   "data_type": "float",  "uom_id": "L",           "default_value": "10000", "description": "Max batch volume"},
+    {"class_code": "MIXER",       "name": "max_rpm",        "data_type": "float",  "uom_id": "RPM",         "default_value": "1800",  "description": "Maximum impeller speed"},
     # Pasteurizer
-    {"class_code": "PASTEURIZER", "name": "max_temp_c",     "data_type": "float",  "uom_id": None,   "description": "Max temperature (°C)"},
-    {"class_code": "PASTEURIZER", "name": "hold_time_s",    "data_type": "float",  "uom_id": "s",    "description": "Minimum hold time"},
+    {"class_code": "PASTEURIZER", "name": "max_temp_c",     "data_type": "float",  "uom_id": "°C",          "default_value": "95",    "description": "Max temperature"},
+    {"class_code": "PASTEURIZER", "name": "hold_time_s",    "data_type": "float",  "uom_id": "s",           "default_value": "15",    "description": "Minimum hold time"},
     # Filler
-    {"class_code": "FILLER",      "name": "max_fill_rate",  "data_type": "float",  "uom_id": None,   "description": "Max fill rate (bottles/min)"},
-    {"class_code": "FILLER",      "name": "min_fill_vol_ml","data_type": "float",  "uom_id": None,   "description": "Minimum fill volume (mL)"},
+    {"class_code": "FILLER",      "name": "max_fill_rate",  "data_type": "float",  "uom_id": "bottle/min",  "default_value": "600",   "description": "Max fill rate"},
+    {"class_code": "FILLER",      "name": "min_fill_vol_ml","data_type": "float",  "uom_id": "mL",          "default_value": "100",   "description": "Minimum fill volume"},
     # Labeler
-    {"class_code": "LABELER",     "name": "max_label_rate", "data_type": "float",  "uom_id": None,   "description": "Max labels/min"},
+    {"class_code": "LABELER",     "name": "max_label_rate", "data_type": "float",  "uom_id": "label/min",   "default_value": "600",   "description": "Max labels per minute"},
 ]
 
 # Maps equipment code → equipment class code
