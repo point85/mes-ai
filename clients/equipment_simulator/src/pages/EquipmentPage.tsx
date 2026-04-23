@@ -623,7 +623,8 @@ export default function EquipmentPage() {
                 )}
               </div>
 
-              {/* OPC-UA State Simulation */}
+              {/* OPC-UA State Simulation — PackML-only */}
+              {current?.state_model === "packml" && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate OPC-UA State Change — {selectedEquip.code}
@@ -681,6 +682,7 @@ export default function EquipmentPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* MQTT State Simulation */}
               <div className="bg-white rounded-lg border p-4 space-y-4">
