@@ -6,7 +6,7 @@ import StateBadge from "../components/StateBadge";
 import type { EquipmentStateLog } from "../types";
 
 export default function HistoryPage() {
-  const { equipmentId, equipmentCode } = useEquipmentContext();
+  const { equipmentId, equipmentCode, equipmentName } = useEquipmentContext();
 
   const [logs, setLogs] = useState<EquipmentStateLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -83,7 +83,9 @@ export default function HistoryPage() {
         <>
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm">
             Showing history for <strong>{equipmentCode}</strong>
-            <span className="ml-2 text-xs text-gray-500 font-mono">({equipmentId})</span>
+            {equipmentName && (
+              <span className="ml-2 text-xs text-gray-600">— {equipmentName}</span>
+            )}
           </div>
 
           {/* Limit control + refresh */}

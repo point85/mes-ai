@@ -9,7 +9,7 @@ function toLocalDateTimeInput(d: Date): string {
 }
 
 export default function OEEPage() {
-  const { equipmentId, equipmentCode } = useEquipmentContext();
+  const { equipmentId, equipmentCode, equipmentName } = useEquipmentContext();
 
   // Period
   const now = new Date();
@@ -66,7 +66,9 @@ export default function OEEPage() {
         <>
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm">
             Equipment: <strong>{equipmentCode}</strong>
-            <span className="ml-2 text-xs text-gray-500 font-mono">({equipmentId})</span>
+            {equipmentName && (
+              <span className="ml-2 text-xs text-gray-600">— {equipmentName}</span>
+            )}
           </div>
 
           {/* Period selection + calculate */}
