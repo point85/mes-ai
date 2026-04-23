@@ -143,7 +143,7 @@ export async function updateRoute(routeId: string, body: RouteUpdate): Promise<P
 
 export async function fetchRouteSteps(routeId: string): Promise<ApiListResponse<RouteStep>> {
   const { data } = await api.get<ApiListResponse<RouteStep>>(
-    `/operations-definitions/${routeId}/steps`,
+    `/operations-definitions/${routeId}/process-segments`,
     { params: { limit: "200" } },
   );
   return data;
@@ -154,7 +154,7 @@ export async function createRouteStep(
   body: RouteStepCreate,
 ): Promise<RouteStep> {
   const { data } = await api.post<ApiResponse<RouteStep>>(
-    `/operations-definitions/${routeId}/steps`,
+    `/operations-definitions/${routeId}/process-segments`,
     body,
   );
   return data.data;
@@ -200,7 +200,7 @@ export async function fetchStepTransitions(
   stepId: string,
 ): Promise<ApiListResponse<StepTransition>> {
   const { data } = await api.get<ApiListResponse<StepTransition>>(
-    `/process-segments/${stepId}/transitions`,
+    `/process-segments/${stepId}/dependencies`,
     { params: { limit: "200" } },
   );
   return data;
@@ -211,7 +211,7 @@ export async function createStepTransition(
   body: StepTransitionCreate,
 ): Promise<StepTransition> {
   const { data } = await api.post<ApiResponse<StepTransition>>(
-    `/process-segments/${stepId}/transitions`,
+    `/process-segments/${stepId}/dependencies`,
     body,
   );
   return data.data;
