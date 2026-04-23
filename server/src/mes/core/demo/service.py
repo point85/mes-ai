@@ -1383,13 +1383,15 @@ async def _get_or_create_equipment_capability(
     (equipment_id, equipment_class_id, capability_type).  Returns True if
     created."""
     result = await session.execute(
-        select(EquipmentCapability).where(
+        select(EquipmentCapability)
+        .where(
             EquipmentCapability.equipment_id == equipment_id,
             EquipmentCapability.equipment_class_id == equipment_class_id,
             EquipmentCapability.capability_type == capability_type,
         )
+        .limit(1)
     )
-    if result.scalar_one_or_none() is not None:
+    if result.scalars().first() is not None:
         return False
 
     await PhysicalModelService.create_capability(
