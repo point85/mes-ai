@@ -33,6 +33,7 @@ import type { ProcessRoute, RouteStep, Material, Product } from "../../types";
 import RouteFormDialog from "./RouteFormDialog";
 import StepFormDialog from "../products/StepFormDialog";
 import StepEquipReqCountBadge from "../products/StepEquipReqCountBadge";
+import RouteFlowDiagram from "./RouteFlowDiagram";
 
 const PRODUCT_TYPES = ["discrete", "process", "semi_finished", "configurable"] as const;
 const MATERIAL_TYPES = ["raw", "intermediate", "finished", "semi", "consumable", "packaging", "spare"] as const;
@@ -46,6 +47,7 @@ export default function RouteEditorPage() {
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
   const [pickerSource, setPickerSource] = useState<"materials" | "products">("materials");
   const [pickerTypeFilter, setPickerTypeFilter] = useState("");
+  const [stepsView, setStepsView] = useState<"table" | "diagram">("table");
 
   // Queries
   const { data: routesData, isLoading: routesLoading } = useAllRoutes();
@@ -222,17 +224,46 @@ export default function RouteEditorPage() {
                 <h2 className="text-sm font-semibold text-gray-900">
                   Steps — {selectedRoute.name}
                 </h2>
-                <button
-                  onClick={() => {
-                    setEditingStep(null);
-                    setShowStepForm(true);
-                  }}
-                  className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
-                >
-                  <PlusIcon className="h-3.5 w-3.5" />
-                  New Step
-                </button>
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex rounded-md border border-gray-300 bg-white p-0.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setStepsView("table")}
+                      className={`rounded px-2 py-1 font-medium transition-colors ${
+                        stepsView === "table"
+                          ? "bg-indigo-600 text-white"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      Table
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStepsView("diagram")}
+                      className={`rounded px-2 py-1 font-medium transition-colors ${
+                        stepsView === "diagram"
+                          ? "bg-indigo-600 text-white"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      Diagram
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingStep(null);
+                      setShowStepForm(true);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                  >
+                    <PlusIcon className="h-3.5 w-3.5" />
+                    New Step
+                  </button>
+                </div>
               </div>
+              {stepsView === "diagram" ? (
+                <RouteFlowDiagram steps={steps} />
+              ) : (
               <div className="overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -343,6 +374,7 @@ export default function RouteEditorPage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-12 text-center">

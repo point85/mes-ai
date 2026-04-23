@@ -178,6 +178,8 @@ TRANSITIONS: list[dict] = [
     {"from_seq": 50, "to_seq": 80, "condition": "on_rework",   "priority": 20, "is_default": False, "label": "Repeat Fail — MRB"},
     # Functional Test → Rework (on_fail)
     {"from_seq": 60, "to_seq": 70, "condition": "on_fail",     "priority": 10, "is_default": False, "label": "Func Test Failed — Rework"},
+    # Functional Test → MRB (on_rework — escalation for repeated failure)
+    {"from_seq": 60, "to_seq": 80, "condition": "on_rework",   "priority": 20, "is_default": False, "label": "Repeat Fail — MRB"},
     # Rework → AOI (rework loop back to inspection)
     {"from_seq": 70, "to_seq": 40, "condition": "always",      "priority": 0,  "is_default": True,  "label": "Return to AOI"},
     # MRB → Rework (disposition: return to rework)
