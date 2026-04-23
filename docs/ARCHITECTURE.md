@@ -7447,6 +7447,55 @@ server/src/mes/core/demo/
 - Data constants separated from orchestration logic for clarity and testability
 - Seed functions call existing service modules (MaterialService, ProductService, etc.) — no direct SQL
 
+#### Seed ordering: ERP before plant (ISA-95 Part 3/4 boundary)
+
+Each scenario is split into **two** seed functions that must run in a fixed order:
+
+1. `seed_{scenario}_erp_data` — populates the **product-definition / operations-definition** side (what the ERP owns).
+2. `seed_{scenario}_plant_data` — populates the **physical / execution-context** side (what the MES owns) and links it back to the ERP entities created in step 1.
+
+The plant seed is not standalone: it looks up `ProcessSegment` rows and `MaterialDefinition` rows *by code* in order to build:
+
+- `SegmentEquipmentClassAssignment` — binds each process segment (e.g. "SMD Placement") to the equipment class (`PLACEMENT`) that can perform it.
+- `SegmentEquipmentRequirement` / `SegmentMaterialRequirement` — segment-specific resource requirements.
+- `EquipmentMaterial` — design speed / target-OEE per equipment per material.
+
+If the ERP seed hasn't run, these FK lookups fail. The reverse is not true — the ERP seed produces a self-contained data set.
+
+This split mirrors the real-world responsibility boundary described in ISA-95 Part 3 (operations definition / scheduling — ERP) versus Part 4 (operations execution — MES).
+
+##### What a real ERP (SAP S/4HANA, Oracle Fusion Cloud) knows about
+
+Entities that exist on both sides (ERP is the system of record; MES replicates / extends):
+
+| MES class | ERP equivalent | Notes |
+|---|---|---|
+| `Product` / product version | Material master (SAP MARA/MARC, Oracle `EGP_ITEM`) | Item code, base UoM, planning data |
+| `MaterialDefinition` (raws, packaging, FG) | Material master | Same master table, different material types |
+| `BillOfMaterial` + `BOMItem` | SAP BOM (STKO/STPO), Oracle Item Structure | Engineering / manufacturing BOM |
+| `OperationsDefinition` (route) | SAP Routing (MAPL/PLKO), Oracle Work Definition | Sequence of operations |
+| `ProcessSegment` (step) with `erp_operation_number` | SAP Operation (PLPO), Oracle Operation | `0010`, `0020`, … map directly |
+| `StepParameter` (planned values) | SAP PRT / standard values, Oracle Operation Resources | Planned cycle time, standard qty |
+| `OperationsRequest` (production order) | SAP Production Order (AUFK/AFKO), Oracle Work Order | Qty, dates, priority |
+| `MaterialLot` | SAP Batch (MCHA/MCH1), Oracle Lot | Lot-controlled materials |
+| `StorageLocation` | SAP Storage Location / WM, Oracle Subinventory | High-level inventory location |
+| Confirmations / consumption / scrap | SAP CO11N, Oracle WIP Transactions | Return traffic from MES → ERP |
+
+Entities that are **MES-only** and are *not* sent to the ERP (pure ISA-95 plant / execution concerns):
+
+- `Site` / `Area` / `ProductionLine` / `WorkCell` (physical hierarchy at this granularity — ERP typically stops at "plant" / "work center")
+- `Equipment`, `EquipmentClass`, `EquipmentCapability`, `EquipmentClassProperty`
+- `StepTransition` — conditional routing graph (ERP sees a linear operation sequence)
+- `Disposition` catalog (pass / fail / rework / MRB)
+- `DataDefinition` / `DataPoint` (time-series process data collection)
+- `QualityTest` limits and `TestResult` values
+- `Unit` (individual serialized WIP piece) and its step-by-step history
+- `Genealogy` as-built tree
+- `EquipmentStateLog`, OEE / PackML state models
+- Dispatch queues and strategies
+
+This is precisely why the ERP-simulator seed covers the first group and the DT-CLIENT / plant seed covers the second — the boundary between the two seeds **is** the boundary between what an ERP would know about and what is MES-native.
+
 ### 18.2 CPG Demo — Juice Bottling Line (Process / Lot-Tracked)
 
 **Product:** FG-OJ-1L (Orange Juice 1 Liter), product_type=`process`

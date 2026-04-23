@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { seedCPGPlantData, seedElectronicsPlantData, type PlantSeedSummary } from "../api/demo";
+import { formatApiError } from "../api/errors";
 
 const cards = [
   {
@@ -91,7 +92,7 @@ export default function DashboardPage() {
     try {
       setSeedResult(await seedCPGPlantData());
     } catch (err: unknown) {
-      setSeedError(err instanceof Error ? err.message : "Seed failed");
+      setSeedError(formatApiError(err, "Seed failed"));
     } finally {
       setSeeding(false);
     }
@@ -104,7 +105,7 @@ export default function DashboardPage() {
     try {
       setSeedElecResult(await seedElectronicsPlantData());
     } catch (err: unknown) {
-      setSeedElecError(err instanceof Error ? err.message : "Seed failed");
+      setSeedElecError(formatApiError(err, "Seed failed"));
     } finally {
       setSeedingElec(false);
     }

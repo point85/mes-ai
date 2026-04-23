@@ -47,12 +47,53 @@ from mes.core.inventory.service import (
     InventoryTransactionService, StorageLocationService,
 )
 from mes.core.uom.models import UnitOfMeasure
-from mes.framework.api.exceptions import MESException
+from mes.framework.api.exceptions import MESException, ValidationException
 
 from . import cpg_data as D
 from . import electronics_data as E
 
 logger = logging.getLogger("mes.demo")
+
+
+# ---------------------------------------------------------------------------
+# Preconditions
+# ---------------------------------------------------------------------------
+
+async def _require_erp_seed(
+    session: AsyncSession,
+    *,
+    scenario: str,
+    route_name: str,
+    erp_endpoint: str,
+) -> None:
+    """
+    Ensure the ERP-side seed (materials, product, route, segments) has been
+    run for this scenario before the plant-side seed executes.
+
+    The plant seed resolves ProcessSegment and MaterialDefinition rows by
+    code/name when building SegmentEquipmentClassAssignment,
+    SegmentEquipmentRequirement, SegmentMaterialRequirement, and
+    EquipmentMaterial. If those rows don't exist, the plant seed will fail
+    mid-way with opaque FK errors. We detect the missing prerequisite up
+    front and return a clear 422 instead.
+    """
+    result = await session.execute(
+        select(OperationsDefinition.id).where(OperationsDefinition.name == route_name)
+    )
+    if result.scalar_one_or_none() is None:
+        raise ValidationException(
+            message=(
+                f"Cannot seed the {scenario} plant model: the {scenario} ERP "
+                f"data has not been seeded yet. Run the ERP-side seed first "
+                f"(POST {erp_endpoint} — 'Seed {scenario} Demo' on the ERP "
+                f"Simulator Dashboard), then retry this request."
+            ),
+            details={
+                "scenario": scenario,
+                "missing_route": route_name,
+                "required_first": erp_endpoint,
+            },
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +282,13 @@ async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
 
     Returns a summary dict with counts.
     """
+    await _require_erp_seed(
+        session,
+        scenario="CPG",
+        route_name=D.ROUTE_NAME,
+        erp_endpoint="/api/v1/demo/seed-cpg-erp",
+    )
+
     summary: dict[str, Any] = {"site": None, "area": None, "line": None,
                                 "work_cells": 0, "equipment": 0,
                                 "equipment_materials": 0}
@@ -598,6 +646,13 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
 
     Returns a summary dict with counts.
     """
+    await _require_erp_seed(
+        session,
+        scenario="Electronics",
+        route_name=E.ROUTE_NAME,
+        erp_endpoint="/api/v1/demo/seed-electronics-erp",
+    )
+
     summary: dict[str, Any] = {"sites": 0, "areas": 0,
                                 "production_lines": 0, "work_cells": 0,
                                 "equipment": 0, "equipment_materials": 0,
