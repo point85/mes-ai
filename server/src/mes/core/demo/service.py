@@ -372,13 +372,19 @@ async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
         step_by_seq = await _segments_by_sequence(session, D.ROUTE_NAME)
         for req in D.SEGMENT_EQUIPMENT_REQUIREMENTS:
             step = step_by_seq.get(req["step_sequence"])
-            equip_id = equip_map.get(req["equipment_code"])
-            if step is None or equip_id is None:
+            if step is None:
+                continue
+            equip_code = req.get("equipment_code")
+            class_code = req.get("equipment_class_code")
+            equip_id = equip_map.get(equip_code) if equip_code else None
+            class_id = class_map.get(class_code) if class_code else None
+            if equip_id is None and class_id is None:
                 continue
             if await _get_or_create_segment_equipment_requirement(
                 session,
                 step_id=step.id,
                 equipment_id=equip_id,
+                equipment_class_id=class_id,
                 use_type=req.get("use_type", "preferred"),
                 description=req.get("description"),
             ):
@@ -741,13 +747,19 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
         step_by_seq = await _segments_by_sequence(session, E.ROUTE_NAME)
         for req in E.SEGMENT_EQUIPMENT_REQUIREMENTS:
             step = step_by_seq.get(req["step_sequence"])
-            equip_id = equip_map.get(req["equipment_code"])
-            if step is None or equip_id is None:
+            if step is None:
+                continue
+            equip_code = req.get("equipment_code")
+            class_code = req.get("equipment_class_code")
+            equip_id = equip_map.get(equip_code) if equip_code else None
+            class_id = class_map.get(class_code) if class_code else None
+            if equip_id is None and class_id is None:
                 continue
             if await _get_or_create_segment_equipment_requirement(
                 session,
                 step_id=step.id,
                 equipment_id=equip_id,
+                equipment_class_id=class_id,
                 use_type=req.get("use_type", "preferred"),
                 description=req.get("description"),
             ):
@@ -1347,21 +1359,36 @@ async def _get_or_create_segment_equipment_requirement(
     session: AsyncSession,
     *,
     step_id: UUID,
-    equipment_id: UUID,
+    equipment_id: UUID | None = None,
+    equipment_class_id: UUID | None = None,
     use_type: str = "preferred",
     description: str | None = None,
 ) -> bool:
-    """Create a SegmentEquipmentRequirement unless one already exists for
-    (step_id, equipment_id, use_type).  Returns True if created."""
+    """Create a SegmentEquipmentRequirement unless one already exists.
+
+    Exactly one of ``equipment_id`` or ``equipment_class_id`` must be set
+    (ISA-95 Part 2 EquipmentSegmentSpecification; enforced at the DB by
+    ``ck_segment_equip_req_one_target``).  Dedup key is
+    (step_id, target, use_type).
+    """
     from mes.core.product_def.models import SegmentEquipmentRequirement
 
-    result = await session.execute(
-        select(SegmentEquipmentRequirement).where(
-            SegmentEquipmentRequirement.step_id == step_id,
-            SegmentEquipmentRequirement.equipment_id == equipment_id,
-            SegmentEquipmentRequirement.use_type == use_type,
+    if (equipment_id is None) == (equipment_class_id is None):
+        raise ValueError(
+            "Exactly one of equipment_id or equipment_class_id must be set."
         )
+
+    stmt = select(SegmentEquipmentRequirement).where(
+        SegmentEquipmentRequirement.step_id == step_id,
+        SegmentEquipmentRequirement.use_type == use_type,
     )
+    if equipment_id is not None:
+        stmt = stmt.where(SegmentEquipmentRequirement.equipment_id == equipment_id)
+    else:
+        stmt = stmt.where(
+            SegmentEquipmentRequirement.equipment_class_id == equipment_class_id
+        )
+    result = await session.execute(stmt)
     if result.scalar_one_or_none() is not None:
         return False
 
@@ -1369,6 +1396,7 @@ async def _get_or_create_segment_equipment_requirement(
         session,
         step_id=step_id,
         equipment_id=equipment_id,
+        equipment_class_id=equipment_class_id,
         use_type=use_type,
         description=description,
     )

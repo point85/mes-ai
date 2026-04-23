@@ -354,13 +354,16 @@ EQUIPMENT_MATERIALS: list[dict] = [
 # ---------------------------------------------------------------------------
 
 EQUIPMENT_CLASSES: list[dict] = [
-    {"code": "PRINTER",    "name": "Stencil Printer",   "description": "Solder-paste stencil printing equipment"},
-    {"code": "PLACEMENT",  "name": "Pick-and-Place",    "description": "SMT component placement machine"},
-    {"code": "OVEN",       "name": "Reflow Oven",       "description": "Convection / IR reflow soldering oven"},
-    {"code": "INSPECTION", "name": "Inspection System",  "description": "Automated optical / X-ray inspection"},
-    {"code": "WAVE_SOLDER","name": "Wave Solder",        "description": "Wave soldering and conformal coating"},
-    {"code": "TESTER",     "name": "Functional Tester",  "description": "ICT / FCT test fixture"},
-    {"code": "MANUAL",     "name": "Manual Station",     "description": "Manual rework / repair bench"},
+    {"code": "PRINTER",     "name": "Stencil Printer",   "description": "Solder-paste stencil printing equipment"},
+    {"code": "PLACEMENT",   "name": "Pick-and-Place",    "description": "SMT component placement machine"},
+    {"code": "FEEDER_BANK", "name": "Feeder Bank",       "description": "Component feeder bank that loads tape-and-reel into a pick-and-place"},
+    {"code": "OVEN",        "name": "Reflow Oven",       "description": "Convection / IR reflow soldering oven"},
+    {"code": "CONVEYOR",    "name": "Conveyor",          "description": "Board transport conveyor linking placement to reflow"},
+    {"code": "INSPECTION",  "name": "Inspection System", "description": "Automated optical / X-ray inspection"},
+    {"code": "WAVE_SOLDER", "name": "Wave Solder",       "description": "Wave soldering and conformal coating"},
+    {"code": "TESTER",      "name": "Functional Tester", "description": "ICT / FCT test fixture"},
+    {"code": "FIXTURE",     "name": "Test Fixture",      "description": "Product-specific mechanical/electrical test fixture"},
+    {"code": "MANUAL",      "name": "Manual Station",    "description": "Manual rework / repair bench"},
 ]
 
 EQUIPMENT_CLASS_PROPERTIES: list[dict] = [
@@ -411,13 +414,31 @@ STEP_EQUIPMENT_CLASS: dict[int, str] = {
 # use_type: "required" | "preferred" | "alternate"
 
 SEGMENT_EQUIPMENT_REQUIREMENTS: list[dict] = [
+    # ── Class-level multi-equipment requirements (ISA-95 Part 2
+    # EquipmentSegmentSpecification).  Each step's primary class is
+    # already captured on ProcessSegment.equipment_class_id via
+    # STEP_EQUIPMENT_CLASS above; these entries declare the *additional*
+    # equipment classes the step needs at the same time.  Dispatch ANDs
+    # them together.
+    #
+    # SMD Placement needs 1× PLACEMENT (primary) + 1× FEEDER_BANK
+    {"step_sequence": 20, "equipment_class_code": "FEEDER_BANK", "use_type": "required",
+     "description": "Tape-and-reel feeder bank loaded with SMD kit"},
+    # Reflow Soldering needs 1× OVEN (primary) + 1× CONVEYOR
+    {"step_sequence": 30, "equipment_class_code": "CONVEYOR",    "use_type": "required",
+     "description": "Inline conveyor feeding the reflow oven"},
+    # Functional Test needs 1× TESTER (primary) + 1× FIXTURE
+    {"step_sequence": 60, "equipment_class_code": "FIXTURE",     "use_type": "required",
+     "description": "Product-specific FCT test fixture"},
+
+    # ── Specific-equipment preferences augmenting the class constraint.
     # SMD Placement: dual pick-and-place — either is acceptable
     {"step_sequence": 20, "equipment_code": "PNP-800A", "use_type": "preferred", "description": "Primary pick-and-place"},
     {"step_sequence": 20, "equipment_code": "PNP-800B", "use_type": "alternate", "description": "Secondary pick-and-place (load balancing)"},
     # Wave-solder + conformal coat — only one line, must use it
     {"step_sequence": 50, "equipment_code": "WS-100",   "use_type": "required",  "description": "Only wave-solder + conformal coat line"},
-    # Functional Test — calibrated fixture required
-    {"step_sequence": 60, "equipment_code": "FCT-200",  "use_type": "required",  "description": "Calibrated FCT fixture"},
+    # Functional Test — calibrated tester required (fixture-class above covers the fixture)
+    {"step_sequence": 60, "equipment_code": "FCT-200",  "use_type": "required",  "description": "Calibrated FCT tester"},
     # Rework and MRB share the same bench
     {"step_sequence": 70, "equipment_code": "RW-BENCH", "use_type": "required",  "description": "Manual rework bench"},
     {"step_sequence": 80, "equipment_code": "RW-BENCH", "use_type": "required",  "description": "MRB review at rework bench"},
