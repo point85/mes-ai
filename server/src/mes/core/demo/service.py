@@ -1228,6 +1228,10 @@ async def _seed_equipment_classes(
 
     # Create properties
     if hasattr(data_module, "EQUIPMENT_CLASS_PROPERTIES"):
+        # Ensure demo-specific UoMs (cph, RPM, bottle/min, ...) exist. This
+        # is idempotent and makes the function self-sufficient when called
+        # outside the ERP seed path.
+        await _ensure_demo_uoms(session)
         # Build a UoM symbol → id lookup so seed data can use human-readable
         # symbols (e.g. "L", "s"). The DB column stores the UUID.
         uom_rows = await session.execute(
