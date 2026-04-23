@@ -115,7 +115,7 @@ export async function createBOMItem(bomId: string, body: BOMItemCreate): Promise
 
 export async function fetchRoutes(productId: string): Promise<ApiListResponse<ProcessRoute>> {
   const { data } = await api.get<ApiListResponse<ProcessRoute>>(
-    `/products/${productId}/routes`,
+    `/products/${productId}/operations-definitions`,
     { params: { limit: "200" } },
   );
   return data;
@@ -128,7 +128,7 @@ export async function fetchRoute(routeId: string): Promise<ProcessRoute> {
 
 export async function createRoute(productId: string, body: RouteCreate): Promise<ProcessRoute> {
   const { data } = await api.post<ApiResponse<ProcessRoute>>(
-    `/products/${productId}/routes`,
+    `/products/${productId}/operations-definitions`,
     body,
   );
   return data.data;
