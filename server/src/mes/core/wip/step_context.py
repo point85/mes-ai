@@ -21,7 +21,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.core.data_collection.models import DataDefinition
 from mes.core.data_collection.schemas import DataDefinitionRead
-from mes.core.product_def.models import ProcessSegment, SegmentParameter
+from mes.core.product_def.models import (
+    ProcessSegment,
+    ProcessSegmentDependency,
+    SegmentParameter,
+)
 from mes.core.product_def.schemas import RouteStepRead, StepParameterRead
 from mes.core.quality.models import QualityTest
 from mes.core.quality.schemas import QualityTestRead
@@ -60,6 +64,7 @@ async def build_step_context(
     data_defs = []
     quality_tests = []
     dispositions = []
+    outgoing_conditions: list[str] = []
 
     if current_step_id is not None:
         # Step details
@@ -111,6 +116,20 @@ async def build_step_context(
             session, current_step_id,
         )
 
+        # Distinct conditions of active outgoing transitions from this step.
+        # Used by the RT-CLIENT to decide whether to render the
+        # Pass/Fail/Rework Result selector (only relevant when at least one
+        # outgoing edge actually depends on the result).
+        cond_result = await session.execute(
+            select(ProcessSegmentDependency.condition)
+            .where(
+                ProcessSegmentDependency.from_step_id == current_step_id,
+                ProcessSegmentDependency.is_active.is_(True),
+            )
+            .distinct()
+        )
+        outgoing_conditions = sorted({c for (c,) in cond_result.all()})
+
     # 3. Load all route steps for progress tracker
     process_segments = []
     try:
@@ -130,4 +149,5 @@ async def build_step_context(
         "quality_tests": quality_tests,
         "dispositions": dispositions,
         "route_steps": process_segments,
+        "outgoing_conditions": outgoing_conditions,
     }

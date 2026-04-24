@@ -140,6 +140,7 @@ export interface StepContext {
   quality_tests: QualityTest[];
   dispositions: Disposition[];
   route_steps: RouteStep[];
+  outgoing_conditions?: string[];
 }
 
 export interface Product {

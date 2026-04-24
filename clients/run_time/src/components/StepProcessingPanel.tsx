@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function StepProcessingPanel({ context, onRefresh }: Props) {
-  const { wip_type, wip, step, step_parameters, data_definitions, quality_tests, dispositions, route_steps } = context;
+  const { wip_type, wip, step, step_parameters, data_definitions, quality_tests, dispositions, route_steps, outgoing_conditions } = context;
   const isUnit = wip_type === "unit";
   const identifier = isUnit ? (wip as Unit).serial_number : (wip as Lot).lot_number;
   const queryClient = useQueryClient();
@@ -648,7 +648,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                     ))}
                   </select>
                 </div>
-              ) : (
+              ) : (outgoing_conditions ?? []).some((c) => c === "on_pass" || c === "on_fail" || c === "on_rework") ? (
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">Result</label>
                   <select
@@ -661,7 +661,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                     <option value="rework">Rework</option>
                   </select>
                 </div>
-              )}
+              ) : null}
               {!isUnit && (
                 <>
                   <div>

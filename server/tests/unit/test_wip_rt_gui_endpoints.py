@@ -220,6 +220,9 @@ class TestBuildStepContext:
             elif idx == 3:
                 # quality tests
                 mock_result.scalars.return_value.all.return_value = []
+            elif idx == 4:
+                # outgoing transition conditions (distinct)
+                mock_result.all.return_value = []
             return mock_result
 
         session = AsyncMock()
@@ -240,9 +243,9 @@ class TestBuildStepContext:
         assert ctx["dispositions"] == []
         assert len(ctx["route_steps"]) == 1
         assert ctx["route_steps"][0]["name"] == "Assembly"
-        # Verify all 4 session.execute calls happened (step, params, defs, tests)
-        assert len(execute_results) == 4
-
+        # Verify all 5 session.execute calls happened
+        # (step, params, defs, tests, outgoing-conditions)
+        assert len(execute_results) == 5
     @pytest.mark.asyncio
     async def test_process_segments_empty_on_exception(self):
         """If RoutingEngineService.get_process_segments raises, route_steps is []."""
