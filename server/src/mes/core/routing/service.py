@@ -342,51 +342,28 @@ class RoutingEngineService:
         """
         Return the disposition choices available at a step.
 
-        Queries all other active steps in the same route that have a
-        disposition_id set (excluding the current step), joining through
-        the Disposition table for name/category.
-        Falls back to ProcessSegmentDependency-based dispositions for backwards compat.
+        Only transitions actually defined from the current step (via
+        ``ProcessSegmentDependency`` rows with ``condition='disposition'``)
+        are surfaced. The dropdown therefore matches the route diagram —
+        a step whose only outgoing edge is ``always`` will return an empty
+        list, while a branching step returns one entry per disposition edge.
+
+        Two flavors are supported per outgoing transition:
+          * Catalog-linked: ``disposition_id`` joined to the ``Disposition``
+            table; we also resolve the disposition assigned to the target
+            step (``to_step.disposition``) when the transition itself does
+            not pin one, so the operator sees a meaningful name.
+          * Legacy free-text: ``label`` only, returned as ``{label, to_step_id}``.
         """
-        # Find the step to get its route_id
-        step_stmt = select(ProcessSegment).where(ProcessSegment.id == step_id)
-        step_result = await session.execute(step_stmt)
-        step = step_result.scalar_one_or_none()
-        if step is None:
-            return []
-
-        # Look for steps with a disposition in the same route
-        disp_stmt = (
-            select(ProcessSegment, Disposition)
-            .join(Disposition, ProcessSegment.disposition_id == Disposition.id)
-            .where(
-                ProcessSegment.route_id == step.route_id,
-                ProcessSegment.is_active.is_(True),
-                ProcessSegment.disposition_id.isnot(None),
-                ProcessSegment.id != step_id,
-            )
-            .order_by(Disposition.name)
-        )
-        disp_result = await session.execute(disp_stmt)
-        rows = disp_result.all()
-
-        if rows:
-            return [
-                {
-                    "id": str(disp.id),
-                    "name": disp.name,
-                    "description": disp.description or "",
-                    "category": disp.category,
-                    "to_step_id": str(rs.id),
-                }
-                for rs, disp in rows
-            ]
-
-        # Fallback: legacy ProcessSegmentDependency-based dispositions.
-        # When a transition has disposition_id linked to a catalog Disposition,
-        # surface the full catalog metadata (id/name/description/category); otherwise
-        # fall back to the free-text label for backward compatibility.
+        # Fetch outgoing disposition transitions with both ends preloaded so
+        # we can read target-step disposition without a second round-trip.
         stmt = (
             select(ProcessSegmentDependency)
+            .options(
+                selectinload(ProcessSegmentDependency.to_step).selectinload(
+                    ProcessSegment.disposition
+                ),
+            )
             .where(
                 ProcessSegmentDependency.from_step_id == step_id,
                 ProcessSegmentDependency.condition == "disposition",
@@ -396,14 +373,19 @@ class RoutingEngineService:
         )
         result = await session.execute(stmt)
         transitions = result.scalars().all()
+
         out: list[dict[str, str]] = []
         for t in transitions:
-            if t.disposition is not None:
+            # Prefer transition-pinned disposition, then target-step disposition.
+            disp = t.disposition or (
+                t.to_step.disposition if t.to_step is not None else None
+            )
+            if disp is not None:
                 out.append({
-                    "id": str(t.disposition.id),
-                    "name": t.disposition.name,
-                    "description": t.disposition.description or "",
-                    "category": t.disposition.category,
+                    "id": str(disp.id),
+                    "name": disp.name,
+                    "description": disp.description or "",
+                    "category": disp.category,
                     "to_step_id": str(t.to_step_id),
                 })
             else:

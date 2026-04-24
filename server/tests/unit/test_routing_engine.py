@@ -19,6 +19,21 @@ import uuid
 
 import pytest
 
+# Bootstrap SQLAlchemy mappers — needed when importing services that touch
+# cross-module relationships (e.g. RoutingEngineService → ProcessSegment →
+# OperationsRequest → Unit).
+import mes.framework.auth.models  # noqa: F401
+import mes.framework.plugin.models  # noqa: F401
+import mes.core.physical_model.models  # noqa: F401
+import mes.core.product_def.models  # noqa: F401
+import mes.core.uom.models  # noqa: F401
+import mes.core.operations.models  # noqa: F401
+import mes.core.wip.models  # noqa: F401
+import mes.core.material.models  # noqa: F401
+import mes.core.data_collection.models  # noqa: F401
+import mes.core.quality.models  # noqa: F401
+import mes.core.performance.models  # noqa: F401
+
 
 # ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -545,3 +560,123 @@ class TestMoveRequestSchemas:
         m = MoveRequest(target_step_id=tid, result="pass")
         assert m.target_step_id == tid
         assert m.result == "pass"
+
+
+# ═════════════════════════════════════════════════════════════════════
+# get_available_dispositions — only outgoing disposition edges should
+# surface as choices, matching the route diagram.
+# ═════════════════════════════════════════════════════════════════════
+
+
+class TestGetAvailableDispositions:
+    """
+    Regression: a step whose only outgoing edge is ``always`` must return
+    no dispositions, even when other steps in the same route carry
+    catalog ``disposition_id`` values.
+    """
+
+    @staticmethod
+    def _mock_session_returning(transitions):
+        """Build an AsyncMock session whose .execute(...).scalars().all() == transitions."""
+        from unittest.mock import AsyncMock, MagicMock
+        scalars = MagicMock()
+        scalars.all = MagicMock(return_value=transitions)
+        result = MagicMock()
+        result.scalars = MagicMock(return_value=scalars)
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=result)
+        return session
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_outgoing_disposition_edges(self):
+        """Step with only an ``always`` edge → empty disposition list."""
+        from mes.core.routing.service import RoutingEngineService
+        session = self._mock_session_returning([])  # no condition='disposition' rows
+        out = await RoutingEngineService.get_available_dispositions(
+            session, uuid.uuid4()
+        )
+        assert out == []
+
+    @pytest.mark.asyncio
+    async def test_returns_catalog_metadata_for_pinned_disposition(self):
+        """Transition with ``disposition`` relationship returns full catalog dict."""
+        from mes.core.routing.service import RoutingEngineService
+        disp = types.SimpleNamespace(
+            id=uuid.uuid4(),
+            name="AOI Pass",
+            description="Auto-optical-inspection pass",
+            category="quality",
+        )
+        to_step = types.SimpleNamespace(id=uuid.uuid4(), disposition=None)
+        t = types.SimpleNamespace(
+            condition="disposition",
+            label=None,
+            disposition=disp,
+            to_step=to_step,
+            to_step_id=to_step.id,
+            priority=10,
+        )
+        session = self._mock_session_returning([t])
+        out = await RoutingEngineService.get_available_dispositions(
+            session, uuid.uuid4()
+        )
+        assert out == [{
+            "id": str(disp.id),
+            "name": "AOI Pass",
+            "description": "Auto-optical-inspection pass",
+            "category": "quality",
+            "to_step_id": str(to_step.id),
+        }]
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_target_step_disposition(self):
+        """When transition has no disposition, we resolve target step's disposition."""
+        from mes.core.routing.service import RoutingEngineService
+        disp = types.SimpleNamespace(
+            id=uuid.uuid4(),
+            name="Scrap",
+            description="",
+            category="reject",
+        )
+        to_step = types.SimpleNamespace(id=uuid.uuid4(), disposition=disp)
+        t = types.SimpleNamespace(
+            condition="disposition",
+            label=None,
+            disposition=None,
+            to_step=to_step,
+            to_step_id=to_step.id,
+            priority=0,
+        )
+        session = self._mock_session_returning([t])
+        out = await RoutingEngineService.get_available_dispositions(
+            session, uuid.uuid4()
+        )
+        assert out == [{
+            "id": str(disp.id),
+            "name": "Scrap",
+            "description": "",
+            "category": "reject",
+            "to_step_id": str(to_step.id),
+        }]
+
+    @pytest.mark.asyncio
+    async def test_legacy_label_only_transition(self):
+        """Transition with neither catalog disposition nor target disposition → label fallback."""
+        from mes.core.routing.service import RoutingEngineService
+        to_step = types.SimpleNamespace(id=uuid.uuid4(), disposition=None)
+        t = types.SimpleNamespace(
+            condition="disposition",
+            label="Return to rework",
+            disposition=None,
+            to_step=to_step,
+            to_step_id=to_step.id,
+            priority=0,
+        )
+        session = self._mock_session_returning([t])
+        out = await RoutingEngineService.get_available_dispositions(
+            session, uuid.uuid4()
+        )
+        assert out == [{
+            "label": "Return to rework",
+            "to_step_id": str(to_step.id),
+        }]
