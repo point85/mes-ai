@@ -137,15 +137,23 @@ export default function ProductDetailPage() {
               {product.code} · v{product.version} · {product.product_type} · {product.uom}
             </p>
           </div>
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              product.is_active
-                ? "bg-green-100 text-green-700"
-                : "bg-gray-100 text-gray-600"
-            }`}
-          >
-            {product.is_active ? "Active" : "Inactive"}
-          </span>
+          <div className="flex items-center gap-3">
+            <Link
+              to={`/products/${productId}/boms`}
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+            >
+              Manage BOMs
+            </Link>
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                product.is_active
+                  ? "bg-green-100 text-green-700"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {product.is_active ? "Active" : "Inactive"}
+            </span>
+          </div>
         </div>
       </div>
 

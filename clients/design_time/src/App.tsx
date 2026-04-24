@@ -13,7 +13,7 @@ import { LineListPage } from "./pages/lines";
 import { WorkCellListPage } from "./pages/work-cells";
 import { EquipmentListPage, EquipmentMaterialPage, EquipmentCapabilityPage } from "./pages/equipment";
 import { EquipmentClassListPage, EquipmentClassDetailPage } from "./pages/equipment-classes";
-import { ProductListPage, ProductDetailPage } from "./pages/products";
+import { ProductListPage, ProductDetailPage, BOMEditorPage } from "./pages/products";
 import { RouteEditorPage } from "./pages/routes";
 import { MaterialListPage } from "./pages/materials";
 import { DataDefListPage } from "./pages/data-collection";
@@ -57,6 +57,7 @@ export default function App() {
             {/* Products & Materials */}
             <Route path="/products" element={<ProductListPage />} />
             <Route path="/products/:productId" element={<ProductDetailPage />} />
+            <Route path="/products/:productId/boms" element={<BOMEditorPage />} />
             <Route path="/routes" element={<RouteEditorPage />} />
             <Route path="/materials" element={<MaterialListPage />} />
             <Route path="/data-definitions" element={<DataDefListPage />} />

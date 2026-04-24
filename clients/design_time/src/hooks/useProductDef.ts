@@ -11,8 +11,11 @@ import {
   fetchBOMs,
   createBOM,
   updateBOM,
+  deleteBOM,
   fetchBOMItems,
   createBOMItem,
+  updateBOMItem,
+  deleteBOMItem,
   fetchRoutes,
   createRoute,
   updateRoute,
@@ -21,6 +24,8 @@ import {
   updateRouteStep,
   fetchStepParameters,
   createStepParameter,
+  updateStepParameter,
+  deleteStepParameter,
   fetchStepTransitions,
   createStepTransition,
   updateStepTransition,
@@ -51,11 +56,13 @@ import type {
   BOMCreate,
   BOMUpdate,
   BOMItemCreate,
+  BOMItemUpdate,
   RouteCreate,
   RouteUpdate,
   RouteStepCreate,
   RouteStepUpdate,
   StepParameterCreate,
+  StepParameterUpdate,
   StepTransitionCreate,
   StepTransitionUpdate,
   RouteProductAssignmentCreate,
@@ -139,6 +146,14 @@ export function useUpdateBOM() {
   });
 }
 
+export function useDeleteBOM() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteBOM(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["boms"] }),
+  });
+}
+
 // ─── BOM Items ────────────────────────────────────────────────────────
 
 export function useBOMItems(bomId: string) {
@@ -154,6 +169,23 @@ export function useCreateBOMItem() {
   return useMutation({
     mutationFn: ({ bomId, ...body }: BOMItemCreate & { bomId: string }) =>
       createBOMItem(bomId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bomItems"] }),
+  });
+}
+
+export function useUpdateBOMItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: BOMItemUpdate & { id: string }) =>
+      updateBOMItem(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bomItems"] }),
+  });
+}
+
+export function useDeleteBOMItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteBOMItem(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bomItems"] }),
   });
 }
@@ -229,6 +261,23 @@ export function useCreateStepParameter() {
   return useMutation({
     mutationFn: ({ stepId, ...body }: StepParameterCreate & { stepId: string }) =>
       createStepParameter(stepId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["stepParams"] }),
+  });
+}
+
+export function useUpdateStepParameter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: StepParameterUpdate & { id: string }) =>
+      updateStepParameter(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["stepParams"] }),
+  });
+}
+
+export function useDeleteStepParameter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteStepParameter(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["stepParams"] }),
   });
 }

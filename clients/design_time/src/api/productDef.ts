@@ -12,6 +12,7 @@ import type {
   BOMUpdate,
   BOMItem,
   BOMItemCreate,
+  BOMItemUpdate,
   ProcessRoute,
   RouteCreate,
   RouteUpdate,
@@ -20,6 +21,7 @@ import type {
   RouteStepUpdate,
   StepParameter,
   StepParameterCreate,
+  StepParameterUpdate,
   StepTransition,
   StepTransitionCreate,
   StepTransitionUpdate,
@@ -93,6 +95,10 @@ export async function updateBOM(bomId: string, body: BOMUpdate): Promise<BOM> {
   return data.data;
 }
 
+export async function deleteBOM(bomId: string): Promise<void> {
+  await api.delete(`/boms/${bomId}`);
+}
+
 // ─── BOM Items ────────────────────────────────────────────────────────
 
 export async function fetchBOMItems(bomId: string): Promise<ApiListResponse<BOMItem>> {
@@ -109,6 +115,21 @@ export async function createBOMItem(bomId: string, body: BOMItemCreate): Promise
     body,
   );
   return data.data;
+}
+
+export async function updateBOMItem(
+  itemId: string,
+  body: BOMItemUpdate,
+): Promise<BOMItem> {
+  const { data } = await api.put<ApiResponse<BOMItem>>(
+    `/bom-items/${itemId}`,
+    body,
+  );
+  return data.data;
+}
+
+export async function deleteBOMItem(itemId: string): Promise<void> {
+  await api.delete(`/bom-items/${itemId}`);
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────
@@ -195,6 +216,21 @@ export async function createStepParameter(
     body,
   );
   return data.data;
+}
+
+export async function updateStepParameter(
+  paramId: string,
+  body: StepParameterUpdate,
+): Promise<StepParameter> {
+  const { data } = await api.put<ApiResponse<StepParameter>>(
+    `/segment-parameters/${paramId}`,
+    body,
+  );
+  return data.data;
+}
+
+export async function deleteStepParameter(paramId: string): Promise<void> {
+  await api.delete(`/segment-parameters/${paramId}`);
 }
 
 // ─── Step Transitions ─────────────────────────────────────────────────

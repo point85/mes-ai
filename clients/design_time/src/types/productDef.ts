@@ -81,6 +81,15 @@ export interface BOMItemCreate {
   quantity: number;
   uom?: string;
   position?: number;
+  process_segment_id?: string | null;
+}
+
+export interface BOMItemUpdate {
+  material_code?: string;
+  quantity?: number;
+  uom?: string;
+  position?: number;
+  process_segment_id?: string | null;
 }
 
 // ─── Route ────────────────────────────────────────────────────────────
@@ -222,6 +231,16 @@ export interface StepParameter {
 
 export interface StepParameterCreate {
   name: string;
+  data_type?: string;
+  uom?: string | null;
+  target_value?: string | null;
+  lower_limit?: string | null;
+  upper_limit?: string | null;
+  is_required?: boolean;
+}
+
+export interface StepParameterUpdate {
+  name?: string;
   data_type?: string;
   uom?: string | null;
   target_value?: string | null;

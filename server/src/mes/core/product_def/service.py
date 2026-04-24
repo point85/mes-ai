@@ -353,6 +353,14 @@ class ProductDefService:
         await session.flush()
         return bom
 
+    @staticmethod
+    async def delete_bom(session: AsyncSession, bom_id: UUID) -> None:
+        """Soft-delete a BOM."""
+        bom = await ProductDefService.get_bom(session, bom_id)
+        bom.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted BOM %s", bom_id)
+
     # ─── BOMItem operations ──────────────────────────────────────────
 
     @staticmethod
@@ -394,6 +402,42 @@ class ProductDefService:
         await session.flush()
         logger.info("Created BOM item %s in BOM %s", item.id, bom_id)
         return item
+
+    @staticmethod
+    async def get_bom_item(session: AsyncSession, item_id: UUID) -> BOMItem:
+        """Get a BOM item by ID."""
+        stmt = select(BOMItem).where(
+            BOMItem.id == item_id,
+            BOMItem.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        item = result.scalar_one_or_none()
+        if item is None:
+            raise NotFoundException(resource="BOMItem", resource_id=str(item_id))
+        return item
+
+    @staticmethod
+    async def update_bom_item(
+        session: AsyncSession, item_id: UUID, **kwargs: Any
+    ) -> BOMItem:
+        """Update a BOM item. Accepts process_segment_id=None to clear the link."""
+        item = await ProductDefService.get_bom_item(session, item_id)
+        # process_segment_id must allow explicit None (unassign from step)
+        clearable = {"process_segment_id"}
+        for key, value in kwargs.items():
+            if value is None and key not in clearable:
+                continue
+            setattr(item, key, value)
+        await session.flush()
+        return item
+
+    @staticmethod
+    async def delete_bom_item(session: AsyncSession, item_id: UUID) -> None:
+        """Soft-delete a BOM item."""
+        item = await ProductDefService.get_bom_item(session, item_id)
+        item.is_active = False
+        await session.flush()
+        logger.info("Deleted BOM item %s", item_id)
 
     # ─── OperationsDefinition operations ─────────────────────────────────────
 
@@ -601,6 +645,48 @@ class ProductDefService:
         await session.flush()
         logger.info("Created step parameter %s (%s) for step %s", param.id, param.name, step_id)
         return param
+
+    @staticmethod
+    async def get_step_parameter(
+        session: AsyncSession, param_id: UUID,
+    ) -> SegmentParameter:
+        """Get a step parameter by ID."""
+        stmt = select(SegmentParameter).where(
+            SegmentParameter.id == param_id,
+            SegmentParameter.is_active.is_(True),
+        )
+        result = await session.execute(stmt)
+        param = result.scalar_one_or_none()
+        if param is None:
+            raise NotFoundException(
+                resource="SegmentParameter", resource_id=str(param_id),
+            )
+        return param
+
+    @staticmethod
+    async def update_step_parameter(
+        session: AsyncSession, param_id: UUID, **kwargs: Any,
+    ) -> SegmentParameter:
+        """Update a step parameter. `target_value`, `lower_limit`, `upper_limit`,
+        and `uom` may be explicitly cleared by passing None."""
+        param = await ProductDefService.get_step_parameter(session, param_id)
+        clearable = {"uom", "target_value", "lower_limit", "upper_limit"}
+        for key, value in kwargs.items():
+            if value is None and key not in clearable:
+                continue
+            setattr(param, key, value)
+        await session.flush()
+        return param
+
+    @staticmethod
+    async def delete_step_parameter(
+        session: AsyncSession, param_id: UUID,
+    ) -> None:
+        """Soft-delete a step parameter."""
+        param = await ProductDefService.get_step_parameter(session, param_id)
+        param.is_active = False
+        await session.flush()
+        logger.info("Deleted step parameter %s", param_id)
 
     # ─── ERP Routing Sync ────────────────────────────────────────────
 

@@ -27,6 +27,7 @@ from .schemas import (
     BOMCreate,
     BOMItemCreate,
     BOMItemRead,
+    BOMItemUpdate,
     BOMRead,
     BOMUpdate,
     DispositionCreate,
@@ -44,6 +45,7 @@ from .schemas import (
     RouteUpdate,
     StepParameterCreate,
     StepParameterRead,
+    StepParameterUpdate,
     StepTransitionCreate,
     StepTransitionRead,
     StepTransitionUpdate,
@@ -270,6 +272,17 @@ async def update_bom(
     return success_response(BOMRead.model_validate(bom).model_dump())
 
 
+@router.delete("/boms/{bom_id}", status_code=204)
+async def delete_bom(
+    bom_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Soft-delete a BOM."""
+    await svc.delete_bom(session, bom_id)
+    await session.commit()
+
+
 # ─── BOM Items ────────────────────────────────────────────────────────
 
 
@@ -301,6 +314,43 @@ async def create_bom_item(
     item = await svc.create_bom_item(session, bom_id, **body.model_dump())
     await session.commit()
     return success_response(BOMItemRead.model_validate(item).model_dump())
+
+
+@router.get("/bom-items/{item_id}")
+async def get_bom_item(
+    item_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """Get a BOM item by ID."""
+    item = await svc.get_bom_item(session, item_id)
+    return success_response(BOMItemRead.model_validate(item).model_dump())
+
+
+@router.put("/bom-items/{item_id}")
+async def update_bom_item(
+    item_id: UUID,
+    body: BOMItemUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.update")),
+):
+    """Update a BOM item."""
+    item = await svc.update_bom_item(
+        session, item_id, **body.model_dump(exclude_unset=True),
+    )
+    await session.commit()
+    return success_response(BOMItemRead.model_validate(item).model_dump())
+
+
+@router.delete("/bom-items/{item_id}", status_code=204)
+async def delete_bom_item(
+    item_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Soft-delete a BOM item."""
+    await svc.delete_bom_item(session, item_id)
+    await session.commit()
 
 
 @router.get("/process-segments/{step_id}/bom-items")
@@ -465,6 +515,43 @@ async def create_step_parameter(
     param = await svc.create_step_parameter(session, step_id, **body.model_dump())
     await session.commit()
     return success_response(StepParameterRead.model_validate(param).model_dump())
+
+
+@router.get("/segment-parameters/{param_id}")
+async def get_step_parameter(
+    param_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """Get a step parameter by ID."""
+    param = await svc.get_step_parameter(session, param_id)
+    return success_response(StepParameterRead.model_validate(param).model_dump())
+
+
+@router.put("/segment-parameters/{param_id}")
+async def update_step_parameter(
+    param_id: UUID,
+    body: StepParameterUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.update")),
+):
+    """Update a step parameter."""
+    param = await svc.update_step_parameter(
+        session, param_id, **body.model_dump(exclude_unset=True),
+    )
+    await session.commit()
+    return success_response(StepParameterRead.model_validate(param).model_dump())
+
+
+@router.delete("/segment-parameters/{param_id}", status_code=204)
+async def delete_step_parameter(
+    param_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.delete")),
+):
+    """Delete a step parameter."""
+    await svc.delete_step_parameter(session, param_id)
+    await session.commit()
 
 
 # ─── Step Transitions ────────────────────────────────────────────────
