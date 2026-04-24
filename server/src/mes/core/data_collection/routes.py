@@ -51,13 +51,19 @@ async def list_definitions(
     step_id: UUID | None = Query(None, description="Filter by route step"),
     data_type: str | None = Query(None, description="Filter by data type"),
     source: str | None = Query(None, description="Filter by source"),
+    unassigned: bool = Query(
+        False,
+        description="If true and step_id is not set, return only definitions with no step assignment",
+    ),
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("data.read")),
 ):
     """List active data definitions with optional filters."""
     items, cursor, has_more = await defn_svc.list_definitions(
-        session, params, step_id=step_id, data_type=data_type, source=source,
+        session, params,
+        step_id=step_id, data_type=data_type, source=source,
+        unassigned=unassigned,
     )
     return list_response(
         [DataDefinitionRead.model_validate(d).model_dump() for d in items],

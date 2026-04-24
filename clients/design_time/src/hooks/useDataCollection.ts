@@ -16,6 +16,9 @@ const KEYS = {
   definitions: ["dataDefinitions"] as const,
   defList: (dataType?: string, source?: string) =>
     ["dataDefinitions", "list", dataType, source] as const,
+  defForStep: (stepId: string) =>
+    ["dataDefinitions", "forStep", stepId] as const,
+  defUnassigned: ["dataDefinitions", "unassigned"] as const,
   points: ["dataPoints"] as const,
   pointList: (defId?: string, unitId?: string) =>
     ["dataPoints", "list", defId, unitId] as const,
@@ -27,6 +30,23 @@ export function useDataDefinitions(dataType?: string, source?: string) {
   return useQuery({
     queryKey: KEYS.defList(dataType, source),
     queryFn: () => fetchDataDefinitions(dataType, source),
+  });
+}
+
+export function useDataDefinitionsForStep(stepId: string) {
+  return useQuery({
+    queryKey: KEYS.defForStep(stepId),
+    queryFn: () =>
+      fetchDataDefinitions(undefined, undefined, { stepId }),
+    enabled: !!stepId,
+  });
+}
+
+export function useUnassignedDataDefinitions() {
+  return useQuery({
+    queryKey: KEYS.defUnassigned,
+    queryFn: () =>
+      fetchDataDefinitions(undefined, undefined, { unassigned: true }),
   });
 }
 

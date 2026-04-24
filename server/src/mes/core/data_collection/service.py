@@ -43,13 +43,20 @@ class DataDefinitionService:
         step_id: UUID | None = None,
         data_type: str | None = None,
         source: str | None = None,
+        unassigned: bool = False,
     ) -> tuple[Sequence[DataDefinition], str | None, bool]:
-        """List active data definitions with optional filters."""
+        """List active data definitions with optional filters.
+
+        When `unassigned` is True, returns only definitions with no step
+        assignment (step_id IS NULL). Ignored when `step_id` is set.
+        """
         stmt = select(DataDefinition).where(
             DataDefinition.is_active.is_(True),
         )
         if step_id is not None:
             stmt = stmt.where(DataDefinition.step_id == step_id)
+        elif unassigned:
+            stmt = stmt.where(DataDefinition.step_id.is_(None))
         if data_type is not None:
             stmt = stmt.where(DataDefinition.data_type == data_type)
         if source is not None:
@@ -121,8 +128,10 @@ class DataDefinitionService:
                 raise DuplicateDefinitionCodeException(new_code)
 
         for key, value in kwargs.items():
-            if value is not None:
-                setattr(defn, key, value)
+            # `step_id` may be explicitly cleared (detach from process segment)
+            if value is None and key != "step_id":
+                continue
+            setattr(defn, key, value)
         await session.flush()
 
         logger.info("Updated data definition %s (%s)", defn.id, defn.code)

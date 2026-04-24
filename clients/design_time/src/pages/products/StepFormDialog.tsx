@@ -13,6 +13,7 @@ import { useAllWorkCells, useAllLines, useEquipmentClasses } from "../../hooks/u
 import type { RouteStep } from "../../types";
 import EquipmentRequirementsEditor from "./EquipmentRequirementsEditor";
 import StepParameterEditor from "./StepParameterEditor";
+import StepDataDefinitionEditor from "./StepDataDefinitionEditor";
 
 const schema = z.object({
   sequence: z.number().int().min(1, "Sequence ≥ 1"),
@@ -214,6 +215,9 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
             )}
             {isEdit && step && (
               <StepParameterEditor stepId={step.id} />
+            )}
+            {isEdit && step && (
+              <StepDataDefinitionEditor stepId={step.id} />
             )}
             <div>
               <label className="block text-sm font-medium text-gray-700">

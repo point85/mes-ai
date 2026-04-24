@@ -17,10 +17,13 @@ import type {
 export async function fetchDataDefinitions(
   dataType?: string,
   source?: string,
+  opts?: { stepId?: string; unassigned?: boolean },
 ): Promise<ApiListResponse<DataDefinition>> {
   const params: Record<string, string> = { limit: "200" };
   if (dataType) params.data_type = dataType;
   if (source) params.source = source;
+  if (opts?.stepId) params.step_id = opts.stepId;
+  if (opts?.unassigned) params.unassigned = "true";
   const { data } = await api.get<ApiListResponse<DataDefinition>>(
     "/data/definitions",
     { params },
