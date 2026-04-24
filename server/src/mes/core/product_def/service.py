@@ -939,9 +939,11 @@ class ProductDefService:
         transition = await ProductDefService.get_step_transition(
             session, transition_id,
         )
+        clearable = {"label", "disposition_id"}
         for key, value in kwargs.items():
-            if value is not None:
-                setattr(transition, key, value)
+            if value is None and key not in clearable:
+                continue
+            setattr(transition, key, value)
         await session.flush()
         return transition
 

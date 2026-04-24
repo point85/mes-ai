@@ -520,6 +520,11 @@ class ProcessSegmentDependency(BaseModel):
         String(255), nullable=True,
         comment="Human-readable label for disposition choices (e.g. 'Return to rework', 'Scrap')",
     )
+    disposition_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("dispositions.id"),
+        nullable=True, index=True,
+        comment="FK to catalog Disposition (when condition='disposition'). Links this transition to a reusable catalog entry instead of a free-text label.",
+    )
 
     # Relationships
     from_step: Mapped["ProcessSegment"] = relationship(
@@ -527,6 +532,9 @@ class ProcessSegmentDependency(BaseModel):
     )
     to_step: Mapped["ProcessSegment"] = relationship(
         "ProcessSegment", foreign_keys=[to_step_id], back_populates="incoming_transitions",
+    )
+    disposition: Mapped["Disposition | None"] = relationship(
+        "Disposition", lazy="joined",
     )
 
     def __repr__(self) -> str:

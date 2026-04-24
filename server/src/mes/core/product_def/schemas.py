@@ -315,6 +315,7 @@ class StepTransitionCreate(BaseModel):
     is_default: bool = False
     priority: int = Field(0, ge=0)
     label: str | None = Field(None, max_length=255)
+    disposition_id: UUID | None = None
 
 
 class StepTransitionRead(BaseModel):
@@ -327,6 +328,7 @@ class StepTransitionRead(BaseModel):
     is_default: bool
     priority: int
     label: str | None = None
+    disposition_id: UUID | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -345,6 +347,7 @@ class StepTransitionUpdate(BaseModel):
     is_default: bool | None = None
     priority: int | None = Field(None, ge=0)
     label: str | None = Field(None, max_length=255)
+    disposition_id: UUID | None = None
 
 
 # ─── Route–Product Assignment ────────────────────────────────────────

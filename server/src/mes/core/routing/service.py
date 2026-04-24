@@ -268,8 +268,15 @@ class RoutingEngineService:
         default: ProcessSegmentDependency | None = None
 
         for t in transitions:
-            # Collect disposition matches (highest priority)
-            if disposition and t.condition == "disposition" and t.label == disposition:
+            # Collect disposition matches (highest priority) — match either
+            # on the free-text label OR on the linked catalog Disposition.name.
+            disp_match = False
+            if disposition and t.condition == "disposition":
+                if t.label == disposition:
+                    disp_match = True
+                elif t.disposition is not None and t.disposition.name == disposition:
+                    disp_match = True
+            if disp_match:
                 if disposition_match is None:
                     disposition_match = t
 
@@ -374,7 +381,10 @@ class RoutingEngineService:
                 for rs, disp in rows
             ]
 
-        # Fallback: legacy ProcessSegmentDependency-based dispositions
+        # Fallback: legacy ProcessSegmentDependency-based dispositions.
+        # When a transition has disposition_id linked to a catalog Disposition,
+        # surface the full catalog metadata (id/name/description/category); otherwise
+        # fall back to the free-text label for backward compatibility.
         stmt = (
             select(ProcessSegmentDependency)
             .where(
@@ -386,10 +396,22 @@ class RoutingEngineService:
         )
         result = await session.execute(stmt)
         transitions = result.scalars().all()
-        return [
-            {"label": t.label or "(unlabeled)", "to_step_id": str(t.to_step_id)}
-            for t in transitions
-        ]
+        out: list[dict[str, str]] = []
+        for t in transitions:
+            if t.disposition is not None:
+                out.append({
+                    "id": str(t.disposition.id),
+                    "name": t.disposition.name,
+                    "description": t.disposition.description or "",
+                    "category": t.disposition.category,
+                    "to_step_id": str(t.to_step_id),
+                })
+            else:
+                out.append({
+                    "label": t.label or "(unlabeled)",
+                    "to_step_id": str(t.to_step_id),
+                })
+        return out
 
     @staticmethod
     async def get_process_segments(
