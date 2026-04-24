@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-22",
-  "lastSessionId": "S037",
+  "lastUpdated": "2026-04-23",
+  "lastSessionId": "S038",
 
   "phases": [
     {
@@ -273,7 +273,7 @@
   ],
 
   "currentPhase": "P6",
-  "currentTask": "S035: ISA-95 Alignment Refactor in progress. Step 0 (DICTIONARY.md Section 5 — naming contract) complete. Step 1 (this update) in progress. Target database mes_ai_s95 created empty. Next: user approval to proceed to Step 2/3.",
+  "currentTask": "S038 (2026-04-23): Post-P6 polish. Fixed route↔product seed-association bug (frontend URL mismatch — /products/{id}/routes → /products/{id}/operations-definitions in design_time and erp_simulator). Added Mermaid route flow diagram to DT-CLIENT. XOR class-based SegmentEquipmentRequirement seeded for electronics. Removed layer-violating Route dropdown from ERP Simulator OrdersPage. Corrected E2E plan (order release is RT-CLIENT, not ERP). Documented Dispositions vs. Failure Edges in ARCHITECTURE.md §5.8.1.1. Parked: equipment-requirements UI surface (frontend API/hooks, StepFormDialog sub-editor, +N indicator, 1:N docs).",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
@@ -633,6 +633,30 @@
       "date": "2026-04-20",
       "decision": "Dispatch 3-tier equipment resolution priority: (1) StepEquipmentRequirement rows → (2) equipment_class_id membership → (3) legacy work_cell_id. Empty options if no constraint defined.",
       "rationale": "Provides backward compatibility with existing work_cell_id-based routing while enabling ISA-95 process segment equipment resolution. Explicit requirements take priority over class-based, which takes priority over legacy."
+    },
+    {
+      "id": "D053",
+      "date": "2026-04-23",
+      "decision": "SegmentEquipmentRequirement is XOR between equipment_id (specific) and equipment_class_id (class-based). Seed helper _get_or_create_segment_equipment_requirement raises ValueError if both or neither are set, and dedupes on whichever is populated.",
+      "rationale": "A requirement should either pin to one physical unit or name a class of interchangeable equipment — never both, never neither. Class-based is preferred when 1:N interchangeable equipment exists (e.g. dual PNP-800A/B) so dispatch can load-balance."
+    },
+    {
+      "id": "D054",
+      "date": "2026-04-23",
+      "decision": "ERP clients MUST NOT pick a specific MES OperationsDefinition. Production orders created via ERP simulator carry route_id: null; MES resolves the concrete route via RoutingEngineService.get_route_for_order (explicit → product's default → first active).",
+      "rationale": "Real ERPs (SAP, Oracle) issue production orders with product + qty + priority + due date, not MES-internal route UUIDs. Exposing an MES-level route picker in an ERP UI blurs the ERP↔MES boundary. ERP simulator's route dropdown was removed accordingly."
+    },
+    {
+      "id": "D055",
+      "date": "2026-04-23",
+      "decision": "Order release is a shop-floor action owned by RT-CLIENT, not ERP. ERP creates orders in 'created' status; RT-CLIENT transitions them to 'released' which emits operations.request.released.",
+      "rationale": "In real operations a floor planner/shift-lead confirms material+equipment availability before authorizing production start. The ERP simply issues the demand. E2E test plan updated to reflect this division."
+    },
+    {
+      "id": "D056",
+      "date": "2026-04-23",
+      "decision": "Dispositions and ProcessSegmentDependency on_fail edges coexist on inspection/failure steps. Dispositions are evaluated first (highest priority tier) and represent human-chosen quality outcomes with compliance-visible names (REWORK, SCRAP, MRB_HOLD, USE_AS_IS); on_fail edges represent automatic deterministic failure routing. An explicit disposition choice overrides the default on_fail edge.",
+      "rationale": "on_fail is binary and engine-driven; dispositions are N-ary and human-driven. Real QMS/ISA-95 workflows require named dispositions on every rejected unit. Documented in ARCHITECTURE.md §5.8.1.1 with worked example (electronics seed step 60 Final Inspection)."
     }
   ],
 

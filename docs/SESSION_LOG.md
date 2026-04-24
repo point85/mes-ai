@@ -3448,3 +3448,81 @@ Say: *"Resume MES AI project"*. Next logical work: either begin P7 (Testing & CI
 
 ### To Resume
 Say: *"Resume MES AI project"*. Next logical work: begin P7 (Testing & CI — CI pipeline, integration test harness in empty `server/tests/integration/`, mock simulation layer), or continue DT-CLIENT UX polish (reusable confirm-dialog, bulk actions, undo).
+
+## Session S038 — 2026-04-23
+
+**Phase**: Post-P6 — Route editor polish, seed fixes, E2E plan corrections
+**Objective**: Fix route↔product seed-association bug, add Mermaid route diagram, correct E2E doc boundaries (ERP vs RT responsibilities), document disposition-vs-edge semantics.
+
+### What Happened
+
+#### Electronics Seed — Rework Edge
+1. Added `(60, 80, on_rework)` transition to `server/src/mes/core/demo/electronics_data.py` — completes the Final Inspection → MRB escalation path. Verified 13 total TRANSITIONS with all 5 rework/MRB edges present.
+
+#### Equipment Requirements — Class-Based (XOR)
+2. Extended `EQUIPMENT_CLASSES` in electronics seed to 10 classes (added `FEEDER_BANK`, `CONVEYOR`, `FIXTURE`).
+3. Rewrote `_get_or_create_segment_equipment_requirement` in `server/src/mes/core/demo/service.py` to accept `equipment_id` XOR `equipment_class_id` (raises ValueError if both/neither), with dedupe on whichever is set.
+4. Updated both CPG (~L370) and Electronics (~L740) seed loops to resolve `equipment_code` → `equip_map` or `equipment_class_code` → `class_map`; skip if neither is present.
+5. Added 3 class-level entries to `SEGMENT_EQUIPMENT_REQUIREMENTS` (step 20→FEEDER_BANK, 30→CONVEYOR, 60→FIXTURE; `use_type=required`) alongside the original 6 equipment_code entries.
+
+#### Route Flow Diagram (DT-CLIENT)
+6. Installed `mermaid ^11.14.0` in `clients/design_time`.
+7. Created `clients/design_time/src/pages/routes/RouteFlowDiagram.tsx` — renders a Mermaid `flowchart TD` of steps + transitions using `useQueries` to fetch transitions per step. Node shapes by `step_type` (production `[..]`, inspection `{{..}}`, rework `([..])`, mrb `[[..]]`). Edge colors: green (always/on_pass), red (on_fail), amber (on_rework), blue (disposition). Uses `mermaid.initialize({ startOnLoad: false, securityLevel: "loose" })` + `mermaid.render`.
+8. Wired `RouteEditorPage.tsx` with a Table/Diagram toggle in the Steps panel header.
+
+#### Product Detail Page Bug — Routes Not Showing (Root Cause Fix)
+9. **Symptom**: Product detail page showed "No routes defined yet" for FG-ECB-100 despite the route existing on `/routes`.
+10. **Root cause**: Frontend API path mismatch. [clients/design_time/src/api/productDef.ts](clients/design_time/src/api/productDef.ts) `fetchRoutes`/`createRoute` hit `/products/{id}/routes`, but backend mounts `/products/{id}/operations-definitions` (per P6 Step 8 path renames). The 404 returned an empty array silently.
+11. Verified `RouteProductAssignment` rows **do** exist in DB (`FG-ECB-100 → SMT Assembly Line`, `FG-OJ-1L → Juice Bottling Line`) — seed association was correct.
+12. Fix: updated `fetchRoutes` and `createRoute` to use `/products/{id}/operations-definitions`.
+
+#### ERP Simulator — Remove Route Dropdown (Layer Correctness)
+13. **Issue**: `clients/erp_simulator/src/pages/OrdersPage.tsx` had a Route dropdown that was always stuck on "— none —" (same broken `/products/{id}/routes` URL; also architecturally wrong — a real ERP doesn't pick a specific MES `OperationsDefinition`).
+14. Fix: removed the Route dropdown entirely. Dropped `readProductRoutes` / `DBRoute` imports, `routes` state, the product→route loading `useEffect`, and `route_id` from `CreateForm`. `createProductionOrder` now always sends `route_id: null` — MES resolves the route via `RoutingEngineService.get_route_for_order` (explicit → product's default → first active).
+
+#### E2E Test Plan Corrections
+15. Two sections of `SQA/E2E_TEST_PLAN.md` had Order Release happening in ERP Simulator; corrected both to show ERP Simulator **creates** orders (`created` status) while RT-CLIENT **releases** them (`created → released`). Matches real-world model: ERP sends the order, floor planner releases it.
+
+#### ARCHITECTURE.md — Dispositions vs. Failure Edges
+16. Added §5.8.1.1 "Dispositions vs. Failure Edges" to `docs/ARCHITECTURE.md`. Documents: binary-vs-N-ary distinction; two data-model mechanisms (`ProcessSegment.disposition_id` as input disposition vs. `ProcessSegmentDependency condition='disposition'`); rule-of-thumb (use `on_fail` for automatic deterministic routing, use disposition for human-chosen quality outcomes); worked example with step 60 Final Inspection from electronics seed.
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D053 | `SegmentEquipmentRequirement` is XOR between `equipment_id` (specific) and `equipment_class_id` (class-based). Seed helper enforces via ValueError. Class-based is preferred for 1:N interchangeable equipment (e.g. dual `PNP-800A/B`). |
+| D054 | ERP clients MUST NOT pick a specific MES `OperationsDefinition`. Production orders from ERP carry `route_id: null`; MES self-resolves the route. Route pickers in ERP UIs are a layering violation. |
+| D055 | Order release is a shop-floor (RT-CLIENT) action, not an ERP action. ERP creates `created` orders; RT-CLIENT transitions them to `released`. |
+| D056 | Dispositions and `on_fail` edges coexist and are not redundant. Dispositions have 1st-tier evaluation priority (override `on_fail`) and are the compliance-visible named outcome (ISA-95/QMS). |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/core/demo/electronics_data.py` | +1 transition (60→80, on_rework); +3 equipment classes; +3 class-based segment requirements |
+| `server/src/mes/core/demo/service.py` | XOR support in `_get_or_create_segment_equipment_requirement`; CPG + electronics seed loops handle class_code |
+| `clients/design_time/package.json` | +`mermaid ^11.14.0` |
+| `clients/design_time/src/pages/routes/RouteFlowDiagram.tsx` | NEW — Mermaid flowchart renderer |
+| `clients/design_time/src/pages/routes/RouteEditorPage.tsx` | Table/Diagram toggle |
+| `clients/design_time/src/api/productDef.ts` | `fetchRoutes`/`createRoute` → `/products/{id}/operations-definitions` |
+| `clients/erp_simulator/src/pages/OrdersPage.tsx` | Removed Route dropdown + state + loader; `route_id` always null |
+| `SQA/E2E_TEST_PLAN.md` | §4 and §5: order release corrected from ERP to RT-CLIENT |
+| `docs/ARCHITECTURE.md` | +§5.8.1.1 Dispositions vs. Failure Edges |
+
+### Open / Partial Todos (Equipment Requirements Feature)
+From today's parked todo list — backend XOR + seed integration done; UI surface still needed:
+- [ ] Wire DT-CLIENT frontend API + hooks for `SegmentEquipmentRequirement` CRUD
+- [ ] Add requirements sub-editor to `StepFormDialog` (add/remove class-based or specific requirements, `use_type` select, dedupe)
+- [ ] Show `+N` requirement-count indicator in step tables (RouteEditor + ProductDetail step list)
+- [ ] Document 1:N step↔requirement relationship in ARCHITECTURE.md (§5 data model table)
+
+### Verified
+- Route/product association query confirms seed data correct: `FG-ECB-100 → SMT Assembly Line` and `FG-OJ-1L → Juice Bottling Line` both active in `operations_definition_product_assignments`.
+- Electronics seed TRANSITIONS count = 13, with all 5 expected rework/MRB edges.
+- `clients/design_time` TypeScript compiles clean (no errors in modified files).
+- `clients/erp_simulator/src/pages/OrdersPage.tsx` TypeScript compiles clean after cleanup.
+
+### Where We Stopped
+All in-session fixes shipped. Product detail page in DT-CLIENT should now show the SMT route for FG-ECB-100 after Vite dev-server restart. No open backend work; remaining equipment-requirements UI items are deferred to a future session.
+
+### To Resume
+Say: *"Resume MES AI project"*. Suggested next work: (a) finish the parked equipment-requirements UI surface (4 items above), or (b) begin P7 (Testing & CI — CI pipeline, integration tests in empty `server/tests/integration/`, mock simulation layer).
+
