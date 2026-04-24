@@ -64,6 +64,7 @@ const sections: NavSection[] = [
       { label: "Routes", to: "/routes", icon: QueueListIcon },
       { label: "Dispositions", to: "/dispositions", icon: TagIcon },
       { label: "Materials", to: "/materials", icon: BeakerIcon, helpTopic: "materials" as HelpTopic },
+      { label: "Material Lots", to: "/material-lots", icon: BeakerIcon },
     ],
   },
   {

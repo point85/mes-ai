@@ -15,7 +15,7 @@ import { EquipmentListPage, EquipmentMaterialPage, EquipmentCapabilityPage } fro
 import { EquipmentClassListPage, EquipmentClassDetailPage } from "./pages/equipment-classes";
 import { ProductListPage, ProductDetailPage, BOMEditorPage } from "./pages/products";
 import { RouteEditorPage } from "./pages/routes";
-import { MaterialListPage } from "./pages/materials";
+import { MaterialListPage, MaterialLotListPage } from "./pages/materials";
 import { DataDefListPage } from "./pages/data-collection";
 import { QualityTestListPage, NCListPage } from "./pages/quality";
 import { PerformancePage } from "./pages/performance";
@@ -60,6 +60,7 @@ export default function App() {
             <Route path="/products/:productId/boms" element={<BOMEditorPage />} />
             <Route path="/routes" element={<RouteEditorPage />} />
             <Route path="/materials" element={<MaterialListPage />} />
+            <Route path="/material-lots" element={<MaterialLotListPage />} />
             <Route path="/data-definitions" element={<DataDefListPage />} />
             <Route path="/quality-tests" element={<QualityTestListPage />} />
             <Route path="/non-conformances" element={<NCListPage />} />
