@@ -125,9 +125,9 @@ async def build_step_context(
         "wip_type": wip_type,
         "wip": wip_data,
         "step": step_data,
-        "segment_parameters": step_params,
+        "step_parameters": step_params,
         "data_definitions": data_defs,
         "quality_tests": quality_tests,
         "dispositions": dispositions,
-        "process_segments": process_segments,
+        "route_steps": process_segments,
     }

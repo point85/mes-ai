@@ -146,11 +146,11 @@ class TestBuildStepContext:
         assert ctx["wip_type"] == "unit"
         assert ctx["wip"]["serial_number"] == "SN-001"
         assert ctx["step"] is None
-        assert ctx["segment_parameters"] == []
+        assert ctx["step_parameters"] == []
         assert ctx["data_definitions"] == []
         assert ctx["quality_tests"] == []
         assert ctx["dispositions"] == []
-        assert ctx["process_segments"] == []
+        assert ctx["route_steps"] == []
 
     @pytest.mark.asyncio
     async def test_lot_with_no_current_step(self):
@@ -238,14 +238,14 @@ class TestBuildStepContext:
         assert ctx["step"]["name"] == "Assembly"
         assert ctx["step"]["step_type"] == "standard"
         assert ctx["dispositions"] == []
-        assert len(ctx["process_segments"]) == 1
-        assert ctx["process_segments"][0]["name"] == "Assembly"
+        assert len(ctx["route_steps"]) == 1
+        assert ctx["route_steps"][0]["name"] == "Assembly"
         # Verify all 4 session.execute calls happened (step, params, defs, tests)
         assert len(execute_results) == 4
 
     @pytest.mark.asyncio
     async def test_process_segments_empty_on_exception(self):
-        """If RoutingEngineService.get_process_segments raises, process_segments is []."""
+        """If RoutingEngineService.get_process_segments raises, route_steps is []."""
         unit_id = uuid.uuid4()
         unit = _make_unit(id=unit_id, current_step_id=None)
 
@@ -257,7 +257,7 @@ class TestBuildStepContext:
             session = AsyncMock()
             ctx = await build_step_context(session, unit_id=unit_id)
 
-        assert ctx["process_segments"] == []
+        assert ctx["route_steps"] == []
 
     @pytest.mark.asyncio
     async def test_step_with_dispositions(self):
