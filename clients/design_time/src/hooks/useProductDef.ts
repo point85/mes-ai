@@ -49,6 +49,10 @@ import {
   createStepEquipmentRequirement,
   updateStepEquipmentRequirement,
   deleteStepEquipmentRequirement,
+  fetchStepMaterialRequirements,
+  createStepMaterialRequirement,
+  updateStepMaterialRequirement,
+  deleteStepMaterialRequirement,
 } from "../api/productDef";
 import type {
   ProductCreate,
@@ -71,6 +75,8 @@ import type {
   DispositionUpdate,
   StepEquipmentRequirementCreate,
   StepEquipmentRequirementUpdate,
+  StepMaterialRequirementCreate,
+  StepMaterialRequirementUpdate,
 } from "../types";
 
 const KEYS = {
@@ -86,6 +92,7 @@ const KEYS = {
   transitions: (stepId: string) => ["stepTransitions", stepId] as const,
   dispositions: ["dispositions"] as const,
   stepEquipReqs: (stepId: string) => ["stepEquipReqs", stepId] as const,
+  stepMatReqs: (stepId: string) => ["stepMatReqs", stepId] as const,
 };
 
 // ─── Products ─────────────────────────────────────────────────────────
@@ -488,5 +495,41 @@ export function useDeleteStepEquipmentRequirement(stepId: string) {
   return useMutation({
     mutationFn: (id: string) => deleteStepEquipmentRequirement(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.stepEquipReqs(stepId) }),
+  });
+}
+
+// ─── Step Material Requirements ──────────────────────────────────────
+
+export function useStepMaterialRequirements(stepId: string | undefined) {
+  return useQuery({
+    queryKey: stepId ? KEYS.stepMatReqs(stepId) : ["stepMatReqs", "none"],
+    queryFn: () => fetchStepMaterialRequirements(stepId as string),
+    enabled: !!stepId,
+  });
+}
+
+export function useCreateStepMaterialRequirement(stepId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: StepMaterialRequirementCreate) =>
+      createStepMaterialRequirement(stepId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.stepMatReqs(stepId) }),
+  });
+}
+
+export function useUpdateStepMaterialRequirement(stepId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: StepMaterialRequirementUpdate & { id: string }) =>
+      updateStepMaterialRequirement(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.stepMatReqs(stepId) }),
+  });
+}
+
+export function useDeleteStepMaterialRequirement(stepId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteStepMaterialRequirement(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.stepMatReqs(stepId) }),
   });
 }

@@ -35,6 +35,9 @@ import type {
   StepEquipmentRequirement,
   StepEquipmentRequirementCreate,
   StepEquipmentRequirementUpdate,
+  StepMaterialRequirement,
+  StepMaterialRequirementCreate,
+  StepMaterialRequirementUpdate,
   ApiResponse,
   ApiListResponse,
 } from "../types";
@@ -420,4 +423,43 @@ export async function deleteStepEquipmentRequirement(
   requirementId: string,
 ): Promise<void> {
   await api.delete(`/segment-equipment-requirements/${requirementId}`);
+}
+
+// ─── Step Material Requirements (ISA-95 Process Segment) ───────────────
+
+export async function fetchStepMaterialRequirements(
+  stepId: string,
+): Promise<ApiListResponse<StepMaterialRequirement>> {
+  const { data } = await api.get<ApiListResponse<StepMaterialRequirement>>(
+    `/process-segments/${stepId}/material-requirements`,
+  );
+  return data;
+}
+
+export async function createStepMaterialRequirement(
+  stepId: string,
+  body: StepMaterialRequirementCreate,
+): Promise<StepMaterialRequirement> {
+  const { data } = await api.post<ApiResponse<StepMaterialRequirement>>(
+    `/process-segments/${stepId}/material-requirements`,
+    body,
+  );
+  return data.data;
+}
+
+export async function updateStepMaterialRequirement(
+  requirementId: string,
+  body: StepMaterialRequirementUpdate,
+): Promise<StepMaterialRequirement> {
+  const { data } = await api.patch<ApiResponse<StepMaterialRequirement>>(
+    `/segment-material-requirements/${requirementId}`,
+    body,
+  );
+  return data.data;
+}
+
+export async function deleteStepMaterialRequirement(
+  requirementId: string,
+): Promise<void> {
+  await api.delete(`/segment-material-requirements/${requirementId}`);
 }

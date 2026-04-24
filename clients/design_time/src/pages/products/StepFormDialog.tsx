@@ -12,6 +12,7 @@ import { useCreateRouteStep, useUpdateRouteStep, useDispositions } from "../../h
 import { useAllWorkCells, useAllLines, useEquipmentClasses } from "../../hooks/usePhysicalModel";
 import type { RouteStep } from "../../types";
 import EquipmentRequirementsEditor from "./EquipmentRequirementsEditor";
+import MaterialRequirementsEditor from "./MaterialRequirementsEditor";
 import StepParameterEditor from "./StepParameterEditor";
 import StepDataDefinitionEditor from "./StepDataDefinitionEditor";
 
@@ -212,6 +213,9 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
             </div>
             {isEdit && step && (
               <EquipmentRequirementsEditor stepId={step.id} />
+            )}
+            {isEdit && step && (
+              <MaterialRequirementsEditor stepId={step.id} />
             )}
             {isEdit && step && (
               <StepParameterEditor stepId={step.id} />

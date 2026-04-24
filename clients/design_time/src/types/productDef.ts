@@ -212,6 +212,41 @@ export interface StepEquipmentRequirementUpdate {
   description?: string | null;
 }
 
+// ─── Step Material Requirement (ISA-95 Process Segment) ──────────────
+
+export type MaterialUse = "consumed" | "produced";
+
+export interface StepMaterialRequirement {
+  id: string;
+  step_id: string;
+  material_id: string;
+  quantity: number;
+  uom: string;
+  material_use: MaterialUse;
+  position: number;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StepMaterialRequirementCreate {
+  material_id: string;
+  quantity: number;
+  uom?: string;
+  material_use?: MaterialUse;
+  position?: number;
+  description?: string | null;
+}
+
+export interface StepMaterialRequirementUpdate {
+  quantity?: number;
+  uom?: string;
+  material_use?: MaterialUse;
+  position?: number;
+  description?: string | null;
+}
+
 // ─── Step Parameter ───────────────────────────────────────────────────
 
 export interface StepParameter {
