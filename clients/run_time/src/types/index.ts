@@ -131,6 +131,15 @@ export interface Disposition {
   label?: string;
 }
 
+export interface DispositionCatalog {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  category: string;
+  is_active: boolean;
+}
+
 export interface StepContext {
   wip_type: "unit" | "lot";
   wip: Unit | Lot;

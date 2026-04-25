@@ -1,7 +1,7 @@
 import axios from "axios";
 import type {
   Unit, Lot, UnitHistory, LotHistory,
-  StepContext, ProductionOrder, Product, Disposition,
+  StepContext, ProductionOrder, Product, Disposition, DispositionCatalog,
   StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption,
   InventoryTransaction, InventoryBalance, StorageLocation,
 } from "../types";
@@ -91,6 +91,11 @@ export const scrapLot = (id: string, reason: string) =>
 
 export const fetchDispositions = (stepId: string) =>
   api.get(`/process-segments/${stepId}/dispositions`).then(unwrap<Disposition[]>);
+
+export const fetchDispositionCatalog = (category?: "route" | "hold" | "scrap") =>
+  api
+    .get("/dispositions", { params: category ? { category } : undefined })
+    .then(unwrapList<DispositionCatalog>);
 
 // ── Dispatch ─────────────────────────────────────────────────────
 

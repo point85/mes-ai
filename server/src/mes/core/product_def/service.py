@@ -826,9 +826,13 @@ class ProductDefService:
     async def list_dispositions(
         session: AsyncSession,
         params: PaginationParams,
+        *,
+        category: str | None = None,
     ) -> tuple[Sequence[Disposition], str | None, bool]:
-        """List all active dispositions."""
+        """List active dispositions, optionally filtered by category."""
         stmt = select(Disposition).where(Disposition.is_active.is_(True))
+        if category is not None:
+            stmt = stmt.where(Disposition.category == category)
         return await paginate_query(session, stmt, Disposition, params)
 
     @staticmethod

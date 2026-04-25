@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.framework.api.pagination import PaginationParams, get_pagination_params
@@ -71,12 +71,18 @@ svc = ProductDefService
 
 @router.get("/dispositions")
 async def list_dispositions(
+    category: str | None = Query(
+        None,
+        description="Optional filter: 'route', 'hold', or 'scrap'.",
+    ),
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("product_def.read")),
 ):
-    """List all active dispositions."""
-    items, cursor, has_more = await svc.list_dispositions(session, params)
+    """List all active dispositions, optionally filtered by category."""
+    items, cursor, has_more = await svc.list_dispositions(
+        session, params, category=category,
+    )
     return list_response(
         [DispositionRead.model_validate(d).model_dump() for d in items],
         cursor=cursor,

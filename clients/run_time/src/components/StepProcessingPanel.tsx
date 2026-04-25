@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption, UnitHistory, LotHistory } from "../types";
+import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption, UnitHistory, LotHistory, DispositionCatalog } from "../types";
 import {
   startUnit, completeUnit, moveUnit, holdUnit, releaseHoldUnit, scrapUnit,
   startLot, completeLot, moveLot, holdLot, releaseHoldLot, scrapLot,
   collectDataBatch, recordQualityResult, fetchStepEquipment,
   fetchStepBomItems, fetchMaterials, fetchMaterialLots, consumeMaterial, fetchConsumedMaterials,
-  fetchUnitHistory, fetchLotHistory,
+  fetchUnitHistory, fetchLotHistory, fetchDispositionCatalog,
 } from "../api/runtime";
 
 interface Props {
@@ -92,6 +92,16 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   const { data: wipHistory = [] } = useQuery<UnitHistory[] | LotHistory[]>({
     queryKey: ["wip-history", wip_type, wip.id],
     queryFn: () => isUnit ? fetchUnitHistory(wip.id) : fetchLotHistory(wip.id),
+  });
+
+  // Fetch dispositions filtered by category for the hold/scrap dropdowns
+  const { data: holdDispositions = [] } = useQuery<DispositionCatalog[]>({
+    queryKey: ["dispositions", "hold"],
+    queryFn: () => fetchDispositionCatalog("hold"),
+  });
+  const { data: scrapDispositions = [] } = useQuery<DispositionCatalog[]>({
+    queryKey: ["dispositions", "scrap"],
+    queryFn: () => fetchDispositionCatalog("scrap"),
   });
 
   // Build step lookup for history table
@@ -721,13 +731,18 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
           <div>
             <h4 className="font-semibold text-gray-700 mb-2">Place on Hold</h4>
             <div className="flex gap-2">
-              <input
-                type="text"
+              <select
                 value={holdReason}
                 onChange={(e) => setHoldReason(e.target.value)}
-                placeholder="Reason…"
                 className="input-field flex-1"
-              />
+              >
+                <option value="">— Select reason —</option>
+                {holdDispositions.map((d) => (
+                  <option key={d.id} value={d.name}>
+                    {d.name}{d.description ? ` — ${d.description}` : ""}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={handleHold}
                 disabled={actionLoading || !holdReason}
@@ -742,13 +757,18 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
           <div>
             <h4 className="font-semibold text-gray-700 mb-2">Scrap</h4>
             <div className="flex gap-2">
-              <input
-                type="text"
+              <select
                 value={scrapReason}
                 onChange={(e) => setScrapReason(e.target.value)}
-                placeholder="Reason…"
                 className="input-field flex-1"
-              />
+              >
+                <option value="">— Select reason —</option>
+                {scrapDispositions.map((d) => (
+                  <option key={d.id} value={d.name}>
+                    {d.name}{d.description ? ` — ${d.description}` : ""}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={handleScrap}
                 disabled={actionLoading || !scrapReason}
