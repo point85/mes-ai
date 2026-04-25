@@ -1,5 +1,102 @@
 # MES AI — Session Log
 
+> This file is the chronological narrative of the **current** project sessions.
+> **AI agents**: Read [PROJECT_STATE.json](PROJECT_STATE.json) first for structured state, then this log for recent context.
+> **Humans**: This file provides oversight visibility into what the AI did each session.
+>
+> Older sessions live in [archive/](archive/). When this file grows unwieldy, archive it (e.g., `archive/SESSION_LOG_<YYYY-MM-DD>.md`) and reset with a fresh carry-over header.
+
+---
+
+## Carry-over from previous log
+
+The full prior history (sessions **S001 – S038**, Feb 22 – Apr 23 2026) is archived at [archive/SESSION_LOG_2026-04-25.md](archive/SESSION_LOG_2026-04-25.md). Authoritative project state is in [PROJECT_STATE.json](PROJECT_STATE.json).
+
+### Project state at reset (2026-04-25)
+- **Phases complete**: P1 Survey, P2 Architecture, P3 Core Server (all 5 layers), P4 Integration Adapters, P5 Clients (DT/RT/ERP/Equipment simulators), P6 Schema/UX consolidation.
+- **Current focus**: Post-P6 polish + bug-fixing on live demo data; P7 (Testing & CI) not yet started.
+- **Active database**: `mes_ai_s95` (renamed from `mes_ai`; all 8 config files updated this session).
+- **Module IDs in active use**: `WIP-TRACK`, `DISPATCH-ENGINE`, `ROUTING-ENGINE`, `ERP-ADAPTER`, `EQUIPMENT-ADAPTER`, `PLUGIN-FRAMEWORK`, `DT-CLIENT`, `RT-CLIENT`.
+
+### Recently shipped (highlights)
+- **S038** (Apr 23): Route flow diagram in DT-CLIENT (Mermaid); ERP simulator route-dropdown removed; product-detail route fetch URL fix; ARCHITECTURE.md §5.8.1.1 dispositions vs. failure edges; equipment-requirements XOR backend.
+- **S037** (Apr 22): Async-mock test fixes — full unit suite 1867 passing / 0 failing.
+- **S035–S036**: P6 closeout (schema renames `UnitHistory`→`SegmentResponseUnit`, ISA-95 path renames, paired UTC timestamp pattern).
+
+### Open / parked todos carried forward
+- DT-CLIENT UI for `SegmentEquipmentRequirement` CRUD (API hooks, `StepFormDialog` sub-editor, `+N` indicator, ARCHITECTURE.md §5 update).
+- P7 — CI pipeline + populate empty `server/tests/integration/` + mock simulation layer.
+
+---
+
+## Session S039 — 2026-04-25
+
+**Phase**: Post-P6 — Bug fixes & infra cleanup
+**Objective**: Diagnose unit step-skipping (SN-FG-ECB-100-MOC4P5FC-001-00099 jumping 10→30→50); rename DB `mes_ai`→`mes_ai_s95`; reset session log.
+
+### What Happened
+
+#### Database rename `mes_ai` → `mes_ai_s95`
+The old `mes_ai` database kept being recreated. Hardcoded references replaced in 8 files:
+- `server/.env`, `server/.env.example` (`MES_DATABASE_URL`)
+- `server/alembic.ini` (`sqlalchemy.url`)
+- `server/docker-compose.yml` (`POSTGRES_DB`)
+- `server/scripts/pg-service.ps1` (`$PgDatabase`)
+- `server/scripts/dev-setup.sh` (psql probe URL + log message)
+- `server/scripts/reset_and_seed.py` (`DB_URL`, `DB_NAME`)
+- `server/scripts/fix_alembic.py` (URL)
+
+#### Step-skip root cause (DISPATCH × WIP-TRACK race)
+Diagnosed via temp scripts (`dbg_skip.py`, `dbg_disp.py`): unit had history rows only for steps 10 and 30, was queued at step 50. Initial hypothesis (disposition teleport in `RoutingEngineService._resolve_disposition`) was wrong — dropdown is empty for `always`-only edges.
+
+**Actual root cause**: double-move race. The merged Complete button calls `completeUnit` → `moveUnit`. `WIPService.move_unit` advances the step via the routing engine. But `completeUnit` also publishes `wip.unit.completed`, which triggered `dispatch.handlers.on_unit_completed` → `DispatchService.execute`, which **also** wrote `current_step_id = destination_step_id` (next-in-sequence). Net effect: +2 steps per Complete click.
+
+#### Fix — Option B (correct architecture)
+Routing engine is now the **single source of truth** for step transitions; dispatch only assigns equipment.
+
+- `server/src/mes/core/dispatch/service.py`
+  - `evaluate` now targets the WIP's **current** step (the routing engine has already moved it), not "next in sequence".
+  - `execute` only writes `current_equipment_id`. Validates `destination_step_id == wip.current_step_id`; raises `InvalidDispatchTargetException` on mismatch.
+- `server/src/mes/core/dispatch/handlers.py`
+  - Subscribed to `wip.unit.moved` / `wip.lot.moved` (not `*.completed`). Skips when `to_step_id is None` (route end).
+- `server/src/mes/core/wip/service.py`
+  - Removed the "preserve dispatch's equipment" hack in `move_unit` / `move_lot`; equipment is always cleared on a step change so dispatch can re-assign it.
+  - Added `_publish_after_commit()` helper that schedules events via `asyncio.create_task` instead of awaiting them — required for `wip.unit.moved` / `wip.lot.moved` because the dispatch handler runs in its own session and would otherwise deadlock on the row lock our open transaction holds.
+
+#### Repo hygiene
+- Deleted debug-only scripts: `server/scripts/dbg_disp.py`, `dbg_skip.py`, `debug_unit_skip.py`.
+- Created `server/scripts/tmp/` with self-ignoring `.gitignore` (`*` + `!.gitignore`) for future temporary diagnostics.
+- Archived prior `SESSION_LOG.md` (S001–S038) to `docs/archive/SESSION_LOG_2026-04-25.md`; this fresh log starts here.
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D057 | Active database is `mes_ai_s95`. The legacy name `mes_ai` is fully retired; no config may reference it. |
+| D058 | `RoutingEngineService` is the **sole** authority for advancing `current_step_id`. `DispatchService.execute` may only assign `current_equipment_id` and must reject any `destination_step_id` that doesn't equal the WIP's current step. |
+| D059 | Auto-dispatch is triggered by `wip.{unit,lot}.moved`, not `wip.{unit,lot}.completed`. Completion alone does not advance state; only `move_unit` / `move_lot` does. |
+| D060 | Events whose handlers update rows pending in the publisher's open transaction must be scheduled with `_publish_after_commit` (asyncio task), not awaited, to avoid row-lock deadlocks. |
+| D061 | Temporary diagnostic scripts go in `server/scripts/tmp/` (git-ignored), never directly in `server/scripts/`. |
+| D062 | `SESSION_LOG.md` may be reset whenever it grows unwieldy by archiving to `docs/archive/SESSION_LOG_<YYYY-MM-DD>.md` and starting fresh with a carry-over header. PROJECT_STATE.json remains the source of truth for structured state. |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server/src/mes/core/dispatch/service.py` | `evaluate` targets current step; `execute` assigns equipment only + step-mismatch guard |
+| `server/src/mes/core/dispatch/handlers.py` | Subscribe to `wip.{unit,lot}.moved` instead of `.completed`; skip on route-end |
+| `server/src/mes/core/wip/service.py` | Add `_publish_after_commit`; defer `*_moved` publishes; always clear equipment on step change |
+| `server/.env`, `server/.env.example`, `server/alembic.ini`, `server/docker-compose.yml`, `server/scripts/pg-service.ps1`, `server/scripts/dev-setup.sh`, `server/scripts/reset_and_seed.py`, `server/scripts/fix_alembic.py` | DB rename `mes_ai` → `mes_ai_s95` |
+| `server/scripts/tmp/.gitignore` | NEW — self-ignoring tmp folder for diagnostic scripts |
+| `docs/archive/SESSION_LOG_2026-04-25.md` | Archived prior session log (S001–S038) |
+| `docs/SESSION_LOG.md` | Reset with carry-over header (this file) |
+
+### Where We Stopped
+- Routing/dispatch fix shipped; awaiting live verification on the next Complete click against the SMT route.
+- Unit `SN-FG-ECB-100-MOC4P5FC-001-00099` is parked at step 50 in an inconsistent state (skipped step 40). Decision pending: roll back manually or scrap and re-create.
+
+### To Resume
+Say: *"Resume MES AI project"*. Suggested next work: (a) verify the routing fix against the affected unit, (b) decide on remediation for that unit's bad state, (c) resume parked equipment-requirements UI work, or (d) begin P7 (CI + integration tests).
+# MES AI — Session Log
+
 > This file is the chronological narrative of all project sessions.  
 > **AI agents**: Read `PROJECT_STATE.json` first for structured state, then this file for context.  
 > **Humans**: This file provides oversight visibility into what the AI did each session.
