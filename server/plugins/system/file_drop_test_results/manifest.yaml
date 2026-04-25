@@ -34,40 +34,46 @@ event_subscriptions: []
 
 dependencies: []
 
-config_schema:
-  type: object
-  properties:
-    watch_dir:
-      type: string
-      default: "./watch/test_results"
-      description: Directory to poll for new test result files
-    poll_interval_seconds:
-      type: number
-      default: 5.0
-      description: How often (seconds) to scan for new files
-    file_pattern:
-      type: string
-      default: "*.txt"
-      description: Glob pattern for result files
-    db_url:
-      type: string
-      default: ""
-      description: >
-        Database URL for storing results.  Leave empty to use the MES
-        server's default database.
-    db_table:
-      type: string
-      default: plugin_file_drop_results
-      description: Table name for storing parsed test results
-    simulator_enabled:
-      type: boolean
-      default: true
-      description: If true, periodically generate sample test files for demo
-    simulator_interval_seconds:
-      type: number
-      default: 8.0
-      description: How often (seconds) the simulator creates a new file
-    simulator_failure_rate:
-      type: number
-      default: 0.2
-      description: Probability (0-1) that a simulated DB write will fail
+parameters:
+  - name: watch_dir
+    type: string
+    description: Directory to poll for new test result files
+    required: false
+    default: "./watch/test_results"
+  - name: poll_interval_seconds
+    type: number
+    description: How often (seconds) to scan for new files
+    required: false
+    default: 5.0
+  - name: file_pattern
+    type: string
+    description: Glob pattern for result files
+    required: false
+    default: "*.txt"
+  - name: db_url
+    type: string
+    description: >
+      Database URL for storing results.  Leave empty to use the MES
+      server's default database.
+    required: false
+    default: ""
+  - name: db_table
+    type: string
+    description: Table name for storing parsed test results
+    required: false
+    default: plugin_file_drop_results
+  - name: simulator_enabled
+    type: boolean
+    description: If true, periodically generate sample test files for demo
+    required: false
+    default: false
+  - name: simulator_interval_seconds
+    type: number
+    description: How often (seconds) the simulator creates a new file
+    required: false
+    default: 8.0
+  - name: simulator_failure_rate
+    type: number
+    description: Probability (0-1) that a simulated DB write will fail
+    required: false
+    default: 0.2

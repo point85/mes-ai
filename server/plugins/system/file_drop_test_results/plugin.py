@@ -166,13 +166,40 @@ async def write_result_to_db(
         # The table is created by _ensure_table() at plugin start.
         import json
 
+        # MES timestamp convention: paired local (TIMESTAMPTZ) + UTC-naive (TIMESTAMP).
+        tested_at_raw = record.get("timestamp")
+        tested_at_dt: datetime | None
+        if isinstance(tested_at_raw, datetime):
+            tested_at_dt = tested_at_raw
+        elif isinstance(tested_at_raw, str) and tested_at_raw:
+            iso = tested_at_raw.replace("Z", "+00:00")
+            try:
+                tested_at_dt = datetime.fromisoformat(iso)
+            except ValueError:
+                tested_at_dt = None
+        else:
+            tested_at_dt = None
+
+        if tested_at_dt is not None and tested_at_dt.tzinfo is None:
+            tested_at_dt = tested_at_dt.replace(tzinfo=timezone.utc)
+        tested_at_local = tested_at_dt.astimezone() if tested_at_dt else None
+        tested_at_utc = (
+            tested_at_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            if tested_at_dt else None
+        )
+
+        now_local = datetime.now().astimezone()
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+
         async with async_session_factory() as session:
             stmt = sa_text(
                 f"INSERT INTO {db_table} "  # noqa: S608
                 "(id, test_id, equipment_id, serial, lot, result, "
-                "measurements, source_file, tested_at, created_at) "
+                "measurements, source_file, tested_at, tested_at_utc, "
+                "created_at, created_at_utc) "
                 "VALUES (:id, :test_id, :equipment_id, :serial, :lot, "
-                ":result, :measurements, :source_file, :tested_at, :created_at)"
+                ":result, :measurements, :source_file, :tested_at, :tested_at_utc, "
+                ":created_at, :created_at_utc)"
             )
             await session.execute(
                 stmt,
@@ -185,8 +212,10 @@ async def write_result_to_db(
                     "result": record["result"],
                     "measurements": json.dumps(record.get("measurements", {})),
                     "source_file": record.get("source_file", ""),
-                    "tested_at": record.get("timestamp"),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "tested_at": tested_at_local,
+                    "tested_at_utc": tested_at_utc,
+                    "created_at": now_local,
+                    "created_at_utc": now_utc,
                 },
             )
             await session.commit()
@@ -215,7 +244,9 @@ async def _ensure_table(db_table: str) -> None:
             "  measurements JSONB NOT NULL DEFAULT '{}'::jsonb,"
             "  source_file VARCHAR(500) NOT NULL DEFAULT '',"
             "  tested_at TIMESTAMPTZ,"
-            "  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+            "  tested_at_utc TIMESTAMP,"
+            "  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+            "  created_at_utc TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')"
             ")"
         )
         async with async_session_factory() as session:
@@ -240,7 +271,7 @@ class FileDropTestResultsPlugin(MESPlugin):
         self._poll_interval: float = 5.0
         self._file_pattern: str = "*.txt"
         self._db_table: str = "plugin_file_drop_results"
-        self._simulator_enabled: bool = True
+        self._simulator_enabled: bool = False
         self._simulator_interval: float = 8.0
         self._simulator_failure_rate: float = 0.2
 
@@ -260,7 +291,7 @@ class FileDropTestResultsPlugin(MESPlugin):
         self._poll_interval = float(config.get("poll_interval_seconds", 5.0))
         self._file_pattern = config.get("file_pattern", "*.txt")
         self._db_table = config.get("db_table", "plugin_file_drop_results")
-        self._simulator_enabled = bool(config.get("simulator_enabled", True))
+        self._simulator_enabled = bool(config.get("simulator_enabled", False))
         self._simulator_interval = float(config.get("simulator_interval_seconds", 8.0))
         self._simulator_failure_rate = float(config.get("simulator_failure_rate", 0.2))
 
