@@ -94,13 +94,17 @@ class DispatchService:
         Evaluate dispatch options for a unit or lot.
 
         Flow:
-        1. Resolve the current step and route
-        2. Find eligible equipment at the next step(s)
+        1. Resolve the WIP's CURRENT step (the routing engine has already
+           advanced the unit/lot to the step that needs equipment)
+        2. Find eligible equipment at that step
         3. Filter: availability (dispatch_category == 'available')
         4. Filter: capability (EquipmentMaterial for the lot's material)
         5. Filter: capacity (queue_depth < max_queue_depth)
         6. Apply strategy to rank options
         7. Return ranked options with recommendation (or blocked=True)
+
+        NOTE: Dispatch never advances steps — that is the routing engine's
+        sole responsibility. Dispatch only assigns equipment.
         """
         # ── Resolve unit or lot ─────────────────────────────────────
         material_id: UUID | None = None
@@ -130,38 +134,15 @@ class DispatchService:
         if current_step_id is None:
             raise NoRouteForDispatchException(identifier)
 
-        # ── Get current step and find next step(s) ──────────────────
-        curr_step_result = await session.execute(
+        # ── Use the WIP's CURRENT step as the dispatch target ───────
+        # The routing engine has already moved the unit/lot to the step
+        # that needs equipment. Dispatch's job is solely to pick equipment.
+        target_step_result = await session.execute(
             select(ProcessSegment).where(ProcessSegment.id == current_step_id)
         )
-        curr_step = curr_step_result.scalar_one_or_none()
-        if curr_step is None:
+        target_step = target_step_result.scalar_one_or_none()
+        if target_step is None:
             raise NoRouteForDispatchException(identifier)
-
-        # Find next steps in sequence order
-        next_steps_result = await session.execute(
-            select(ProcessSegment)
-            .where(
-                ProcessSegment.route_id == curr_step.route_id,
-                ProcessSegment.sequence > curr_step.sequence,
-                ProcessSegment.is_active.is_(True),
-            )
-            .order_by(ProcessSegment.sequence)
-        )
-        next_steps = next_steps_result.scalars().all()
-
-        if not next_steps:
-            # End of route — no dispatch needed
-            return DispatchEvaluateResponse(
-                unit_id=unit_id,
-                lot_id=lot_id,
-                strategy=strategy,
-                options=[],
-                recommended=None,
-            )
-
-        # For now, consider only the immediate next step
-        target_step = next_steps[0]
 
         # ── Find eligible equipment at the target step ──────────────
         # ISA-95 Process Segment dispatch priority:
@@ -313,15 +294,19 @@ class DispatchService:
         destination_step_id: UUID = None,  # type: ignore[assignment]
     ) -> DispatchExecuteResponse:
         """
-        Execute a dispatch decision: move the unit/lot to the destination.
+        Execute a dispatch decision: assign equipment to the unit/lot.
 
         Validates:
         - Equipment exists and is active
         - Equipment is in 'available' dispatch category
         - Equipment has capacity (queue not full)
         - Equipment can process the material (if material_id set)
+        - destination_step_id matches the WIP's current step (defensive —
+          dispatch must NEVER move WIP between steps; that is the routing
+          engine's responsibility)
 
-        Then updates unit/lot current_step_id and current_equipment_id.
+        Then updates unit/lot current_equipment_id only. The current_step_id
+        is left untouched — only WIPService.move_unit/move_lot may change it.
         """
         # ── Validate equipment exists ───────────────────────────────
         equip_result = await session.execute(
@@ -363,8 +348,18 @@ class DispatchService:
             unit = result.scalar_one_or_none()
             if unit is None:
                 raise NotFoundException(resource="Unit", resource_id=str(unit_id))
+            if (
+                destination_step_id is not None
+                and unit.current_step_id is not None
+                and destination_step_id != unit.current_step_id
+            ):
+                raise InvalidDispatchTargetException(
+                    equip.code,
+                    f"step mismatch: unit is at step {unit.current_step_id}, "
+                    f"dispatch target was step {destination_step_id}; "
+                    f"dispatch may not advance steps",
+                )
             material_id = unit.material_id
-            unit.current_step_id = destination_step_id
             unit.current_equipment_id = destination_equipment_id
 
         if lot_id is not None:
@@ -374,8 +369,18 @@ class DispatchService:
             lot_obj = result.scalar_one_or_none()
             if lot_obj is None:
                 raise NotFoundException(resource="Lot", resource_id=str(lot_id))
+            if (
+                destination_step_id is not None
+                and lot_obj.current_step_id is not None
+                and destination_step_id != lot_obj.current_step_id
+            ):
+                raise InvalidDispatchTargetException(
+                    equip.code,
+                    f"step mismatch: lot is at step {lot_obj.current_step_id}, "
+                    f"dispatch target was step {destination_step_id}; "
+                    f"dispatch may not advance steps",
+                )
             material_id = lot_obj.material_id
-            lot_obj.current_step_id = destination_step_id
             lot_obj.current_equipment_id = destination_equipment_id
 
         # Validate material setup (after resolving WIP to get material_id)

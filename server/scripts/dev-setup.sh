@@ -56,7 +56,7 @@ check_postgres() {
     echo "--- Checking PostgreSQL connectivity ---"
     # Try psql if available, otherwise attempt a Python probe
     if command -v psql &>/dev/null; then
-        if psql "postgresql://postgres:postgres@localhost:5432/mes_ai" -c "SELECT 1" &>/dev/null; then
+        if psql "postgresql://postgres:postgres@localhost:5432/mes_ai_s95" -c "SELECT 1" &>/dev/null; then
             echo "[✓] PostgreSQL is reachable on localhost:5432"
             return 0
         fi
@@ -77,7 +77,7 @@ except Exception:
 
     echo "ERROR: Cannot reach PostgreSQL on localhost:5432."
     echo "  Make sure PostgreSQL is running natively on this machine."
-    echo "  Database: mes_ai  User: postgres  Password: postgres"
+    echo "  Database: mes_ai_s95  User: postgres  Password: postgres"
     exit 1
 }
 

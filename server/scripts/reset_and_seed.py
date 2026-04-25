@@ -20,8 +20,8 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-DB_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/mes_ai"
-DB_NAME = "mes_ai"
+DB_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/mes_ai_s95"
+DB_NAME = "mes_ai_s95"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("reset")

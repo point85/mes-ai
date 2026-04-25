@@ -7,6 +7,7 @@ and history queries.  Delegates next-step resolution to the routing engine.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Sequence
@@ -38,6 +39,32 @@ from .exceptions import (
 from .models import Unit, Lot, SegmentResponseUnit, SegmentResponseLot
 
 logger = logging.getLogger("mes.wip")
+
+
+# ── Deferred event publishing ───────────────────────────────────────
+#
+# Events that trigger handlers which UPDATE the same DB rows we have
+# pending in our open transaction (notably wip.unit.moved → dispatch
+# auto-assign equipment) must be published WITHOUT awaiting the
+# handler — otherwise the handler's UPDATE blocks on the row lock
+# we still hold, causing a deadlock.  Scheduling via create_task
+# defers handler execution until our caller (the route layer) yields
+# control to the event loop, typically while awaiting session.commit().
+
+_pending_publish_tasks: set[asyncio.Task] = set()
+
+
+def _publish_after_commit(event) -> None:
+    """Schedule an event to be published after the current transaction commits."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop (e.g. unit-test sync context) — best effort, skip.
+        logger.debug("No running event loop; skipping deferred publish of %s", event.event_type)
+        return
+    task = loop.create_task(event_bus.publish(event))
+    _pending_publish_tasks.add(task)
+    task.add_done_callback(_pending_publish_tasks.discard)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -325,25 +352,16 @@ class UnitService:
 
             unit.current_step_id = next_step.id
 
-        # Only reset equipment if auto-dispatch hasn't already assigned
-        # equipment for this step (dispatch runs in a separate session and
-        # may have already moved + assigned equipment).
+        # On any step change, equipment must be re-assigned by dispatch
+        # for the new step.  (Dispatch is decoupled: it runs as a deferred
+        # event handler against wip.unit.moved.)
         if unit.current_step_id != from_step_id:
-            # Step actually changed — check if dispatch already handled it
-            await session.refresh(unit, ["current_equipment_id"])
-            if unit.current_equipment_id is None:
-                pass  # already None, nothing to reset
-            elif target_step_id is not None:
-                # Explicit manual move overrides dispatch
-                unit.current_equipment_id = None
-            # else: auto-dispatch already assigned equipment — keep it
-        else:
             unit.current_equipment_id = None
 
         unit.status = "queued"
         await session.flush()
 
-        await event_bus.publish(
+        _publish_after_commit(
             unit_moved(
                 str(unit.id),
                 str(from_step_id) if from_step_id else None,
@@ -687,24 +705,16 @@ class LotService:
 
             lot.current_step_id = next_step.id
 
-        # Only reset equipment if auto-dispatch hasn't already assigned
-        # equipment for this step (dispatch runs in a separate session and
-        # may have already moved + assigned equipment).
+        # On any step change, equipment must be re-assigned by dispatch
+        # for the new step.  (Dispatch is decoupled: it runs as a deferred
+        # event handler against wip.lot.moved.)
         if lot.current_step_id != from_step_id:
-            await session.refresh(lot, ["current_equipment_id"])
-            if lot.current_equipment_id is None:
-                pass  # already None, nothing to reset
-            elif target_step_id is not None:
-                # Explicit manual move overrides dispatch
-                lot.current_equipment_id = None
-            # else: auto-dispatch already assigned equipment — keep it
-        else:
             lot.current_equipment_id = None
 
         lot.status = "queued"
         await session.flush()
 
-        await event_bus.publish(
+        _publish_after_commit(
             lot_moved(
                 str(lot.id),
                 str(from_step_id) if from_step_id else None,

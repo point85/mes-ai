@@ -181,25 +181,19 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
     }
 
     await runAction(
-      () => {
+      async () => {
         const disp = selectedDisposition || undefined;
+        const moveOpts: { disposition?: string; result?: string } = { result: completeResult };
+        if (disp) moveOpts.disposition = disp;
         if (isUnit) {
-          return completeUnit(wip.id, completeResult, Object.keys(snapshot).length > 0 ? snapshot : undefined, disp);
+          await completeUnit(wip.id, completeResult, Object.keys(snapshot).length > 0 ? snapshot : undefined, disp);
+          await moveUnit(wip.id, moveOpts);
         } else {
-          return completeLot(wip.id, qtyOut ? parseInt(qtyOut) : undefined, parseInt(qtyScrapped) || 0, disp);
+          await completeLot(wip.id, qtyOut ? parseInt(qtyOut) : undefined, parseInt(qtyScrapped) || 0, disp);
+          await moveLot(wip.id, moveOpts);
         }
       },
       "Step completed",
-    );
-  };
-
-  const handleMove = () => {
-    const opts: { disposition?: string; result?: string } = {};
-    if (selectedDisposition) opts.disposition = selectedDisposition;
-    opts.result = completeResult;
-    runAction(
-      () => isUnit ? moveUnit(wip.id, opts) : moveLot(wip.id, opts),
-      "Moved to next step",
     );
   };
 
@@ -698,17 +692,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                 </>
               )}
               <button onClick={handleComplete} disabled={actionLoading} className="btn-primary">
-                Complete Step
-              </button>
-            </div>
-          </div>
-
-          {/* Move to Next Step */}
-          <div className="bg-white rounded-lg shadow p-5">
-            <h4 className="font-semibold text-gray-700 mb-3">Move to Next Step</h4>
-            <div className="flex items-end gap-4 flex-wrap">
-              <button onClick={handleMove} disabled={actionLoading} className="btn-primary">
-                Move
+                Complete
               </button>
             </div>
           </div>

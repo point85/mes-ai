@@ -5,10 +5,17 @@ Handlers are auto-registered via @event_handler at import time and
 subscribed to the event bus during application startup.
 
 Trigger flow:
-  1. Equipment completes work on a lot → wip.lot.completed event
-  2. Handler evaluates dispatch options (capability + capacity + availability)
+  1. WIP advances to a new step via WIPService.move_unit/move_lot
+     (the routing engine has decided the next step) → wip.unit.moved
+     / wip.lot.moved event fires.
+  2. Handler evaluates dispatch options at the WIP's NEW current step
+     (capability + capacity + availability).
   3. If destination found → auto-dispatch (shortest_queue strategy)
-  4. If no destination → lot stays at current step (blocked), event emitted
+     assigns equipment to the WIP at its current step.
+  4. If no destination → WIP stays at the step (blocked), event emitted.
+
+Important: dispatch ONLY assigns equipment. It never advances steps.
+The routing engine is the single source of truth for step transitions.
 """
 
 from __future__ import annotations
@@ -25,20 +32,23 @@ from .schemas import DispatchEvaluateResponse
 logger = logging.getLogger("mes.dispatch.handlers")
 
 
-@event_handler("wip.lot.completed")
-async def on_lot_completed(event: MESEvent) -> None:
+@event_handler("wip.lot.moved")
+async def on_lot_moved(event: MESEvent) -> None:
     """
-    Auto-dispatch a lot after step completion.
+    Auto-dispatch a lot after it advances to a new step.
 
-    Triggered by any lot completion source: OPC-UA data change, MQTT message,
-    or operator manual interaction (all go through LotService.complete_lot_step
-    which publishes this event).
+    Skipped when the lot has reached the end of its route
+    (to_step_id is None).
     """
     lot_id_str = event.payload.get("lot_id")
-    if not lot_id_str:
+    to_step_id = event.payload.get("to_step_id")
+    if not lot_id_str or not to_step_id:
         return
 
-    logger.info("Auto-dispatch triggered for lot %s (step completed)", lot_id_str)
+    logger.info(
+        "Auto-dispatch triggered for lot %s (moved to step %s)",
+        lot_id_str, to_step_id,
+    )
 
     from .service import DispatchService
 
@@ -60,18 +70,23 @@ async def on_lot_completed(event: MESEvent) -> None:
             await session.rollback()
 
 
-@event_handler("wip.unit.completed")
-async def on_unit_completed(event: MESEvent) -> None:
+@event_handler("wip.unit.moved")
+async def on_unit_moved(event: MESEvent) -> None:
     """
-    Auto-dispatch a unit after step completion.
+    Auto-dispatch a unit after it advances to a new step.
 
-    Same trigger mechanism as lot completion.
+    Skipped when the unit has reached the end of its route
+    (to_step_id is None).
     """
     unit_id_str = event.payload.get("unit_id")
-    if not unit_id_str:
+    to_step_id = event.payload.get("to_step_id")
+    if not unit_id_str or not to_step_id:
         return
 
-    logger.info("Auto-dispatch triggered for unit %s (step completed)", unit_id_str)
+    logger.info(
+        "Auto-dispatch triggered for unit %s (moved to step %s)",
+        unit_id_str, to_step_id,
+    )
 
     from .service import DispatchService
 

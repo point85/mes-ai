@@ -33,7 +33,7 @@ $ServiceDescription = "PostgreSQL MES database service"
 $PgPort = 5432
 $PgUser = "postgres"
 $PgPassword = "postgres"
-$PgDatabase = "mes_ai"
+$PgDatabase = "mes_ai_s95"
 $DataDir = Join-Path $PSScriptRoot "..\pgdata"
 $DataDir = [System.IO.Path]::GetFullPath($DataDir)
 

@@ -5,7 +5,7 @@ import asyncpg
 
 async def main():
     conn = await asyncpg.connect(
-        "postgresql://postgres:postgres@localhost:5432/mes_ai"
+        "postgresql://postgres:postgres@localhost:5432/mes_ai_s95"
     )
     rows = await conn.fetch("SELECT version_num FROM alembic_version")
     print("Current:", rows)
