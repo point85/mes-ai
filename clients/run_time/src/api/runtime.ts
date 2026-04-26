@@ -4,6 +4,7 @@ import type {
   StepContext, ProductionOrder, Product, Disposition, DispositionCatalog,
   StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption,
   InventoryTransaction, InventoryBalance, StorageLocation,
+  Site, Area, ProductionLine, WorkCell, Equipment, EquipmentCurrentState,
 } from "../types";
 
 const api = axios.create({ baseURL: "/api/v1" });
@@ -19,7 +20,7 @@ function unwrapList<T>(res: { data: { data: T[] } }): T[] {
 
 // ── Units ────────────────────────────────────────────────────────
 
-export const fetchUnits = (params?: { status?: string; order_id?: string }) =>
+export const fetchUnits = (params?: { status?: string; order_id?: string; equipment_id?: string }) =>
   api.get("/units", { params }).then(unwrapList<Unit>);
 
 export const fetchUnitBySerial = (serial: string) =>
@@ -54,7 +55,7 @@ export const scrapUnit = (id: string, reason: string) =>
 
 // ── Lots ─────────────────────────────────────────────────────────
 
-export const fetchLots = (params?: { status?: string; order_id?: string }) =>
+export const fetchLots = (params?: { status?: string; order_id?: string; equipment_id?: string }) =>
   api.get("/lots", { params }).then(unwrapList<Lot>);
 
 export const fetchLotByNumber = (lotNumber: string) =>
@@ -297,3 +298,26 @@ export const adjustInventory = (payload: {
   quantity: number;
   reason: string;
 }) => api.post("/inventory/adjust", payload).then(unwrap<InventoryTransaction>);
+
+// ── Physical Model (S95 hierarchy for equipment status tree) ─────
+
+export const fetchSites = () =>
+  api.get("/sites", { params: { limit: 200 } }).then(unwrapList<Site>);
+
+export const fetchAreas = (siteId: string) =>
+  api.get(`/sites/${siteId}/areas`, { params: { limit: 200 } }).then(unwrapList<Area>);
+
+export const fetchProductionLines = (areaId: string) =>
+  api.get(`/areas/${areaId}/lines`, { params: { limit: 200 } }).then(unwrapList<ProductionLine>);
+
+export const fetchWorkCells = (lineId: string) =>
+  api.get(`/lines/${lineId}/work-cells`, { params: { limit: 200 } }).then(unwrapList<WorkCell>);
+
+export const fetchEquipmentInWorkCell = (workCellId: string) =>
+  api.get(`/work-cells/${workCellId}/equipment`, { params: { limit: 200 } }).then(unwrapList<Equipment>);
+
+export const fetchEquipment = (equipId: string) =>
+  api.get(`/equipment/${equipId}`).then(unwrap<Equipment>);
+
+export const fetchEquipmentCurrentState = (equipId: string) =>
+  api.get(`/performance/equipment/${equipId}/current-state`).then(unwrap<EquipmentCurrentState>);

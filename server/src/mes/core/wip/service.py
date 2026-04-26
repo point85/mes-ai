@@ -83,12 +83,15 @@ class UnitService:
         params: PaginationParams,
         status: str | None = None,
         order_id: UUID | None = None,
+        equipment_id: UUID | None = None,
     ) -> tuple[Sequence[Unit], str | None, bool]:
         stmt = select(Unit).where(Unit.is_active.is_(True))
         if status is not None:
             stmt = stmt.where(Unit.status == status)
         if order_id is not None:
             stmt = stmt.where(Unit.order_id == order_id)
+        if equipment_id is not None:
+            stmt = stmt.where(Unit.current_equipment_id == equipment_id)
         return await paginate_query(session, stmt, Unit, params)
 
     @staticmethod
@@ -450,12 +453,15 @@ class LotService:
         params: PaginationParams,
         status: str | None = None,
         order_id: UUID | None = None,
+        equipment_id: UUID | None = None,
     ) -> tuple[Sequence[Lot], str | None, bool]:
         stmt = select(Lot).where(Lot.is_active.is_(True))
         if status is not None:
             stmt = stmt.where(Lot.status == status)
         if order_id is not None:
             stmt = stmt.where(Lot.order_id == order_id)
+        if equipment_id is not None:
+            stmt = stmt.where(Lot.current_equipment_id == equipment_id)
         return await paginate_query(session, stmt, Lot, params)
 
     @staticmethod

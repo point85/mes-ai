@@ -5,10 +5,11 @@ import {
   ChartBarIcon,
   BellAlertIcon,
   ArchiveBoxIcon,
+  CpuChipIcon,
 } from "@heroicons/react/24/outline";
 import type { ReactNode } from "react";
 
-export type TabId = "dashboard" | "scan" | "active-wip" | "orders" | "inventory" | "events";
+export type TabId = "dashboard" | "scan" | "active-wip" | "orders" | "inventory" | "equipment" | "events";
 
 const tabs: { id: TabId; label: string; icon: typeof QueueListIcon }[] = [
   { id: "dashboard", label: "Dashboard", icon: ChartBarIcon },
@@ -16,6 +17,7 @@ const tabs: { id: TabId; label: string; icon: typeof QueueListIcon }[] = [
   { id: "active-wip", label: "Active WIP", icon: WrenchScrewdriverIcon },
   { id: "orders", label: "Orders", icon: QueueListIcon },
   { id: "inventory", label: "Inventory", icon: ArchiveBoxIcon },
+  { id: "equipment", label: "Equipment", icon: CpuChipIcon },
   { id: "events", label: "Live Events", icon: BellAlertIcon },
 ];
 

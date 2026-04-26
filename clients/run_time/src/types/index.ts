@@ -1,5 +1,65 @@
 /* RT-CLIENT TypeScript types — mirrors server Pydantic schemas */
 
+// ── Physical Model (S95 hierarchy) ────────────────────────────────
+
+export interface Site {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  is_active: boolean;
+}
+
+export interface Area {
+  id: string;
+  name: string;
+  code: string;
+  site_id: string;
+  description?: string | null;
+  is_active: boolean;
+}
+
+export interface ProductionLine {
+  id: string;
+  name: string;
+  code: string;
+  area_id: string;
+  description?: string | null;
+  is_active: boolean;
+}
+
+export interface WorkCell {
+  id: string;
+  name: string;
+  code: string;
+  line_id: string;
+  description?: string | null;
+  is_active: boolean;
+}
+
+export interface Equipment {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  work_cell_id: string;
+  equipment_class_id?: string | null;
+  state_model_id?: string | null;
+  max_queue_depth?: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EquipmentCurrentState {
+  equipment_id: string;
+  state_model: string;
+  state: string;
+  dispatch_category: string;
+  oee_bucket: string;
+  started_at?: string | null;
+}
+
 export interface Unit {
   id: string;
   serial_number: string;

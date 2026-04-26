@@ -8,6 +8,7 @@ import ActiveWipPage from "./pages/ActiveWipPage";
 import OrdersPage from "./pages/OrdersPage";
 import EventsPage from "./pages/EventsPage";
 import InventoryPage from "./pages/InventoryPage";
+import EquipmentStatusPage from "./pages/EquipmentStatusPage";
 
 const WS_TOPICS = ["wip.*", "operations.request.*", "dispatch.*", "quality.*", "data.*", "equipment.state.*"];
 
@@ -28,6 +29,7 @@ export default function App() {
       {activeTab === "active-wip" && <ActiveWipPage />}
       {activeTab === "orders" && <OrdersPage />}
       {activeTab === "inventory" && <InventoryPage />}
+      {activeTab === "equipment" && <EquipmentStatusPage />}
       {activeTab === "events" && <EventsPage events={events} onClear={() => setEvents([])} />}
     </Layout>
   );

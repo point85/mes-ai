@@ -67,13 +67,14 @@ router = APIRouter(prefix="/api/v1", tags=["WIP Tracking"])
 async def list_units(
     status: str | None = Query(None),
     order_id: UUID | None = Query(None),
+    equipment_id: UUID | None = Query(None),
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("wip.read")),
 ):
     """List active units with optional filters."""
     items, cursor, has_more = await UnitService.list_units(
-        session, params, status=status, order_id=order_id,
+        session, params, status=status, order_id=order_id, equipment_id=equipment_id,
     )
     return list_response(
         [UnitRead.model_validate(u).model_dump() for u in items],
@@ -247,13 +248,14 @@ async def get_segment_response_units(
 async def list_lots(
     status: str | None = Query(None),
     order_id: UUID | None = Query(None),
+    equipment_id: UUID | None = Query(None),
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("wip.read")),
 ):
     """List active lots with optional filters."""
     items, cursor, has_more = await LotService.list_lots(
-        session, params, status=status, order_id=order_id,
+        session, params, status=status, order_id=order_id, equipment_id=equipment_id,
     )
     return list_response(
         [LotRead.model_validate(l).model_dump() for l in items],
