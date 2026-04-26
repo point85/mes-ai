@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 
+# Vite cache (auto-generated dep optimization cache)
+.vite
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

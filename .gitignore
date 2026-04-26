@@ -15,6 +15,7 @@ obj/
 dist/
 build/
 node_modules/
+.vite/
 
 # Python
 __pycache__/
