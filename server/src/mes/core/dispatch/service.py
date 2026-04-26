@@ -632,7 +632,9 @@ class DispatchService:
                 equipment_code=equip.code,
                 equipment_name=equip.name,
                 dispatch_category=dispatch_cat,
-                state_model=state_log.state_model if state_log else None,
+                state_model=(
+                    state_log.state_model if state_log else equip.state_model_id
+                ),
                 state=state_log.state if state_log else None,
                 queue_depth=queue_depth,
                 max_queue_depth=equip.max_queue_depth,
