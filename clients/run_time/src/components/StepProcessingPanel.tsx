@@ -436,25 +436,20 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
               (e) => (e.dispatch_category === null || e.dispatch_category === "available")
                 && e.has_spare_capacity && e.material_setup,
             );
-            const showTransition = stepEquipment.some(
-              (e) => e.state_model === "packml" || e.state_model === "semi_e10",
-            );
             return (
               <>
                 <div className="flex items-center gap-3">
                   <button onClick={handleStart} disabled={actionLoading || !anyAvailable} className="btn-primary">
                     Start
                   </button>
-                  {showTransition && (
-                    <label className="flex items-center gap-1.5 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={transitionOnStart}
-                        onChange={(e) => setTransitionOnStart(e.target.checked)}
-                      />
-                      Transition State
-                    </label>
-                  )}
+                  <label className="flex items-center gap-1.5 text-sm text-gray-700" title="If checked, transition the assigned equipment's PackML / SEMI E10 state to running">
+                    <input
+                      type="checkbox"
+                      checked={transitionOnStart}
+                      onChange={(e) => setTransitionOnStart(e.target.checked)}
+                    />
+                    Transition State
+                  </label>
                 </div>
                 {!anyAvailable && (
                   <p className="mt-2 text-sm text-red-600">
@@ -778,17 +773,14 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
               <button onClick={handleComplete} disabled={actionLoading} className="btn-primary">
                 Complete
               </button>
-              {(assignedEquipState?.state_model === "packml"
-                || assignedEquipState?.state_model === "semi_e10") && (
-                <label className="flex items-center gap-1.5 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={transitionOnComplete}
-                    onChange={(e) => setTransitionOnComplete(e.target.checked)}
-                  />
-                  Transition State
-                </label>
-              )}
+              <label className="flex items-center gap-1.5 text-sm text-gray-700" title="If checked, transition the assigned equipment's PackML / SEMI E10 state back to idle">
+                <input
+                  type="checkbox"
+                  checked={transitionOnComplete}
+                  onChange={(e) => setTransitionOnComplete(e.target.checked)}
+                />
+                Transition State
+              </label>
             </div>
           </div>
         </>
