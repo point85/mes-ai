@@ -24,7 +24,6 @@ The full prior history (sessions **S001 – S038**, Feb 22 – Apr 23 2026) is a
 - **S035–S036**: P6 closeout (schema renames `UnitHistory`→`SegmentResponseUnit`, ISA-95 path renames, paired UTC timestamp pattern).
 
 ### Open / parked todos carried forward
-- DT-CLIENT UI for `SegmentEquipmentRequirement` CRUD (API hooks, `StepFormDialog` sub-editor, `+N` indicator, ARCHITECTURE.md §5 update).
 - P7 — CI pipeline + populate empty `server/tests/integration/` + mock simulation layer.
 
 ---
@@ -95,6 +94,43 @@ Routing engine is now the **single source of truth** for step transitions; dispa
 
 ### To Resume
 Say: *"Resume MES AI project"*. Suggested next work: (a) verify the routing fix against the affected unit, (b) decide on remediation for that unit's bad state, (c) resume parked equipment-requirements UI work, or (d) begin P7 (CI + integration tests).
+
+---
+
+## Session S040 — 2026-04-25
+
+**Phase**: Post-P6 — bookkeeping
+**Objective**: Audit the parked `SegmentEquipmentRequirement` DT-CLIENT UI item and retire it if shipped; drop the `…00099` remediation item.
+
+### What Happened
+Verified each bullet of the parked equipment-requirements UI todo against the codebase:
+
+| Carry-over bullet | Status | Evidence |
+|---|---|---|
+| API hooks | Shipped | `clients/design_time/src/api/productDef.ts` lines 391–427 — `fetch/create/update/delete StepEquipmentRequirement` |
+| React Query hooks | Shipped | `clients/design_time/src/hooks/useProductDef.ts` lines 467–500 — list/create/update/delete with cache invalidation |
+| `StepFormDialog` sub-editor | Shipped | `clients/design_time/src/pages/products/EquipmentRequirementsEditor.tsx` — XOR class/equipment toggle, use-type select, inline edit + delete; embedded in `StepFormDialog.tsx` (edit mode only) |
+| `+N` indicator | Shipped | `StepEquipReqCountBadge.tsx`, wired in both `ProductDetailPage.tsx` and `RouteEditorPage.tsx` |
+| ARCHITECTURE.md §5 update | Shipped | §5.10 model entries for `SegmentEquipmentRequirement`, §5.11 + §10.3 3-tier dispatch resolution |
+
+No TS/lint errors on any of the five files. The carry-over note in S039's reset header was stale — work was actually delivered earlier (likely as part of S038's class-XOR seeding effort).
+
+Unit `SN-FG-ECB-100-MOC4P5FC-001-00099` remediation removed from active consideration per user direction.
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `docs/PROJECT_STATE.json` | `lastSessionId` → S040; `currentTask` updated to record closure |
+| `docs/SESSION_LOG.md` | Removed `SegmentEquipmentRequirement` UI bullet from carry-over; added this S040 entry |
+
+### Where We Stopped
+No open carry-over items aside from P7 (CI + integration tests + mock simulation layer).
+
+### To Resume
+Say: *"Resume MES AI project"*. Suggested next work: begin P7 (CI pipeline scaffolding + populate `server/tests/integration/`), or pick any new post-P6 polish task.
+
+---
+
 # MES AI — Session Log
 
 > This file is the chronological narrative of all project sessions.  

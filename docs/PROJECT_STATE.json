@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-04-25",
-  "lastSessionId": "S039",
+  "lastSessionId": "S040",
 
   "phases": [
     {
@@ -273,7 +273,7 @@
   ],
 
   "currentPhase": "P6",
-  "currentTask": "S038 (2026-04-23): Post-P6 polish. Fixed route↔product seed-association bug (frontend URL mismatch — /products/{id}/routes → /products/{id}/operations-definitions in design_time and erp_simulator). Added Mermaid route flow diagram to DT-CLIENT. XOR class-based SegmentEquipmentRequirement seeded for electronics. Removed layer-violating Route dropdown from ERP Simulator OrdersPage. Corrected E2E plan (order release is RT-CLIENT, not ERP). Documented Dispositions vs. Failure Edges in ARCHITECTURE.md §5.8.1.1. Parked: equipment-requirements UI surface (frontend API/hooks, StepFormDialog sub-editor, +N indicator, 1:N docs).",
+  "currentTask": "S040 (2026-04-25): Verified parked SegmentEquipmentRequirement DT-CLIENT UI is fully shipped — API hooks (api/productDef.ts), React Query hooks (useProductDef.ts), StepFormDialog sub-editor (EquipmentRequirementsEditor.tsx with XOR class/equipment toggle), +N count badge (StepEquipReqCountBadge.tsx wired into ProductDetailPage and RouteEditorPage), and ARCHITECTURE.md §5.10/§5.11/§10.3 docs are all complete with no TS/lint errors. Carry-over note in prior session log was stale; item closed. Unit SN-FG-ECB-100-MOC4P5FC-001-00099 remediation removed from active consideration. Next candidates: P7 CI + integration tests, or further post-P6 polish.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
