@@ -186,6 +186,21 @@ class UnitService:
 
         if equipment_id is not None:
             unit.current_equipment_id = equipment_id
+        elif unit.current_equipment_id is None:
+            # Auto-dispatch: pick a recommended equipment via DISPATCH module.
+            # Silently no-op if no eligible equipment is available — the unit
+            # still transitions to in_process; an operator can assign later.
+            from mes.core.dispatch.service import DispatchService
+            try:
+                await DispatchService.auto_dispatch(session, unit_id=unit.id)
+                # auto_dispatch.execute writes unit.current_equipment_id on this
+                # same session, so unit.current_equipment_id is now populated
+                # (or still None if dispatch was blocked).
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Auto-dispatch failed for unit %s on start: %s",
+                    unit.id, exc,
+                )
         unit.status = "in_process"
         await session.flush()
 
@@ -547,6 +562,17 @@ class LotService:
 
         if equipment_id is not None:
             lot.current_equipment_id = equipment_id
+        elif lot.current_equipment_id is None:
+            # Auto-dispatch: pick a recommended equipment via DISPATCH module.
+            # Silently no-op if dispatch is blocked — operator can assign later.
+            from mes.core.dispatch.service import DispatchService
+            try:
+                await DispatchService.auto_dispatch(session, lot_id=lot.id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Auto-dispatch failed for lot %s on start: %s",
+                    lot.id, exc,
+                )
         lot.status = "in_process"
         await session.flush()
 
