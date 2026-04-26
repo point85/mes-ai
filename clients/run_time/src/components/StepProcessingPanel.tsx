@@ -1,13 +1,42 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption, UnitHistory, LotHistory, DispositionCatalog } from "../types";
+import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption, UnitHistory, LotHistory, DispositionCatalog, EquipmentCurrentState } from "../types";
 import {
   startUnit, completeUnit, moveUnit, holdUnit, releaseHoldUnit, scrapUnit,
   startLot, completeLot, moveLot, holdLot, releaseHoldLot, scrapLot,
   collectDataBatch, recordQualityResult, fetchStepEquipment,
   fetchStepBomItems, fetchMaterials, fetchMaterialLots, consumeMaterial, fetchConsumedMaterials,
   fetchUnitHistory, fetchLotHistory, fetchDispositionCatalog,
+  fetchEquipmentCurrentState, transitionEquipmentState,
 } from "../api/runtime";
+
+// State-model walker: drives a PackML / SEMI E10 equipment to the desired
+// canonical state via sequential transition POSTs. Silently bails if the
+// model is unknown or the current state is off the production path.
+async function walkEquipmentToState(
+  equipId: string,
+  modelId: string,
+  currentState: string,
+  phase: "start" | "complete",
+): Promise<void> {
+  if (modelId === "semi_e10") {
+    const target = phase === "start" ? "Productive" : "Standby";
+    if (currentState !== target) {
+      await transitionEquipmentState(equipId, target, `WIP ${phase}`);
+    }
+    return;
+  }
+  if (modelId === "packml") {
+    const path = phase === "start"
+      ? ["Stopped", "Resetting", "Idle", "Starting", "Execute"]
+      : ["Execute", "Completing", "Complete", "Resetting", "Idle"];
+    const idx = path.indexOf(currentState);
+    if (idx < 0) return; // off the production path — no-op
+    for (let i = idx + 1; i < path.length; i++) {
+      await transitionEquipmentState(equipId, path[i], `WIP ${phase}`);
+    }
+  }
+}
 
 interface Props {
   context: StepContext;
@@ -47,6 +76,10 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   // Equipment override
   const [equipmentOverride, setEquipmentOverride] = useState("");
 
+  // Transition equipment state on Start / Complete (default off)
+  const [transitionOnStart, setTransitionOnStart] = useState(false);
+  const [transitionOnComplete, setTransitionOnComplete] = useState(false);
+
   // Material consumption — per-BOM-item lot selection and quantity
   const [lotSelections, setLotSelections] = useState<Record<string, string>>({});
   const [qtyInputs, setQtyInputs] = useState<Record<string, string>>({});
@@ -57,6 +90,14 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
     queryKey: ["step-equipment", step?.id, wip.material_id, wip.current_equipment_id],
     queryFn: () => fetchStepEquipment(step!.id, wip.material_id, wip.current_equipment_id),
     enabled: !!step && (wip.status === "queued" || wip.status === "in_process"),
+    refetchInterval: 10_000,
+  });
+
+  // Fetch the current PackML / E10 state of the assigned equipment (in_process)
+  const { data: assignedEquipState } = useQuery<EquipmentCurrentState>({
+    queryKey: ["equipment-current-state", wip.current_equipment_id],
+    queryFn: () => fetchEquipmentCurrentState(wip.current_equipment_id!),
+    enabled: !!wip.current_equipment_id && wip.status === "in_process",
     refetchInterval: 10_000,
   });
 
@@ -132,9 +173,24 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
 
   const handleStart = () =>
     runAction(
-      () => isUnit
-        ? startUnit(wip.id, equipmentOverride || undefined)
-        : startLot(wip.id, equipmentOverride || undefined),
+      async () => {
+        const updated = isUnit
+          ? await startUnit(wip.id, equipmentOverride || undefined)
+          : await startLot(wip.id, equipmentOverride || undefined);
+        if (transitionOnStart && updated.current_equipment_id) {
+          try {
+            const cs = await fetchEquipmentCurrentState(updated.current_equipment_id);
+            if (cs.state_model === "packml" || cs.state_model === "semi_e10") {
+              await walkEquipmentToState(
+                updated.current_equipment_id, cs.state_model, cs.state, "start",
+              );
+            }
+          } catch (e) {
+            console.warn("Equipment state transition on start failed:", e);
+          }
+        }
+        return updated;
+      },
       "Started processing",
     );
 
@@ -185,12 +241,25 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
         const disp = selectedDisposition || undefined;
         const moveOpts: { disposition?: string; result?: string } = { result: completeResult };
         if (disp) moveOpts.disposition = disp;
+        const equipIdAtComplete = wip.current_equipment_id;
         if (isUnit) {
           await completeUnit(wip.id, completeResult, Object.keys(snapshot).length > 0 ? snapshot : undefined, disp);
           await moveUnit(wip.id, moveOpts);
         } else {
           await completeLot(wip.id, qtyOut ? parseInt(qtyOut) : undefined, parseInt(qtyScrapped) || 0, disp);
           await moveLot(wip.id, moveOpts);
+        }
+        if (transitionOnComplete && equipIdAtComplete) {
+          try {
+            const cs = await fetchEquipmentCurrentState(equipIdAtComplete);
+            if (cs.state_model === "packml" || cs.state_model === "semi_e10") {
+              await walkEquipmentToState(
+                equipIdAtComplete, cs.state_model, cs.state, "complete",
+              );
+            }
+          } catch (e) {
+            console.warn("Equipment state transition on complete failed:", e);
+          }
         }
       },
       "Step completed",
@@ -367,11 +436,26 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
               (e) => (e.dispatch_category === null || e.dispatch_category === "available")
                 && e.has_spare_capacity && e.material_setup,
             );
+            const showTransition = stepEquipment.some(
+              (e) => e.state_model === "packml" || e.state_model === "semi_e10",
+            );
             return (
               <>
-                <button onClick={handleStart} disabled={actionLoading || !anyAvailable} className="btn-primary">
-                  Start
-                </button>
+                <div className="flex items-center gap-3">
+                  <button onClick={handleStart} disabled={actionLoading || !anyAvailable} className="btn-primary">
+                    Start
+                  </button>
+                  {showTransition && (
+                    <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={transitionOnStart}
+                        onChange={(e) => setTransitionOnStart(e.target.checked)}
+                      />
+                      Transition State
+                    </label>
+                  )}
+                </div>
                 {!anyAvailable && (
                   <p className="mt-2 text-sm text-red-600">
                     No equipment available — all machines are busy, at capacity, or not set up for this material.
@@ -694,6 +778,17 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
               <button onClick={handleComplete} disabled={actionLoading} className="btn-primary">
                 Complete
               </button>
+              {(assignedEquipState?.state_model === "packml"
+                || assignedEquipState?.state_model === "semi_e10") && (
+                <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={transitionOnComplete}
+                    onChange={(e) => setTransitionOnComplete(e.target.checked)}
+                  />
+                  Transition State
+                </label>
+              )}
             </div>
           </div>
         </>

@@ -321,3 +321,6 @@ export const fetchEquipment = (equipId: string) =>
 
 export const fetchEquipmentCurrentState = (equipId: string) =>
   api.get(`/performance/equipment/${equipId}/current-state`).then(unwrap<EquipmentCurrentState>);
+
+export const transitionEquipmentState = (equipId: string, newState: string, notes?: string) =>
+  api.post(`/performance/equipment/${equipId}/transition`, { new_state: newState, notes: notes ?? null });
