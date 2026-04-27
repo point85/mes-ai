@@ -16,6 +16,7 @@ interface CreateForm {
   count: number;
   quantity_ordered: number;
   priority: number;
+  erp_reference: string;
 }
 
 const defaultCreate: CreateForm = {
@@ -23,6 +24,7 @@ const defaultCreate: CreateForm = {
   count: 3,
   quantity_ordered: 100,
   priority: 0,
+  erp_reference: "",
 };
 
 /* ── Edit-row draft ─────────────────────────────────────────────── */
@@ -93,13 +95,21 @@ export default function OrdersPage() {
 
     try {
       const created: DBProductionOrder[] = [];
+      const refBase = form.erp_reference.trim();
       for (let i = 1; i <= form.count; i++) {
+        const suffix = String(i).padStart(3, "0");
+        const erpRef = refBase
+          ? form.count > 1
+            ? `${refBase}-${suffix}`
+            : refBase
+          : null;
         const order = await createProductionOrder({
-          order_number: `${prefix}-${ts}-${String(i).padStart(3, "0")}`,
+          order_number: `${prefix}-${ts}-${suffix}`,
           product_id: form.product_id,
           route_id: null,
           quantity_ordered: form.quantity_ordered,
           priority: form.priority,
+          erp_reference: erpRef,
         });
         created.push(order);
       }
@@ -171,6 +181,10 @@ export default function OrdersPage() {
 
   const fmtDate = (v: string | null) =>
     v ? new Date(v).toLocaleDateString() : "—";
+
+  const productById = new Map(products.map((p) => [p.id, p] as const));
+  const uomFor = (productId: string) => productById.get(productId)?.uom ?? "";
+  const selectedUom = uomFor(form.product_id);
 
   const inp =
     "px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -250,7 +264,9 @@ export default function OrdersPage() {
 
             {/* Quantity */}
             <label className="space-y-1">
-              <span className="text-xs text-gray-500">Qty per Order</span>
+              <span className="text-xs text-gray-500">
+                Qty per Order{selectedUom ? ` (${selectedUom})` : ""}
+              </span>
               <input
                 type="number"
                 min={1}
@@ -284,6 +300,22 @@ export default function OrdersPage() {
                 className={inp + " w-full"}
               />
             </label>
+
+            {/* ERP Reference */}
+            <label className="space-y-1 md:col-span-2">
+              <span className="text-xs text-gray-500">
+                ERP Reference{form.count > 1 ? " (suffixed -001, -002…)" : ""}
+              </span>
+              <input
+                type="text"
+                value={form.erp_reference}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, erp_reference: e.target.value }))
+                }
+                placeholder="optional"
+                className={inp + " w-full"}
+              />
+            </label>
           </div>
 
           <button
@@ -309,8 +341,8 @@ export default function OrdersPage() {
             <thead className="bg-gray-50">
               <tr>
                 {[
-                  "Order #",
                   "ERP Ref",
+                  "Order #",
                   "Status",
                   "Qty Ordered",
                   "Qty Done",
@@ -336,21 +368,9 @@ export default function OrdersPage() {
                 const busySave = saving === row.id;
 
                 if (isEditing && editDraft) {
+                  const rowUom = uomFor(row.product_id);
                   return (
                     <tr key={row.id} className="bg-yellow-50">
-                      <td className="px-3 py-2">
-                        <input
-                          value={editDraft.order_number}
-                          onChange={(e) =>
-                            setEditDraft((d) =>
-                              d
-                                ? { ...d, order_number: e.target.value }
-                                : d,
-                            )
-                          }
-                          className={inp + " w-28"}
-                        />
-                      </td>
                       <td className="px-3 py-2">
                         <input
                           value={editDraft.erp_reference}
@@ -364,33 +384,53 @@ export default function OrdersPage() {
                           className={inp + " w-24"}
                         />
                       </td>
+                      <td className="px-3 py-2">
+                        <input
+                          value={editDraft.order_number}
+                          onChange={(e) =>
+                            setEditDraft((d) =>
+                              d
+                                ? { ...d, order_number: e.target.value }
+                                : d,
+                            )
+                          }
+                          className={inp + " w-28"}
+                        />
+                      </td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         {row.status}
                       </td>
                       <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={1}
-                          value={editDraft.quantity_ordered}
-                          onChange={(e) =>
-                            setEditDraft((d) =>
-                              d
-                                ? {
-                                    ...d,
-                                    quantity_ordered:
-                                      parseInt(e.target.value) || 1,
-                                  }
-                                : d,
-                            )
-                          }
-                          className={inp + " w-20"}
-                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={1}
+                            value={editDraft.quantity_ordered}
+                            onChange={(e) =>
+                              setEditDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      quantity_ordered:
+                                        parseInt(e.target.value) || 1,
+                                    }
+                                  : d,
+                              )
+                            }
+                            className={inp + " w-20"}
+                          />
+                          {rowUom && (
+                            <span className="text-xs text-gray-500">{rowUom}</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         {row.quantity_completed}
+                        {rowUom ? ` ${rowUom}` : ""}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         {row.quantity_scrapped}
+                        {rowUom ? ` ${rowUom}` : ""}
                       </td>
                       <td className="px-3 py-2">
                         <input
@@ -438,22 +478,25 @@ export default function OrdersPage() {
                 return (
                   <tr key={row.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {row.order_number}
+                      {row.erp_reference ?? "—"}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {row.erp_reference ?? "—"}
+                      {row.order_number}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {row.status}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {row.quantity_ordered}
+                      {uomFor(row.product_id) ? ` ${uomFor(row.product_id)}` : ""}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {row.quantity_completed}
+                      {uomFor(row.product_id) ? ` ${uomFor(row.product_id)}` : ""}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {row.quantity_scrapped}
+                      {uomFor(row.product_id) ? ` ${uomFor(row.product_id)}` : ""}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {row.priority}
