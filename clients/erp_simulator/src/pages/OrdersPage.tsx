@@ -179,9 +179,6 @@ export default function OrdersPage() {
 
   /* ── Helpers ──────────────────────────────────────────────────── */
 
-  const fmtDate = (v: string | null) =>
-    v ? new Date(v).toLocaleDateString() : "—";
-
   const productById = new Map(products.map((p) => [p.id, p] as const));
   const uomFor = (productId: string) => productById.get(productId)?.uom ?? "";
   const selectedUom = uomFor(form.product_id);
@@ -348,8 +345,6 @@ export default function OrdersPage() {
                   "Qty Done",
                   "Qty Scrap",
                   "Priority",
-                  "Planned Start",
-                  "Planned End",
                   "Actions",
                 ].map((h) => (
                   <th
@@ -450,12 +445,6 @@ export default function OrdersPage() {
                           className={inp + " w-16"}
                         />
                       </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {fmtDate(row.planned_start)}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {fmtDate(row.planned_end)}
-                      </td>
                       <td className="px-3 py-2 whitespace-nowrap space-x-1">
                         <button
                           onClick={handleSave}
@@ -500,12 +489,6 @@ export default function OrdersPage() {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {row.priority}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {fmtDate(row.planned_start)}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {fmtDate(row.planned_end)}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap space-x-1">
                       <button
