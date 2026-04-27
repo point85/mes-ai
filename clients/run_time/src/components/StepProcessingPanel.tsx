@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption, UnitHistory, LotHistory, DispositionCatalog, EquipmentCurrentState } from "../types";
 import {
@@ -69,6 +69,27 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
 
   // Disposition
   const [selectedDisposition, setSelectedDisposition] = useState("");
+
+  // When the step exposes exactly one disposition, auto-select it so the
+  // submission carries the value even if the operator never opens the
+  // dropdown. Without this the visible single-option select keeps the
+  // state at "" and the routing engine falls through to linear-next,
+  // skipping past the intended disposition target step.
+  useEffect(() => {
+    if (dispositions.length === 1) {
+      const only = dispositions[0];
+      const value = only.name ?? only.label ?? "";
+      if (value && selectedDisposition !== value) {
+        setSelectedDisposition(value);
+      }
+    }
+    // Reset selection when the step changes and the new step has no
+    // dispositions, so a stale label cannot leak across step contexts.
+    if (dispositions.length === 0 && selectedDisposition !== "") {
+      setSelectedDisposition("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispositions, step?.id]);
 
   // Complete result
   const [completeResult, setCompleteResult] = useState<"pass" | "fail" | "rework">("pass");
