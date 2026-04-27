@@ -431,11 +431,28 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
           )}
 
           {(() => {
-            // Check if any equipment is available for dispatch
-            const anyAvailable = stepEquipment.length === 0 || stepEquipment.some(
-              (e) => (e.dispatch_category === null || e.dispatch_category === "available")
-                && e.has_spare_capacity && e.material_setup,
-            );
+            // Check if any equipment is available for dispatch, and collect per-machine reasons when not.
+            const isEligible = (e: StepEquipmentStatus) =>
+              (e.dispatch_category === null || e.dispatch_category === "available")
+              && e.has_spare_capacity
+              && e.material_setup;
+            const anyAvailable = stepEquipment.length === 0 || stepEquipment.some((e) => isEligible(e));
+
+            const reasonsFor = (e: StepEquipmentStatus): string[] => {
+              const reasons: string[] = [];
+              if (e.dispatch_category && e.dispatch_category !== "available") {
+                reasons.push(`dispatch state "${e.dispatch_category}"${e.state ? ` (${e.state})` : ""}`);
+              }
+              if (!e.has_spare_capacity) {
+                const cap = e.max_queue_depth != null ? `${e.queue_depth}/${e.max_queue_depth}` : `${e.queue_depth}`;
+                reasons.push(`queue full (${cap})`);
+              }
+              if (!e.material_setup) {
+                reasons.push("not set up for this material");
+              }
+              return reasons;
+            };
+
             return (
               <>
                 <div className="flex items-center gap-3">
@@ -452,9 +469,27 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                   </label>
                 </div>
                 {!anyAvailable && (
-                  <p className="mt-2 text-sm text-red-600">
-                    No equipment available — all machines are busy, at capacity, or not set up for this material.
-                  </p>
+                  <div className="mt-2 text-sm text-red-600">
+                    {stepEquipment.length === 0 ? (
+                      <p>No equipment is configured for this step.</p>
+                    ) : (
+                      <>
+                        <p>No equipment can accept this unit:</p>
+                        <ul className="list-disc list-inside mt-1 space-y-0.5">
+                          {stepEquipment.map((e) => {
+                            const reasons = reasonsFor(e);
+                            return (
+                              <li key={e.equipment_id}>
+                                <span className="font-mono">{e.equipment_code}</span>
+                                {": "}
+                                {reasons.length > 0 ? reasons.join("; ") : "blocked"}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
+                    )}
+                  </div>
                 )}
               </>
             );
