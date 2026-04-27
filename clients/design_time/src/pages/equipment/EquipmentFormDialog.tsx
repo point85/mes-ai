@@ -22,6 +22,13 @@ const equipSchema = z.object({
   description: z.string().nullable().optional(),
   equipment_class_id: z.string().nullable().optional(),
   state_model_id: z.string().nullable().optional(),
+  max_queue_depth: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v) => (v === "" || v === undefined || v === null ? null : Number(v)))
+    .refine((v) => v === null || (Number.isInteger(v) && v >= 1), {
+      message: "Must be a positive integer (or blank for unlimited)",
+    }),
 });
 
 type EquipFormData = z.infer<typeof equipSchema>;
@@ -53,6 +60,7 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
       description: "",
       equipment_class_id: "",
       state_model_id: "",
+      max_queue_depth: "",
     },
   });
 
@@ -64,6 +72,7 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
         description: equipment.description ?? "",
         equipment_class_id: equipment.equipment_class_id ?? "",
         state_model_id: equipment.state_model_id ?? "",
+        max_queue_depth: equipment.max_queue_depth ?? "",
       });
     }
   }, [equipment, reset]);
@@ -75,6 +84,7 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
       description: data.description,
       equipment_class_id: data.equipment_class_id || null,
       state_model_id: data.state_model_id || null,
+      max_queue_depth: data.max_queue_depth,
     };
 
     try {
@@ -180,6 +190,28 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
                   Assigns a state machine for availability tracking.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Max Queue Depth <span className="text-gray-400">(blank = unlimited)</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  {...register("max_queue_depth")}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  placeholder="Unlimited"
+                />
+                {errors.max_queue_depth && (
+                  <p className="mt-1 text-xs text-red-600">{errors.max_queue_depth.message}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Maximum WIP items (units + lots) allowed in this equipment's input queue.
                 </p>
               </div>
             </div>

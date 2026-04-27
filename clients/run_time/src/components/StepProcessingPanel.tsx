@@ -174,6 +174,33 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   const handleStart = () =>
     runAction(
       async () => {
+        // If "Transition State" is checked, pre-walk any candidate equipment
+        // that is otherwise eligible but blocked only by its dispatch state
+        // (e.g. PackML "Stopped" → "Execute"). This unblocks the dispatch
+        // call below.
+        if (transitionOnStart) {
+          const candidates = stepEquipment.filter(
+            (e) =>
+              e.has_spare_capacity
+              && e.material_setup
+              && e.dispatch_category
+              && e.dispatch_category !== "available"
+              && (equipmentOverride === "" || equipmentOverride === e.equipment_id),
+          );
+          for (const e of candidates) {
+            try {
+              const cs = await fetchEquipmentCurrentState(e.equipment_id);
+              if (cs.state_model === "packml" || cs.state_model === "semi_e10") {
+                await walkEquipmentToState(
+                  e.equipment_id, cs.state_model, cs.state, "start",
+                );
+              }
+            } catch (err) {
+              console.warn(`Pre-start state walk failed for ${e.equipment_code}:`, err);
+            }
+          }
+        }
+
         const updated = isUnit
           ? await startUnit(wip.id, equipmentOverride || undefined)
           : await startLot(wip.id, equipmentOverride || undefined);
@@ -432,16 +459,31 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
 
           {(() => {
             // Check if any equipment is available for dispatch, and collect per-machine reasons when not.
+            // When "Transition State" is checked, equipment blocked only by an
+            // unavailable dispatch state is treated as eligible because the
+            // start handler will walk PackML / SEMI E10 forward to Execute.
+            const isStateBlockedOnly = (e: StepEquipmentStatus) =>
+              e.has_spare_capacity
+              && e.material_setup
+              && e.dispatch_category !== null
+              && e.dispatch_category !== "available";
             const isEligible = (e: StepEquipmentStatus) =>
               (e.dispatch_category === null || e.dispatch_category === "available")
               && e.has_spare_capacity
               && e.material_setup;
-            const anyAvailable = stepEquipment.length === 0 || stepEquipment.some((e) => isEligible(e));
+            const anyAvailable = stepEquipment.length === 0
+              || stepEquipment.some(
+                (e) => isEligible(e) || (transitionOnStart && isStateBlockedOnly(e)),
+              );
 
             const reasonsFor = (e: StepEquipmentStatus): string[] => {
               const reasons: string[] = [];
               if (e.dispatch_category && e.dispatch_category !== "available") {
-                reasons.push(`dispatch state "${e.dispatch_category}"${e.state ? ` (${e.state})` : ""}`);
+                const fixable = transitionOnStart && isStateBlockedOnly(e);
+                reasons.push(
+                  `dispatch state "${e.dispatch_category}"${e.state ? ` (${e.state})` : ""}`
+                  + (fixable ? " — will transition to Execute on Start" : ""),
+                );
               }
               if (!e.has_spare_capacity) {
                 const cap = e.max_queue_depth != null ? `${e.queue_depth}/${e.max_queue_depth}` : `${e.queue_depth}`;

@@ -120,6 +120,7 @@ export interface Equipment {
   capabilities: Record<string, unknown> | null;
   equipment_class_id: string | null;
   state_model_id: string | null;
+  max_queue_depth: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -133,6 +134,7 @@ export interface EquipmentCreate {
   capabilities?: Record<string, unknown> | null;
   equipment_class_id?: string | null;
   state_model_id?: string | null;
+  max_queue_depth?: number | null;
 }
 
 export interface EquipmentUpdate {
@@ -143,6 +145,7 @@ export interface EquipmentUpdate {
   capabilities?: Record<string, unknown> | null;
   equipment_class_id?: string | null;
   state_model_id?: string | null;
+  max_queue_depth?: number | null;
 }
 
 // ─── Equipment–Material Setup ────────────────────────────────────────
