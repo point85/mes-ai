@@ -200,9 +200,9 @@ function OrderRow({ order: o, expanded, selected, productMap, onToggle, onSelect
         <td className="py-2 px-3 text-gray-700">{product?.name ?? "—"}</td>
         <td className="py-2 px-3"><StatusBadge status={o.status} /></td>
         <td className="py-2 px-3">{o.priority}</td>
-        <td className="py-2 px-3">{o.quantity_ordered}</td>
-        <td className="py-2 px-3">{o.quantity_completed}</td>
-        <td className="py-2 px-3">{o.quantity_scrapped}</td>
+        <td className="py-2 px-3">{o.quantity_ordered}{product?.uom ? ` ${product.uom}` : ""}</td>
+        <td className="py-2 px-3">{o.quantity_completed}{product?.uom ? ` ${product.uom}` : ""}</td>
+        <td className="py-2 px-3">{o.quantity_scrapped}{product?.uom ? ` ${product.uom}` : ""}</td>
         <td className="py-2 px-3 text-xs text-gray-400">{o.erp_reference ?? "—"}</td>
         <td className="py-2 px-3 text-xs text-gray-400">
           {new Date(o.created_at).toLocaleString()}
@@ -211,7 +211,7 @@ function OrderRow({ order: o, expanded, selected, productMap, onToggle, onSelect
       {expanded && (
         <tr className="bg-gray-50">
           <td colSpan={10} className="px-3 py-3">
-            <OrderDetail order={o} productType={product?.product_type} onRefresh={onRefresh} />
+            <OrderDetail order={o} product={product} onRefresh={onRefresh} />
           </td>
         </tr>
       )}
@@ -219,10 +219,11 @@ function OrderRow({ order: o, expanded, selected, productMap, onToggle, onSelect
   );
 }
 
-function OrderDetail({ order, productType, onRefresh }: { order: ProductionOrder; productType?: string; onRefresh: () => void }) {
+function OrderDetail({ order, product, onRefresh }: { order: ProductionOrder; product?: Product; onRefresh: () => void }) {
   const [showCreateLot, setShowCreateLot] = useState(false);
   const [showCreateUnit, setShowCreateUnit] = useState(false);
   const canCreate = order.status === "released" || order.status === "in_progress";
+  const productType = product?.product_type;
   const showLotButton = productType !== "discrete";
   const showUnitButton = productType !== "process";
 
@@ -260,7 +261,7 @@ function OrderDetail({ order, productType, onRefresh }: { order: ProductionOrder
         </div>
       )}
 
-      {showCreateLot && <CreateLotForm order={order} onCreated={onRefresh} />}
+      {showCreateLot && <CreateLotForm order={order} uom={product?.uom ?? null} onCreated={onRefresh} />}
       {showCreateUnit && <CreateUnitForm order={order} onCreated={onRefresh} />}
 
       {/* Lots */}
@@ -280,7 +281,7 @@ function OrderDetail({ order, productType, onRefresh }: { order: ProductionOrder
               {lots.map((l) => (
                 <tr key={l.id} className="border-b">
                   <td className="py-1 px-2 font-mono">{l.lot_number}</td>
-                  <td className="py-1 px-2">{l.quantity}</td>
+                  <td className="py-1 px-2">{l.quantity}{product?.uom ? ` ${product.uom}` : ""}</td>
                   <td className="py-1 px-2"><WipBadge status={l.status} /></td>
                   <td className="py-1 px-2 text-gray-500">{l.current_step_name ?? "—"}</td>
                 </tr>
@@ -322,7 +323,7 @@ function OrderDetail({ order, productType, onRefresh }: { order: ProductionOrder
   );
 }
 
-function CreateLotForm({ order, onCreated }: { order: ProductionOrder; onCreated: () => void }) {
+function CreateLotForm({ order, uom, onCreated }: { order: ProductionOrder; uom: string | null; onCreated: () => void }) {
   const remaining = order.quantity_ordered - order.quantity_completed - order.quantity_scrapped;
   const [quantity, setQuantity] = useState<string>(String(remaining > 0 ? remaining : 1));
   const [lotNumber, setLotNumber] = useState("");
@@ -357,7 +358,9 @@ function CreateLotForm({ order, onCreated }: { order: ProductionOrder; onCreated
       <p className="text-sm font-medium text-gray-700">Create Lot</p>
       <div className="flex items-end gap-3 flex-wrap">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Quantity</label>
+          <label className="block text-xs text-gray-500 mb-1">
+            Quantity{uom ? ` (${uom})` : ""}
+          </label>
           <input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="input-field w-28" />
         </div>
         <div>

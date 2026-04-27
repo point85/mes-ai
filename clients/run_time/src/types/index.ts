@@ -218,6 +218,7 @@ export interface Product {
   code: string;
   description: string | null;
   product_type: string;
+  uom?: string | null;
   is_active: boolean;
 }
 
