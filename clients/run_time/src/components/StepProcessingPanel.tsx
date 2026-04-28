@@ -55,6 +55,11 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
 
   // Data collection form state
   const [dataValues, setDataValues] = useState<Record<string, string>>({});
+  // Tracks values already persisted via Save (or a prior auto-submit on
+  // Complete). Used to avoid re-submitting the same values when the
+  // operator hits Complete after Save — which would create duplicate
+  // data points in the database.
+  const [savedValues, setSavedValues] = useState<Record<string, string>>({});
 
   // Quality test results
   const [testResults, setTestResults] = useState<Record<string, "pass" | "fail">>({});
@@ -242,27 +247,60 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       "Started processing",
     );
 
+  // Build & submit data-collection batch from current dataValues. Returns
+  // the number of items actually submitted. Only values that differ from
+  // the last persisted snapshot (savedValues) are sent, so calling this
+  // after Save will not duplicate already-saved points.
+  const submitDataCollection = async (): Promise<number> => {
+    if (data_definitions.length === 0) return 0;
+    const pending = data_definitions.filter((dd) => {
+      const cur = dataValues[dd.id] ?? "";
+      const prev = savedValues[dd.id] ?? "";
+      return cur !== "" && cur !== prev;
+    });
+    if (pending.length === 0) return 0;
+    const items = pending.map((dd: DataDefinition) => {
+      const val = dataValues[dd.id] ?? "";
+      const base: Record<string, unknown> = {
+        definition_id: dd.id,
+        ...(isUnit ? { unit_id: wip.id } : { lot_id: wip.id }),
+      };
+      if (dd.data_type === "numeric") base.value_numeric = val ? parseFloat(val) : undefined;
+      else if (dd.data_type === "boolean") base.value_boolean = val === "true";
+      else base.value_string = val || undefined;
+      return base as Parameters<typeof collectDataBatch>[0][number];
+    });
+    await collectDataBatch(items);
+    // Mark these values as persisted so a subsequent Complete won't
+    // re-submit them.
+    setSavedValues((prev) => {
+      const next = { ...prev };
+      for (const dd of pending) next[dd.id] = dataValues[dd.id] ?? "";
+      return next;
+    });
+    return items.length;
+  };
+
+  const handleSaveData = () => {
+    // Pre-flight: any unsaved non-empty values entered?
+    const hasPending = data_definitions.some((dd) => {
+      const cur = dataValues[dd.id] ?? "";
+      const prev = savedValues[dd.id] ?? "";
+      return cur !== "" && cur !== prev;
+    });
+    if (!hasPending) {
+      setError("No new data values to save");
+      setSuccessMsg(null);
+      return;
+    }
+    return runAction(async () => {
+      await submitDataCollection();
+    }, "Data values saved");
+  };
+
   const handleComplete = async () => {
     // Collect data points if any
-    if (data_definitions.length > 0) {
-      const items = data_definitions.map((dd: DataDefinition) => {
-        const val = dataValues[dd.id] ?? "";
-        const base: Record<string, unknown> = {
-          definition_id: dd.id,
-          ...(isUnit ? { unit_id: wip.id } : { lot_id: wip.id }),
-        };
-        if (dd.data_type === "numeric") base.value_numeric = val ? parseFloat(val) : undefined;
-        else if (dd.data_type === "boolean") base.value_boolean = val === "true";
-        else base.value_string = val || undefined;
-        return base as Parameters<typeof collectDataBatch>[0][number];
-      }).filter((item) => {
-        // Only submit items that have a value
-        return item.value_numeric !== undefined || item.value_string !== undefined || item.value_boolean !== undefined;
-      });
-      if (items.length > 0) {
-        await collectDataBatch(items);
-      }
-    }
+    await submitDataCollection();
 
     // Record quality test results
     for (const qt of quality_tests) {
@@ -573,7 +611,17 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
           {/* Data Collection */}
           {data_definitions.length > 0 && (
             <div className="bg-white rounded-lg shadow p-5">
-              <h4 className="font-semibold text-gray-700 mb-3">Data Collection</h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold text-gray-700">Data Collection</h4>
+                <button
+                  onClick={handleSaveData}
+                  disabled={actionLoading}
+                  className="px-3 py-1 text-xs rounded-md font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                  title="Save entered data values without completing the WIP"
+                >
+                  {actionLoading ? "Saving…" : "Save"}
+                </button>
+              </div>
               <div className="space-y-3">
                 {data_definitions.map((dd) => (
                   <div key={dd.id} className="flex items-end gap-3">
