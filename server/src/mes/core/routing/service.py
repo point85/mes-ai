@@ -217,6 +217,33 @@ class RoutingEngineService:
                 return next_step
 
         # ── 3. Linear sequence fallback ──────────────────────────────
+        # Only fall back to linear sequence if the route does NOT use graph
+        # routing at all. If any other step in this route has outgoing edges,
+        # this is a graph-routed route and a step with no outgoing edges is
+        # terminal — do NOT silently advance to the next sequence number
+        # (which would dispatch a lot to e.g. a rework step).
+        route_has_graph_stmt = (
+            select(ProcessSegmentDependency.id)
+            .join(
+                ProcessSegment,
+                ProcessSegment.id == ProcessSegmentDependency.from_step_id,
+            )
+            .where(
+                ProcessSegment.route_id == route.id,
+                ProcessSegmentDependency.is_active.is_(True),
+            )
+            .limit(1)
+        )
+        route_has_graph = (
+            await session.execute(route_has_graph_stmt)
+        ).scalar_one_or_none() is not None
+        if route_has_graph:
+            logger.info(
+                "Graph-routed route %s: step %s has no outgoing edges — terminal",
+                route.id, current_step_id,
+            )
+            return None
+
         return await RoutingEngineService._resolve_linear_next(
             route, current_step_id,
         )
