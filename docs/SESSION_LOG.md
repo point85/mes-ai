@@ -131,6 +131,60 @@ Say: *"Resume MES AI project"*. Suggested next work: begin P7 (CI pipeline scaff
 
 ---
 
+## Session S041 — 2026-04-28
+
+**Phase**: Post-P6 — UX polish & demo-data / routing bug-fixes
+**Objective**: Series of small RT-CLIENT UX tweaks, then make the DT-CLIENT "Seed CPG Demo" button self-sufficient and additive, then fix a graph-routing fallback bug that dispatched a finished lot to a rework step.
+
+### What Happened
+
+#### RT-CLIENT polish — `clients/run_time/src/components/StepProcessingPanel.tsx`
+1. **Material consume keeps lot selection** — `handleConsumeLine` no longer clears `lotSelections[bomItem.id]` after a successful consume; only the quantity input is reset. Operator can consume more from the same lot without re-picking it.
+2. **QC Complete card shows Result + Disposition side-by-side** — previously the two were rendered as either-or. Now both selectors are visible whenever the step has applicable edges. Result options are filtered to only the `on_pass`/`on_fail`/`on_rework` conditions actually present on the step's outgoing edges; Disposition has a `— None —` option. Disposition auto-select effect now skips when any result-condition edges exist (so QC doesn't auto-pick "Send to MRB" when Pass/Fail are also valid).
+
+#### DT-CLIENT "Seed CPG Demo" — additive seeding
+3. `clients/design_time/src/api/demo.ts` — `seedCPGPlantData()` and `seedElectronicsPlantData()` now first POST `/demo/seed-{cpg,electronics}-erp`, then the plant endpoint. JSDoc updated to note both endpoints are additive — re-running picks up new transitions, dispositions, equipment etc. added to the data files.
+4. `server/src/mes/core/demo/service.py` — added `_get_or_create_step_transition(...)` helper (idempotent edge insert, returns True only when created). CPG and Electronics transition loops now run unconditionally (removed the `if route_created:` guard) and call this helper, so existing routes pick up newly added edges (e.g. `on_pass`/`on_fail`/`disposition` for CPG QC).
+
+#### Hidden-orphan fix — `_get_or_create_work_cell` / `_get_or_create_equipment`
+5. After applying #3/#4, the seed reported 6 work cells / 7 equipment but DT-CLIENT site hierarchy and equipment simulator still showed only 5. Root cause: those helpers looked up by `code` globally, so a stale `WC-REWORK` / `RW-600` left attached to an old `line_id` / `work_cell_id` from an earlier reset would be returned and silently kept its bad parent FK — invisible to tree views which filter by `line_id` / `work_cell_id`.
+6. Both helpers now **re-parent** the existing row when the FK doesn't match the requested parent (`existing.line_id = line_id` / `existing.work_cell_id = wc_id` + `flush`).
+
+#### Routing engine — terminal step bug
+7. **Symptom**: lot `LOT-FG-OJ-1L-MOHJ2L68-001-0002` finished step 50 (Labeling & Packing) but RT-CLIENT Active WIP showed it queued at step 60 (Re-Blend Rework).
+8. **Root cause**: `cpg_data.TRANSITIONS` has no edges out of step 50. `RoutingEngineService.get_next_step` found zero transitions for step 50 and fell through to the linear-sequence fallback (`_resolve_linear_next`), which advanced 50 → 60 by ascending sequence. Step 60 is supposed to be reachable only via QC `on_fail`.
+9. **Fix** — `server/src/mes/core/routing/service.py` `get_next_step`: before falling back to linear sequence, check whether the route uses graph routing at all (`SELECT 1 FROM process_segment_dependency JOIN process_segment ON from_step_id WHERE route_id=... AND is_active LIMIT 1`). If so, a step with no outgoing edges is treated as **terminal** and `None` is returned, which `WIPService.complete_step` interprets as "lot completed" (sets status='completed', current_step_id=NULL, increments order completed qty, publishes `wip.lot.moved` with `to_step=None`). Linear fallback now only runs for routes that have no graph edges anywhere.
+10. **Stuck-lot remediation** — wrote `server/scripts/tmp/fix_stuck_lot.py` (one-shot, --apply flag) and ran it: `LOT-FG-OJ-1L-MOHJ2L68-001-0002` (id `8e203b9e-…`) updated `status='completed'`, `current_step_id=NULL`, `current_equipment_id=NULL`. Verified the lot's previous `current_step_id` pointed at step sequence 60 "Re-Blend (Rework)".
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `clients/run_time/src/components/StepProcessingPanel.tsx` | Keep lot selection on consume; render Result + Disposition selectors side-by-side; filter Result options to outgoing-edge conditions |
+| `clients/design_time/src/api/demo.ts` | `seedCPGPlantData`/`seedElectronicsPlantData` chain ERP seed first; updated JSDoc re additive behavior |
+| `server/src/mes/core/demo/service.py` | New `_get_or_create_step_transition` helper; CPG + Electronics transition loops are now unconditional + additive; `_get_or_create_work_cell` / `_get_or_create_equipment` re-parent orphans |
+| `server/src/mes/core/routing/service.py` | `get_next_step` treats steps with no outgoing edges as terminal when the route uses graph routing (no more silent linear-sequence fallback into rework step) |
+| `server/scripts/tmp/fix_stuck_lot.py` | NEW one-shot remediation script (uses `mes.framework.db.session.async_session_factory`); marks named lot completed |
+
+### Decisions Made
+| ID | Decision |
+|----|----------|
+| D056 | Demo seeders are additive: re-running `seed-cpg-{erp,plant}` / `seed-electronics-{erp,plant}` picks up new transitions, equipment, dispositions, etc. without manual DB reset. The DT-CLIENT dashboard button is the single supported entry point. |
+| D057 | `_get_or_create_*` helpers must re-parent existing rows to the requested parent FK (line_id / work_cell_id), otherwise tree views silently hide them. |
+| D058 | In a graph-routed route, a step with no outgoing `ProcessSegmentDependency` edges is **terminal**. Linear-sequence fallback in `RoutingEngineService.get_next_step` only applies to routes that have zero graph edges. This prevents a finished lot from being dispatched to a downstream rework / cleanup step that is only reachable via a failure or disposition edge. |
+
+### Where We Stopped
+- All four UX/routing bugs from this session are fixed.
+- Server changes require a FastAPI restart to take effect.
+- After restart + clicking "Seed CPG Demo" once, `WC-REWORK` / `RW-600` will be re-parented to `SB-LINE-01` / `WC-REWORK` and appear in DT-CLIENT site hierarchy + equipment simulator tree. The simulator can then transition `RW-600` from `unavailable_planned` to `standby` so dispatch can use it.
+- P7 (CI + integration tests + mock simulation layer) still parked.
+
+### To Resume
+Say: *"Resume MES AI project"*. Suggested next work:
+1. Continue post-P6 polish on demo flow (e.g. confirm WC-REWORK / RW-600 visible after seed).
+2. Begin P7 — CI pipeline scaffolding + populate `server/tests/integration/`. Add a regression test for the graph-routed terminal-step case (route with no outgoing edges on last step → lot completes, does not advance to next sequence).
+
+---
+
 # MES AI — Session Log
 
 > This file is the chronological narrative of all project sessions.  

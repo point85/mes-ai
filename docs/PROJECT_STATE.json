@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-04-25",
-  "lastSessionId": "S040",
+  "lastUpdated": "2026-04-28",
+  "lastSessionId": "S041",
 
   "phases": [
     {
@@ -273,7 +273,7 @@
   ],
 
   "currentPhase": "P6",
-  "currentTask": "S040 (2026-04-25): Verified parked SegmentEquipmentRequirement DT-CLIENT UI is fully shipped — API hooks (api/productDef.ts), React Query hooks (useProductDef.ts), StepFormDialog sub-editor (EquipmentRequirementsEditor.tsx with XOR class/equipment toggle), +N count badge (StepEquipReqCountBadge.tsx wired into ProductDetailPage and RouteEditorPage), and ARCHITECTURE.md §5.10/§5.11/§10.3 docs are all complete with no TS/lint errors. Carry-over note in prior session log was stale; item closed. Unit SN-FG-ECB-100-MOC4P5FC-001-00099 remediation removed from active consideration. Next candidates: P7 CI + integration tests, or further post-P6 polish.",
+  "currentTask": "S041 (2026-04-28): RT-CLIENT UX polish (lot selection persists across Consume; QC Complete card shows Result + Disposition side-by-side with Result options filtered to actual outgoing on_pass/on_fail/on_rework edges). DT-CLIENT 'Seed CPG Demo' button now chains ERP+plant seed; demo seeders made additive via new _get_or_create_step_transition helper so re-running picks up new transitions/dispositions/equipment. _get_or_create_work_cell and _get_or_create_equipment now re-parent orphan rows so stale FKs from prior resets don't hide rows from tree views. Routing engine fix: steps with no outgoing ProcessSegmentDependency edges are terminal in graph-routed routes (no more linear-sequence fallback dispatching finished lots to rework). Wrote one-shot scripts/tmp/fix_stuck_lot.py and applied it to LOT-FG-OJ-1L-MOHJ2L68-001-0002 (was queued at step 60 'Re-Blend (Rework)' after completing step 50; now status=completed). Server restart required for routing change to load. Next: confirm WC-REWORK / RW-600 visible in trees after seed; begin P7 CI + integration tests (add regression test for graph-routed terminal-step lot completion).",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
