@@ -1091,23 +1091,32 @@ async def _get_or_create_line(session: AsyncSession, area_id: UUID, **kwargs: An
 
 
 async def _get_or_create_work_cell(session: AsyncSession, line_id: UUID, **kwargs: Any) -> Any:
-    """Return existing work cell by code, or create."""
+    """Return existing work cell by code (re-parenting if needed), or create."""
     result = await session.execute(
         select(WorkCell).where(WorkCell.code == kwargs["code"], WorkCell.is_active.is_(True))
     )
     existing = result.scalar_one_or_none()
     if existing:
+        # Re-attach orphan rows from prior seed runs that pointed at a
+        # different line — otherwise the tree views (filtered by line_id)
+        # silently hide this work cell.
+        if existing.line_id != line_id:
+            existing.line_id = line_id
+            await session.flush()
         return existing
     return await PhysicalModelService.create_work_cell(session, line_id, **kwargs)
 
 
 async def _get_or_create_equipment(session: AsyncSession, wc_id: UUID, **kwargs: Any) -> Any:
-    """Return existing equipment by code, or create."""
+    """Return existing equipment by code (re-parenting if needed), or create."""
     result = await session.execute(
         select(Equipment).where(Equipment.code == kwargs["code"], Equipment.is_active.is_(True))
     )
     existing = result.scalar_one_or_none()
     if existing:
+        if existing.work_cell_id != wc_id:
+            existing.work_cell_id = wc_id
+            await session.flush()
         return existing
     return await PhysicalModelService.create_equipment(session, wc_id, **kwargs)
 
