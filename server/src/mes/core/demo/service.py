@@ -28,6 +28,7 @@ from mes.core.material.service import MaterialLotService, MaterialService
 from mes.core.product_def.models import (
     BillOfMaterial, BOMItem, OperationsDefinition,
     OperationsDefinitionProductAssignment, ProcessSegment,
+    ProcessSegmentDependency,
 )
 from mes.core.product_def.models import Disposition
 from mes.core.product_def.service import ProductDefService
@@ -200,18 +201,21 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                 bi.process_segment_id = step_by_seq[step_seq].id
 
     # ── 6. Transitions ────────────────────────────────────────────────
-    if route_created:
-        for t in D.TRANSITIONS:
-            from_step = step_by_seq[t["from_seq"]]
-            to_step   = step_by_seq[t["to_seq"]]
-            await ProductDefService.create_step_transition(
-                session, from_step.id,
-                to_step_id=to_step.id,
-                condition=t["condition"],
-                priority=t["priority"],
-                is_default=t["is_default"],
-                label=t["label"],
-            )
+    # Additive: insert any transition rows defined in TRANSITIONS that
+    # are not already present. Lets re-runs of the seeder pick up new
+    # edges (e.g. on_pass/on_fail/disposition added to an existing route).
+    for t in D.TRANSITIONS:
+        from_step = step_by_seq[t["from_seq"]]
+        to_step   = step_by_seq[t["to_seq"]]
+        if await _get_or_create_step_transition(
+            session,
+            from_step_id=from_step.id,
+            to_step_id=to_step.id,
+            condition=t["condition"],
+            label=t["label"],
+            priority=t["priority"],
+            is_default=t["is_default"],
+        ):
             summary["transitions"] += 1
 
     # ── 7. Step Parameters ────────────────────────────────────────────
@@ -573,18 +577,20 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
                 bi.process_segment_id = step_by_seq[step_seq].id
 
     # ── 6. Transitions ────────────────────────────────────────────────
-    if route_created:
-        for t in E.TRANSITIONS:
-            from_step = step_by_seq[t["from_seq"]]
-            to_step   = step_by_seq[t["to_seq"]]
-            await ProductDefService.create_step_transition(
-                session, from_step.id,
-                to_step_id=to_step.id,
-                condition=t["condition"],
-                priority=t["priority"],
-                is_default=t["is_default"],
-                label=t["label"],
-            )
+    # Additive: insert any transition rows defined in TRANSITIONS that
+    # are not already present.
+    for t in E.TRANSITIONS:
+        from_step = step_by_seq[t["from_seq"]]
+        to_step   = step_by_seq[t["to_seq"]]
+        if await _get_or_create_step_transition(
+            session,
+            from_step_id=from_step.id,
+            to_step_id=to_step.id,
+            condition=t["condition"],
+            label=t["label"],
+            priority=t["priority"],
+            is_default=t["is_default"],
+        ):
             summary["transitions"] += 1
 
     # ── 7. Step Parameters ────────────────────────────────────────────
@@ -968,6 +974,46 @@ async def _get_or_create_step(
         return existing, False
     step = await ProductDefService.create_step(session, route_id, sequence=sequence, **kwargs)
     return step, True
+
+
+async def _get_or_create_step_transition(
+    session: AsyncSession,
+    from_step_id: UUID,
+    to_step_id: UUID,
+    condition: str,
+    *,
+    label: str | None = None,
+    priority: int = 0,
+    is_default: bool = False,
+) -> bool:
+    """
+    Insert a transition if no active edge with the same
+    (from_step, to_step, condition, label) already exists.
+
+    Returns True when a new row was created so callers can count it.
+    """
+    stmt = select(ProcessSegmentDependency).where(
+        ProcessSegmentDependency.from_step_id == from_step_id,
+        ProcessSegmentDependency.to_step_id == to_step_id,
+        ProcessSegmentDependency.condition == condition,
+        ProcessSegmentDependency.is_active.is_(True),
+    )
+    if label is None:
+        stmt = stmt.where(ProcessSegmentDependency.label.is_(None))
+    else:
+        stmt = stmt.where(ProcessSegmentDependency.label == label)
+    existing = (await session.execute(stmt)).scalar_one_or_none()
+    if existing is not None:
+        return False
+    await ProductDefService.create_step_transition(
+        session, from_step_id,
+        to_step_id=to_step_id,
+        condition=condition,
+        priority=priority,
+        is_default=is_default,
+        label=label,
+    )
+    return True
 
 
 async def _get_or_create_order(

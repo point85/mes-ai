@@ -75,13 +75,16 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   // Disposition
   const [selectedDisposition, setSelectedDisposition] = useState("");
 
-  // When the step exposes exactly one disposition, auto-select it so the
+  // When the step exposes exactly one disposition AND has no result-based
+  // outgoing transitions (on_pass/on_fail/on_rework), auto-select it so the
   // submission carries the value even if the operator never opens the
-  // dropdown. Without this the visible single-option select keeps the
-  // state at "" and the routing engine falls through to linear-next,
-  // skipping past the intended disposition target step.
+  // dropdown. When result transitions also exist, the disposition is an
+  // exception path and must be picked explicitly.
   useEffect(() => {
-    if (dispositions.length === 1) {
+    const hasResultRouting = (outgoing_conditions ?? []).some(
+      (c) => c === "on_pass" || c === "on_fail" || c === "on_rework",
+    );
+    if (dispositions.length === 1 && !hasResultRouting) {
       const only = dispositions[0];
       const value = only.name ?? only.label ?? "";
       if (value && selectedDisposition !== value) {
@@ -94,7 +97,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       setSelectedDisposition("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispositions, step?.id]);
+  }, [dispositions, outgoing_conditions, step?.id]);
 
   // Complete result
   const [completeResult, setCompleteResult] = useState<"pass" | "fail" | "rework">("pass");
@@ -861,7 +864,21 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
           <div className="bg-white rounded-lg shadow p-5">
             <h4 className="font-semibold text-gray-700 mb-3">Complete Step</h4>
             <div className="flex items-end gap-4 flex-wrap">
-              {dispositions.length > 0 ? (
+              {(outgoing_conditions ?? []).some((c) => c === "on_pass" || c === "on_fail" || c === "on_rework") && (
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Result</label>
+                  <select
+                    value={completeResult}
+                    onChange={(e) => setCompleteResult(e.target.value as "pass" | "fail" | "rework")}
+                    className="input-field"
+                  >
+                    {(outgoing_conditions ?? []).includes("on_pass") && <option value="pass">Pass</option>}
+                    {(outgoing_conditions ?? []).includes("on_fail") && <option value="fail">Fail</option>}
+                    {(outgoing_conditions ?? []).includes("on_rework") && <option value="rework">Rework</option>}
+                  </select>
+                </div>
+              )}
+              {dispositions.length > 0 && (
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">Disposition</label>
                   <select
@@ -869,7 +886,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                     onChange={(e) => setSelectedDisposition(e.target.value)}
                     className="input-field"
                   >
-                    {dispositions.length === 1 ? null : <option value="">— Select disposition —</option>}
+                    <option value="">— None —</option>
                     {dispositions.map((d) => (
                       <option key={d.id ?? d.to_step_id} value={d.name ?? d.label}>
                         {d.name ?? d.label}
@@ -878,20 +895,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                     ))}
                   </select>
                 </div>
-              ) : (outgoing_conditions ?? []).some((c) => c === "on_pass" || c === "on_fail" || c === "on_rework") ? (
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">Result</label>
-                  <select
-                    value={completeResult}
-                    onChange={(e) => setCompleteResult(e.target.value as "pass" | "fail" | "rework")}
-                    className="input-field"
-                  >
-                    <option value="pass">Pass</option>
-                    <option value="fail">Fail</option>
-                    <option value="rework">Rework</option>
-                  </select>
-                </div>
-              ) : null}
+              )}
               {!isUnit && (
                 <>
                   <div>
