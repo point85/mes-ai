@@ -384,7 +384,8 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
         quantity_consumed: parseFloat(qty),
       });
       setSuccessMsg(`Consumed ${qty} ${bomItem.uom} of ${bomItem.material_code}`);
-      setLotSelections((prev) => ({ ...prev, [bomItem.id]: "" }));
+      // Keep the selected lot so the operator can consume more from the
+      // same lot without re-selecting; only clear the quantity input.
       setQtyInputs((prev) => ({ ...prev, [bomItem.id]: "" }));
       await refetchConsumed();
       await queryClient.invalidateQueries({ queryKey: ["material-lots-available"] });
