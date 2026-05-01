@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon,
@@ -330,8 +330,11 @@ function CreateLotForm({ order, uom, onCreated }: { order: ProductionOrder; uom:
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   const handleCreate = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -349,6 +352,7 @@ function CreateLotForm({ order, uom, onCreated }: { order: ProductionOrder; uom:
       const m = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? "Failed to create lot";
       setError(m);
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
@@ -383,8 +387,11 @@ function CreateUnitForm({ order, onCreated }: { order: ProductionOrder; onCreate
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   const handleCreate = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -406,6 +413,7 @@ function CreateUnitForm({ order, onCreated }: { order: ProductionOrder; onCreate
       const m = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? "Failed to create unit";
       setError(m);
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
