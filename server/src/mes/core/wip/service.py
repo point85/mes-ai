@@ -36,7 +36,7 @@ from .exceptions import (
     NoRouteAssignedException,
     NoNextStepException,
 )
-from .models import Unit, Lot, SegmentResponseUnit, SegmentResponseLot
+from .models import Unit, Lot, SegmentResponseUnit, SegmentResponseLot, EquipmentActual, MaterialActual
 
 logger = logging.getLogger("mes.wip")
 
@@ -65,6 +65,74 @@ def _publish_after_commit(event) -> None:
     task = loop.create_task(event_bus.publish(event))
     _pending_publish_tasks.add(task)
     task.add_done_callback(_pending_publish_tasks.discard)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# RESOURCE ACTUALS HELPER (Item E — ISA-95 Part 4)
+# ═══════════════════════════════════════════════════════════════════
+
+async def _write_resource_actuals(
+    session: AsyncSession,
+    *,
+    segment_response_unit_id: "UUID | None" = None,
+    segment_response_lot_id: "UUID | None" = None,
+    equipment_id: "UUID | None",
+    started_at: "datetime",
+    ended_at: "datetime",
+    unit_id: "UUID | None" = None,
+    lot_id: "UUID | None" = None,
+    step_id: "UUID | None" = None,
+) -> None:
+    """
+    Write EquipmentActual and MaterialActual rows for a completed segment.
+
+    Called by complete_unit_step / complete_lot_step.  No-ops gracefully
+    if no equipment was assigned.  MaterialActuals mirror existing
+    MaterialConsumption rows for the same WIP/step, giving ISA-95 Part 4
+    traceability without double-counting inventory.
+    """
+    from sqlalchemy import select as _select
+    from mes.core.material.models import MaterialConsumption
+
+    # ── EquipmentActual ─────────────────────────────────────────────
+    if equipment_id is not None:
+        eq_actual = EquipmentActual(
+            segment_response_unit_id=segment_response_unit_id,
+            segment_response_lot_id=segment_response_lot_id,
+            equipment_id=equipment_id,
+            state=None,  # Snapshot could be added from EquipmentStateLog if needed
+            started_at=started_at,
+            ended_at=ended_at,
+            started_at_utc=started_at.replace(tzinfo=None),
+            ended_at_utc=ended_at.replace(tzinfo=None),
+        )
+        session.add(eq_actual)
+
+    # ── MaterialActual (mirrors MaterialConsumption for this WIP step) ─
+    where_clauses = []
+    if unit_id is not None:
+        where_clauses.append(MaterialConsumption.unit_id == unit_id)
+    elif lot_id is not None:
+        where_clauses.append(MaterialConsumption.lot_id == lot_id)
+    if step_id is not None:
+        where_clauses.append(MaterialConsumption.step_id == step_id)
+
+    if where_clauses:
+        consumptions_result = await session.execute(
+            _select(MaterialConsumption).where(*where_clauses)
+        )
+        for mc in consumptions_result.scalars().all():
+            mat_actual = MaterialActual(
+                segment_response_unit_id=segment_response_unit_id,
+                segment_response_lot_id=segment_response_lot_id,
+                material_id=mc.material_lot.material_id if mc.material_lot else None,
+                material_lot_id=mc.material_lot_id,
+                direction="consumed",
+                quantity=mc.quantity_consumed,
+                recorded_at=mc.consumed_at,
+                recorded_at_utc=mc.consumed_at.replace(tzinfo=None) if mc.consumed_at else None,
+            )
+            session.add(mat_actual)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -233,11 +301,13 @@ class UnitService:
         result: str = "pass",
         disposition: str | None = None,
         data_snapshot: dict | None = None,
+        failure_mode: str | None = None,
+        defect_code_id: UUID | None = None,
     ) -> Unit:
         """
         Complete the current step for a unit.
-        Updates the open history record with exit time and result.
-        If a disposition name is provided, it is stored in the history record.
+        Updates the open history record with exit time, result, and RCA fields.
+        Auto-creates a NonConformance when result='fail'.
         """
         unit = await UnitService.get_unit(session, unit_id)
         if unit.status != "in_process":
@@ -257,14 +327,48 @@ class UnitService:
         )
         history_result = await session.execute(stmt)
         history = history_result.scalar_one_or_none()
+        entered_at_snapshot = None
         if history is not None:
             now = datetime.now(timezone.utc)
+            entered_at_snapshot = history.entered_at
             history.exited_at = now
             history.exited_at_utc = now.replace(tzinfo=None)
             history.result = result
             history.data_snapshot = data_snapshot
+            # Item B: persist RCA fields on the history row
+            history.disposition = disposition
+            history.failure_mode = failure_mode
+            history.defect_code_id = defect_code_id
 
         await session.flush()
+
+        # Item E: write EquipmentActual and MaterialActual rows
+        if history is not None and entered_at_snapshot is not None:
+            await _write_resource_actuals(
+                session,
+                segment_response_unit_id=history.id,
+                equipment_id=unit.current_equipment_id,
+                started_at=entered_at_snapshot,
+                ended_at=history.exited_at,
+                unit_id=unit_id,
+                step_id=unit.current_step_id,
+            )
+            await session.flush()
+
+        # Item C: auto-create NonConformance when the step fails
+        if result == "fail":
+            from mes.core.quality.service import NonConformanceService
+            description = failure_mode or f"Step failed: {unit.current_step_id}"
+            await NonConformanceService.create_nc(
+                session,
+                unit_id=unit_id,
+                step_id=unit.current_step_id,
+                nc_type="defect",
+                description=description,
+                disposition=disposition,
+                status="open",
+            )
+            await session.flush()
 
         await event_bus.publish(
             unit_completed(str(unit.id), str(unit.current_step_id), result)
@@ -425,17 +529,63 @@ class UnitService:
 
     @staticmethod
     async def scrap_unit(
-        session: AsyncSession, unit_id: UUID, reason: str,
+        session: AsyncSession,
+        unit_id: UUID,
+        reason: str,
+        disposition: str | None = None,
+        defect_code_id: UUID | None = None,
+        failure_mode: str | None = None,
     ) -> Unit:
-        """Scrap a unit. Increments the order's scrapped count."""
+        """Scrap a unit. Persists scrap context and increments the order's scrapped count."""
         unit = await UnitService.get_unit(session, unit_id)
         if unit.status in ("completed", "scrapped"):
             raise InvalidWIPTransitionException(
                 unit.serial_number, unit.status, "scrap",
             )
         step_id = unit.current_step_id
+        now = datetime.now(timezone.utc)
         unit.status = "scrapped"
         unit.current_equipment_id = None
+        # Item A: persist scrap context on the unit row
+        unit.scrap_reason = reason
+        unit.scrap_disposition = disposition
+        unit.defect_code_id = defect_code_id
+        unit.scrapped_at = now
+        await session.flush()
+
+        # Item B: annotate the open history record for this step
+        if step_id is not None:
+            stmt = (
+                select(SegmentResponseUnit)
+                .where(
+                    SegmentResponseUnit.unit_id == unit_id,
+                    SegmentResponseUnit.step_id == step_id,
+                    SegmentResponseUnit.exited_at.is_(None),
+                )
+                .order_by(SegmentResponseUnit.entered_at.desc())
+            )
+            history_result = await session.execute(stmt)
+            history = history_result.scalar_one_or_none()
+            if history is not None:
+                history.exited_at = now
+                history.exited_at_utc = now.replace(tzinfo=None)
+                history.result = "fail"
+                history.disposition = disposition
+                history.failure_mode = failure_mode
+                history.defect_code_id = defect_code_id
+                history.scrap_reason = reason
+
+        # Item C: auto-create a NonConformance record
+        from mes.core.quality.service import NonConformanceService
+        await NonConformanceService.create_nc(
+            session,
+            unit_id=unit_id,
+            step_id=step_id,
+            nc_type="defect",
+            description=reason,
+            disposition="scrap",
+            status="open",
+        )
         await session.flush()
 
         # Increment order scrapped count
@@ -605,6 +755,9 @@ class LotService:
         quantity_out: int | None = None,
         quantity_scrapped: int = 0,
         disposition: str | None = None,
+        result: str = "pass",
+        failure_mode: str | None = None,
+        defect_code_id: UUID | None = None,
     ) -> Lot:
         lot = await LotService.get_lot(session, lot_id)
         if lot.status != "in_process":
@@ -627,12 +780,21 @@ class LotService:
         )
         history_result = await session.execute(stmt)
         history = history_result.scalar_one_or_none()
+        entered_at_snapshot = None
         if history is not None:
             now = datetime.now(timezone.utc)
+            entered_at_snapshot = history.entered_at
             history.exited_at = now
             history.exited_at_utc = now.replace(tzinfo=None)
             history.quantity_out = quantity_out
             history.quantity_scrapped = quantity_scrapped
+            # Item B: persist RCA fields on the history row
+            history.result = result if quantity_scrapped == 0 or result != "pass" else "pass"
+            history.disposition = disposition
+            history.failure_mode = failure_mode
+            history.defect_code_id = defect_code_id
+            if quantity_scrapped > 0 and not history.scrap_reason:
+                history.scrap_reason = failure_mode
 
         # Update lot quantity to reflect output (may shrink due to scrap)
         lot.quantity = quantity_out
@@ -644,6 +806,37 @@ class LotService:
             )
 
         await session.flush()
+
+        # Item E: write EquipmentActual and MaterialActual rows
+        if history is not None and entered_at_snapshot is not None:
+            await _write_resource_actuals(
+                session,
+                segment_response_lot_id=history.id,
+                equipment_id=lot.current_equipment_id,
+                started_at=entered_at_snapshot,
+                ended_at=history.exited_at,
+                lot_id=lot_id,
+                step_id=lot.current_step_id,
+            )
+            await session.flush()
+
+        # Item C: auto-create NonConformance when result is fail or there is scrap
+        if result == "fail" or quantity_scrapped > 0:
+            from mes.core.quality.service import NonConformanceService
+            description = failure_mode or (
+                f"{quantity_scrapped} unit(s) scrapped at step {lot.current_step_id}"
+                if quantity_scrapped > 0 else f"Step failed: {lot.current_step_id}"
+            )
+            await NonConformanceService.create_nc(
+                session,
+                lot_id=lot_id,
+                step_id=lot.current_step_id,
+                nc_type="defect",
+                description=description,
+                disposition=disposition or ("scrap" if quantity_scrapped > 0 else None),
+                status="open",
+            )
+            await session.flush()
 
         await event_bus.publish(
             lot_completed(
@@ -792,17 +985,63 @@ class LotService:
 
     @staticmethod
     async def scrap_lot(
-        session: AsyncSession, lot_id: UUID, reason: str,
+        session: AsyncSession,
+        lot_id: UUID,
+        reason: str,
+        disposition: str | None = None,
+        defect_code_id: UUID | None = None,
+        failure_mode: str | None = None,
     ) -> Lot:
-        """Scrap a lot. Increments the order's scrapped count by the lot quantity."""
+        """Scrap a lot. Persists scrap context and increments the order's scrapped count."""
         lot = await LotService.get_lot(session, lot_id)
         if lot.status in ("completed", "scrapped"):
             raise InvalidWIPTransitionException(
                 lot.lot_number, lot.status, "scrap",
             )
         step_id = lot.current_step_id
+        now = datetime.now(timezone.utc)
         lot.status = "scrapped"
         lot.current_equipment_id = None
+        # Item A: persist scrap context on the lot row
+        lot.scrap_reason = reason
+        lot.scrap_disposition = disposition
+        lot.defect_code_id = defect_code_id
+        lot.scrapped_at = now
+        await session.flush()
+
+        # Item B: annotate the open history record for this step
+        if step_id is not None:
+            stmt = (
+                select(SegmentResponseLot)
+                .where(
+                    SegmentResponseLot.lot_id == lot_id,
+                    SegmentResponseLot.step_id == step_id,
+                    SegmentResponseLot.exited_at.is_(None),
+                )
+                .order_by(SegmentResponseLot.entered_at.desc())
+            )
+            history_result = await session.execute(stmt)
+            history = history_result.scalar_one_or_none()
+            if history is not None:
+                history.exited_at = now
+                history.exited_at_utc = now.replace(tzinfo=None)
+                history.result = "fail"
+                history.disposition = disposition
+                history.failure_mode = failure_mode
+                history.defect_code_id = defect_code_id
+                history.scrap_reason = reason
+
+        # Item C: auto-create a NonConformance record
+        from mes.core.quality.service import NonConformanceService
+        await NonConformanceService.create_nc(
+            session,
+            lot_id=lot_id,
+            step_id=step_id,
+            nc_type="defect",
+            description=reason,
+            disposition="scrap",
+            status="open",
+        )
         await session.flush()
 
         await OperationsRequestService.increment_scrapped(

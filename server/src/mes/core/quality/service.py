@@ -30,7 +30,7 @@ from .exceptions import (
     DuplicateTestCodeException,
     InvalidNCTransitionException,
 )
-from .models import NonConformance, QualityTest, TestResult
+from .models import DefectCode, NonConformance, QualityTest, TestResult
 from .schemas import NC_TRANSITIONS
 
 logger = logging.getLogger("mes.quality")
@@ -299,6 +299,67 @@ class NonConformanceService:
         nc.is_active = False
         await session.flush()
         logger.info("Soft-deleted non-conformance %s", nc_id)
+
+
+class DefectCodeService:
+    """CRUD service for the DefectCode catalog."""
+
+    @staticmethod
+    async def list_defect_codes(
+        session: AsyncSession,
+        *,
+        category: str | None = None,
+        active_only: bool = True,
+    ) -> Sequence[DefectCode]:
+        stmt = select(DefectCode).order_by(DefectCode.code)
+        if active_only:
+            stmt = stmt.where(DefectCode.is_active.is_(True))
+        if category:
+            stmt = stmt.where(DefectCode.category == category)
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_defect_code(session: AsyncSession, defect_code_id: UUID) -> DefectCode:
+        dc = await session.get(DefectCode, defect_code_id)
+        if dc is None:
+            raise NotFoundException("DefectCode", str(defect_code_id))
+        return dc
+
+    @staticmethod
+    async def create_defect_code(
+        session: AsyncSession,
+        *,
+        code: str,
+        name: str,
+        description: str | None = None,
+        category: str | None = None,
+    ) -> DefectCode:
+        dc = DefectCode(code=code, name=name, description=description, category=category)
+        session.add(dc)
+        await session.flush()
+        logger.info("Created defect code %s (%s)", dc.code, dc.id)
+        return dc
+
+    @staticmethod
+    async def update_defect_code(
+        session: AsyncSession,
+        defect_code_id: UUID,
+        **kwargs: Any,
+    ) -> DefectCode:
+        dc = await DefectCodeService.get_defect_code(session, defect_code_id)
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(dc, key, value)
+        await session.flush()
+        return dc
+
+    @staticmethod
+    async def delete_defect_code(session: AsyncSession, defect_code_id: UUID) -> None:
+        dc = await DefectCodeService.get_defect_code(session, defect_code_id)
+        dc.is_active = False
+        await session.flush()
+        logger.info("Soft-deleted defect code %s", defect_code_id)
 
 
 class QualityTestExecutionService:

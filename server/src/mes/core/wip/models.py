@@ -64,6 +64,27 @@ class Unit(BaseModel):
         String(20), nullable=False, default="queued",
         comment="Unit status: queued, in_process, completed, scrapped, on_hold",
     )
+    scrap_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Free-text reason provided when unit was scrapped",
+    )
+    scrap_disposition: Mapped[str | None] = mapped_column(
+        String(50), nullable=True,
+        comment="Disposition applied at scrap (e.g. rework, destroy, return)",
+    )
+    defect_code_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("defect_codes.id"),
+        nullable=True, index=True,
+        comment="Structured defect code from catalog — enables Pareto analysis",
+    )
+    scrapped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp when the unit was scrapped",
+    )
+    hold_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Reason the unit was placed on hold",
+    )
 
     # ── Relationships ───────────────────────────────────────────────
     order: Mapped["OperationsRequest"] = relationship(  # noqa: F821
@@ -132,6 +153,27 @@ class Lot(BaseModel):
         String(20), nullable=False, default="queued",
         comment="Lot status: queued, in_process, completed, scrapped, on_hold",
     )
+    scrap_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Free-text reason provided when lot was scrapped",
+    )
+    scrap_disposition: Mapped[str | None] = mapped_column(
+        String(50), nullable=True,
+        comment="Disposition applied at scrap (e.g. rework, destroy, return)",
+    )
+    defect_code_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("defect_codes.id"),
+        nullable=True, index=True,
+        comment="Structured defect code from catalog — enables Pareto analysis",
+    )
+    scrapped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp when the lot was scrapped",
+    )
+    hold_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Reason the lot was placed on hold",
+    )
 
     # ── Relationships ───────────────────────────────────────────────
     order: Mapped["OperationsRequest"] = relationship(  # noqa: F821
@@ -198,6 +240,23 @@ class SegmentResponseUnit(BaseModel):
     data_snapshot: Mapped[dict | None] = mapped_column(
         JSON, nullable=True,
         comment="Freeform JSON snapshot of data collected at this step",
+    )
+    disposition: Mapped[str | None] = mapped_column(
+        String(100), nullable=True,
+        comment="Operator-selected disposition label at step completion",
+    )
+    failure_mode: Mapped[str | None] = mapped_column(
+        String(200), nullable=True,
+        comment="Free-text failure mode description when result=fail",
+    )
+    defect_code_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("defect_codes.id"),
+        nullable=True, index=True,
+        comment="Structured defect code — enables Pareto across steps",
+    )
+    scrap_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Scrap reason if the unit was scrapped at this step",
     )
 
     # ── UTC Timestamps ──────────────────────────────────────────────
@@ -270,6 +329,27 @@ class SegmentResponseLot(BaseModel):
     )
     operator_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, nullable=True,
+    )
+    result: Mapped[str | None] = mapped_column(
+        String(20), nullable=True,
+        comment="Step result: pass, fail, rework (null if still in-process)",
+    )
+    disposition: Mapped[str | None] = mapped_column(
+        String(100), nullable=True,
+        comment="Operator-selected disposition label at step completion",
+    )
+    failure_mode: Mapped[str | None] = mapped_column(
+        String(200), nullable=True,
+        comment="Free-text failure mode description when result=fail",
+    )
+    defect_code_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("defect_codes.id"),
+        nullable=True, index=True,
+        comment="Structured defect code — enables Pareto across steps",
+    )
+    scrap_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Scrap reason if the lot was scrapped at this step",
     )
 
     # ── Relationships ───────────────────────────────────────────────

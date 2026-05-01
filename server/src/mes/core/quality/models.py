@@ -2,6 +2,7 @@
 QUAL-MGMT: SQLAlchemy models for quality management.
 
 Entities:
+- DefectCode:    A catalog of defect/failure-mode codes for Pareto analysis
 - QualityTest:   A test definition linked to a route step
 - TestResult:    A recorded result of a quality test on a unit or lot
 - NonConformance: A defect or out-of-spec condition requiring disposition
@@ -16,6 +17,36 @@ from sqlalchemy import DateTime, ForeignKey, JSON, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
+
+
+class DefectCode(BaseModel):
+    """
+    ISA-95 defect/failure-mode catalog entry.
+
+    Provides a controlled vocabulary for scrap and fail events, enabling
+    Pareto analysis across orders, steps, and equipment.
+
+    category examples: dimensional, electrical, cosmetic, assembly, process
+    """
+
+    __tablename__ = "defect_codes"
+
+    code: Mapped[str] = mapped_column(
+        String(50), unique=True, nullable=False, index=True,
+        comment="Short mnemonic used in APIs and reports (e.g. WIRE_BOND_OPEN)",
+    )
+    name: Mapped[str] = mapped_column(
+        String(255), nullable=False,
+        comment="Human-readable defect name",
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True,
+        comment="Grouping for Pareto charts (e.g. dimensional, electrical)",
+    )
+
+    def __repr__(self) -> str:
+        return f"<DefectCode id={self.id} code={self.code}>"
 
 
 class QualityTest(BaseModel):

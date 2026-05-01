@@ -29,6 +29,9 @@ from mes.framework.auth.models import User
 from mes.framework.db import get_db_session
 
 from .schemas import (
+    DefectCodeCreate,
+    DefectCodeRead,
+    DefectCodeUpdate,
     NonConformanceCreate,
     NonConformanceRead,
     NonConformanceUpdate,
@@ -40,6 +43,7 @@ from .schemas import (
     ExecuteQualityTestRequest,
 )
 from .service import (
+    DefectCodeService,
     NonConformanceService,
     QualityTestExecutionService,
     QualityTestService,
@@ -260,4 +264,75 @@ async def delete_non_conformance(
 ):
     """Soft-delete a non-conformance record."""
     await NonConformanceService.delete_nc(session, nc_id)
+    await session.commit()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# DefectCode endpoints
+# ═══════════════════════════════════════════════════════════════════
+
+
+@router.get("/defect-codes")
+async def list_defect_codes(
+    category: str | None = Query(None, description="Filter by category"),
+    active_only: bool = Query(True, description="Only return active defect codes"),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("quality.read")),
+):
+    """List all defect codes."""
+    codes = await DefectCodeService.list_defect_codes(session, category=category, active_only=active_only)
+    return list_response([DefectCodeRead.model_validate(c).model_dump() for c in codes])
+
+
+@router.post("/defect-codes", status_code=201)
+async def create_defect_code(
+    body: DefectCodeCreate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("quality.create")),
+):
+    """Create a new defect code."""
+    dc = await DefectCodeService.create_defect_code(
+        session,
+        code=body.code,
+        name=body.name,
+        description=body.description,
+        category=body.category,
+    )
+    await session.commit()
+    return success_response(DefectCodeRead.model_validate(dc).model_dump())
+
+
+@router.get("/defect-codes/{defect_code_id}")
+async def get_defect_code(
+    defect_code_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("quality.read")),
+):
+    """Get a defect code by ID."""
+    dc = await DefectCodeService.get_defect_code(session, defect_code_id)
+    return success_response(DefectCodeRead.model_validate(dc).model_dump())
+
+
+@router.put("/defect-codes/{defect_code_id}")
+async def update_defect_code(
+    defect_code_id: UUID,
+    body: DefectCodeUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("quality.update")),
+):
+    """Update a defect code."""
+    updates = body.model_dump(exclude_none=True)
+    dc = await DefectCodeService.update_defect_code(session, defect_code_id, **updates)
+    await session.commit()
+    return success_response(DefectCodeRead.model_validate(dc).model_dump())
+
+
+@router.delete("/defect-codes/{defect_code_id}", status_code=204)
+async def delete_defect_code(
+    defect_code_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("quality.delete")),
+):
+    """Soft-delete a defect code."""
+    await DefectCodeService.delete_defect_code(session, defect_code_id)
     await session.commit()

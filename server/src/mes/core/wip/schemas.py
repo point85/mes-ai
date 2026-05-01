@@ -44,6 +44,12 @@ class UnitRead(BaseModel):
     current_equipment_id: UUID | None = None
     status: str
     is_active: bool
+    # RCA fields
+    scrap_reason: str | None = None
+    scrap_disposition: str | None = None
+    defect_code_id: UUID | None = None
+    scrapped_at: datetime | None = None
+    hold_reason: str | None = None
     created_at: datetime
     created_at_utc: datetime | None = None
     updated_at: datetime
@@ -85,6 +91,12 @@ class LotRead(BaseModel):
     current_equipment_id: UUID | None = None
     status: str
     is_active: bool
+    # RCA fields
+    scrap_reason: str | None = None
+    scrap_disposition: str | None = None
+    defect_code_id: UUID | None = None
+    scrapped_at: datetime | None = None
+    hold_reason: str | None = None
     created_at: datetime
     created_at_utc: datetime | None = None
     updated_at: datetime
@@ -112,6 +124,11 @@ class UnitHistoryRead(BaseModel):
     result: str | None = None
     operator_id: UUID | None = None
     data_snapshot: dict | None = None
+    # RCA fields
+    disposition: str | None = None
+    failure_mode: str | None = None
+    defect_code_id: UUID | None = None
+    scrap_reason: str | None = None
     created_at: datetime
     created_at_utc: datetime | None = None
 
@@ -133,6 +150,12 @@ class LotHistoryRead(BaseModel):
     quantity_out: int
     quantity_scrapped: int
     operator_id: UUID | None = None
+    # RCA fields
+    result: str | None = None
+    disposition: str | None = None
+    failure_mode: str | None = None
+    defect_code_id: UUID | None = None
+    scrap_reason: str | None = None
     created_at: datetime
     created_at_utc: datetime | None = None
 
@@ -164,6 +187,9 @@ class CompleteRequest(BaseModel):
     data_snapshot: dict | None = Field(None, description="Optional data collected at step")
     quantity_out: int | None = Field(None, gt=0, description="For lots: quantity completing step")
     quantity_scrapped: int | None = Field(None, ge=0, description="For lots: quantity scrapped at step")
+    # RCA fields
+    failure_mode: str | None = Field(None, max_length=200, description="Short description of failure mode (for fail results)")
+    defect_code_id: UUID | None = Field(None, description="Reference to defect code catalog entry")
 
 
 class MoveRequest(BaseModel):
@@ -195,6 +221,9 @@ class HoldRequest(BaseModel):
 
 
 class ScrapRequest(BaseModel):
-    """Request to scrap a unit."""
+    """Request to scrap a unit or lot."""
 
     reason: str = Field(..., min_length=1, max_length=500)
+    disposition: str | None = Field(None, max_length=100, description="Scrap disposition (e.g. 'rework', 'discard', 'return-to-supplier')")
+    defect_code_id: UUID | None = Field(None, description="Reference to defect code catalog entry")
+    failure_mode: str | None = Field(None, max_length=200, description="Short description of the failure mode")

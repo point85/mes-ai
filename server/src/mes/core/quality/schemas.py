@@ -226,3 +226,41 @@ class NonConformanceUpdate(BaseModel):
         if v is not None and v not in DISPOSITIONS:
             raise ValueError(f"disposition must be one of {DISPOSITIONS}")
         return v
+
+
+# ═══════════════════════════════════════════════════════════════════
+# DefectCode
+# ═══════════════════════════════════════════════════════════════════
+
+
+class DefectCodeCreate(BaseModel):
+    """Schema for creating a defect code."""
+
+    code: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    category: str | None = Field(None, max_length=100)
+
+
+class DefectCodeRead(BaseModel):
+    """Schema for returning a defect code."""
+
+    id: UUID
+    code: str
+    name: str
+    description: str | None = None
+    category: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DefectCodeUpdate(BaseModel):
+    """Schema for updating a defect code."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = None
+    category: str | None = Field(None, max_length=100)
+    is_active: bool | None = None
