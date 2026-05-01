@@ -130,46 +130,56 @@ class TestCPGDataRoute:
 
 
 class TestCPGDataTransitions:
-    """Verify step transitions reference valid sequences."""
+    """Verify per-step input/output disposition lists form a valid graph."""
 
-    def test_transition_count(self):
-        from mes.core.demo.cpg_data import TRANSITIONS
-        assert len(TRANSITIONS) == 9
+    def test_dispositions_have_unique_codes(self):
+        from mes.core.demo.cpg_data import DISPOSITIONS
+        codes = [d["code"] for d in DISPOSITIONS]
+        assert len(codes) == len(set(codes))
 
-    def test_transitions_reference_valid_sequences(self):
-        from mes.core.demo.cpg_data import TRANSITIONS, STEPS
-        valid_seqs = {s["sequence"] for s in STEPS}
-        for t in TRANSITIONS:
-            assert t["from_seq"] in valid_seqs, f"from_seq {t['from_seq']} invalid"
-            assert t["to_seq"] in valid_seqs, f"to_seq {t['to_seq']} invalid"
+    def test_step_disposition_codes_reference_catalog(self):
+        from mes.core.demo.cpg_data import STEPS, DISPOSITIONS
+        catalog = {d["code"] for d in DISPOSITIONS}
+        for s in STEPS:
+            for c in s.get("input_disposition_codes", []):
+                assert c in catalog, f"Step {s['sequence']} input '{c}' not in catalog"
+            for c in s.get("output_disposition_codes", []):
+                assert c in catalog, f"Step {s['sequence']} output '{c}' not in catalog"
 
-    def test_transition_conditions_valid(self):
-        from mes.core.demo.cpg_data import TRANSITIONS
-        valid = {"always", "on_pass", "on_fail", "on_rework", "disposition"}
-        for t in TRANSITIONS:
-            assert t["condition"] in valid, f"Invalid condition {t['condition']}"
+    def test_exactly_one_initial_step(self):
+        from mes.core.demo.cpg_data import STEPS
+        initials = [s for s in STEPS if s.get("is_initial_step")]
+        assert len(initials) == 1
 
-    def test_qc_step_has_pass_fail_disposition(self):
-        """Step 30 (QC) should have on_pass, on_fail, and disposition transitions."""
-        from mes.core.demo.cpg_data import TRANSITIONS
-        qc_trans = [t for t in TRANSITIONS if t["from_seq"] == 30]
-        conditions = {t["condition"] for t in qc_trans}
-        assert "on_pass" in conditions
-        assert "on_fail" in conditions
-        assert "disposition" in conditions
+    def test_at_least_one_terminal_step(self):
+        from mes.core.demo.cpg_data import STEPS
+        terminals = [s for s in STEPS if not s.get("output_disposition_codes")]
+        assert len(terminals) >= 1
 
-    def test_rework_loops_back(self):
-        """Step 60 (Re-Blend) should transition back to step 20 (Pasteurization)."""
-        from mes.core.demo.cpg_data import TRANSITIONS
-        rw_trans = [t for t in TRANSITIONS if t["from_seq"] == 60]
-        assert len(rw_trans) >= 1
-        assert rw_trans[0]["to_seq"] == 20
+    def test_qc_step_has_pass_and_fail_outputs(self):
+        """Step 30 (QC) should expose pass/fail/escalate disposition outputs."""
+        from mes.core.demo.cpg_data import STEPS
+        qc = next(s for s in STEPS if s["sequence"] == 30)
+        outs = set(qc.get("output_disposition_codes", []))
+        assert "QC-PASS" in outs
+        assert "QC-FAIL" in outs
+
+    def test_rework_loops_back_via_disposition(self):
+        """Re-Blend (60) must emit a disposition that some upstream step accepts."""
+        from mes.core.demo.cpg_data import STEPS
+        rb = next(s for s in STEPS if s["sequence"] == 60)
+        outs = set(rb.get("output_disposition_codes", []))
+        # Build set of all input codes across all steps
+        all_inputs = set()
+        for s in STEPS:
+            all_inputs.update(s.get("input_disposition_codes", []))
+        assert outs & all_inputs, "Re-Blend output dispositions don't feed any step"
 
     def test_mrb_has_multiple_dispositions(self):
-        """Step 70 (MRB) should have at least 2 disposition exits."""
-        from mes.core.demo.cpg_data import TRANSITIONS
-        mrb_trans = [t for t in TRANSITIONS if t["from_seq"] == 70]
-        assert len(mrb_trans) >= 2
+        """MRB step (70) should offer 2+ output dispositions."""
+        from mes.core.demo.cpg_data import STEPS
+        mrb = next(s for s in STEPS if s["sequence"] == 70)
+        assert len(mrb.get("output_disposition_codes", [])) >= 2
 
 
 class TestCPGDataStepParams:
@@ -413,21 +423,27 @@ class TestCPGDataIntegrity:
             )
 
     def test_route_graph_reachability(self):
-        """Every step should be reachable from step 10 (Blend) via transitions."""
-        from mes.core.demo.cpg_data import TRANSITIONS, STEPS
+        """Every step should be reachable from the initial step via disposition edges."""
+        from mes.core.demo.cpg_data import STEPS
         seqs = {s["sequence"] for s in STEPS}
-        # BFS from step 10
-        reachable = set()
-        queue = [10]
+        # Build edges: out_disp_code -> step that lists it as input
+        input_owner: dict[str, int] = {}
+        for s in STEPS:
+            for c in s.get("input_disposition_codes", []):
+                input_owner[c] = s["sequence"]
+        initial = next(s for s in STEPS if s.get("is_initial_step"))
+        reachable: set[int] = set()
+        queue = [initial["sequence"]]
+        by_seq = {s["sequence"]: s for s in STEPS}
         while queue:
             current = queue.pop(0)
             if current in reachable:
                 continue
             reachable.add(current)
-            for t in TRANSITIONS:
-                if t["from_seq"] == current and t["to_seq"] not in reachable:
-                    queue.append(t["to_seq"])
-        # Step 50 (pack) is a terminal — check all non-terminal are reachable
+            for c in by_seq[current].get("output_disposition_codes", []):
+                nxt = input_owner.get(c)
+                if nxt is not None and nxt not in reachable:
+                    queue.append(nxt)
         assert seqs == reachable, f"Unreachable steps: {seqs - reachable}"
 
     def test_equipment_materials_reference_valid_equipment(self):

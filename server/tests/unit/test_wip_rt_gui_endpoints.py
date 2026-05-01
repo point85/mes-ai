@@ -199,6 +199,11 @@ class TestBuildStepContext:
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             erp_operation_number=None,
+            equipment_class_id=None,
+            expected_cycle_time_sec=None,
+            is_initial_step=False,
+            input_dispositions=[],
+            output_dispositions=[],
         )
 
         # Track which selects are called
@@ -221,8 +226,8 @@ class TestBuildStepContext:
                 # quality tests
                 mock_result.scalars.return_value.all.return_value = []
             elif idx == 4:
-                # outgoing transition conditions (distinct)
-                mock_result.all.return_value = []
+                # eager-load route steps with disposition lists
+                mock_result.scalars.return_value.all.return_value = [step_obj]
             return mock_result
 
         session = AsyncMock()
@@ -244,7 +249,7 @@ class TestBuildStepContext:
         assert len(ctx["route_steps"]) == 1
         assert ctx["route_steps"][0]["name"] == "Assembly"
         # Verify all 5 session.execute calls happened
-        # (step, params, defs, tests, outgoing-conditions)
+        # (step, params, defs, tests, route_steps eager-load)
         assert len(execute_results) == 5
     @pytest.mark.asyncio
     async def test_process_segments_empty_on_exception(self):
@@ -286,6 +291,11 @@ class TestBuildStepContext:
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             erp_operation_number=None,
+            equipment_class_id=None,
+            expected_cycle_time_sec=None,
+            is_initial_step=False,
+            input_dispositions=[],
+            output_dispositions=[],
         )
 
         disposition_data = [

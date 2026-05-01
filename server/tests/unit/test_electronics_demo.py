@@ -133,45 +133,51 @@ class TestElecDataRoute:
 
 
 class TestElecDataTransitions:
-    """Verify step transitions form valid graph."""
+    """Verify per-step input/output disposition lists form a valid graph."""
 
-    def test_transition_count(self):
-        from mes.core.demo.electronics_data import TRANSITIONS
-        assert len(TRANSITIONS) == 12
+    def test_dispositions_have_unique_codes(self):
+        from mes.core.demo.electronics_data import DISPOSITIONS
+        codes = [d["code"] for d in DISPOSITIONS]
+        assert len(codes) == len(set(codes))
 
     def test_all_transitions_reference_valid_steps(self):
-        from mes.core.demo.electronics_data import TRANSITIONS, STEPS
-        valid_seqs = {s["sequence"] for s in STEPS}
-        for t in TRANSITIONS:
-            assert t["from_seq"] in valid_seqs, f"from_seq {t['from_seq']} not in steps"
-            assert t["to_seq"] in valid_seqs, f"to_seq {t['to_seq']} not in steps"
+        from mes.core.demo.electronics_data import STEPS, DISPOSITIONS
+        catalog = {d["code"] for d in DISPOSITIONS}
+        for s in STEPS:
+            for c in s.get("input_disposition_codes", []):
+                assert c in catalog
+            for c in s.get("output_disposition_codes", []):
+                assert c in catalog
 
     def test_conditions_valid(self):
-        from mes.core.demo.electronics_data import TRANSITIONS
-        valid = {"always", "on_pass", "on_fail", "on_rework", "disposition"}
-        for t in TRANSITIONS:
-            assert t["condition"] in valid, f"Invalid condition: {t['condition']}"
+        """Catalog dispositions belong to a known category."""
+        from mes.core.demo.electronics_data import DISPOSITIONS
+        valid_categories = {"route", "hold", "scrap"}
+        for d in DISPOSITIONS:
+            assert d.get("category") in valid_categories
 
     def test_rework_loop_exists(self):
-        """Rework (70) → AOI (40) creates rework loop."""
-        from mes.core.demo.electronics_data import TRANSITIONS
-        rework_back = [t for t in TRANSITIONS if t["from_seq"] == 70 and t["to_seq"] == 40]
-        assert len(rework_back) == 1
+        """Rework (70) emits E-REWORK-DONE which AOI (40) accepts as input."""
+        from mes.core.demo.electronics_data import STEPS
+        rework = next(s for s in STEPS if s["sequence"] == 70)
+        aoi = next(s for s in STEPS if s["sequence"] == 40)
+        assert "E-REWORK-DONE" in rework.get("output_disposition_codes", [])
+        assert "E-REWORK-DONE" in aoi.get("input_disposition_codes", [])
 
     def test_mrb_disposition_exists(self):
-        """MRB (80) has disposition transitions."""
-        from mes.core.demo.electronics_data import TRANSITIONS
-        mrb_disp = [t for t in TRANSITIONS if t["from_seq"] == 80 and t["condition"] == "disposition"]
-        assert len(mrb_disp) >= 1
+        """MRB (80) emits at least one output disposition."""
+        from mes.core.demo.electronics_data import STEPS
+        mrb = next(s for s in STEPS if s["sequence"] == 80)
+        assert len(mrb.get("output_disposition_codes", [])) >= 1
 
     def test_aoi_branches_to_pass_fail_rework(self):
-        """AOI (40) has on_pass, on_fail, and on_rework transitions."""
-        from mes.core.demo.electronics_data import TRANSITIONS
-        aoi_out = [t for t in TRANSITIONS if t["from_seq"] == 40]
-        conditions = {t["condition"] for t in aoi_out}
-        assert "on_pass" in conditions
-        assert "on_fail" in conditions
-        assert "on_rework" in conditions
+        """AOI (40) outputs at least 3 disposition choices."""
+        from mes.core.demo.electronics_data import STEPS
+        aoi = next(s for s in STEPS if s["sequence"] == 40)
+        outs = set(aoi.get("output_disposition_codes", []))
+        assert "E-AOI-PASS" in outs
+        assert "E-AOI-FAIL" in outs
+        assert len(outs) >= 3
 
 
 class TestElecDataStepParams:

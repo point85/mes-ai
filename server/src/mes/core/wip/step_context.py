@@ -18,15 +18,17 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mes.core.data_collection.models import DataDefinition
 from mes.core.data_collection.schemas import DataDefinitionRead
 from mes.core.product_def.models import (
     ProcessSegment,
-    ProcessSegmentDependency,
+    ProcessSegmentInputDisposition,
+    ProcessSegmentOutputDisposition,
     SegmentParameter,
 )
-from mes.core.product_def.schemas import RouteStepRead, StepParameterRead
+from mes.core.product_def.schemas import DispositionRead, StepParameterRead
 from mes.core.quality.models import QualityTest
 from mes.core.quality.schemas import QualityTestRead
 from mes.core.routing.service import RoutingEngineService
@@ -64,16 +66,24 @@ async def build_step_context(
     data_defs = []
     quality_tests = []
     dispositions = []
-    outgoing_conditions: list[str] = []
 
     if current_step_id is not None:
-        # Step details
+        # Step details (with input/output disposition lists eagerly loaded)
         step_result = await session.execute(
-            select(ProcessSegment).where(ProcessSegment.id == current_step_id)
+            select(ProcessSegment)
+            .where(ProcessSegment.id == current_step_id)
+            .options(
+                selectinload(ProcessSegment.input_dispositions).selectinload(
+                    ProcessSegmentInputDisposition.disposition,
+                ),
+                selectinload(ProcessSegment.output_dispositions).selectinload(
+                    ProcessSegmentOutputDisposition.disposition,
+                ),
+            )
         )
         step = step_result.scalar_one_or_none()
         if step is not None:
-            step_data = RouteStepRead.model_validate(step).model_dump()
+            step_data = _step_to_dict(step)
 
         # Step parameters (spec limits)
         param_result = await session.execute(
@@ -111,32 +121,36 @@ async def build_step_context(
             for t in qt_result.scalars().all()
         ]
 
-        # Dispositions (MRB step transitions)
+        # Dispositions (output disposition choices for this step)
         dispositions = await RoutingEngineService.get_available_dispositions(
             session, current_step_id,
         )
-
-        # Distinct conditions of active outgoing transitions from this step.
-        # Used by the RT-CLIENT to decide whether to render the
-        # Pass/Fail/Rework Result selector (only relevant when at least one
-        # outgoing edge actually depends on the result).
-        cond_result = await session.execute(
-            select(ProcessSegmentDependency.condition)
-            .where(
-                ProcessSegmentDependency.from_step_id == current_step_id,
-                ProcessSegmentDependency.is_active.is_(True),
-            )
-            .distinct()
-        )
-        outgoing_conditions = sorted({c for (c,) in cond_result.all()})
 
     # 3. Load all route steps for progress tracker
     process_segments = []
     try:
         all_steps = await RoutingEngineService.get_process_segments(session, order_id)
-        process_segments = [
-            RouteStepRead.model_validate(s).model_dump() for s in all_steps
-        ]
+        # Eager-load disposition lists for each step in one round-trip.
+        if all_steps:
+            ids = [s.id for s in all_steps]
+            full_rows = (await session.execute(
+                select(ProcessSegment)
+                .where(ProcessSegment.id.in_(ids))
+                .options(
+                    selectinload(ProcessSegment.input_dispositions).selectinload(
+                        ProcessSegmentInputDisposition.disposition,
+                    ),
+                    selectinload(ProcessSegment.output_dispositions).selectinload(
+                        ProcessSegmentOutputDisposition.disposition,
+                    ),
+                )
+            )).scalars().all()
+            full_by_id = {s.id: s for s in full_rows}
+            ordered = sorted(
+                (full_by_id[s.id] for s in all_steps if s.id in full_by_id),
+                key=lambda s: s.sequence,
+            )
+            process_segments = [_step_to_dict(s) for s in ordered]
     except Exception:
         pass  # No route → empty
 
@@ -149,5 +163,33 @@ async def build_step_context(
         "quality_tests": quality_tests,
         "dispositions": dispositions,
         "route_steps": process_segments,
-        "outgoing_conditions": outgoing_conditions,
+    }
+
+
+def _step_to_dict(step: ProcessSegment) -> dict:
+    """Build a RouteStepRead-shaped dict from a ProcessSegment with its
+    input/output disposition junction rows eagerly loaded."""
+    return {
+        "id": step.id,
+        "route_id": step.route_id,
+        "sequence": step.sequence,
+        "name": step.name,
+        "step_type": step.step_type,
+        "equipment_class_id": step.equipment_class_id,
+        "expected_cycle_time_sec": step.expected_cycle_time_sec,
+        "erp_operation_number": step.erp_operation_number,
+        "is_initial_step": step.is_initial_step,
+        "input_dispositions": [
+            DispositionRead.model_validate(r.disposition).model_dump()
+            for r in step.input_dispositions
+            if r.is_active
+        ],
+        "output_dispositions": [
+            DispositionRead.model_validate(r.disposition).model_dump()
+            for r in step.output_dispositions
+            if r.is_active
+        ],
+        "is_active": step.is_active,
+        "created_at": step.created_at,
+        "updated_at": step.updated_at,
     }

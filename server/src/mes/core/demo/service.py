@@ -28,7 +28,6 @@ from mes.core.material.service import MaterialLotService, MaterialService
 from mes.core.product_def.models import (
     BillOfMaterial, BOMItem, OperationsDefinition,
     OperationsDefinitionProductAssignment, ProcessSegment,
-    ProcessSegmentDependency,
 )
 from mes.core.product_def.models import Disposition
 from mes.core.product_def.service import ProductDefService
@@ -108,7 +107,9 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     Returns a summary dict with counts and created IDs.
     """
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
-                                "process_segments": 0, "transitions": 0,
+                                "process_segments": 0,
+                                "input_disposition_links": 0,
+                                "output_disposition_links": 0,
                                 "segment_parameters": 0, "data_definitions": 0,
                                 "quality_tests": 0, "material_lots": 0,
                                 "dispositions": 0,
@@ -167,16 +168,26 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
             "step_type": s["step_type"],
             "expected_cycle_time_sec": s.get("expected_cycle_time_sec"),
             "erp_operation_number": s.get("erp_operation_number"),
+            "is_initial_step": bool(s.get("is_initial_step", False)),
         }
-        disp_code = s.get("disposition_code")
-        if disp_code and disp_code in disp_by_code:
-            step_kwargs["disposition_id"] = disp_by_code[disp_code].id
         step, created = await _get_or_create_step(
             session, route.id, sequence=s["sequence"], **step_kwargs,
         )
         step_by_seq[s["sequence"]] = step
         if created:
             summary["process_segments"] += 1
+        in_codes = s.get("input_disposition_codes", [])
+        out_codes = s.get("output_disposition_codes", [])
+        in_ids = [disp_by_code[c].id for c in in_codes if c in disp_by_code]
+        out_ids = [disp_by_code[c].id for c in out_codes if c in disp_by_code]
+        await ProductDefService.set_step_input_dispositions(
+            session, step.id, in_ids,
+        )
+        summary["input_disposition_links"] += len(in_ids)
+        await ProductDefService.set_step_output_dispositions(
+            session, step.id, out_ids,
+        )
+        summary["output_disposition_links"] += len(out_ids)
 
     # ── 5. BOM (with process_segment_id links) ─────────────────────────────
     bom, bom_created = await _get_or_create_bom(session, product.id, version="1.0")
@@ -200,23 +211,8 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
             if bi and step_seq and step_seq in step_by_seq and bi.process_segment_id is None:
                 bi.process_segment_id = step_by_seq[step_seq].id
 
-    # ── 6. Transitions ────────────────────────────────────────────────
-    # Additive: insert any transition rows defined in TRANSITIONS that
-    # are not already present. Lets re-runs of the seeder pick up new
-    # edges (e.g. on_pass/on_fail/disposition added to an existing route).
-    for t in D.TRANSITIONS:
-        from_step = step_by_seq[t["from_seq"]]
-        to_step   = step_by_seq[t["to_seq"]]
-        if await _get_or_create_step_transition(
-            session,
-            from_step_id=from_step.id,
-            to_step_id=to_step.id,
-            condition=t["condition"],
-            label=t["label"],
-            priority=t["priority"],
-            is_default=t["is_default"],
-        ):
-            summary["transitions"] += 1
+    # ── 6. Transitions: derived from input/output disposition lists ──
+    # set when the steps were created above; nothing more to do here.
 
     # ── 7. Step Parameters ────────────────────────────────────────────
     if route_created:
@@ -483,7 +479,9 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     Returns a summary dict with counts and created IDs.
     """
     summary: dict[str, Any] = {"materials": 0, "product": None, "bom_items": 0,
-                                "process_segments": 0, "transitions": 0,
+                                "process_segments": 0,
+                                "input_disposition_links": 0,
+                                "output_disposition_links": 0,
                                 "segment_parameters": 0, "data_definitions": 0,
                                 "quality_tests": 0, "dispositions": 0,
                                 "material_lots": 0,
@@ -543,16 +541,26 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             "step_type": s["step_type"],
             "expected_cycle_time_sec": s.get("expected_cycle_time_sec"),
             "erp_operation_number": s.get("erp_operation_number"),
+            "is_initial_step": bool(s.get("is_initial_step", False)),
         }
-        disp_code = s.get("disposition_code")
-        if disp_code and disp_code in disp_by_code:
-            step_kwargs["disposition_id"] = disp_by_code[disp_code].id
         step, created = await _get_or_create_step(
             session, route.id, sequence=s["sequence"], **step_kwargs,
         )
         step_by_seq[s["sequence"]] = step
         if created:
             summary["process_segments"] += 1
+        in_codes = s.get("input_disposition_codes", [])
+        out_codes = s.get("output_disposition_codes", [])
+        in_ids = [disp_by_code[c].id for c in in_codes if c in disp_by_code]
+        out_ids = [disp_by_code[c].id for c in out_codes if c in disp_by_code]
+        await ProductDefService.set_step_input_dispositions(
+            session, step.id, in_ids,
+        )
+        summary["input_disposition_links"] += len(in_ids)
+        await ProductDefService.set_step_output_dispositions(
+            session, step.id, out_ids,
+        )
+        summary["output_disposition_links"] += len(out_ids)
 
     # ── 5. BOM (with process_segment_id links) ─────────────────────────────
     bom, bom_created = await _get_or_create_bom(session, product.id, version="1.0")
@@ -576,22 +584,8 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             if bi and step_seq and step_seq in step_by_seq and bi.process_segment_id is None:
                 bi.process_segment_id = step_by_seq[step_seq].id
 
-    # ── 6. Transitions ────────────────────────────────────────────────
-    # Additive: insert any transition rows defined in TRANSITIONS that
-    # are not already present.
-    for t in E.TRANSITIONS:
-        from_step = step_by_seq[t["from_seq"]]
-        to_step   = step_by_seq[t["to_seq"]]
-        if await _get_or_create_step_transition(
-            session,
-            from_step_id=from_step.id,
-            to_step_id=to_step.id,
-            condition=t["condition"],
-            label=t["label"],
-            priority=t["priority"],
-            is_default=t["is_default"],
-        ):
-            summary["transitions"] += 1
+    # ── 6. Transitions: derived from input/output disposition lists ──
+    # set when the steps were created above; nothing more to do here.
 
     # ── 7. Step Parameters ────────────────────────────────────────────
     if route_created:
@@ -974,46 +968,6 @@ async def _get_or_create_step(
         return existing, False
     step = await ProductDefService.create_step(session, route_id, sequence=sequence, **kwargs)
     return step, True
-
-
-async def _get_or_create_step_transition(
-    session: AsyncSession,
-    from_step_id: UUID,
-    to_step_id: UUID,
-    condition: str,
-    *,
-    label: str | None = None,
-    priority: int = 0,
-    is_default: bool = False,
-) -> bool:
-    """
-    Insert a transition if no active edge with the same
-    (from_step, to_step, condition, label) already exists.
-
-    Returns True when a new row was created so callers can count it.
-    """
-    stmt = select(ProcessSegmentDependency).where(
-        ProcessSegmentDependency.from_step_id == from_step_id,
-        ProcessSegmentDependency.to_step_id == to_step_id,
-        ProcessSegmentDependency.condition == condition,
-        ProcessSegmentDependency.is_active.is_(True),
-    )
-    if label is None:
-        stmt = stmt.where(ProcessSegmentDependency.label.is_(None))
-    else:
-        stmt = stmt.where(ProcessSegmentDependency.label == label)
-    existing = (await session.execute(stmt)).scalar_one_or_none()
-    if existing is not None:
-        return False
-    await ProductDefService.create_step_transition(
-        session, from_step_id,
-        to_step_id=to_step_id,
-        condition=condition,
-        priority=priority,
-        is_default=is_default,
-        label=label,
-    )
-    return True
 
 
 async def _get_or_create_order(

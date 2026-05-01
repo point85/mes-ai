@@ -2,7 +2,9 @@
 PROD-DEF: Business logic service for the product definition domain.
 
 Provides CRUD operations for ProductDefinition, BillOfMaterial, BOMItem,
-OperationsDefinition, ProcessSegment, SegmentParameter, ProcessSegmentDependency.
+OperationsDefinition, ProcessSegment, SegmentParameter, plus disposition
+list management on ProcessSegment (input/output dispositions, which
+together define the route graph).
 """
 
 from __future__ import annotations
@@ -30,10 +32,11 @@ from .models import (
     OperationsDefinitionMaterialAssignment,
     OperationsDefinitionProductAssignment,
     ProcessSegment,
+    ProcessSegmentInputDisposition,
+    ProcessSegmentOutputDisposition,
     SegmentEquipmentRequirement,
     SegmentMaterialRequirement,
     SegmentParameter,
-    ProcessSegmentDependency,
 )
 
 logger = logging.getLogger("mes.product_def")
@@ -236,7 +239,7 @@ class ProductDefService:
                     step_type=src_step.step_type,
                     expected_cycle_time_sec=src_step.expected_cycle_time_sec,
                     erp_operation_number=src_step.erp_operation_number,
-                    disposition_id=src_step.disposition_id,
+                    is_initial_step=src_step.is_initial_step,
                 )
                 session.add(new_step)
                 await session.flush()
@@ -261,29 +264,34 @@ class ProductDefService:
                         is_required=src_param.is_required,
                     )
                     session.add(new_param)
-                await session.flush()
 
-            # Clone step transitions (now that all steps exist with mapped IDs)
-            for old_step_id, new_step_id in step_id_map.items():
-                trans_rows = await session.execute(
-                    select(ProcessSegmentDependency).where(
-                        ProcessSegmentDependency.from_step_id == old_step_id,
-                        ProcessSegmentDependency.is_active.is_(True),
+                # Clone input/output disposition lists. Dispositions are
+                # global rows, so we just re-attach the same Disposition
+                # ids to the cloned step.
+                in_rows = await session.execute(
+                    select(ProcessSegmentInputDisposition).where(
+                        ProcessSegmentInputDisposition.step_id == src_step.id,
+                        ProcessSegmentInputDisposition.is_active.is_(True),
                     )
                 )
-                for src_trans in trans_rows.scalars().all():
-                    new_to_id = step_id_map.get(src_trans.to_step_id)
-                    if new_to_id is None:
-                        continue
-                    new_trans = ProcessSegmentDependency(
-                        from_step_id=new_step_id,
-                        to_step_id=new_to_id,
-                        condition=src_trans.condition,
-                        is_default=src_trans.is_default,
-                        priority=src_trans.priority,
-                        label=src_trans.label,
+                for r in in_rows.scalars().all():
+                    session.add(ProcessSegmentInputDisposition(
+                        step_id=new_step.id,
+                        disposition_id=r.disposition_id,
+                        position=r.position,
+                    ))
+                out_rows = await session.execute(
+                    select(ProcessSegmentOutputDisposition).where(
+                        ProcessSegmentOutputDisposition.step_id == src_step.id,
+                        ProcessSegmentOutputDisposition.is_active.is_(True),
                     )
-                    session.add(new_trans)
+                )
+                for r in out_rows.scalars().all():
+                    session.add(ProcessSegmentOutputDisposition(
+                        step_id=new_step.id,
+                        disposition_id=r.disposition_id,
+                        position=r.position,
+                    ))
                 await session.flush()
 
         await event_bus.publish(
@@ -879,89 +887,143 @@ class ProductDefService:
         await session.flush()
         logger.info("Deleted disposition %s", disposition_id)
 
-    # ─── ProcessSegmentDependency operations ───────────────────────────────────
+    # ─── ProcessSegment input/output disposition list operations ──────
+    #
+    # Disposition lists are managed as full replacements: callers pass
+    # the new set of disposition ids and the helpers diff against the
+    # existing rows. A disposition is unique within a route per role —
+    # it appears in at most one step's input list AND at most one
+    # step's output list. The service enforces this when a list is set.
 
     @staticmethod
-    async def list_process_segment_dependencies(
+    async def _validate_disposition_unique_in_route(
+        session: AsyncSession,
+        *,
+        route_id: UUID,
+        step_id: UUID,
+        disposition_ids: list[UUID],
+        role: str,  # "input" or "output"
+    ) -> None:
+        """Reject if any disposition is already used by a *different* step
+        in the same route for the same role (input or output)."""
+        if not disposition_ids:
+            return
+        if role == "input":
+            link_cls = ProcessSegmentInputDisposition
+        elif role == "output":
+            link_cls = ProcessSegmentOutputDisposition
+        else:
+            raise ValueError(f"unknown role: {role}")
+        stmt = (
+            select(link_cls.disposition_id, link_cls.step_id)
+            .join(ProcessSegment, ProcessSegment.id == link_cls.step_id)
+            .where(
+                ProcessSegment.route_id == route_id,
+                ProcessSegment.is_active.is_(True),
+                link_cls.is_active.is_(True),
+                link_cls.step_id != step_id,
+                link_cls.disposition_id.in_(disposition_ids),
+            )
+        )
+        rows = (await session.execute(stmt)).all()
+        if rows:
+            d, s = rows[0]
+            raise ValueError(
+                f"Disposition {d} is already used as {role} of step {s} in "
+                f"route {route_id}; dispositions must be unique within a route."
+            )
+
+    @staticmethod
+    async def set_step_input_dispositions(
         session: AsyncSession,
         step_id: UUID,
-        params: PaginationParams,
-    ) -> tuple[Sequence[ProcessSegmentDependency], str | None, bool]:
-        """List outgoing transitions for a step."""
-        await ProductDefService.get_step(session, step_id)
-        stmt = select(ProcessSegmentDependency).where(
-            ProcessSegmentDependency.from_step_id == step_id,
-            ProcessSegmentDependency.is_active.is_(True),
+        disposition_ids: list[UUID],
+    ) -> list[ProcessSegmentInputDisposition]:
+        """Replace the step's input disposition list."""
+        step = await ProductDefService.get_step(session, step_id)
+        await ProductDefService._validate_disposition_unique_in_route(
+            session,
+            route_id=step.route_id,
+            step_id=step_id,
+            disposition_ids=disposition_ids,
+            role="input",
         )
-        return await paginate_query(session, stmt, ProcessSegmentDependency, params)
+        existing = (await session.execute(
+            select(ProcessSegmentInputDisposition).where(
+                ProcessSegmentInputDisposition.step_id == step_id,
+                ProcessSegmentInputDisposition.is_active.is_(True),
+            )
+        )).scalars().all()
+        for r in existing:
+            r.is_active = False
+        new_rows: list[ProcessSegmentInputDisposition] = []
+        for pos, did in enumerate(disposition_ids):
+            row = ProcessSegmentInputDisposition(
+                step_id=step_id, disposition_id=did, position=pos,
+            )
+            session.add(row)
+            new_rows.append(row)
+        await session.flush()
+        return new_rows
 
     @staticmethod
-    async def get_step_transition(
-        session: AsyncSession, transition_id: UUID,
-    ) -> ProcessSegmentDependency:
-        """Get a step transition by ID."""
-        stmt = select(ProcessSegmentDependency).where(
-            ProcessSegmentDependency.id == transition_id,
-            ProcessSegmentDependency.is_active.is_(True),
+    async def set_step_output_dispositions(
+        session: AsyncSession,
+        step_id: UUID,
+        disposition_ids: list[UUID],
+    ) -> list[ProcessSegmentOutputDisposition]:
+        """Replace the step's output disposition list."""
+        step = await ProductDefService.get_step(session, step_id)
+        await ProductDefService._validate_disposition_unique_in_route(
+            session,
+            route_id=step.route_id,
+            step_id=step_id,
+            disposition_ids=disposition_ids,
+            role="output",
+        )
+        existing = (await session.execute(
+            select(ProcessSegmentOutputDisposition).where(
+                ProcessSegmentOutputDisposition.step_id == step_id,
+                ProcessSegmentOutputDisposition.is_active.is_(True),
+            )
+        )).scalars().all()
+        for r in existing:
+            r.is_active = False
+        new_rows: list[ProcessSegmentOutputDisposition] = []
+        for pos, did in enumerate(disposition_ids):
+            row = ProcessSegmentOutputDisposition(
+                step_id=step_id, disposition_id=did, position=pos,
+            )
+            session.add(row)
+            new_rows.append(row)
+        await session.flush()
+        return new_rows
+
+    @staticmethod
+    async def get_step_with_dispositions(
+        session: AsyncSession, step_id: UUID,
+    ) -> ProcessSegment:
+        """Fetch a step with input/output disposition lists eagerly loaded."""
+        stmt = (
+            select(ProcessSegment)
+            .where(
+                ProcessSegment.id == step_id,
+                ProcessSegment.is_active.is_(True),
+            )
+            .options(
+                selectinload(ProcessSegment.input_dispositions).selectinload(
+                    ProcessSegmentInputDisposition.disposition,
+                ),
+                selectinload(ProcessSegment.output_dispositions).selectinload(
+                    ProcessSegmentOutputDisposition.disposition,
+                ),
+            )
         )
         result = await session.execute(stmt)
-        transition = result.scalar_one_or_none()
-        if transition is None:
-            raise NotFoundException(
-                resource="ProcessSegmentDependency", resource_id=str(transition_id),
-            )
-        return transition
-
-    @staticmethod
-    async def create_step_transition(
-        session: AsyncSession, from_step_id: UUID, **kwargs: Any,
-    ) -> ProcessSegmentDependency:
-        """Create a new transition from a step."""
-        from_step = await ProductDefService.get_step(session, from_step_id)
-        # Validate to_step exists and belongs to the same route
-        to_step_id = kwargs["to_step_id"]
-        to_step = await ProductDefService.get_step(session, to_step_id)
-        if to_step.route_id != from_step.route_id:
-            raise ValueError(
-                f"to_step {to_step_id} belongs to route {to_step.route_id}, "
-                f"but from_step {from_step_id} belongs to route {from_step.route_id}"
-            )
-        transition = ProcessSegmentDependency(from_step_id=from_step_id, **kwargs)
-        session.add(transition)
-        await session.flush()
-        logger.info(
-            "Created transition %s → %s (condition=%s) in route %s",
-            from_step_id, to_step_id, transition.condition, from_step.route_id,
-        )
-        return transition
-
-    @staticmethod
-    async def update_step_transition(
-        session: AsyncSession, transition_id: UUID, **kwargs: Any,
-    ) -> ProcessSegmentDependency:
-        """Update a step transition."""
-        transition = await ProductDefService.get_step_transition(
-            session, transition_id,
-        )
-        clearable = {"label", "disposition_id"}
-        for key, value in kwargs.items():
-            if value is None and key not in clearable:
-                continue
-            setattr(transition, key, value)
-        await session.flush()
-        return transition
-
-    @staticmethod
-    async def delete_step_transition(
-        session: AsyncSession, transition_id: UUID,
-    ) -> None:
-        """Soft-delete a step transition."""
-        transition = await ProductDefService.get_step_transition(
-            session, transition_id,
-        )
-        transition.is_active = False
-        await session.flush()
-        logger.info("Deleted transition %s", transition_id)
+        step = result.scalar_one_or_none()
+        if step is None:
+            raise NotFoundException(resource="ProcessSegment", resource_id=str(step_id))
+        return step
 
     # ─── Standalone Route operations (route editor) ──────────────────
 

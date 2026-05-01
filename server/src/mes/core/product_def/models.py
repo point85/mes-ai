@@ -8,6 +8,13 @@ Entities:
 - OperationsDefinition:      A manufacturing route (sequence of steps) for a product
 - ProcessSegment:         An individual step/operation within a route
 - SegmentParameter:     A data parameter spec attached to a route step
+- ProcessSegmentInputDisposition / ProcessSegmentOutputDisposition:
+  M:N junction tables that wire dispositions to steps. The route graph is
+  fully derived from these lists: an edge exists from step A → step B for
+  every disposition `d` that is both an output of A and an input of B.
+  Within a single route, a disposition is unique — it appears in at most
+  one step's input list AND at most one step's output list. The same
+  disposition (Disposition row) may be reused across different routes.
 
 Route steps reference work cells from PHYS-MODEL and will later
 reference MaterialDefinition from MAT-MGMT.
@@ -243,18 +250,19 @@ class ProcessSegment(BaseModel):
         String(50), nullable=True,
         comment="ERP operation/step number for outbound reporting (e.g. '0010', '0020')",
     )
-    disposition_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("dispositions.id"),
-        nullable=True, index=True,
-        comment="FK to the disposition that routes WIP to this step",
+    is_initial_step: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment=(
+            "Marks this step as the route's entry point. Exactly one step "
+            "per route should be flagged. Used by RoutingEngineService to "
+            "resolve the first step for a new lot/unit. The empty-input "
+            "rule is a UX hint; this flag is authoritative."
+        ),
     )
 
     # Relationships
     route: Mapped["OperationsDefinition"] = relationship(
         "OperationsDefinition", back_populates="steps",
-    )
-    disposition: Mapped["Disposition | None"] = relationship(
-        "Disposition", lazy="joined",
     )
     equipment_class: Mapped["EquipmentClass | None"] = relationship(
         "EquipmentClass", lazy="joined",
@@ -270,18 +278,17 @@ class ProcessSegment(BaseModel):
         "SegmentMaterialRequirement", back_populates="step", cascade="all, delete-orphan",
         order_by="SegmentMaterialRequirement.position",
     )
-    outgoing_transitions: Mapped[list["ProcessSegmentDependency"]] = relationship(
-        "ProcessSegmentDependency",
-        foreign_keys="ProcessSegmentDependency.from_step_id",
-        back_populates="from_step",
+    input_dispositions: Mapped[list["ProcessSegmentInputDisposition"]] = relationship(
+        "ProcessSegmentInputDisposition",
+        back_populates="step",
         cascade="all, delete-orphan",
-        order_by="ProcessSegmentDependency.priority.desc()",
+        order_by="ProcessSegmentInputDisposition.position",
     )
-    incoming_transitions: Mapped[list["ProcessSegmentDependency"]] = relationship(
-        "ProcessSegmentDependency",
-        foreign_keys="ProcessSegmentDependency.to_step_id",
-        back_populates="to_step",
+    output_dispositions: Mapped[list["ProcessSegmentOutputDisposition"]] = relationship(
+        "ProcessSegmentOutputDisposition",
+        back_populates="step",
         cascade="all, delete-orphan",
+        order_by="ProcessSegmentOutputDisposition.position",
     )
     def __repr__(self) -> str:
         return f"<ProcessSegment id={self.id} seq={self.sequence} name={self.name}>"
@@ -472,76 +479,95 @@ class SegmentMaterialRequirement(BaseModel):
         )
 
 
-class ProcessSegmentDependency(BaseModel):
+class ProcessSegmentInputDisposition(BaseModel):
     """
-    A directed edge between two route steps supporting non-linear routing.
+    Junction: a disposition that, when raised at the previous step, routes
+    a unit/lot INTO this step. The route graph is the join of these rows
+    against ``ProcessSegmentOutputDisposition`` on (route_id, disposition_id).
 
-    Enables rework loops, MRB branches, and conditional paths through a route.
-    Each transition connects a from_step to a to_step with a condition that
-    determines when this path is taken.
+    Within a single route a given Disposition appears in at most one
+    step's input list (enforced by validation in the service layer). This
+    keeps the destination unambiguous when the routing engine resolves a
+    chosen disposition to a next step.
 
-    Condition types:
-    - 'always':      unconditional (used as default path when no other matches)
-    - 'on_pass':     taken when step result is 'pass'
-    - 'on_fail':     taken when step result is 'fail'
-    - 'on_rework':   taken when step result is 'rework'
-    - 'disposition':  operator-selected path (manual routing at MRB steps)
-
-    When a step has transitions defined, they take priority over linear
-    sequence-based routing. When no transitions are defined for a step,
-    the engine falls back to the next step by sequence number.
+    A step with no rows here is a route entry point (use ``is_initial_step``
+    on ProcessSegment to flag the canonical first step).
     """
 
-    __tablename__ = "process_segment_dependencies"
+    __tablename__ = "process_segment_input_dispositions"
+    __table_args__ = (
+        UniqueConstraint("step_id", "disposition_id", name="uq_psid_step_disp"),
+    )
 
-    from_step_id: Mapped[uuid.UUID] = mapped_column(
+    step_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("process_segments.id"),
         nullable=False, index=True,
-        comment="Source step this transition originates from",
     )
-    to_step_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("process_segments.id"),
-        nullable=False, index=True,
-        comment="Target step this transition leads to",
-    )
-    condition: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="always",
-        comment="Condition: 'always', 'on_pass', 'on_fail', 'on_rework', 'disposition'",
-    )
-    is_default: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False,
-        comment="Default transition when multiple match. Exactly one per from_step should be default.",
-    )
-    priority: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0,
-        comment="Higher priority transitions are evaluated first (0 = lowest)",
-    )
-    label: Mapped[str | None] = mapped_column(
-        String(255), nullable=True,
-        comment="Human-readable label for disposition choices (e.g. 'Return to rework', 'Scrap')",
-    )
-    disposition_id: Mapped[uuid.UUID | None] = mapped_column(
+    disposition_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("dispositions.id"),
-        nullable=True, index=True,
-        comment="FK to catalog Disposition (when condition='disposition'). Links this transition to a reusable catalog entry instead of a free-text label.",
+        nullable=False, index=True,
+    )
+    position: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="Sort order within the step's input list (UI hint only)",
     )
 
-    # Relationships
-    from_step: Mapped["ProcessSegment"] = relationship(
-        "ProcessSegment", foreign_keys=[from_step_id], back_populates="outgoing_transitions",
+    step: Mapped["ProcessSegment"] = relationship(
+        "ProcessSegment", back_populates="input_dispositions",
     )
-    to_step: Mapped["ProcessSegment"] = relationship(
-        "ProcessSegment", foreign_keys=[to_step_id], back_populates="incoming_transitions",
-    )
-    disposition: Mapped["Disposition | None"] = relationship(
+    disposition: Mapped["Disposition"] = relationship(
         "Disposition", lazy="joined",
     )
 
     def __repr__(self) -> str:
         return (
-            f"<ProcessSegmentDependency id={self.id} "
-            f"from={self.from_step_id} → to={self.to_step_id} "
-            f"condition={self.condition}>"
+            f"<ProcessSegmentInputDisposition step={self.step_id} "
+            f"disp={self.disposition_id}>"
+        )
+
+
+class ProcessSegmentOutputDisposition(BaseModel):
+    """
+    Junction: a disposition that the operator (or automation) may select
+    when completing this step. Selecting a disposition routes the unit/lot
+    to whichever step lists it in ``ProcessSegmentInputDisposition``.
+
+    Within a single route a given Disposition appears in at most one
+    step's output list (enforced by validation in the service layer).
+
+    A step with no rows here is a terminal step — completing it ends the
+    route and marks the lot/unit as completed.
+    """
+
+    __tablename__ = "process_segment_output_dispositions"
+    __table_args__ = (
+        UniqueConstraint("step_id", "disposition_id", name="uq_psod_step_disp"),
+    )
+
+    step_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("process_segments.id"),
+        nullable=False, index=True,
+    )
+    disposition_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("dispositions.id"),
+        nullable=False, index=True,
+    )
+    position: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="Sort order within the step's output list (UI hint only)",
+    )
+
+    step: Mapped["ProcessSegment"] = relationship(
+        "ProcessSegment", back_populates="output_dispositions",
+    )
+    disposition: Mapped["Disposition"] = relationship(
+        "Disposition", lazy="joined",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ProcessSegmentOutputDisposition step={self.step_id} "
+            f"disp={self.disposition_id}>"
         )
 
 

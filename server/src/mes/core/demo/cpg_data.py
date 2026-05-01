@@ -77,13 +77,18 @@ BOM_ITEMS: list[dict] = [
 # ---------------------------------------------------------------------------
 
 DISPOSITIONS: list[dict] = [
-    {"code": "START",      "name": "Start",                  "description": "Initial entry into the route", "category": "route"},
-    {"code": "PASS-PAST",  "name": "Pass to Pasteurization", "description": "Advance to pasteurization",    "category": "route"},
-    {"code": "PASS-QC",    "name": "Pass to QC",             "description": "Advance to quality testing",   "category": "route"},
-    {"code": "QC-PASS",    "name": "QC Pass",                "description": "Quality test passed",          "category": "route"},
-    {"code": "PASS-PACK",  "name": "Pass to Packing",        "description": "Advance to labeling & packing","category": "route"},
-    {"code": "QC-FAIL",    "name": "QC Fail",                "description": "Quality test failed — rework",  "category": "route"},
-    {"code": "ESC-MRB",    "name": "Escalate to MRB",        "description": "Escalate to Material Review Board", "category": "hold"},
+    # Per-edge dispositions for the route graph. Each entry below appears
+    # in exactly one step's output list AND at most one step's input list,
+    # which keeps every (output → input) edge unambiguous.
+    {"code": "BLEND-DONE",   "name": "Blend Complete",         "description": "Blending finished, advance to pasteurization", "category": "route"},
+    {"code": "PAST-DONE",    "name": "Pasteurization Complete","description": "Pasteurization finished, advance to QC",        "category": "route"},
+    {"code": "QC-PASS",      "name": "QC Pass",                "description": "Quality test passed",                          "category": "route"},
+    {"code": "QC-FAIL",      "name": "QC Fail",                "description": "Quality test failed — send to rework",         "category": "route"},
+    {"code": "ESC-MRB",      "name": "Escalate to MRB",        "description": "Escalate to Material Review Board",            "category": "hold"},
+    {"code": "REWORK-DONE",  "name": "Rework Complete",        "description": "Re-blend complete, return to pasteurization", "category": "route"},
+    {"code": "FILL-DONE",    "name": "Fill Complete",          "description": "Filling/capping done, advance to packing",     "category": "route"},
+    {"code": "RETURN-BLEND", "name": "Return to Blend",        "description": "MRB decision: send back to blending",          "category": "hold"},
+    {"code": "USE-AS-IS",    "name": "Use As-Is",              "description": "MRB decision: bypass rework, advance to fill", "category": "hold"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -100,7 +105,9 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-BLEND",
         "expected_cycle_time_sec": 900.0,
         "erp_operation_number": "0010",
-        "disposition_code": "START",
+        "is_initial_step": True,
+        "input_disposition_codes": ["RETURN-BLEND"],
+        "output_disposition_codes": ["BLEND-DONE"],
     },
     {
         "sequence": 20,
@@ -109,7 +116,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PAST",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0020",
-        "disposition_code": "PASS-PAST",
+        "input_disposition_codes": ["BLEND-DONE", "REWORK-DONE"],
+        "output_disposition_codes": ["PAST-DONE"],
     },
     {
         "sequence": 30,
@@ -118,7 +126,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-QC",
         "expected_cycle_time_sec": 300.0,
         "erp_operation_number": "0030",
-        "disposition_code": "PASS-QC",
+        "input_disposition_codes": ["PAST-DONE"],
+        "output_disposition_codes": ["QC-PASS", "QC-FAIL", "ESC-MRB"],
     },
     {
         "sequence": 40,
@@ -127,7 +136,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-FILL",
         "expected_cycle_time_sec": 1200.0,
         "erp_operation_number": "0040",
-        "disposition_code": "QC-PASS",
+        "input_disposition_codes": ["QC-PASS", "USE-AS-IS"],
+        "output_disposition_codes": ["FILL-DONE"],
     },
     {
         "sequence": 50,
@@ -136,7 +146,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PACK",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0050",
-        "disposition_code": "PASS-PACK",
+        "input_disposition_codes": ["FILL-DONE"],
+        "output_disposition_codes": [],  # terminal
     },
     {
         "sequence": 60,
@@ -145,7 +156,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REWORK",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0060",
-        "disposition_code": "QC-FAIL",
+        "input_disposition_codes": ["QC-FAIL"],
+        "output_disposition_codes": ["REWORK-DONE"],
     },
     {
         "sequence": 70,
@@ -154,35 +166,9 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-QC",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0070",
-        "disposition_code": "ESC-MRB",
+        "input_disposition_codes": ["ESC-MRB"],
+        "output_disposition_codes": ["RETURN-BLEND", "USE-AS-IS"],
     },
-]
-
-# ---------------------------------------------------------------------------
-# Step Transitions  (graph routing)
-#
-# Keyed by (from_sequence, to_sequence) with condition metadata.
-# ---------------------------------------------------------------------------
-
-TRANSITIONS: list[dict] = [
-    # Blend → Pasteurize (always)
-    {"from_seq": 10, "to_seq": 20, "condition": "always",      "priority": 0, "is_default": True,  "label": None},
-    # Pasteurize → QC (always)
-    {"from_seq": 20, "to_seq": 30, "condition": "always",      "priority": 0, "is_default": True,  "label": None},
-    # QC → Fill (on_pass)
-    {"from_seq": 30, "to_seq": 40, "condition": "on_pass",     "priority": 10, "is_default": True,  "label": "QC Passed"},
-    # QC → Re-Blend (on_fail)
-    {"from_seq": 30, "to_seq": 60, "condition": "on_fail",     "priority": 10, "is_default": False, "label": "QC Failed — Re-Blend"},
-    # QC → MRB (disposition)
-    {"from_seq": 30, "to_seq": 70, "condition": "disposition",  "priority": 20, "is_default": False, "label": "Send to MRB"},
-    # Fill → Pack (always)
-    {"from_seq": 40, "to_seq": 50, "condition": "always",      "priority": 0, "is_default": True,  "label": None},
-    # Re-Blend → Pasteurize (rework loop back)
-    {"from_seq": 60, "to_seq": 20, "condition": "always",      "priority": 0, "is_default": True,  "label": "Return to Pasteurization"},
-    # MRB → Blend (disposition: return)
-    {"from_seq": 70, "to_seq": 10, "condition": "disposition",  "priority": 10, "is_default": False, "label": "Return to Blend"},
-    # MRB → Fill (disposition: use-as-is)
-    {"from_seq": 70, "to_seq": 40, "condition": "disposition",  "priority": 10, "is_default": False, "label": "Use As‑Is"},
 ]
 
 # ---------------------------------------------------------------------------

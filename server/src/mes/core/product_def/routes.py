@@ -46,9 +46,6 @@ from .schemas import (
     StepParameterCreate,
     StepParameterRead,
     StepParameterUpdate,
-    StepTransitionCreate,
-    StepTransitionRead,
-    StepTransitionUpdate,
     RouteProductAssignmentCreate,
     RouteProductAssignmentRead,
     RouteMaterialAssignmentCreate,
@@ -458,10 +455,23 @@ async def create_step(
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("product_def.create")),
 ):
-    """Create a step within a route."""
-    step = await svc.create_step(session, route_id, **body.model_dump())
+    """Create a step within a route.
+
+    Body may include `input_disposition_ids` and `output_disposition_ids`
+    to set the step's input/output disposition lists in the same call.
+    The route graph is fully derived from these lists.
+    """
+    payload = body.model_dump()
+    in_ids = payload.pop("input_disposition_ids", []) or []
+    out_ids = payload.pop("output_disposition_ids", []) or []
+    step = await svc.create_step(session, route_id, **payload)
+    if in_ids:
+        await svc.set_step_input_dispositions(session, step.id, in_ids)
+    if out_ids:
+        await svc.set_step_output_dispositions(session, step.id, out_ids)
+    step = await svc.get_step_with_dispositions(session, step.id)
     await session.commit()
-    return success_response(RouteStepRead.model_validate(step).model_dump())
+    return success_response(_step_to_read_dict(step))
 
 
 @router.get("/process-segments/{step_id}")
@@ -470,9 +480,9 @@ async def get_step(
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("product_def.read")),
 ):
-    """Get a route step by ID."""
-    step = await svc.get_step(session, step_id)
-    return success_response(RouteStepRead.model_validate(step).model_dump())
+    """Get a route step by ID (with input/output disposition lists)."""
+    step = await svc.get_step_with_dispositions(session, step_id)
+    return success_response(_step_to_read_dict(step))
 
 
 @router.put("/process-segments/{step_id}")
@@ -482,12 +492,54 @@ async def update_step(
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("product_def.update")),
 ):
-    """Update a route step."""
-    step = await svc.update_step(
-        session, step_id, **body.model_dump(exclude_unset=True)
-    )
+    """Update a route step.
+
+    `input_disposition_ids` / `output_disposition_ids` (when provided)
+    fully replace the step's input/output disposition lists; omit them
+    to leave the existing lists untouched.
+    """
+    payload = body.model_dump(exclude_unset=True)
+    in_ids = payload.pop("input_disposition_ids", None)
+    out_ids = payload.pop("output_disposition_ids", None)
+    step = await svc.update_step(session, step_id, **payload)
+    if in_ids is not None:
+        await svc.set_step_input_dispositions(session, step.id, in_ids)
+    if out_ids is not None:
+        await svc.set_step_output_dispositions(session, step.id, out_ids)
+    step = await svc.get_step_with_dispositions(session, step.id)
     await session.commit()
-    return success_response(RouteStepRead.model_validate(step).model_dump())
+    return success_response(_step_to_read_dict(step))
+
+
+def _step_to_read_dict(step) -> dict:
+    """Build a RouteStepRead-shaped dict from a ProcessSegment + its
+    input/output disposition junction rows. We hand-build because the
+    Read schema's `input_dispositions`/`output_dispositions` fields are
+    Disposition rows, not the junction rows."""
+    return {
+        "id": step.id,
+        "route_id": step.route_id,
+        "sequence": step.sequence,
+        "name": step.name,
+        "step_type": step.step_type,
+        "equipment_class_id": step.equipment_class_id,
+        "expected_cycle_time_sec": step.expected_cycle_time_sec,
+        "erp_operation_number": step.erp_operation_number,
+        "is_initial_step": step.is_initial_step,
+        "input_dispositions": [
+            DispositionRead.model_validate(r.disposition).model_dump()
+            for r in step.input_dispositions
+            if r.is_active
+        ],
+        "output_dispositions": [
+            DispositionRead.model_validate(r.disposition).model_dump()
+            for r in step.output_dispositions
+            if r.is_active
+        ],
+        "is_active": step.is_active,
+        "created_at": step.created_at,
+        "updated_at": step.updated_at,
+    }
 
 
 # ─── Step Parameters ──────────────────────────────────────────────────
@@ -557,78 +609,6 @@ async def delete_step_parameter(
 ):
     """Delete a step parameter."""
     await svc.delete_step_parameter(session, param_id)
-    await session.commit()
-
-
-# ─── Step Transitions ────────────────────────────────────────────────
-
-
-@router.get("/process-segments/{step_id}/dependencies")
-async def list_process_segment_dependencies(
-    step_id: UUID,
-    params: PaginationParams = Depends(get_pagination_params),
-    session: AsyncSession = Depends(get_db_session),
-    _user: User = Depends(require_permission("product_def.read")),
-):
-    """List outgoing transitions for a step."""
-    items, cursor, has_more = await svc.list_process_segment_dependencies(session, step_id, params)
-    return list_response(
-        [StepTransitionRead.model_validate(t).model_dump() for t in items],
-        cursor=cursor,
-        limit=params.limit,
-        has_more=has_more,
-    )
-
-
-@router.post("/process-segments/{step_id}/dependencies", status_code=201)
-async def create_step_transition(
-    step_id: UUID,
-    body: StepTransitionCreate,
-    session: AsyncSession = Depends(get_db_session),
-    _user: User = Depends(require_permission("product_def.create")),
-):
-    """Create an outgoing transition from a step (route graph edge)."""
-    transition = await svc.create_step_transition(
-        session, step_id, **body.model_dump(),
-    )
-    await session.commit()
-    return success_response(StepTransitionRead.model_validate(transition).model_dump())
-
-
-@router.get("/process-segment-dependencies/{transition_id}")
-async def get_step_transition(
-    transition_id: UUID,
-    session: AsyncSession = Depends(get_db_session),
-    _user: User = Depends(require_permission("product_def.read")),
-):
-    """Get a step transition by ID."""
-    transition = await svc.get_step_transition(session, transition_id)
-    return success_response(StepTransitionRead.model_validate(transition).model_dump())
-
-
-@router.put("/process-segment-dependencies/{transition_id}")
-async def update_step_transition(
-    transition_id: UUID,
-    body: StepTransitionUpdate,
-    session: AsyncSession = Depends(get_db_session),
-    _user: User = Depends(require_permission("product_def.update")),
-):
-    """Update a step transition."""
-    transition = await svc.update_step_transition(
-        session, transition_id, **body.model_dump(exclude_unset=True),
-    )
-    await session.commit()
-    return success_response(StepTransitionRead.model_validate(transition).model_dump())
-
-
-@router.delete("/process-segment-dependencies/{transition_id}", status_code=204)
-async def delete_step_transition(
-    transition_id: UUID,
-    session: AsyncSession = Depends(get_db_session),
-    _user: User = Depends(require_permission("product_def.delete")),
-):
-    """Delete a step transition."""
-    await svc.delete_step_transition(session, transition_id)
     await session.commit()
 
 

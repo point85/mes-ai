@@ -213,7 +213,12 @@ class RouteUpdate(BaseModel):
 
 
 class RouteStepCreate(BaseModel):
-    """Schema for creating a route step."""
+    """Schema for creating a route step.
+
+    `input_disposition_ids` / `output_disposition_ids` are the M:N
+    disposition lists that define the route graph. The graph is fully
+    derived from these lists — there is no separate edge table.
+    """
 
     sequence: int = Field(..., ge=1)
     name: str = Field(..., min_length=1, max_length=255)
@@ -221,11 +226,19 @@ class RouteStepCreate(BaseModel):
     equipment_class_id: UUID | None = Field(None, description="ISA-95 equipment class required at this step")
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50, description="ERP operation number for outbound reporting")
-    disposition_id: UUID | None = Field(None, description="FK to the disposition that routes WIP to this step")
+    is_initial_step: bool = Field(False, description="Mark as the route's entry point")
+    input_disposition_ids: list[UUID] = Field(default_factory=list)
+    output_disposition_ids: list[UUID] = Field(default_factory=list)
 
 
 class RouteStepRead(BaseModel):
-    """Schema for returning route step data."""
+    """Schema for returning route step data.
+
+    `input_dispositions` / `output_dispositions` are the resolved
+    Disposition rows attached to this step. Empty input list ⇒ first
+    step (also indicated by `is_initial_step`); empty output list ⇒
+    terminal step.
+    """
 
     id: UUID
     route_id: UUID
@@ -235,7 +248,9 @@ class RouteStepRead(BaseModel):
     equipment_class_id: UUID | None = None
     expected_cycle_time_sec: float | None = None
     erp_operation_number: str | None = None
-    disposition_id: UUID | None = None
+    is_initial_step: bool = False
+    input_dispositions: list[DispositionRead] = Field(default_factory=list)
+    output_dispositions: list[DispositionRead] = Field(default_factory=list)
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -244,7 +259,12 @@ class RouteStepRead(BaseModel):
 
 
 class RouteStepUpdate(BaseModel):
-    """Schema for updating a route step."""
+    """Schema for updating a route step.
+
+    Pass `input_disposition_ids` / `output_disposition_ids` to fully
+    replace the corresponding disposition list (not append). Omit them
+    to leave the existing list untouched.
+    """
 
     sequence: int | None = Field(None, ge=1)
     name: str | None = Field(None, min_length=1, max_length=255)
@@ -252,7 +272,9 @@ class RouteStepUpdate(BaseModel):
     equipment_class_id: UUID | None = Field(None, description="ISA-95 equipment class required at this step")
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50)
-    disposition_id: UUID | None = None
+    is_initial_step: bool | None = None
+    input_disposition_ids: list[UUID] | None = None
+    output_disposition_ids: list[UUID] | None = None
 
 
 # ─── SegmentParameter ───────────────────────────────────────────────────
@@ -299,55 +321,6 @@ class StepParameterUpdate(BaseModel):
     lower_limit: str | None = None
     upper_limit: str | None = None
     is_required: bool | None = None
-
-
-# ─── ProcessSegmentDependency ──────────────────────────────────────────────────
-
-
-class StepTransitionCreate(BaseModel):
-    """Schema for creating a step transition (route graph edge)."""
-
-    to_step_id: UUID
-    condition: str = Field(
-        "always",
-        pattern=r"^(always|on_pass|on_fail|on_rework|disposition)$",
-    )
-    is_default: bool = False
-    priority: int = Field(0, ge=0)
-    label: str | None = Field(None, max_length=255)
-    disposition_id: UUID | None = None
-
-
-class StepTransitionRead(BaseModel):
-    """Schema for returning step transition data."""
-
-    id: UUID
-    from_step_id: UUID
-    to_step_id: UUID
-    condition: str
-    is_default: bool
-    priority: int
-    label: str | None = None
-    disposition_id: UUID | None = None
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class StepTransitionUpdate(BaseModel):
-    """Schema for updating a step transition."""
-
-    to_step_id: UUID | None = None
-    condition: str | None = Field(
-        None,
-        pattern=r"^(always|on_pass|on_fail|on_rework|disposition)$",
-    )
-    is_default: bool | None = None
-    priority: int | None = Field(None, ge=0)
-    label: str | None = Field(None, max_length=255)
-    disposition_id: UUID | None = None
 
 
 # ─── Route–Product Assignment ────────────────────────────────────────

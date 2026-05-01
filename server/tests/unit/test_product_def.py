@@ -29,7 +29,8 @@ from mes.core.product_def.models import (
     SegmentEquipmentRequirement,
     SegmentMaterialRequirement,
     SegmentParameter,
-    ProcessSegmentDependency,
+    ProcessSegmentInputDisposition,
+    ProcessSegmentOutputDisposition,
 )
 from mes.core.product_def.schemas import (
     BOMCreate,
@@ -48,9 +49,6 @@ from mes.core.product_def.schemas import (
     RouteUpdate,
     StepParameterCreate,
     StepParameterRead,
-    StepTransitionCreate,
-    StepTransitionRead,
-    StepTransitionUpdate,
     RouteProductAssignmentCreate,
     RouteProductAssignmentRead,
     RouteMaterialAssignmentCreate,
@@ -88,14 +86,18 @@ class TestProductDefModels:
     def test_step_parameter_tablename(self):
         assert SegmentParameter.__tablename__ == "segment_parameters"
 
-    def test_step_transition_tablename(self):
-        assert ProcessSegmentDependency.__tablename__ == "process_segment_dependencies"
+    def test_step_input_disposition_tablename(self):
+        assert ProcessSegmentInputDisposition.__tablename__ == "process_segment_input_dispositions"
+
+    def test_step_output_disposition_tablename(self):
+        assert ProcessSegmentOutputDisposition.__tablename__ == "process_segment_output_dispositions"
 
     def test_all_models_inherit_base_columns(self):
         """All product def entities must have id, created_at, updated_at, is_active."""
         for model_cls in [
             ProductDefinition, BillOfMaterial, BOMItem,
-            OperationsDefinition, ProcessSegment, SegmentParameter, ProcessSegmentDependency,
+            OperationsDefinition, ProcessSegment, SegmentParameter,
+            ProcessSegmentInputDisposition, ProcessSegmentOutputDisposition,
         ]:
             mapper = model_cls.__mapper__
             col_names = {c.key for c in mapper.columns}
@@ -126,18 +128,23 @@ class TestProductDefModels:
         rels = {r.key for r in ProcessSegment.__mapper__.relationships}
         assert "parameters" in rels
 
-    def test_step_has_outgoing_transitions_relationship(self):
+    def test_step_has_input_dispositions_relationship(self):
         rels = {r.key for r in ProcessSegment.__mapper__.relationships}
-        assert "outgoing_transitions" in rels
+        assert "input_dispositions" in rels
 
-    def test_step_has_incoming_transitions_relationship(self):
+    def test_step_has_output_dispositions_relationship(self):
         rels = {r.key for r in ProcessSegment.__mapper__.relationships}
-        assert "incoming_transitions" in rels
+        assert "output_dispositions" in rels
 
-    def test_step_transition_has_from_and_to_step_relationships(self):
-        rels = {r.key for r in ProcessSegmentDependency.__mapper__.relationships}
-        assert "from_step" in rels
-        assert "to_step" in rels
+    def test_input_disposition_has_step_and_disposition_relationships(self):
+        rels = {r.key for r in ProcessSegmentInputDisposition.__mapper__.relationships}
+        assert "step" in rels
+        assert "disposition" in rels
+
+    def test_output_disposition_has_step_and_disposition_relationships(self):
+        rels = {r.key for r in ProcessSegmentOutputDisposition.__mapper__.relationships}
+        assert "step" in rels
+        assert "disposition" in rels
 
 
 # ─── ProductDefinition schema tests ──────────────────────────────────

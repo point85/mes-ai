@@ -60,14 +60,20 @@ BOM_ITEMS: list[dict] = [
 # ---------------------------------------------------------------------------
 
 DISPOSITIONS: list[dict] = [
-    {"code": "E-START",      "name": "Start",           "description": "Initial entry into the SMT route",      "category": "route"},
-    {"code": "E-PASS-SMD",   "name": "Pass to SMD",     "description": "Advance to SMD placement",              "category": "route"},
-    {"code": "E-PASS-REFL",  "name": "Pass to Reflow",  "description": "Advance to reflow soldering",           "category": "route"},
-    {"code": "E-PASS-AOI",   "name": "Pass to AOI",     "description": "Advance to automated optical inspection","category": "route"},
-    {"code": "E-AOI-PASS",   "name": "AOI Pass",        "description": "AOI inspection passed",                 "category": "route"},
-    {"code": "E-TH-PASS",    "name": "TH Pass",         "description": "Through-hole step passed",              "category": "route"},
-    {"code": "E-REWORK",     "name": "Rework",          "description": "Send to rework station",                "category": "route"},
-    {"code": "E-ESCALATE",   "name": "Escalate",        "description": "Escalate to Material Review Board",     "category": "hold"},
+    # Per-edge dispositions for the SMT route graph. Each entry below
+    # appears in exactly one step's output list AND at most one step's
+    # input list, which keeps every (output → input) edge unambiguous.
+    {"code": "E-PASTE-DONE", "name": "Paste Applied",     "description": "Solder paste applied, advance to placement",     "category": "route"},
+    {"code": "E-SMD-DONE",   "name": "SMD Placed",        "description": "SMD components placed, advance to reflow",       "category": "route"},
+    {"code": "E-REFL-DONE",  "name": "Reflow Done",       "description": "Reflow complete, advance to AOI",                "category": "route"},
+    {"code": "E-AOI-PASS",   "name": "AOI Pass",          "description": "AOI passed, advance to TH & coat",               "category": "route"},
+    {"code": "E-AOI-FAIL",   "name": "AOI Fail",          "description": "AOI failed, send to rework",                     "category": "route"},
+    {"code": "E-TH-DONE",    "name": "TH & Coat Done",    "description": "Through-hole and conformal coat done, advance to test", "category": "route"},
+    {"code": "E-FCT-PASS",   "name": "Functional Test Pass","description": "Functional test passed (terminal)",            "category": "route"},
+    {"code": "E-FCT-FAIL",   "name": "Functional Test Fail","description": "Functional test failed, send to rework",       "category": "route"},
+    {"code": "E-ESCALATE",   "name": "Escalate to MRB",   "description": "Repeated failure or non-routine issue — send to MRB", "category": "hold"},
+    {"code": "E-REWORK-DONE","name": "Rework Complete",   "description": "Rework station complete, return for re-inspection", "category": "route"},
+    {"code": "E-MRB-RETURN", "name": "MRB → Rework",       "description": "MRB decision: return to rework station",          "category": "hold"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -84,7 +90,9 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PASTE",
         "expected_cycle_time_sec": 30.0,
         "erp_operation_number": "0010",
-        "disposition_code": "E-START",
+        "is_initial_step": True,
+        "input_disposition_codes": [],
+        "output_disposition_codes": ["E-PASTE-DONE"],
     },
     {
         "sequence": 20,
@@ -93,7 +101,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-PLACE",
         "expected_cycle_time_sec": 45.0,
         "erp_operation_number": "0020",
-        "disposition_code": "E-PASS-SMD",
+        "input_disposition_codes": ["E-PASTE-DONE"],
+        "output_disposition_codes": ["E-SMD-DONE"],
     },
     {
         "sequence": 30,
@@ -102,7 +111,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REFLOW",
         "expected_cycle_time_sec": 180.0,
         "erp_operation_number": "0030",
-        "disposition_code": "E-PASS-REFL",
+        "input_disposition_codes": ["E-SMD-DONE"],
+        "output_disposition_codes": ["E-REFL-DONE"],
     },
     {
         "sequence": 40,
@@ -111,7 +121,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-AOI",
         "expected_cycle_time_sec": 20.0,
         "erp_operation_number": "0040",
-        "disposition_code": "E-PASS-AOI",
+        "input_disposition_codes": ["E-REFL-DONE", "E-REWORK-DONE"],
+        "output_disposition_codes": ["E-AOI-PASS", "E-AOI-FAIL", "E-ESCALATE"],
     },
     {
         "sequence": 50,
@@ -120,7 +131,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-THT",
         "expected_cycle_time_sec": 120.0,
         "erp_operation_number": "0050",
-        "disposition_code": "E-AOI-PASS",
+        "input_disposition_codes": ["E-AOI-PASS"],
+        "output_disposition_codes": ["E-TH-DONE"],
     },
     {
         "sequence": 60,
@@ -129,7 +141,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-TEST",
         "expected_cycle_time_sec": 60.0,
         "erp_operation_number": "0060",
-        "disposition_code": "E-TH-PASS",
+        "input_disposition_codes": ["E-TH-DONE"],
+        "output_disposition_codes": ["E-FCT-PASS", "E-FCT-FAIL"],
     },
     {
         "sequence": 70,
@@ -138,7 +151,8 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REWORK",
         "expected_cycle_time_sec": 300.0,
         "erp_operation_number": "0070",
-        "disposition_code": "E-REWORK",
+        "input_disposition_codes": ["E-AOI-FAIL", "E-FCT-FAIL", "E-MRB-RETURN"],
+        "output_disposition_codes": ["E-REWORK-DONE"],
     },
     {
         "sequence": 80,
@@ -147,43 +161,9 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REWORK",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0080",
-        "disposition_code": "E-ESCALATE",
+        "input_disposition_codes": ["E-ESCALATE"],
+        "output_disposition_codes": ["E-MRB-RETURN"],
     },
-]
-
-# ---------------------------------------------------------------------------
-# Step Transitions  (graph routing)
-#
-# Keyed by (from_sequence, to_sequence) with condition metadata.
-# ---------------------------------------------------------------------------
-
-TRANSITIONS: list[dict] = [
-    # Paste → SMD Placement (always)
-    {"from_seq": 10, "to_seq": 20, "condition": "always",      "priority": 0,  "is_default": True,  "label": None},
-    # SMD → Reflow (always)
-    {"from_seq": 20, "to_seq": 30, "condition": "always",      "priority": 0,  "is_default": True,  "label": None},
-    # Reflow → AOI (always)
-    {"from_seq": 30, "to_seq": 40, "condition": "always",      "priority": 0,  "is_default": True,  "label": None},
-    # AOI → TH & Coat (on_pass)
-    {"from_seq": 40, "to_seq": 50, "condition": "on_pass",     "priority": 10, "is_default": True,  "label": "AOI Passed"},
-    # AOI → Rework (on_fail)
-    {"from_seq": 40, "to_seq": 70, "condition": "on_fail",     "priority": 10, "is_default": False, "label": "AOI Failed — Rework"},
-    # AOI → MRB (on_rework — escalation for repeated failure)
-    {"from_seq": 40, "to_seq": 80, "condition": "on_rework",   "priority": 20, "is_default": False, "label": "Repeat Fail — MRB"},
-    # TH & Coat → Functional Test (on_pass)
-    {"from_seq": 50, "to_seq": 60, "condition": "on_pass",     "priority": 0,  "is_default": True,  "label": "Passed"},
-    # TH & Coat → Rework (on_fail)
-    {"from_seq": 50, "to_seq": 70, "condition": "on_fail",     "priority": 10, "is_default": False, "label": "Failed — Rework"},
-    # TH & Coat → MRB (on_rework — escalation for repeated failure)
-    {"from_seq": 50, "to_seq": 80, "condition": "on_rework",   "priority": 20, "is_default": False, "label": "Repeat Fail — MRB"},
-    # Functional Test → Rework (on_fail)
-    {"from_seq": 60, "to_seq": 70, "condition": "on_fail",     "priority": 10, "is_default": False, "label": "Func Test Failed — Rework"},
-    # Functional Test → MRB (on_rework — escalation for repeated failure)
-    {"from_seq": 60, "to_seq": 80, "condition": "on_rework",   "priority": 20, "is_default": False, "label": "Repeat Fail — MRB"},
-    # Rework → AOI (rework loop back to inspection)
-    {"from_seq": 70, "to_seq": 40, "condition": "always",      "priority": 0,  "is_default": True,  "label": "Return to AOI"},
-    # MRB → Rework (disposition: return to rework)
-    {"from_seq": 80, "to_seq": 70, "condition": "disposition",  "priority": 10, "is_default": False, "label": "Return to Rework"},
 ]
 
 # ---------------------------------------------------------------------------
