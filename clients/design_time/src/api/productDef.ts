@@ -19,6 +19,7 @@ import type {
   RouteStep,
   RouteStepCreate,
   RouteStepUpdate,
+  RouteValidationResult,
   StepParameter,
   StepParameterCreate,
   StepParameterUpdate,
@@ -162,6 +163,15 @@ export async function updateRoute(routeId: string, body: RouteUpdate): Promise<P
   const { data } = await api.put<ApiResponse<ProcessRoute>>(
     `/operations-definitions/${routeId}`,
     body,
+  );
+  return data.data;
+}
+
+export async function validateRoute(
+  routeId: string,
+): Promise<RouteValidationResult> {
+  const { data } = await api.post<ApiResponse<RouteValidationResult>>(
+    `/operations-definitions/${routeId}/validate`,
   );
   return data.data;
 }

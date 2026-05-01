@@ -19,7 +19,6 @@ import {
   useDeleteStepTransition,
   useBOMs,
   useBOMItems,
-  useDispositions,
 } from "../../hooks/useProductDef";
 import { fetchProduct } from "../../api/productDef";
 import { useQuery } from "@tanstack/react-query";
@@ -84,10 +83,6 @@ export default function ProductDetailPage() {
   const defaultBomId = boms.length > 0 ? boms[0].id : "";
   const { data: bomItemsData } = useBOMItems(defaultBomId);
   const bomItems = bomItemsData?.data ?? [];
-
-  // Dispositions for step display
-  const { data: dispResp } = useDispositions();
-  const dispMap = new Map((dispResp?.data ?? []).map((d) => [d.id, d]));
 
   // Group BOM items by process_segment_id for quick lookup
   const stepMaterialsMap = new Map<string, BOMItem[]>();
@@ -244,7 +239,10 @@ export default function ProductDetailPage() {
                         Cycle Time
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Input Disposition
+                        Inputs
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Outputs
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Consumed Materials
@@ -281,23 +279,37 @@ export default function ProductDetailPage() {
                             : "—"}
                         </td>
                         <td className="px-4 py-2">
-                          {s.disposition_id && dispMap.has(s.disposition_id) ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm text-gray-900">{dispMap.get(s.disposition_id)!.name}</span>
-                              <span
-                                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                                  dispMap.get(s.disposition_id)!.category === "route"
-                                    ? "bg-green-100 text-green-700"
-                                    : dispMap.get(s.disposition_id)!.category === "hold"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-red-100 text-red-700"
-                                }`}
-                              >
-                                {dispMap.get(s.disposition_id)!.category}
-                              </span>
-                            </div>
-                          ) : (
+                          {(s.input_dispositions ?? []).length === 0 ? (
                             <span className="text-xs text-gray-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {s.input_dispositions.map((d) => (
+                                <span
+                                  key={d.id}
+                                  className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] text-blue-700"
+                                  title={d.name}
+                                >
+                                  {d.code}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          {(s.output_dispositions ?? []).length === 0 ? (
+                            <span className="text-xs text-gray-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {s.output_dispositions.map((d) => (
+                                <span
+                                  key={d.id}
+                                  className="inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] text-emerald-700"
+                                  title={d.name}
+                                >
+                                  {d.code}
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-2">

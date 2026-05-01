@@ -158,7 +158,9 @@ export interface RouteStep {
   equipment_class_id: string | null;
   expected_cycle_time_sec: number | null;
   erp_operation_number: string | null;
-  disposition_id: string | null;
+  is_initial_step: boolean;
+  input_dispositions: Disposition[];
+  output_dispositions: Disposition[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -171,7 +173,9 @@ export interface RouteStepCreate {
   work_cell_id?: string | null;
   equipment_class_id?: string | null;
   expected_cycle_time_sec?: number | null;
-  disposition_id?: string | null;
+  is_initial_step?: boolean;
+  input_disposition_ids?: string[];
+  output_disposition_ids?: string[];
 }
 
 export interface RouteStepUpdate {
@@ -181,7 +185,25 @@ export interface RouteStepUpdate {
   work_cell_id?: string | null;
   equipment_class_id?: string | null;
   expected_cycle_time_sec?: number | null;
-  disposition_id?: string | null;
+  is_initial_step?: boolean;
+  input_disposition_ids?: string[];
+  output_disposition_ids?: string[];
+}
+
+// ─── Route Validation ─────────────────────────────────────────────────
+
+export interface RouteValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  stats: {
+    step_count?: number;
+    initial_step_count?: number;
+    terminal_step_count?: number;
+    input_disposition_count?: number;
+    output_disposition_count?: number;
+    [key: string]: number | undefined;
+  };
 }
 
 // ─── Step Equipment Requirement (ISA-95 Process Segment) ─────────────

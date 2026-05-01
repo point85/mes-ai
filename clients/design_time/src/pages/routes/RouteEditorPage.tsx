@@ -26,6 +26,7 @@ import {
   useUnassignMaterialFromRoute,
   useAssignProductToRoute,
   useUnassignProductFromRoute,
+  useValidateRoute,
 } from "../../hooks/useProductDef";
 import { useMaterials } from "../../hooks/useMaterial";
 import { useAllWorkCells, useEquipmentClasses, useAllEquipment } from "../../hooks/usePhysicalModel";
@@ -48,6 +49,8 @@ export default function RouteEditorPage() {
   const [pickerSource, setPickerSource] = useState<"materials" | "products">("materials");
   const [pickerTypeFilter, setPickerTypeFilter] = useState("");
   const [stepsView, setStepsView] = useState<"table" | "diagram">("table");
+  const validateMut = useValidateRoute();
+  const validation = validateMut.data ?? null;
 
   // Queries
   const { data: routesData, isLoading: routesLoading } = useAllRoutes();
@@ -250,6 +253,19 @@ export default function RouteEditorPage() {
                     </button>
                   </div>
                   <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedRoute) {
+                        validateMut.mutate(selectedRoute.id);
+                      }
+                    }}
+                    disabled={!selectedRoute || validateMut.isPending}
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                    title="Run route-integrity validation. Read-only — no changes are saved."
+                  >
+                    {validateMut.isPending ? "Validating…" : "Validate"}
+                  </button>
+                  <button
                     onClick={() => {
                       setEditingStep(null);
                       setShowStepForm(true);
@@ -261,8 +277,55 @@ export default function RouteEditorPage() {
                   </button>
                 </div>
               </div>
+              {validation && (
+                <div
+                  className={`border-b px-4 py-3 text-xs ${
+                    validation.valid
+                      ? "border-green-200 bg-green-50 text-green-800"
+                      : "border-red-200 bg-red-50 text-red-800"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold">
+                      {validation.valid
+                        ? "Route is valid."
+                        : "Route is not valid."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => validateMut.reset()}
+                      className="text-xs underline opacity-70 hover:opacity-100"
+                    >
+                      dismiss
+                    </button>
+                  </div>
+                  {validation.errors.length > 0 && (
+                    <ul className="mt-1 list-inside list-disc">
+                      {validation.errors.map((e, i) => (
+                        <li key={`e${i}`}>{e}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {validation.warnings.length > 0 && (
+                    <ul className="mt-1 list-inside list-disc text-amber-800">
+                      {validation.warnings.map((w, i) => (
+                        <li key={`w${i}`}>{w}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {validation.stats && (
+                    <p className="mt-1 text-[11px] opacity-70">
+                      {validation.stats.step_count ?? 0} step(s),{" "}
+                      {validation.stats.initial_step_count ?? 0} initial,{" "}
+                      {validation.stats.terminal_step_count ?? 0} terminal,{" "}
+                      {validation.stats.input_disposition_count ?? 0} input dispositions,{" "}
+                      {validation.stats.output_disposition_count ?? 0} output dispositions.
+                    </p>
+                  )}
+                </div>
+              )}
               {stepsView === "diagram" ? (
-                <RouteFlowDiagram steps={steps} />
+                <RouteFlowDiagram steps={steps} validation={validation} />
               ) : (
               <div className="overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -282,6 +345,12 @@ export default function RouteEditorPage() {
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Type
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Inputs
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Outputs
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Cycle Time
@@ -328,6 +397,45 @@ export default function RouteEditorPage() {
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
                             {s.step_type}
                           </span>
+                          {s.is_initial_step && (
+                            <span className="ml-1 inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+                              initial
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-600">
+                          {(s.input_dispositions ?? []).length === 0 ? (
+                            <span className="text-gray-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {s.input_dispositions.map((d) => (
+                                <span
+                                  key={d.id}
+                                  className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] text-blue-700"
+                                  title={d.name}
+                                >
+                                  {d.code}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-600">
+                          {(s.output_dispositions ?? []).length === 0 ? (
+                            <span className="text-gray-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {s.output_dispositions.map((d) => (
+                                <span
+                                  key={d.id}
+                                  className="inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] text-emerald-700"
+                                  title={d.name}
+                                >
+                                  {d.code}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-600">
                           {s.expected_cycle_time_sec != null
@@ -364,7 +472,7 @@ export default function RouteEditorPage() {
                     {steps.length === 0 && (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={9}
                           className="px-4 py-6 text-center text-sm text-gray-400"
                         >
                           No steps defined. Click "New Step" to add one.

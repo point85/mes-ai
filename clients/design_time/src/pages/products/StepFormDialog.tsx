@@ -24,7 +24,9 @@ const schema = z.object({
   equipment_class_id: z.string().nullable().optional(),
   expected_cycle_time_sec: z.number().min(0).nullable().optional(),
   erp_operation_number: z.string().max(50).nullable().optional(),
-  disposition_id: z.string().nullable().optional(),
+  is_initial_step: z.boolean().optional(),
+  input_disposition_ids: z.array(z.string()).default([]),
+  output_disposition_ids: z.array(z.string()).default([]),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -61,6 +63,8 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,7 +77,9 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
       equipment_class_id: null,
       expected_cycle_time_sec: null,
       erp_operation_number: null,
-      disposition_id: null,
+      is_initial_step: false,
+      input_disposition_ids: [],
+      output_disposition_ids: [],
     },
   });
 
@@ -87,10 +93,29 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
         equipment_class_id: step.equipment_class_id,
         expected_cycle_time_sec: step.expected_cycle_time_sec,
         erp_operation_number: step.erp_operation_number,
-        disposition_id: step.disposition_id,
+        is_initial_step: step.is_initial_step,
+        input_disposition_ids: (step.input_dispositions ?? []).map((d) => d.id),
+        output_disposition_ids: (step.output_dispositions ?? []).map((d) => d.id),
       });
     }
   }, [step, reset]);
+
+  // Only routing-category dispositions may be wired into the input/output
+  // lists; hold/scrap dispositions are workflow concerns, not graph edges.
+  const routeDispositions = dispositions.filter((d) => d.category === "route");
+  const inputIds = watch("input_disposition_ids") ?? [];
+  const outputIds = watch("output_disposition_ids") ?? [];
+
+  const toggleDisposition = (
+    field: "input_disposition_ids" | "output_disposition_ids",
+    id: string,
+  ) => {
+    const current = field === "input_disposition_ids" ? inputIds : outputIds;
+    const next = current.includes(id)
+      ? current.filter((x) => x !== id)
+      : [...current, id];
+    setValue(field, next, { shouldDirty: true });
+  };
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -98,7 +123,9 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
         ...data,
         work_cell_id: data.work_cell_id || null,
         equipment_class_id: data.equipment_class_id || null,
-        disposition_id: data.disposition_id || null,
+        is_initial_step: !!data.is_initial_step,
+        input_disposition_ids: data.input_disposition_ids ?? [],
+        output_disposition_ids: data.output_disposition_ids ?? [],
       };
       if (isEdit) {
         await updateMut.mutateAsync({ id: step!.id, ...payload });
@@ -244,22 +271,91 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
                 placeholder="0010"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Input Disposition <span className="text-gray-400">(optional)</span>
-              </label>
-              <select
-                {...register("disposition_id")}
-                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              >
-                <option value="">— None —</option>
-                {dispositions.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.code} — {d.name} ({d.category})
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-400">Disposition that routes WIP to this step</p>
+            <div className="flex items-start gap-2">
+              <input
+                id="is_initial_step"
+                type="checkbox"
+                {...register("is_initial_step")}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <div>
+                <label htmlFor="is_initial_step" className="block text-sm font-medium text-gray-700">
+                  Initial step
+                </label>
+                <p className="text-xs text-gray-400">
+                  Mark as the canonical entry point of the route. An initial step
+                  must have an empty input disposition list.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 rounded-md border border-gray-200 bg-gray-50 p-3">
+              <div>
+                <p className="text-sm font-medium text-gray-700">
+                  Input Dispositions
+                </p>
+                <p className="mb-2 text-xs text-gray-500">
+                  Dispositions that route WIP <em>into</em> this step.
+                  Only routing-category dispositions are available.
+                </p>
+                {routeDispositions.length === 0 ? (
+                  <p className="text-xs italic text-gray-400">
+                    No routing-category dispositions defined yet.
+                  </p>
+                ) : (
+                  <ul className="max-h-40 space-y-1 overflow-y-auto rounded border border-gray-200 bg-white p-2">
+                    {routeDispositions.map((d) => {
+                      const checked = inputIds.includes(d.id);
+                      return (
+                        <li key={d.id} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleDisposition("input_disposition_ids", d.id)}
+                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="text-xs text-gray-700">
+                            <span className="font-mono">{d.code}</span> — {d.name}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-700">
+                  Output Dispositions
+                </p>
+                <p className="mb-2 text-xs text-gray-500">
+                  Dispositions that route WIP <em>out of</em> this step.
+                  Only routing-category dispositions are available.
+                </p>
+                {routeDispositions.length === 0 ? (
+                  <p className="text-xs italic text-gray-400">
+                    No routing-category dispositions defined yet.
+                  </p>
+                ) : (
+                  <ul className="max-h-40 space-y-1 overflow-y-auto rounded border border-gray-200 bg-white p-2">
+                    {routeDispositions.map((d) => {
+                      const checked = outputIds.includes(d.id);
+                      return (
+                        <li key={d.id} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleDisposition("output_disposition_ids", d.id)}
+                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="text-xs text-gray-700">
+                            <span className="font-mono">{d.code}</span> — {d.name}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button

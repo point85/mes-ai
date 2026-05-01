@@ -19,6 +19,7 @@ import {
   fetchRoutes,
   createRoute,
   updateRoute,
+  validateRoute,
   fetchRouteSteps,
   createRouteStep,
   updateRouteStep,
@@ -222,6 +223,17 @@ export function useUpdateRoute() {
     mutationFn: ({ id, ...body }: RouteUpdate & { id: string }) =>
       updateRoute(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["routes"] }),
+  });
+}
+
+/**
+ * Read-only validation of a saved route. The button-driven validate
+ * action triggers a fresh `mutate(routeId)` call rather than autorunning
+ * on every render, and the result is **not** written back to the cache.
+ */
+export function useValidateRoute() {
+  return useMutation({
+    mutationFn: (routeId: string) => validateRoute(routeId),
   });
 }
 

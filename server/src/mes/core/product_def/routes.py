@@ -428,6 +428,24 @@ async def update_route(
     return success_response(RouteRead.model_validate(route).model_dump())
 
 
+@router.post("/operations-definitions/{route_id}/validate")
+async def validate_route_endpoint(
+    route_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("product_def.read")),
+):
+    """Run route-integrity validation against the saved route.
+
+    Read-only — performs no edits. Returns
+    ``{"valid": bool, "errors": [str], "warnings": [str], "stats": {...}}``
+    so the UI can show whether the route is ready to be saved/used.
+    """
+    from mes.core.routing.service import RoutingEngineService
+
+    result = await RoutingEngineService.validate_route(session, route_id)
+    return success_response(result)
+
+
 # ─── Route Steps ──────────────────────────────────────────────────────
 
 

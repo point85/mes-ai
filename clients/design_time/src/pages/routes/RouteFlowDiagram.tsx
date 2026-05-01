@@ -1,22 +1,24 @@
 /**
- * Route Flow Diagram — renders a route's steps + transitions as a
- * Mermaid directed graph.  Colors edges by transition condition:
- *   - always / on_pass   → green
- *   - on_fail            → red
- *   - on_rework          → amber
- *   - disposition        → blue
+ * Route Flow Diagram — renders a route's steps + disposition edges as a
+ * Mermaid directed graph.
  *
- * Useful for verifying rework loops, MRB escalations, and branching logic.
+ * Edges are derived from the steps' input/output disposition lists:
+ * a step's output disposition becomes an edge to every step whose input
+ * list contains the same disposition. Edges are labeled with the
+ * disposition code.
+ *
+ * The optional `validation` prop is used purely as a status banner —
+ * the graph is always rendered, but invalid routes are highlighted so
+ * the user knows the diagram may show dangling/orphan edges.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQueries } from "@tanstack/react-query";
 import mermaid from "mermaid";
-import { fetchStepTransitions } from "../../api/productDef";
-import type { RouteStep } from "../../types";
+import type { RouteStep, RouteValidationResult } from "../../types";
 
 interface Props {
   steps: RouteStep[];
+  validation?: RouteValidationResult | null;
 }
 
 mermaid.initialize({
@@ -26,16 +28,12 @@ mermaid.initialize({
   securityLevel: "loose",
 });
 
-const CONDITION_STYLE: Record<string, { color: string; label: string }> = {
-  always: { color: "#16a34a", label: "always" },
-  on_pass: { color: "#16a34a", label: "on_pass" },
-  on_fail: { color: "#dc2626", label: "on_fail" },
-  on_rework: { color: "#d97706", label: "on_rework" },
-  disposition: { color: "#2563eb", label: "disposition" },
-};
-
 function sanitize(text: string): string {
   return text.replace(/"/g, "&quot;").replace(/\n/g, " ");
+}
+
+function nodeId(s: RouteStep): string {
+  return `step_${s.id.replace(/-/g, "")}`;
 }
 
 function stepNode(s: RouteStep): string {
@@ -46,45 +44,25 @@ function stepNode(s: RouteStep): string {
     mrb: ["[[", "]]"],
   };
   const [open, close] = shape[s.step_type] ?? shape.production;
-  const label = `${s.sequence}. ${sanitize(s.name)}`;
-  return `step_${s.id.replace(/-/g, "")}${open}"${label}"${close}`;
+  const initialMark = s.is_initial_step ? "● " : "";
+  const label = `${initialMark}${s.sequence}. ${sanitize(s.name)}`;
+  return `${nodeId(s)}${open}"${label}"${close}`;
 }
 
-function stepId(s: RouteStep): string {
-  return `step_${s.id.replace(/-/g, "")}`;
-}
-
-export default function RouteFlowDiagram({ steps }: Props) {
+export default function RouteFlowDiagram({ steps, validation }: Props) {
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const transitionQueries = useQueries({
-    queries: steps.map((s) => ({
-      queryKey: ["stepTransitions", s.id],
-      queryFn: () => fetchStepTransitions(s.id),
-      enabled: !!s.id,
-    })),
-  });
-
-  const allLoaded = transitionQueries.every((q) => !q.isLoading);
-  const allTransitions = useMemo(
-    () => transitionQueries.flatMap((q) => q.data?.data ?? []),
-    [transitionQueries],
-  );
-
   const markup = useMemo(() => {
     if (steps.length === 0) return "";
     const lines: string[] = ["flowchart TD"];
-    const stepByIdMap = new Map(steps.map((s) => [s.id, s]));
 
-    // node definitions (sorted by sequence)
     const sortedSteps = [...steps].sort((a, b) => a.sequence - b.sequence);
     for (const s of sortedSteps) {
       lines.push(`  ${stepNode(s)}`);
     }
 
-    // class styling per step_type
     const classOf: Record<string, string> = {
       production: "prod",
       inspection: "insp",
@@ -92,33 +70,51 @@ export default function RouteFlowDiagram({ steps }: Props) {
       mrb: "mrb",
     };
     for (const s of sortedSteps) {
-      lines.push(`  class ${stepId(s)} ${classOf[s.step_type] ?? "prod"}`);
+      lines.push(`  class ${nodeId(s)} ${classOf[s.step_type] ?? "prod"}`);
     }
     lines.push("  classDef prod fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b");
     lines.push("  classDef insp fill:#fef3c7,stroke:#d97706,color:#78350f");
     lines.push("  classDef rework fill:#fee2e2,stroke:#dc2626,color:#7f1d1d");
     lines.push("  classDef mrb fill:#ede9fe,stroke:#7c3aed,color:#4c1d95");
 
-    // edges
-    let edgeIdx = 0;
-    const edgeStyles: string[] = [];
-    for (const t of allTransitions) {
-      const from = stepByIdMap.get(t.from_step_id);
-      const to = stepByIdMap.get(t.to_step_id);
-      if (!from || !to) continue;
-      const style = CONDITION_STYLE[t.condition] ?? { color: "#6b7280", label: t.condition };
-      const edgeLabel = t.label ? `${style.label}: ${sanitize(t.label)}` : style.label;
-      lines.push(`  ${stepId(from)} -- "${edgeLabel}" --> ${stepId(to)}`);
-      edgeStyles.push(`  linkStyle ${edgeIdx} stroke:${style.color},stroke-width:2px`);
-      edgeIdx += 1;
+    // Build an index from disposition id → steps that consume it as an
+    // input. Each output disposition then produces an edge to every
+    // consumer step, so shared sinks render as fan-in correctly.
+    const consumers = new Map<string, RouteStep[]>();
+    for (const s of sortedSteps) {
+      for (const d of s.input_dispositions ?? []) {
+        const arr = consumers.get(d.id) ?? [];
+        arr.push(s);
+        consumers.set(d.id, arr);
+      }
     }
-    lines.push(...edgeStyles);
+
+    for (const src of sortedSteps) {
+      for (const d of src.output_dispositions ?? []) {
+        const targets = consumers.get(d.id) ?? [];
+        if (targets.length === 0) {
+          const ghost = `ghost_${d.id.replace(/-/g, "")}`;
+          lines.push(`  ${ghost}(["⚠ ${sanitize(d.code)}<br/>(unconsumed)"])`);
+          lines.push(`  class ${ghost} ghost`);
+          lines.push(`  ${nodeId(src)} -- "${sanitize(d.code)}" --> ${ghost}`);
+          continue;
+        }
+        for (const tgt of targets) {
+          lines.push(
+            `  ${nodeId(src)} -- "${sanitize(d.code)}" --> ${nodeId(tgt)}`,
+          );
+        }
+      }
+    }
+    lines.push(
+      "  classDef ghost fill:#fef2f2,stroke:#dc2626,color:#7f1d1d,stroke-dasharray: 4 2",
+    );
 
     return lines.join("\n");
-  }, [steps, allTransitions]);
+  }, [steps]);
 
   useEffect(() => {
-    if (!allLoaded || !markup) {
+    if (!markup) {
       setSvg("");
       return;
     }
@@ -141,7 +137,7 @@ export default function RouteFlowDiagram({ steps }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [markup, allLoaded]);
+  }, [markup]);
 
   if (steps.length === 0) {
     return (
@@ -151,27 +147,31 @@ export default function RouteFlowDiagram({ steps }: Props) {
     );
   }
 
-  if (!allLoaded) {
-    return <p className="p-6 text-sm text-gray-500">Loading transitions…</p>;
-  }
-
   return (
     <div className="space-y-3 p-4">
-      <div className="flex flex-wrap items-center gap-3 text-xs">
-        <span className="font-semibold text-gray-700">Edge colors:</span>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600">
+        <span className="font-semibold text-gray-700">Legend:</span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-0.5 w-5 bg-green-600" /> always / on_pass
+          <span className="inline-block h-3 w-3 rounded bg-indigo-100 ring-1 ring-indigo-500" /> production
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-0.5 w-5 bg-red-600" /> on_fail
+          <span className="inline-block h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-500" /> inspection
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-0.5 w-5 bg-amber-600" /> on_rework
+          <span className="inline-block h-3 w-3 rounded bg-red-100 ring-1 ring-red-500" /> rework
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-0.5 w-5 bg-blue-600" /> disposition
+          <span className="inline-block h-3 w-3 rounded bg-violet-100 ring-1 ring-violet-500" /> mrb
         </span>
+        <span className="text-gray-500">●&nbsp;= initial step</span>
+        <span className="text-gray-500">edges labeled by disposition code</span>
       </div>
+      {validation && !validation.valid && (
+        <div className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+          Diagram may include dangling or orphan edges — see the validation
+          panel above for details.
+        </div>
+      )}
       {error ? (
         <div className="rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">
           <p className="font-semibold">Diagram render error</p>
