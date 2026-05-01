@@ -581,11 +581,25 @@ class ProductDefService:
         route_id: UUID,
         params: PaginationParams,
     ) -> tuple[Sequence[ProcessSegment], str | None, bool]:
-        """List steps within a route."""
+        """List steps within a route, eagerly loading the input and
+        output disposition junction rows + their Disposition targets so
+        the API serializer can render the disposition chips without
+        triggering lazy IO on the async session."""
         await ProductDefService.get_route(session, route_id)
-        stmt = select(ProcessSegment).where(
-            ProcessSegment.route_id == route_id,
-            ProcessSegment.is_active.is_(True),
+        stmt = (
+            select(ProcessSegment)
+            .where(
+                ProcessSegment.route_id == route_id,
+                ProcessSegment.is_active.is_(True),
+            )
+            .options(
+                selectinload(ProcessSegment.input_dispositions).selectinload(
+                    ProcessSegmentInputDisposition.disposition,
+                ),
+                selectinload(ProcessSegment.output_dispositions).selectinload(
+                    ProcessSegmentOutputDisposition.disposition,
+                ),
+            )
         )
         return await paginate_query(session, stmt, ProcessSegment, params)
 

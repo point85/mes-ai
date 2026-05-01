@@ -459,7 +459,7 @@ async def list_steps(
     """List steps within a route."""
     items, cursor, has_more = await svc.list_steps(session, route_id, params)
     return list_response(
-        [RouteStepRead.model_validate(s).model_dump() for s in items],
+        [_step_to_read_dict(s) for s in items],
         cursor=cursor,
         limit=params.limit,
         has_more=has_more,
