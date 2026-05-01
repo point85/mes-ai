@@ -625,6 +625,14 @@ class DispatchService:
             has_spare = (
                 equip.max_queue_depth is None
                 or queue_depth < equip.max_queue_depth
+                # If this WIP is already assigned here, starting it is a
+                # queued→in_process transition — not a new queue occupant.
+                # Subtract it so the capacity check doesn't block the start.
+                or (
+                    assigned_equipment_id is not None
+                    and equip.id == assigned_equipment_id
+                    and queue_depth - 1 < equip.max_queue_depth
+                )
             )
 
             statuses.append(StepEquipmentStatus(
