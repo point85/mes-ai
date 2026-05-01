@@ -905,53 +905,10 @@ class ProductDefService:
     #
     # Disposition lists are managed as full replacements: callers pass
     # the new set of disposition ids and the helpers diff against the
-    # existing rows. A disposition is unique within a route per role —
-    # it appears in at most one step's input list AND at most one
-    # step's output list. The service enforces this when a list is set.
-
-    @staticmethod
-    async def _validate_disposition_unique_in_route(
-        session: AsyncSession,
-        *,
-        route_id: UUID,
-        step_id: UUID,
-        disposition_ids: list[UUID],
-        role: str,  # "input" or "output"
-    ) -> None:
-        """Reject if any disposition is already used by a *different* step
-        in the same route as an **input**.
-
-        Output uniqueness is intentionally not enforced: multiple steps may
-        produce the same disposition and they all route to the single
-        destination step that lists it as an input (this also enables
-        self-loops, where a step's output disposition matches its own input).
-        """
-        if not disposition_ids:
-            return
-        if role == "output":
-            return  # output dispositions may be shared across steps
-        if role != "input":
-            raise ValueError(f"unknown role: {role}")
-        link_cls = ProcessSegmentInputDisposition
-        stmt = (
-            select(link_cls.disposition_id, link_cls.step_id)
-            .join(ProcessSegment, ProcessSegment.id == link_cls.step_id)
-            .where(
-                ProcessSegment.route_id == route_id,
-                ProcessSegment.is_active.is_(True),
-                link_cls.is_active.is_(True),
-                link_cls.step_id != step_id,
-                link_cls.disposition_id.in_(disposition_ids),
-            )
-        )
-        rows = (await session.execute(stmt)).all()
-        if rows:
-            d, s = rows[0]
-            raise ValueError(
-                f"Disposition {d} is already used as input of step {s} in "
-                f"route {route_id}; input dispositions must be unique "
-                f"within a route."
-            )
+    # existing rows. Cross-step uniqueness of input dispositions is a
+    # *route-level* property checked by RoutingEngineService.validate_route
+    # before a route is activated; it is intentionally not enforced on
+    # individual edits so the editor can build intermediate states.
 
     @staticmethod
     async def set_step_input_dispositions(
@@ -959,15 +916,15 @@ class ProductDefService:
         step_id: UUID,
         disposition_ids: list[UUID],
     ) -> list[ProcessSegmentInputDisposition]:
-        """Replace the step's input disposition list."""
-        step = await ProductDefService.get_step(session, step_id)
-        await ProductDefService._validate_disposition_unique_in_route(
-            session,
-            route_id=step.route_id,
-            step_id=step_id,
-            disposition_ids=disposition_ids,
-            role="input",
-        )
+        """Replace the step's input disposition list.
+
+        Cross-step input-uniqueness is **not** enforced here so that the
+        editor can freely build intermediate states (loops, rework
+        branches, multi-source convergence). The route-level integrity
+        check (`RoutingEngineService.validate_route`) flags any
+        ambiguous input wiring before the route is put into production.
+        """
+        await ProductDefService.get_step(session, step_id)
         # Hard-delete prior rows: the (step_id, disposition_id) unique
         # constraint applies to inactive rows too, so soft-delete would
         # block re-adding the same disposition.
@@ -993,15 +950,12 @@ class ProductDefService:
         step_id: UUID,
         disposition_ids: list[UUID],
     ) -> list[ProcessSegmentOutputDisposition]:
-        """Replace the step's output disposition list."""
-        step = await ProductDefService.get_step(session, step_id)
-        await ProductDefService._validate_disposition_unique_in_route(
-            session,
-            route_id=step.route_id,
-            step_id=step_id,
-            disposition_ids=disposition_ids,
-            role="output",
-        )
+        """Replace the step's output disposition list.
+
+        Output sharing across steps is allowed by design (it enables
+        loops and shared sinks); no cross-step uniqueness check runs.
+        """
+        await ProductDefService.get_step(session, step_id)
         await session.execute(
             delete(ProcessSegmentOutputDisposition).where(
                 ProcessSegmentOutputDisposition.step_id == step_id,
