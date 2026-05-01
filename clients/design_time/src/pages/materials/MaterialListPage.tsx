@@ -137,7 +137,7 @@ export default function MaterialListPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-sm font-mono text-gray-600">
-                    {m.uom}
+                    {m.uom_symbol}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-right font-mono text-gray-600">
                     {m.shelf_life_days ?? "—"}

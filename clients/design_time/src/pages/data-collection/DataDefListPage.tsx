@@ -175,7 +175,7 @@ export default function DataDefListPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-sm font-mono text-gray-600">
-                    {d.uom ?? "—"}
+                    {d.uom_symbol ?? "—"}
                   </td>
                   <td className="px-4 py-2.5 text-center text-xs font-mono text-gray-500">
                     {d.lower_limit != null || d.upper_limit != null

@@ -139,7 +139,7 @@ export default function ProductListPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-sm font-mono text-gray-600">
-                    {p.uom}
+                    {p.uom_symbol}
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">

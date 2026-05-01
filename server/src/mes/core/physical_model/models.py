@@ -260,13 +260,13 @@ class EquipmentMaterial(BaseModel):
         Float, nullable=False,
         comment="Nameplate design speed for good produced material",
     )
-    design_speed_uom: Mapped[str] = mapped_column(
-        String(20), ForeignKey("units_of_measure.symbol"), nullable=False,
-        comment="Rate UoM for design speed (e.g. EA/h)",
+    design_speed_uom_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("units_of_measure.id"), nullable=False,
+        comment="Rate UoM for design speed — FK to units_of_measure.id",
     )
-    reject_uom: Mapped[str] = mapped_column(
-        String(20), ForeignKey("units_of_measure.symbol"), nullable=False,
-        comment="UoM for rejected / scrap material (e.g. EA, kg)",
+    reject_uom_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("units_of_measure.id"), nullable=False,
+        comment="UoM for rejected / scrap material — FK to units_of_measure.id",
     )
     target_oee: Mapped[float] = mapped_column(
         Float, nullable=False,
@@ -282,11 +282,19 @@ class EquipmentMaterial(BaseModel):
         "MaterialDefinition", back_populates="equipment_setups",
     )
     design_speed_unit: Mapped["UnitOfMeasure"] = relationship(
-        "UnitOfMeasure", foreign_keys=[design_speed_uom], lazy="selectin",
+        "UnitOfMeasure", foreign_keys=[design_speed_uom_id], lazy="selectin",
     )
     reject_unit: Mapped["UnitOfMeasure"] = relationship(
-        "UnitOfMeasure", foreign_keys=[reject_uom], lazy="selectin",
+        "UnitOfMeasure", foreign_keys=[reject_uom_id], lazy="selectin",
     )
+
+    @property
+    def design_speed_uom_symbol(self) -> str | None:
+        return self.design_speed_unit.symbol if self.design_speed_unit else None
+
+    @property
+    def reject_uom_symbol(self) -> str | None:
+        return self.reject_unit.symbol if self.reject_unit else None
 
     def __repr__(self) -> str:
         return (

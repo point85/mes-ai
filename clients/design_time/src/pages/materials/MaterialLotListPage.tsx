@@ -179,7 +179,7 @@ export default function MaterialLotListPage() {
                     <td className="px-4 py-2.5 text-sm text-right font-mono text-gray-900">
                       {lot.quantity_on_hand}{" "}
                       <span className="text-xs text-gray-400">
-                        {mat?.uom ?? ""}
+                        {mat?.uom_symbol ?? ""}
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-sm text-right font-mono text-gray-600">

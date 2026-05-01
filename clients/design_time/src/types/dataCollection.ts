@@ -10,7 +10,8 @@ export interface DataDefinition {
   code: string;
   description: string | null;
   data_type: string;
-  uom: string | null;
+  uom_id: string | null;
+  uom_symbol: string | null;
   step_id: string | null;
   source: string;
   is_required: boolean;
@@ -27,7 +28,7 @@ export interface DataDefinitionCreate {
   code: string;
   description?: string | null;
   data_type?: string;
-  uom?: string | null;
+  uom_id?: string | null;
   step_id?: string | null;
   source?: string;
   is_required?: boolean;
@@ -41,7 +42,7 @@ export interface DataDefinitionUpdate {
   code?: string;
   description?: string | null;
   data_type?: string;
-  uom?: string | null;
+  uom_id?: string | null;
   step_id?: string | null;
   source?: string;
   is_required?: boolean;

@@ -206,8 +206,8 @@ class EquipmentMaterialCreate(BaseModel):
 
     material_id: UUID
     design_speed: float = Field(..., gt=0, description="Nameplate design speed (> 0)")
-    design_speed_uom: str = Field(..., min_length=1, max_length=20, description="Rate UoM symbol (e.g. EA/h)")
-    reject_uom: str = Field(..., min_length=1, max_length=20, description="UoM symbol for rejects (e.g. EA)")
+    design_speed_uom_id: UUID = Field(..., description="UUID of the rate unit of measure (e.g. EA/h)")
+    reject_uom_id: UUID = Field(..., description="UUID of the reject unit of measure (e.g. EA)")
     target_oee: float = Field(..., ge=0.0, le=100.0, description="Target OEE percentage (0–100)")
 
 
@@ -220,8 +220,10 @@ class EquipmentMaterialRead(BaseModel):
     material_name: str | None = None
     material_code: str | None = None
     design_speed: float
-    design_speed_uom: str
-    reject_uom: str
+    design_speed_uom_id: UUID
+    design_speed_uom_symbol: str | None = None
+    reject_uom_id: UUID
+    reject_uom_symbol: str | None = None
     target_oee: float
     is_active: bool
     created_at: datetime
@@ -234,8 +236,8 @@ class EquipmentMaterialUpdate(BaseModel):
     """Schema for updating an equipment-material setup. All fields optional."""
 
     design_speed: float | None = Field(None, gt=0)
-    design_speed_uom: str | None = Field(None, min_length=1, max_length=20)
-    reject_uom: str | None = Field(None, min_length=1, max_length=20)
+    design_speed_uom_id: UUID | None = None
+    reject_uom_id: UUID | None = None
     target_oee: float | None = Field(None, ge=0.0, le=100.0)
 
 
@@ -257,7 +259,7 @@ class MaterialSetupRead(BaseModel):
     material_name: str | None = None
     material_code: str | None = None
     design_speed: float | None = None
-    design_speed_uom: str | None = None
+    design_speed_uom_id: UUID | None = None
     job_number: str | None = None
     setup_at: datetime | None = None
 

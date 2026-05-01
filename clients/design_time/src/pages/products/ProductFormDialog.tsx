@@ -21,7 +21,7 @@ const productSchema = z.object({
     .refine((s) => !s.includes(" "), "Code must not contain spaces"),
   version: z.string().max(50).optional(),
   description: z.string().nullable().optional(),
-  uom: z.string().min(1).max(20).optional(),
+  uom_id: z.string().min(1, "UoM is required").optional(),
   product_type: z.enum(["discrete", "process", "semi_finished", "configurable"]),
 });
 
@@ -39,7 +39,7 @@ export default function ProductFormDialog({ product, onClose }: Props) {
 
   // Fetch all UOMs and exclude rate types (rates are not valid product UOMs)
   const { data: uomData } = useUoMs();
-  const nonRateUoMs = (uomData?.items ?? []).filter((u) => u.uom_type !== "rate");
+  const nonRateUoMs = (uomData?.data ?? []).filter((u) => u.uom_type !== "rate");
 
   const {
     register,
@@ -53,7 +53,7 @@ export default function ProductFormDialog({ product, onClose }: Props) {
       code: "",
       version: "1.0",
       description: "",
-      uom: "EA",
+      uom_id: "",
       product_type: "discrete",
     },
   });
@@ -65,7 +65,7 @@ export default function ProductFormDialog({ product, onClose }: Props) {
         code: product.code,
         version: product.version,
         description: product.description ?? "",
-        uom: product.uom,
+        uom_id: product.uom_id,
         product_type: product.product_type as "discrete" | "process" | "semi_finished" | "configurable",
       });
     }
@@ -175,18 +175,18 @@ export default function ProductFormDialog({ product, onClose }: Props) {
                   UoM
                 </label>
                 <select
-                  {...register("uom")}
+                  {...register("uom_id")}
                   className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 >
                   <option value="">— Select —</option>
                   {nonRateUoMs.map((u) => (
-                    <option key={u.id} value={u.symbol}>
+                    <option key={u.id} value={u.id}>
                       {u.symbol} — {u.name}
                     </option>
                   ))}
                 </select>
-                {errors.uom && (
-                  <p className="mt-1 text-xs text-red-600">{errors.uom.message}</p>
+                {errors.uom_id && (
+                  <p className="mt-1 text-xs text-red-600">{errors.uom_id.message}</p>
                 )}
               </div>
             </div>

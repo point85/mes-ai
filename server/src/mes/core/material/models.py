@@ -47,12 +47,11 @@ class MaterialDefinition(BaseModel):
         String(20), nullable=False, default="raw",
         comment="Material type: raw, intermediate, finished, semi, consumable, packaging, spare",
     )
-    uom: Mapped[str] = mapped_column(
-        String(20),
-        ForeignKey("units_of_measure.symbol"),
+    uom_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("units_of_measure.id"),
         nullable=False,
-        default="EA",
-        comment="Default unit of measure — FK to units_of_measure.symbol",
+        comment="Default unit of measure — FK to units_of_measure.id",
     )
     revision: Mapped[str | None] = mapped_column(
         String(20), nullable=True, default=None,
@@ -64,11 +63,16 @@ class MaterialDefinition(BaseModel):
     )
 
     # ── Relationships ───────────────────────────────────────────────
-    unit_of_measure: Mapped["UnitOfMeasure"] = relationship(
+    uom_rel: Mapped["UnitOfMeasure"] = relationship(
         "UnitOfMeasure",
-        foreign_keys=[uom],
+        foreign_keys=[uom_id],
         lazy="selectin",
     )
+
+    @property
+    def uom_symbol(self) -> str | None:
+        return self.uom_rel.symbol if self.uom_rel else None
+
     lots: Mapped[list["MaterialLot"]] = relationship(
         "MaterialLot", back_populates="material", cascade="all, delete-orphan",
     )

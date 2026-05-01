@@ -11,7 +11,8 @@ export interface Product {
   code: string;
   version: string;
   description: string | null;
-  uom: string;
+  uom_id: string;
+  uom_symbol: string | null;
   product_type: string;
   is_active: boolean;
   created_at: string;
@@ -23,7 +24,7 @@ export interface ProductCreate {
   code: string;
   version?: string;
   description?: string | null;
-  uom?: string;
+  uom_id: string;
   product_type?: string;
 }
 
@@ -32,7 +33,7 @@ export interface ProductUpdate {
   code?: string;
   version?: string;
   description?: string | null;
-  uom?: string;
+  uom_id?: string;
   product_type?: string;
 }
 
@@ -68,7 +69,8 @@ export interface BOMItem {
   bom_id: string;
   material_code: string;
   quantity: number;
-  uom: string;
+  uom_id: string;
+  uom_symbol: string | null;
   position: number;
   process_segment_id: string | null;
   is_active: boolean;
@@ -79,7 +81,7 @@ export interface BOMItem {
 export interface BOMItemCreate {
   material_code: string;
   quantity: number;
-  uom?: string;
+  uom_id: string;
   position?: number;
   process_segment_id?: string | null;
 }
@@ -87,7 +89,7 @@ export interface BOMItemCreate {
 export interface BOMItemUpdate {
   material_code?: string;
   quantity?: number;
-  uom?: string;
+  uom_id?: string;
   position?: number;
   process_segment_id?: string | null;
 }
@@ -243,7 +245,8 @@ export interface StepMaterialRequirement {
   step_id: string;
   material_id: string;
   quantity: number;
-  uom: string;
+  uom_id: string;
+  uom_symbol: string | null;
   material_use: MaterialUse;
   position: number;
   description: string | null;
@@ -255,7 +258,7 @@ export interface StepMaterialRequirement {
 export interface StepMaterialRequirementCreate {
   material_id: string;
   quantity: number;
-  uom?: string;
+  uom_id: string;
   material_use?: MaterialUse;
   position?: number;
   description?: string | null;
@@ -263,7 +266,7 @@ export interface StepMaterialRequirementCreate {
 
 export interface StepMaterialRequirementUpdate {
   quantity?: number;
-  uom?: string;
+  uom_id?: string;
   material_use?: MaterialUse;
   position?: number;
   description?: string | null;
@@ -276,7 +279,8 @@ export interface StepParameter {
   step_id: string;
   name: string;
   data_type: string;
-  uom: string | null;
+  uom_id: string | null;
+  uom_symbol: string | null;
   target_value: string | null;
   lower_limit: string | null;
   upper_limit: string | null;
@@ -289,7 +293,7 @@ export interface StepParameter {
 export interface StepParameterCreate {
   name: string;
   data_type?: string;
-  uom?: string | null;
+  uom_id?: string | null;
   target_value?: string | null;
   lower_limit?: string | null;
   upper_limit?: string | null;
@@ -299,7 +303,7 @@ export interface StepParameterCreate {
 export interface StepParameterUpdate {
   name?: string;
   data_type?: string;
-  uom?: string | null;
+  uom_id?: string | null;
   target_value?: string | null;
   lower_limit?: string | null;
   upper_limit?: string | null;

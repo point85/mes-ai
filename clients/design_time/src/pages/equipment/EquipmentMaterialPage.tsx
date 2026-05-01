@@ -43,7 +43,7 @@ export default function EquipmentMaterialPage() {
       return (
         mat?.name.toLowerCase().includes(q) ||
         mat?.code.toLowerCase().includes(q) ||
-        em.design_speed_uom.toLowerCase().includes(q)
+        em.design_speed_uom_symbol?.toLowerCase().includes(q)
       );
     });
   }, [materials, search, matMap]);
@@ -148,10 +148,10 @@ export default function EquipmentMaterialPage() {
                       {em.design_speed}
                     </td>
                     <td className="px-4 py-2.5 text-sm font-mono text-gray-500">
-                      {em.design_speed_uom}
+                      {em.design_speed_uom_symbol}
                     </td>
                     <td className="px-4 py-2.5 text-sm font-mono text-gray-500">
-                      {em.reject_uom}
+                      {em.reject_uom_symbol}
                     </td>
                     <td className="px-4 py-2.5 text-sm text-gray-700 text-right tabular-nums">
                       {em.target_oee}%

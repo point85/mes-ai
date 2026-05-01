@@ -67,7 +67,7 @@ class ProductCreate(BaseModel):
     code: str = Field(..., min_length=1, max_length=50)
     version: str = Field("1.0", max_length=50)
     description: str | None = None
-    uom: str = Field("EA", max_length=20)
+    uom_id: UUID = Field(..., description="UUID of the unit of measure")
     product_type: str = Field("discrete", pattern=r"^(discrete|process|semi_finished|configurable)$")
 
 
@@ -79,7 +79,8 @@ class ProductRead(BaseModel):
     code: str
     version: str
     description: str | None = None
-    uom: str
+    uom_id: UUID
+    uom_symbol: str | None = None
     product_type: str
     is_active: bool
     created_at: datetime
@@ -95,7 +96,7 @@ class ProductUpdate(BaseModel):
     code: str | None = Field(None, min_length=1, max_length=50)
     version: str | None = Field(None, max_length=50)
     description: str | None = None
-    uom: str | None = Field(None, max_length=20)
+    uom_id: UUID | None = None
     product_type: str | None = Field(None, pattern=r"^(discrete|process|semi_finished|configurable)$")
 
 
@@ -141,7 +142,7 @@ class BOMItemCreate(BaseModel):
 
     material_code: str = Field(..., min_length=1, max_length=50)
     quantity: float = Field(..., gt=0)
-    uom: str = Field("EA", max_length=20)
+    uom_id: UUID = Field(..., description="UUID of the unit of measure")
     position: int = Field(0, ge=0)
     process_segment_id: UUID | None = None
 
@@ -153,7 +154,8 @@ class BOMItemRead(BaseModel):
     bom_id: UUID
     material_code: str
     quantity: float
-    uom: str
+    uom_id: UUID
+    uom_symbol: str | None = None
     position: int
     process_segment_id: UUID | None
     is_active: bool
@@ -168,7 +170,7 @@ class BOMItemUpdate(BaseModel):
 
     material_code: str | None = Field(None, min_length=1, max_length=50)
     quantity: float | None = Field(None, gt=0)
-    uom: str | None = Field(None, max_length=20)
+    uom_id: UUID | None = None
     position: int | None = Field(None, ge=0)
     process_segment_id: UUID | None = None
 
@@ -285,7 +287,7 @@ class StepParameterCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255)
     data_type: str = Field("numeric", pattern=r"^(numeric|string|boolean|enum)$")
-    uom: str | None = Field(None, max_length=20)
+    uom_id: UUID | None = None
     target_value: str | None = None
     lower_limit: str | None = None
     upper_limit: str | None = None
@@ -299,7 +301,8 @@ class StepParameterRead(BaseModel):
     step_id: UUID
     name: str
     data_type: str
-    uom: str | None = None
+    uom_id: UUID | None = None
+    uom_symbol: str | None = None
     target_value: str | None = None
     lower_limit: str | None = None
     upper_limit: str | None = None
@@ -316,7 +319,7 @@ class StepParameterUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=255)
     data_type: str | None = Field(None, pattern=r"^(numeric|string|boolean|enum)$")
-    uom: str | None = None
+    uom_id: UUID | None = None
     target_value: str | None = None
     lower_limit: str | None = None
     upper_limit: str | None = None
@@ -425,7 +428,7 @@ class StepMaterialRequirementCreate(BaseModel):
 
     material_id: UUID
     quantity: float = Field(..., gt=0)
-    uom: str = Field("EA", max_length=20)
+    uom_id: UUID = Field(..., description="UUID of the unit of measure")
     material_use: str = Field("consumed", pattern=r"^(consumed|produced)$")
     position: int = Field(0, ge=0)
     description: str | None = None
@@ -438,7 +441,8 @@ class StepMaterialRequirementRead(BaseModel):
     step_id: UUID
     material_id: UUID
     quantity: float
-    uom: str
+    uom_id: UUID
+    uom_symbol: str | None = None
     material_use: str
     position: int
     description: str | None = None
@@ -453,7 +457,7 @@ class StepMaterialRequirementUpdate(BaseModel):
     """Schema for updating a step material requirement."""
 
     quantity: float | None = Field(None, gt=0)
-    uom: str | None = Field(None, max_length=20)
+    uom_id: UUID | None = None
     material_use: str | None = Field(None, pattern=r"^(consumed|produced)$")
     position: int | None = Field(None, ge=0)
     description: str | None = None

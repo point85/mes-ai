@@ -146,7 +146,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                 summary["material_lots"] += 1
 
     # ── 2. Product ────────────────────────────────────────────────────
-    product = await _get_or_create_product(session, D.PRODUCT)
+    product = await _get_or_create_product(session, _inject_uom_id(D.PRODUCT, uom_ids))
     summary["product"] = str(product.id)
 
     # ── 3. Route ──────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     bom, bom_created = await _get_or_create_bom(session, product.id, version="1.0")
     if bom_created:
         for item in D.BOM_ITEMS:
-            item_kwargs = {k: v for k, v in item.items() if k != "step_sequence"}
+            item_kwargs = {k: v for k, v in _inject_uom_id(item, uom_ids).items() if k != "step_sequence"}
             step_seq = item.get("step_sequence")
             if step_seq and step_seq in step_by_seq:
                 item_kwargs["process_segment_id"] = step_by_seq[step_seq].id
@@ -222,14 +222,14 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
         for seq, params in D.STEP_PARAMS.items():
             step = step_by_seq[seq]
             for p in params:
-                await ProductDefService.create_step_parameter(session, step.id, **p)
+                await ProductDefService.create_step_parameter(session, step.id, **_inject_uom_id(p, uom_ids))
                 summary["segment_parameters"] += 1
 
     # ── 8. Data Collection Definitions ────────────────────────────────
     for seq, defs in D.DATA_DEFS.items():
         step = step_by_seq[seq]
         for d in defs:
-            dd = dict(d)
+            dd = _inject_uom_id(d, uom_ids)
             dd["step_id"] = step.id
             if await _get_or_create_data_def(session, **dd):
                 summary["data_definitions"] += 1
@@ -255,7 +255,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                 step_id=step.id,
                 material_id=mat_id,
                 quantity=req["quantity"],
-                uom=req["uom"],
+                uom_id=uom_ids[req["uom"]],
                 material_use=req["material_use"],
                 position=req.get("position", 0),
                 description=req.get("description"),
@@ -343,8 +343,8 @@ async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
             session, equip_id,
             material_id=mat_id,
             design_speed=em["design_speed"],
-            design_speed_uom=em["design_speed_uom"],
-            reject_uom=em["reject_uom"],
+            design_speed_uom_id=uom_ids[em["design_speed_uom"]],
+            reject_uom_id=uom_ids[em["reject_uom"]],
             target_oee=em["target_oee"],
         )
         if created:
@@ -519,7 +519,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             summary["material_lots"] += 1
 
     # ── 2. Product ────────────────────────────────────────────────────
-    product = await _get_or_create_product(session, E.PRODUCT)
+    product = await _get_or_create_product(session, _inject_uom_id(E.PRODUCT, uom_ids))
     summary["product"] = str(product.id)
 
     # ── 3. Route ──────────────────────────────────────────────────────
@@ -569,7 +569,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     bom, bom_created = await _get_or_create_bom(session, product.id, version="1.0")
     if bom_created:
         for item in E.BOM_ITEMS:
-            item_kwargs = {k: v for k, v in item.items() if k != "step_sequence"}
+            item_kwargs = {k: v for k, v in _inject_uom_id(item, uom_ids).items() if k != "step_sequence"}
             step_seq = item.get("step_sequence")
             if step_seq and step_seq in step_by_seq:
                 item_kwargs["process_segment_id"] = step_by_seq[step_seq].id
@@ -595,14 +595,14 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
         for seq, params in E.STEP_PARAMS.items():
             step = step_by_seq[seq]
             for p in params:
-                await ProductDefService.create_step_parameter(session, step.id, **p)
+                await ProductDefService.create_step_parameter(session, step.id, **_inject_uom_id(p, uom_ids))
                 summary["segment_parameters"] += 1
 
-    # ── 8. Data Collection Definitions ────────────────────────────────
+    # ── 8. Data Collection Definitions
     for seq, defs in E.DATA_DEFS.items():
         step = step_by_seq[seq]
         for d in defs:
-            dd = dict(d)
+            dd = _inject_uom_id(d, uom_ids)
             dd["step_id"] = step.id
             if await _get_or_create_data_def(session, **dd):
                 summary["data_definitions"] += 1
@@ -627,7 +627,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             step_id=step.id,
             material_id=mat_id,
             quantity=req["quantity"],
-            uom=req["uom"],
+            uom_id=uom_ids[req["uom"]],
             material_use=req["material_use"],
             position=req.get("position", 0),
             description=req.get("description"),
@@ -670,6 +670,8 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
                                 "equipment_capabilities": 0,
                                 "storage_locations": 0,
                                 "inventory_received": 0}
+
+    uom_ids = await _uom_id_map(session)
 
     # ── 1. Site → Area → Line ─────────────────────────────────────────
     site = await _get_or_create_site(session, **E.SITE)
@@ -718,8 +720,8 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
             session, equip_id,
             material_id=mat_id,
             design_speed=em["design_speed"],
-            design_speed_uom=em["design_speed_uom"],
-            reject_uom=em["reject_uom"],
+            design_speed_uom_id=uom_ids[em["design_speed_uom"]],
+            reject_uom_id=uom_ids[em["reject_uom"]],
             target_oee=em["target_oee"],
         )
         if created:
@@ -1105,6 +1107,23 @@ async def _material_id_map(session: AsyncSession) -> dict[str, UUID]:
         )
     )
     return {row[0]: row[1] for row in result.all()}
+
+
+async def _uom_id_map(session: AsyncSession) -> dict[str, UUID]:
+    """Return {symbol: id} for all units_of_measure rows."""
+    result = await session.execute(
+        select(UnitOfMeasure.symbol, UnitOfMeasure.id)
+    )
+    return {row[0]: row[1] for row in result.all()}
+
+
+def _inject_uom_id(d: dict, uom_ids: dict[str, UUID]) -> dict:
+    """Return a copy of *d* with the 'uom' key replaced by 'uom_id' (UUID or None)."""
+    out = dict(d)
+    if "uom" in out:
+        sym = out.pop("uom")
+        out["uom_id"] = uom_ids[sym] if sym is not None else None
+    return out
 
 
 # Demo-specific UOMs not in the standard seed data.

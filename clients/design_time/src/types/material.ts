@@ -10,7 +10,8 @@ export interface Material {
   code: string;
   description: string | null;
   material_type: string;
-  uom: string;
+  uom_id: string;
+  uom_symbol: string | null;
   shelf_life_days: number | null;
   is_active: boolean;
   created_at: string;
@@ -22,7 +23,7 @@ export interface MaterialCreate {
   code: string;
   description?: string | null;
   material_type?: string;
-  uom?: string;
+  uom_id: string;
   shelf_life_days?: number | null;
 }
 
@@ -31,7 +32,7 @@ export interface MaterialUpdate {
   code?: string;
   description?: string | null;
   material_type?: string;
-  uom?: string;
+  uom_id?: string;
   shelf_life_days?: number | null;
 }
 

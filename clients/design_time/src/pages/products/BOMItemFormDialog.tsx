@@ -20,6 +20,7 @@ import {
   useUpdateBOMItem,
 } from "../../hooks/useProductDef";
 import { useMaterials } from "../../hooks/useMaterial";
+import { useUoMs } from "../../hooks/useUoM";
 import type { BOMItem, RouteStep, Material } from "../../types";
 
 const schema = z.object({
@@ -27,7 +28,7 @@ const schema = z.object({
   quantity: z
     .number({ invalid_type_error: "Quantity required" })
     .positive("Must be > 0"),
-  uom: z.string().min(1).max(20),
+  uom_id: z.string().min(1, "UoM is required"),
   position: z.number().int().min(0).optional(),
   process_segment_id: z.string().nullable().optional(),
 });
@@ -54,6 +55,9 @@ export default function BOMItemFormDialog({
   const { data: materialsResp } = useMaterials();
   const materials = materialsResp?.data ?? [];
 
+  const { data: uomData } = useUoMs();
+  const nonRateUoMs = (uomData?.data ?? []).filter((u) => u.uom_type !== "rate");
+
   const {
     register,
     handleSubmit,
@@ -66,7 +70,7 @@ export default function BOMItemFormDialog({
     defaultValues: {
       material_code: "",
       quantity: 1,
-      uom: "EA",
+      uom_id: "",
       position: 0,
       process_segment_id: null,
     },
@@ -77,7 +81,7 @@ export default function BOMItemFormDialog({
       reset({
         material_code: item.material_code,
         quantity: item.quantity,
-        uom: item.uom,
+        uom_id: item.uom_id,
         position: item.position,
         process_segment_id: item.process_segment_id ?? null,
       });
@@ -90,7 +94,7 @@ export default function BOMItemFormDialog({
     if (!selectedMaterialCode) return;
     const m = materials.find((x: Material) => x.code === selectedMaterialCode);
     if (m && !isEdit) {
-      setValue("uom", m.uom);
+      setValue("uom_id", m.uom_id);
     }
   }, [selectedMaterialCode, materials, setValue, isEdit]);
 
@@ -98,7 +102,7 @@ export default function BOMItemFormDialog({
     const body = {
       material_code: data.material_code,
       quantity: Number(data.quantity),
-      uom: data.uom,
+      uom_id: data.uom_id,
       position: data.position ?? 0,
       process_segment_id: data.process_segment_id || null,
     };
@@ -191,10 +195,17 @@ export default function BOMItemFormDialog({
                 <label className="block text-sm font-medium text-gray-700">
                   UoM
                 </label>
-                <input
-                  {...register("uom")}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
+                <select
+                  {...register("uom_id")}
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">— Select —</option>
+                  {nonRateUoMs.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.symbol} — {u.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

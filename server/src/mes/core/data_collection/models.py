@@ -51,11 +51,11 @@ class DataDefinition(BaseModel):
         String(20), nullable=False, default="numeric",
         comment="Expected data type: numeric, string, boolean, enum",
     )
-    uom: Mapped[str | None] = mapped_column(
-        String(20),
-        ForeignKey("units_of_measure.symbol"),
+    uom_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("units_of_measure.id"),
         nullable=True,
-        comment="Unit of measure — FK to units_of_measure.symbol",
+        comment="Unit of measure — FK to units_of_measure.id",
     )
     step_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("process_segments.id"),
@@ -87,6 +87,13 @@ class DataDefinition(BaseModel):
     data_points: Mapped[list["DataPoint"]] = relationship(
         "DataPoint", back_populates="definition", cascade="all, delete-orphan",
     )
+    uom_rel: Mapped["UnitOfMeasure | None"] = relationship(
+        "UnitOfMeasure", foreign_keys=[uom_id], lazy="selectin",
+    )
+
+    @property
+    def uom_symbol(self) -> str | None:
+        return self.uom_rel.symbol if self.uom_rel else None
 
     def __repr__(self) -> str:
         return (

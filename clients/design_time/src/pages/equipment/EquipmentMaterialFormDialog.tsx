@@ -19,8 +19,8 @@ import type { EquipmentMaterial } from "../../types";
 const schema = z.object({
   material_id: z.string().min(1, "Material is required"),
   design_speed: z.number().positive("Must be > 0"),
-  design_speed_uom: z.string().min(1, "Speed UoM is required"),
-  reject_uom: z.string().min(1, "Reject UoM is required"),
+  design_speed_uom_id: z.string().min(1, "Speed UoM is required"),
+  reject_uom_id: z.string().min(1, "Reject UoM is required"),
   target_oee: z.number().min(0, "Min 0").max(100, "Max 100"),
 });
 
@@ -68,8 +68,8 @@ export default function EquipmentMaterialFormDialog({
     defaultValues: {
       material_id: "",
       design_speed: 0,
-      design_speed_uom: "",
-      reject_uom: "",
+      design_speed_uom_id: "",
+      reject_uom_id: "",
       target_oee: 85,
     },
   });
@@ -79,8 +79,8 @@ export default function EquipmentMaterialFormDialog({
       reset({
         material_id: setup.material_id,
         design_speed: setup.design_speed,
-        design_speed_uom: setup.design_speed_uom,
-        reject_uom: setup.reject_uom,
+        design_speed_uom_id: setup.design_speed_uom_id,
+        reject_uom_id: setup.reject_uom_id,
         target_oee: setup.target_oee,
       });
     }
@@ -92,8 +92,8 @@ export default function EquipmentMaterialFormDialog({
         await updateMut.mutateAsync({
           id: setup!.id,
           design_speed: data.design_speed,
-          design_speed_uom: data.design_speed_uom,
-          reject_uom: data.reject_uom,
+          design_speed_uom_id: data.design_speed_uom_id,
+          reject_uom_id: data.reject_uom_id,
           target_oee: data.target_oee,
         });
       } else {
@@ -182,19 +182,19 @@ export default function EquipmentMaterialFormDialog({
                   Speed UoM
                 </label>
                 <select
-                  {...register("design_speed_uom")}
+                  {...register("design_speed_uom_id")}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 >
                   <option value="">Select rate UoM…</option>
                   {rateUoMs.map((u) => (
-                    <option key={u.symbol} value={u.symbol}>
+                    <option key={u.id} value={u.id}>
                       {u.symbol} — {u.name}
                     </option>
                   ))}
                 </select>
-                {errors.design_speed_uom && (
+                {errors.design_speed_uom_id && (
                   <p className="mt-1 text-xs text-red-600">
-                    {errors.design_speed_uom.message}
+                    {errors.design_speed_uom_id.message}
                   </p>
                 )}
               </div>
@@ -207,19 +207,19 @@ export default function EquipmentMaterialFormDialog({
                   Reject UoM
                 </label>
                 <select
-                  {...register("reject_uom")}
+                  {...register("reject_uom_id")}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 >
                   <option value="">Select UoM…</option>
                   {nonRateUoMs.map((u) => (
-                    <option key={u.symbol} value={u.symbol}>
+                    <option key={u.id} value={u.id}>
                       {u.symbol} — {u.name}
                     </option>
                   ))}
                 </select>
-                {errors.reject_uom && (
+                {errors.reject_uom_id && (
                   <p className="mt-1 text-xs text-red-600">
-                    {errors.reject_uom.message}
+                    {errors.reject_uom_id.message}
                   </p>
                 )}
               </div>

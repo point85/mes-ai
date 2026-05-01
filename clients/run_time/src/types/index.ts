@@ -140,7 +140,8 @@ export interface StepParameter {
   name: string;
   code: string;
   data_type: string;
-  uom: string | null;
+  uom_id: string | null;
+  uom_symbol: string | null;
   lower_limit: number | null;
   upper_limit: number | null;
   target_value: number | null;
@@ -156,7 +157,8 @@ export interface DataDefinition {
   code: string;
   description: string | null;
   data_type: string;
-  uom: string | null;
+  uom_id: string | null;
+  uom_symbol: string | null;
   step_id: string | null;
   source: string;
   is_required: boolean;
@@ -220,7 +222,8 @@ export interface Product {
   code: string;
   description: string | null;
   product_type: string;
-  uom?: string | null;
+  uom_id?: string | null;
+  uom_symbol?: string | null;
   is_active: boolean;
 }
 
@@ -294,7 +297,8 @@ export interface BOMItem {
   bom_id: string;
   material_code: string;
   quantity: number;
-  uom: string;
+  uom_id: string;
+  uom_symbol: string | null;
   position: number;
   process_segment_id: string | null;
   is_active: boolean;
@@ -308,7 +312,8 @@ export interface Material {
   code: string;
   description: string | null;
   material_type: string;
-  uom: string;
+  uom_id: string;
+  uom_symbol: string | null;
   revision: string | null;
   shelf_life_days: number | null;
   is_active: boolean;

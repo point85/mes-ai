@@ -31,7 +31,7 @@ class DataDefinitionCreate(BaseModel):
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
     data_type: str = Field("numeric", description="numeric, string, boolean, enum")
-    uom: str | None = Field(None, max_length=20)
+    uom_id: UUID | None = None
     step_id: UUID | None = None
     source: str = Field("manual", description="manual, equipment, sensor")
     is_required: bool = False
@@ -69,7 +69,8 @@ class DataDefinitionRead(BaseModel):
     code: str
     description: str | None = None
     data_type: str
-    uom: str | None = None
+    uom_id: UUID | None = None
+    uom_symbol: str | None = None
     step_id: UUID | None = None
     source: str
     is_required: bool
@@ -90,7 +91,7 @@ class DataDefinitionUpdate(BaseModel):
     code: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
     data_type: str | None = None
-    uom: str | None = Field(None, max_length=20)
+    uom_id: UUID | None = None
     step_id: UUID | None = None
     source: str | None = None
     is_required: bool | None = None

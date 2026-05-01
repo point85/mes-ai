@@ -394,7 +394,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
         step_id: step?.id,
         quantity_consumed: parseFloat(qty),
       });
-      setSuccessMsg(`Consumed ${qty} ${bomItem.uom} of ${bomItem.material_code}`);
+      setSuccessMsg(`Consumed ${qty} ${bomItem.uom_symbol ?? ""} of ${bomItem.material_code}`);
       // Keep the selected lot so the operator can consume more from the
       // same lot without re-selecting; only clear the quantity input.
       setQtyInputs((prev) => ({ ...prev, [bomItem.id]: "" }));
@@ -641,7 +641,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                       <label className="block text-sm text-gray-600 mb-1">
                         {dd.name}
                         {dd.is_required && <span className="text-red-500 ml-1">*</span>}
-                        {dd.uom && <span className="text-gray-400 ml-1">({dd.uom})</span>}
+                        {dd.uom_symbol && <span className="text-gray-400 ml-1">({dd.uom_symbol})</span>}
                       </label>
                       {dd.data_type === "boolean" ? (
                         <select
@@ -710,7 +710,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                       <td className="py-1 px-2 font-mono">{p.target_value ?? "—"}</td>
                       <td className="py-1 px-2 font-mono">{p.lower_limit ?? "—"}</td>
                       <td className="py-1 px-2 font-mono">{p.upper_limit ?? "—"}</td>
-                      <td className="py-1 px-2">{p.uom ?? "—"}</td>
+                      <td className="py-1 px-2">{p.uom_symbol ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -794,7 +794,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                     <tr key={bi.id} className="border-b">
                       <td className="py-2 px-2 font-mono font-medium">{bi.material_code}</td>
                       <td className="py-2 px-2 font-mono">{bi.quantity}</td>
-                      <td className="py-2 px-2">{bi.uom}</td>
+                      <td className="py-2 px-2">{bi.uom_symbol}</td>
                       <td className={`py-2 px-2 font-mono ${totalConsumed >= bi.quantity ? "text-green-600" : "text-gray-500"}`}>
                         {totalConsumed > 0 ? totalConsumed : "—"}
                       </td>

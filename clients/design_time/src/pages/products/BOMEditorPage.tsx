@@ -306,7 +306,7 @@ export default function BOMEditorPage() {
                             {it.quantity}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600">
-                            {it.uom}
+                            {it.uom_symbol}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600">
                             {it.process_segment_id

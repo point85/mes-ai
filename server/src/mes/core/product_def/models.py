@@ -81,12 +81,11 @@ class ProductDefinition(BaseModel):
         comment="Product version — allows multiple revisions of a product code",
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    uom: Mapped[str] = mapped_column(
-        String(20),
-        ForeignKey("units_of_measure.symbol"),
+    uom_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("units_of_measure.id"),
         nullable=False,
-        default="EA",
-        comment="Unit of measure — FK to units_of_measure.symbol",
+        comment="Unit of measure — FK to units_of_measure.id",
     )
     product_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="discrete",
@@ -94,6 +93,9 @@ class ProductDefinition(BaseModel):
     )
 
     # Relationships
+    uom_rel: Mapped["UnitOfMeasure"] = relationship(
+        "UnitOfMeasure", foreign_keys=[uom_id], lazy="selectin",
+    )
     boms: Mapped[list["BillOfMaterial"]] = relationship(
         "BillOfMaterial", back_populates="product", cascade="all, delete-orphan",
     )
@@ -101,6 +103,10 @@ class ProductDefinition(BaseModel):
         "OperationsDefinitionProductAssignment",
         back_populates="product",
     )
+
+    @property
+    def uom_symbol(self) -> str | None:
+        return self.uom_rel.symbol if self.uom_rel else None
 
     def __repr__(self) -> str:
         return f"<ProductDefinition id={self.id} code={self.code} v={self.version}>"
@@ -155,12 +161,11 @@ class BOMItem(BaseModel):
         comment="Material code reference. Will become FK to material_definitions when MAT-MGMT is implemented.",
     )
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
-    uom: Mapped[str] = mapped_column(
-        String(20),
-        ForeignKey("units_of_measure.symbol"),
+    uom_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("units_of_measure.id"),
         nullable=False,
-        default="EA",
-        comment="Unit of measure — FK to units_of_measure.symbol",
+        comment="Unit of measure — FK to units_of_measure.id",
     )
     position: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0,
@@ -176,6 +181,13 @@ class BOMItem(BaseModel):
     bom: Mapped["BillOfMaterial"] = relationship(
         "BillOfMaterial", back_populates="items",
     )
+    uom_rel: Mapped["UnitOfMeasure"] = relationship(
+        "UnitOfMeasure", foreign_keys=[uom_id], lazy="selectin",
+    )
+
+    @property
+    def uom_symbol(self) -> str | None:
+        return self.uom_rel.symbol if self.uom_rel else None
 
     def __repr__(self) -> str:
         return f"<BOMItem id={self.id} bom_id={self.bom_id} material={self.material_code}>"
@@ -311,11 +323,11 @@ class SegmentParameter(BaseModel):
         String(20), nullable=False, default="numeric",
         comment="Data type: 'numeric', 'string', 'boolean', 'enum'",
     )
-    uom: Mapped[str | None] = mapped_column(
-        String(20),
-        ForeignKey("units_of_measure.symbol"),
+    uom_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("units_of_measure.id"),
         nullable=True,
-        comment="Unit of measure — FK to units_of_measure.symbol",
+        comment="Unit of measure — FK to units_of_measure.id",
     )
     target_value: Mapped[str | None] = mapped_column(
         String(255), nullable=True,
@@ -338,6 +350,13 @@ class SegmentParameter(BaseModel):
     step: Mapped["ProcessSegment"] = relationship(
         "ProcessSegment", back_populates="parameters",
     )
+    uom_rel: Mapped["UnitOfMeasure | None"] = relationship(
+        "UnitOfMeasure", foreign_keys=[uom_id], lazy="selectin",
+    )
+
+    @property
+    def uom_symbol(self) -> str | None:
+        return self.uom_rel.symbol if self.uom_rel else None
 
     def __repr__(self) -> str:
         return f"<SegmentParameter id={self.id} step_id={self.step_id} name={self.name}>"
@@ -449,10 +468,10 @@ class SegmentMaterialRequirement(BaseModel):
         Float, nullable=False,
         comment="Quantity per unit/lot of finished product",
     )
-    uom: Mapped[str] = mapped_column(
-        String(20), ForeignKey("units_of_measure.symbol"),
-        nullable=False, default="EA",
-        comment="Unit of measure for the quantity",
+    uom_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("units_of_measure.id"),
+        nullable=False,
+        comment="Unit of measure — FK to units_of_measure.id",
     )
     material_use: Mapped[str] = mapped_column(
         String(20), nullable=False, default="consumed",
@@ -471,6 +490,13 @@ class SegmentMaterialRequirement(BaseModel):
     material: Mapped["MaterialDefinition"] = relationship(
         "MaterialDefinition", lazy="joined",
     )
+    uom_rel: Mapped["UnitOfMeasure"] = relationship(
+        "UnitOfMeasure", foreign_keys=[uom_id], lazy="selectin",
+    )
+
+    @property
+    def uom_symbol(self) -> str | None:
+        return self.uom_rel.symbol if self.uom_rel else None
 
     def __repr__(self) -> str:
         return (

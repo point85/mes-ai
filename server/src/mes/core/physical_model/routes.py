@@ -547,7 +547,7 @@ async def get_material_setup(
         material_name=em.material.name if em and em.material else None,
         material_code=em.material.code if em and em.material else None,
         design_speed=em.design_speed if em else None,
-        design_speed_uom=em.design_speed_uom if em else None,
+        design_speed_uom_id=em.design_speed_uom_id if em else None,
         job_number=equip.current_job_number,
         setup_at=equip.material_setup_at,
     )
@@ -573,7 +573,7 @@ async def set_material_setup(
         material_name=em.material.name if em.material else None,
         material_code=em.material.code if em.material else None,
         design_speed=em.design_speed,
-        design_speed_uom=em.design_speed_uom,
+        design_speed_uom_id=em.design_speed_uom_id,
         job_number=equip.current_job_number,
         setup_at=equip.material_setup_at,
     )
@@ -603,7 +603,7 @@ def _build_setup_read(equip, em):
         material_name=em.material.name if em.material else None,
         material_code=em.material.code if em.material else None,
         design_speed=em.design_speed,
-        design_speed_uom=em.design_speed_uom,
+        design_speed_uom_id=em.design_speed_uom_id,
         job_number=equip.current_job_number,
         setup_at=equip.material_setup_at,
     )

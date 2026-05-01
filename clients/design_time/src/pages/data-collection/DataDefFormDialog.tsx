@@ -16,6 +16,7 @@ import {
   useAllRoutes,
   useRouteSteps,
 } from "../../hooks/useProductDef";
+import { useUoMs } from "../../hooks/useUoM";
 import type { DataDefinition } from "../../types";
 
 const dataDefSchema = z.object({
@@ -27,7 +28,7 @@ const dataDefSchema = z.object({
     .refine((s) => !s.includes(" "), "Code must not contain spaces"),
   description: z.string().nullable().optional(),
   data_type: z.enum(["numeric", "string", "boolean", "enum"]),
-  uom: z.string().max(20).nullable().optional(),
+  uom_id: z.string().nullable().optional(),
   step_id: z.string().nullable().optional(),
   source: z.enum(["manual", "equipment", "sensor"]),
   is_required: z.boolean(),
@@ -54,6 +55,9 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
   const routes = routesData?.data ?? [];
   const steps = stepsData?.data ?? [];
 
+  const { data: uomData } = useUoMs();
+  const nonRateUoMs = (uomData?.data ?? []).filter((u) => u.uom_type !== "rate");
+
   const {
     register,
     handleSubmit,
@@ -69,7 +73,7 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
       code: "",
       description: "",
       data_type: "numeric",
-      uom: "",
+      uom_id: "",
       step_id: null,
       source: "manual",
       is_required: false,
@@ -92,7 +96,7 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
           | "string"
           | "boolean"
           | "enum",
-        uom: definition.uom ?? "",
+        uom_id: definition.uom_id ?? "",
         step_id: definition.step_id ?? null,
         source: definition.source as "manual" | "equipment" | "sensor",
         is_required: definition.is_required,
@@ -123,7 +127,7 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
       // Clean up null-ish values
       const payload = {
         ...data,
-        uom: data.uom || null,
+        uom_id: data.uom_id || null,
         step_id: data.step_id || null,
         enum_values: data.enum_values || null,
         lower_limit: data.lower_limit ?? null,
@@ -272,11 +276,17 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
                   UoM{" "}
                   <span className="text-gray-400">(opt)</span>
                 </label>
-                <input
-                  {...register("uom")}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  placeholder="°C"
-                />
+                <select
+                  {...register("uom_id")}
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">— none —</option>
+                  {nonRateUoMs.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.symbol} — {u.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex items-end pb-1">
                 <label className="flex items-center gap-2 text-sm text-gray-700">

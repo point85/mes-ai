@@ -200,9 +200,9 @@ function OrderRow({ order: o, expanded, selected, productMap, onToggle, onSelect
         <td className="py-2 px-3 text-gray-700">{product?.name ?? "—"}</td>
         <td className="py-2 px-3"><StatusBadge status={o.status} /></td>
         <td className="py-2 px-3">{o.priority}</td>
-        <td className="py-2 px-3">{o.quantity_ordered}{product?.uom ? ` ${product.uom}` : ""}</td>
-        <td className="py-2 px-3">{o.quantity_completed}{product?.uom ? ` ${product.uom}` : ""}</td>
-        <td className="py-2 px-3">{o.quantity_scrapped}{product?.uom ? ` ${product.uom}` : ""}</td>
+        <td className="py-2 px-3">{o.quantity_ordered}{product?.uom_symbol ? ` ${product.uom_symbol}` : ""}</td>
+        <td className="py-2 px-3">{o.quantity_completed}{product?.uom_symbol ? ` ${product.uom_symbol}` : ""}</td>
+        <td className="py-2 px-3">{o.quantity_scrapped}{product?.uom_symbol ? ` ${product.uom_symbol}` : ""}</td>
         <td className="py-2 px-3 text-xs text-gray-400">{o.erp_reference ?? "—"}</td>
         <td className="py-2 px-3 text-xs text-gray-400">
           {new Date(o.created_at).toLocaleString()}
@@ -261,7 +261,7 @@ function OrderDetail({ order, product, onRefresh }: { order: ProductionOrder; pr
         </div>
       )}
 
-      {showCreateLot && <CreateLotForm order={order} uom={product?.uom ?? null} onCreated={onRefresh} />}
+      {showCreateLot && <CreateLotForm order={order} uom={product?.uom_symbol ?? null} onCreated={onRefresh} />}
       {showCreateUnit && <CreateUnitForm order={order} onCreated={onRefresh} />}
 
       {/* Lots */}
@@ -281,7 +281,7 @@ function OrderDetail({ order, product, onRefresh }: { order: ProductionOrder; pr
               {lots.map((l) => (
                 <tr key={l.id} className="border-b">
                   <td className="py-1 px-2 font-mono">{l.lot_number}</td>
-                  <td className="py-1 px-2">{l.quantity}{product?.uom ? ` ${product.uom}` : ""}</td>
+                  <td className="py-1 px-2">{l.quantity}{product?.uom_symbol ? ` ${product.uom_symbol}` : ""}</td></td>
                   <td className="py-1 px-2"><WipBadge status={l.status} /></td>
                   <td className="py-1 px-2 text-gray-500">{l.current_step_name ?? "—"}</td>
                 </tr>

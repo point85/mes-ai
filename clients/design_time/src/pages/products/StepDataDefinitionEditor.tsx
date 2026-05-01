@@ -145,8 +145,8 @@ export default function StepDataDefinitionEditor({ stepId }: Props) {
                   {d.code}
                 </span>
                 <span className="ml-2 text-gray-600">{d.name}</span>
-                {d.uom && (
-                  <span className="ml-1.5 text-gray-400">[{d.uom}]</span>
+                {d.uom_symbol && (
+                  <span className="ml-1.5 text-gray-400">[{d.uom_symbol}]</span>
                 )}
               </span>
               {dataTypeBadge(d.data_type)}

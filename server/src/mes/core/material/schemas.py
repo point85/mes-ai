@@ -31,7 +31,7 @@ class MaterialCreate(BaseModel):
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
     material_type: str = Field("raw", description="raw, intermediate, finished, semi, consumable, packaging, spare")
-    uom: str = Field("EA", min_length=1, max_length=20)
+    uom_id: UUID = Field(..., description="UUID of the unit of measure")
     revision: str | None = Field(None, max_length=20, description="Material revision level")
     shelf_life_days: int | None = Field(None, gt=0)
 
@@ -58,7 +58,8 @@ class MaterialRead(BaseModel):
     code: str
     description: str | None = None
     material_type: str
-    uom: str
+    uom_id: UUID
+    uom_symbol: str | None = None
     revision: str | None = None
     shelf_life_days: int | None = None
     is_active: bool
@@ -75,7 +76,7 @@ class MaterialUpdate(BaseModel):
     code: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
     material_type: str | None = None
-    uom: str | None = Field(None, min_length=1, max_length=20)
+    uom_id: UUID | None = None
     revision: str | None = Field(None, max_length=20)
     shelf_life_days: int | None = Field(None, gt=0)
 

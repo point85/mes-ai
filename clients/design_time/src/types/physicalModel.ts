@@ -155,8 +155,10 @@ export interface EquipmentMaterial {
   equipment_id: string;
   material_id: string;
   design_speed: number;
-  design_speed_uom: string;
-  reject_uom: string;
+  design_speed_uom_id: string;
+  design_speed_uom_symbol: string | null;
+  reject_uom_id: string;
+  reject_uom_symbol: string | null;
   target_oee: number;
   is_active: boolean;
   created_at: string;
@@ -166,15 +168,15 @@ export interface EquipmentMaterial {
 export interface EquipmentMaterialCreate {
   material_id: string;
   design_speed: number;
-  design_speed_uom: string;
-  reject_uom: string;
+  design_speed_uom_id: string;
+  reject_uom_id: string;
   target_oee: number;
 }
 
 export interface EquipmentMaterialUpdate {
   design_speed?: number;
-  design_speed_uom?: string;
-  reject_uom?: string;
+  design_speed_uom_id?: string;
+  reject_uom_id?: string;
   target_oee?: number;
 }
 

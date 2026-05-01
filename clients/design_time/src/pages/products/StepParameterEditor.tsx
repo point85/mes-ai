@@ -13,6 +13,7 @@ import {
   useUpdateStepParameter,
   useDeleteStepParameter,
 } from "../../hooks/useProductDef";
+import { useUoMs } from "../../hooks/useUoM";
 import type { StepParameter } from "../../types";
 
 interface Props {
@@ -25,7 +26,7 @@ type DataType = (typeof DATA_TYPES)[number];
 interface FormState {
   name: string;
   data_type: DataType;
-  uom: string;
+  uom_id: string;
   target_value: string;
   lower_limit: string;
   upper_limit: string;
@@ -35,7 +36,7 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   name: "",
   data_type: "numeric",
-  uom: "",
+  uom_id: "",
   target_value: "",
   lower_limit: "",
   upper_limit: "",
@@ -50,6 +51,9 @@ export default function StepParameterEditor({ stepId }: Props) {
   const createMut = useCreateStepParameter();
   const updateMut = useUpdateStepParameter();
   const deleteMut = useDeleteStepParameter();
+
+  const { data: uomData } = useUoMs();
+  const nonRateUoMs = (uomData?.data ?? []).filter((u) => u.uom_type !== "rate");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -68,7 +72,7 @@ export default function StepParameterEditor({ stepId }: Props) {
       data_type: (DATA_TYPES as readonly string[]).includes(p.data_type)
         ? (p.data_type as DataType)
         : "numeric",
-      uom: p.uom ?? "",
+      uom_id: p.uom_id ?? "",
       target_value: p.target_value ?? "",
       lower_limit: p.lower_limit ?? "",
       upper_limit: p.upper_limit ?? "",
@@ -86,7 +90,7 @@ export default function StepParameterEditor({ stepId }: Props) {
     const payload = {
       name: form.name.trim(),
       data_type: form.data_type,
-      uom: form.uom.trim() || null,
+      uom_id: form.uom_id.trim() || null,
       target_value: form.target_value.trim() || null,
       lower_limit: form.lower_limit.trim() || null,
       upper_limit: form.upper_limit.trim() || null,
@@ -131,7 +135,7 @@ export default function StepParameterEditor({ stepId }: Props) {
     if (p.lower_limit || p.upper_limit) {
       parts.push(`[${p.lower_limit ?? "−∞"}, ${p.upper_limit ?? "+∞"}]`);
     }
-    if (p.uom) parts.push(p.uom);
+    if (p.uom_symbol) parts.push(p.uom_symbol);
     return parts.join(" ");
   };
 
@@ -233,14 +237,17 @@ export default function StepParameterEditor({ stepId }: Props) {
           </div>
           <div>
             <label className="block text-xs text-gray-500">UoM</label>
-            <input
-              type="text"
-              value={form.uom}
-              onChange={(e) => setForm({ ...form, uom: e.target.value })}
-              placeholder="Nm, °C, …"
-              className="mt-0.5 block w-full rounded border border-gray-300 px-2 py-1 text-xs"
+            <select
+              value={form.uom_id}
+              onChange={(e) => setForm({ ...form, uom_id: e.target.value })}
+              className="mt-0.5 block w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs"
               disabled={form.data_type !== "numeric"}
-            />
+            >
+              <option value="">— none —</option>
+              {nonRateUoMs.map((u) => (
+                <option key={u.id} value={u.id}>{u.symbol} — {u.name}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs text-gray-500">Target</label>

@@ -154,7 +154,7 @@ class ProductDefService:
             name=name,
             version=version,
             description=description,
-            uom=source.uom,
+            uom_id=source.uom_id,
             product_type=source.product_type,
         )
         session.add(new_product)
@@ -188,7 +188,7 @@ class ProductDefService:
                     bom_id=new_bom.id,
                     material_code=src_item.material_code,
                     quantity=src_item.quantity,
-                    uom=src_item.uom,
+                    uom_id=src_item.uom_id,
                     position=src_item.position,
                 )
                 session.add(new_item)
@@ -257,7 +257,7 @@ class ProductDefService:
                         step_id=new_step.id,
                         name=src_param.name,
                         data_type=src_param.data_type,
-                        uom=src_param.uom,
+                        uom_id=src_param.uom_id,
                         target_value=src_param.target_value,
                         lower_limit=src_param.lower_limit,
                         upper_limit=src_param.upper_limit,
@@ -690,9 +690,9 @@ class ProductDefService:
         session: AsyncSession, param_id: UUID, **kwargs: Any,
     ) -> SegmentParameter:
         """Update a step parameter. `target_value`, `lower_limit`, `upper_limit`,
-        and `uom` may be explicitly cleared by passing None."""
+        and `uom_id` may be explicitly cleared by passing None."""
         param = await ProductDefService.get_step_parameter(session, param_id)
-        clearable = {"uom", "target_value", "lower_limit", "upper_limit"}
+        clearable = {"uom_id", "target_value", "lower_limit", "upper_limit"}
         for key, value in kwargs.items():
             if value is None and key not in clearable:
                 continue

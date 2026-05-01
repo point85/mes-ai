@@ -129,7 +129,7 @@ export default function ProductDetailPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">{product.name}</h1>
             <p className="mt-0.5 text-sm text-gray-500">
-              {product.code} · v{product.version} · {product.product_type} · {product.uom}
+              {product.code} · v{product.version} · {product.product_type} · {product.uom_symbol}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -319,9 +319,9 @@ export default function ProductDetailPage() {
                                 <span
                                   key={item.id}
                                   className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20"
-                                  title={`${item.quantity} ${item.uom}`}
+                                  title={`${item.quantity} ${item.uom_symbol}`}
                                 >
-                                  {item.material_code} ({item.quantity} {item.uom})
+                                  {item.material_code} ({item.quantity} {item.uom_symbol})
                                 </span>
                               ))}
                             </div>

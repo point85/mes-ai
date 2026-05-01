@@ -16,6 +16,7 @@ import {
   useDeleteStepMaterialRequirement,
 } from "../../hooks/useProductDef";
 import { useMaterials } from "../../hooks/useMaterial";
+import { useUoMs } from "../../hooks/useUoM";
 import type { MaterialUse } from "../../types";
 
 interface Props {
@@ -33,9 +34,12 @@ export default function MaterialRequirementsEditor({ stepId }: Props) {
   const materials = (matResp?.data ?? []).slice().sort((a, b) => a.code.localeCompare(b.code));
   const matMap = new Map(materials.map((m) => [m.id, m]));
 
+  const { data: uomData } = useUoMs();
+  const nonRateUoMs = (uomData?.data ?? []).filter((u) => u.uom_type !== "rate");
+
   const [materialId, setMaterialId] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("1");
-  const [uom, setUom] = useState<string>("");
+  const [uomId, setUomId] = useState<string>("");
   const [materialUse, setMaterialUse] = useState<MaterialUse>("consumed");
   const [position, setPosition] = useState<string>("0");
   const [description, setDescription] = useState<string>("");
@@ -44,7 +48,7 @@ export default function MaterialRequirementsEditor({ stepId }: Props) {
   const handleMaterialChange = (id: string) => {
     setMaterialId(id);
     const m = matMap.get(id);
-    if (m) setUom(m.uom);
+    if (m) setUomId(m.uom_id);
   };
 
   const handleAdd = async () => {
@@ -63,14 +67,14 @@ export default function MaterialRequirementsEditor({ stepId }: Props) {
       await createMut.mutateAsync({
         material_id: materialId,
         quantity: qty,
-        uom: uom.trim() || "EA",
+        uom_id: uomId || (nonRateUoMs[0]?.id ?? ""),
         material_use: materialUse,
         position: Number.isFinite(pos) ? pos : 0,
         description: description.trim() || null,
       });
       setMaterialId("");
       setQuantity("1");
-      setUom("");
+      setUomId("");
       setMaterialUse("consumed");
       setPosition("0");
       setDescription("");
@@ -139,9 +143,9 @@ export default function MaterialRequirementsEditor({ stepId }: Props) {
               />
               <input
                 type="text"
-                value={r.uom}
-                onChange={(e) => updateMut.mutate({ id: r.id, uom: e.target.value })}
-                className="w-14 rounded border border-gray-300 px-1.5 py-0.5 text-xs"
+                value={r.uom_symbol ?? ""}
+                readOnly
+                className="w-14 rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 text-xs"
               />
               <select
                 value={r.material_use}
@@ -193,13 +197,17 @@ export default function MaterialRequirementsEditor({ stepId }: Props) {
             placeholder="Qty"
             className="w-20 rounded border border-gray-300 px-2 py-1 text-right text-xs"
           />
-          <input
-            type="text"
-            value={uom}
-            onChange={(e) => setUom(e.target.value)}
+          <select
+            value={uomId}
+            onChange={(e) => setUomId(e.target.value)}
             placeholder="UoM"
-            className="w-16 rounded border border-gray-300 px-2 py-1 text-xs"
-          />
+            className="w-32 rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+          >
+            <option value="">— UoM —</option>
+            {nonRateUoMs.map((u) => (
+              <option key={u.id} value={u.id}>{u.symbol}</option>
+            ))}
+          </select>
           <select
             value={materialUse}
             onChange={(e) => setMaterialUse(e.target.value as MaterialUse)}
