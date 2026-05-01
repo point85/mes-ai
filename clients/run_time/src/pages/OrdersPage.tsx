@@ -523,6 +523,9 @@ function OrderFormDialog({ order, onClose, onSaved }: {
     }
   };
 
+  const selectedProduct = products.find((p) => p.id === productId);
+  const selectedUom = selectedProduct?.uom_symbol ?? null;
+
   const valid = orderNumber.trim() && productId && quantityOrdered && parseInt(quantityOrdered) > 0;
 
   return (
@@ -559,7 +562,9 @@ function OrderFormDialog({ order, onClose, onSaved }: {
           {/* Quantity & Priority */}
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Quantity{selectedUom ? ` (${selectedUom})` : ""}
+              </label>
               <input type="number" min="1" value={quantityOrdered} onChange={(e) => setQuantityOrdered(e.target.value)}
                 className="input-field w-full" />
             </div>
