@@ -106,7 +106,7 @@ STEPS: list[dict] = [
         "expected_cycle_time_sec": 900.0,
         "erp_operation_number": "0010",
         "is_initial_step": True,
-        "input_disposition_codes": ["RETURN-BLEND"],
+        "input_disposition_codes": [],              # entry point — no incoming edges
         "output_disposition_codes": ["BLEND-DONE"],
     },
     {
@@ -156,7 +156,7 @@ STEPS: list[dict] = [
         "work_cell_code": "WC-REWORK",
         "expected_cycle_time_sec": 600.0,
         "erp_operation_number": "0060",
-        "input_disposition_codes": ["QC-FAIL"],
+        "input_disposition_codes": ["QC-FAIL", "RETURN-BLEND"],
         "output_disposition_codes": ["REWORK-DONE"],
     },
     {
