@@ -52,7 +52,7 @@ BOM_ITEMS: list[dict] = [
     {"material_code": "RM-FLUX",       "quantity": 2.0,  "uom": "mL", "position": 50, "step_sequence": 50},   # Through-Hole & Conformal Coat
     {"material_code": "RM-CONFORMAL",  "quantity": 3.0,  "uom": "mL", "position": 60, "step_sequence": 50},   # Through-Hole & Conformal Coat
     {"material_code": "SF-POP-PCB",    "quantity": 1.0,  "uom": "EA", "position": 70},                         # no step — intermediate/output
-    {"material_code": "PKG-ESD-BAG",   "quantity": 1.0,  "uom": "EA", "position": 80},                         # no step — final packaging
+    {"material_code": "PKG-ESD-BAG",   "quantity": 1.0,  "uom": "EA", "position": 80, "step_sequence": 90},   # Final Packaging & Labeling
 ]
 
 # ---------------------------------------------------------------------------
@@ -164,6 +164,16 @@ STEPS: list[dict] = [
         "input_disposition_codes": ["E-ESCALATE"],
         "output_disposition_codes": ["E-MRB-RETURN"],
     },
+    {
+        "sequence": 90,
+        "name": "Final Packaging & Labeling",
+        "step_type": "production",
+        "work_cell_code": "WC-PACK",
+        "expected_cycle_time_sec": 45.0,
+        "erp_operation_number": "0090",
+        "input_disposition_codes": ["E-FCT-PASS"],
+        "output_disposition_codes": [],          # terminal — no further routing
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -212,6 +222,10 @@ STEP_PARAMS: dict[int, list[dict]] = {
     80: [  # MRB Review
         {"name": "Disposition",       "data_type": "enum",    "target_value": None,   "lower_limit": None,   "upper_limit": None,   "uom": None,  "is_required": True},
         {"name": "Review Notes",      "data_type": "string",  "target_value": None,   "lower_limit": None,   "upper_limit": None,   "uom": None,  "is_required": True},
+    ],
+    90: [  # Final Packaging & Labeling
+        {"name": "Label Verified",    "data_type": "boolean", "target_value": "true", "lower_limit": None,   "upper_limit": None,   "uom": None,  "is_required": True},
+        {"name": "ESD Bag Applied",   "data_type": "boolean", "target_value": "true", "lower_limit": None,   "upper_limit": None,   "uom": None,  "is_required": True},
     ],
 }
 
@@ -266,6 +280,10 @@ DATA_DEFS: dict[int, list[dict]] = {
          "enum_values": "return_to_rework,scrap,ship_as_is"},
         {"code": "ECB-MRB-NOTES",    "name": "Review Notes",         "data_type": "string",  "source": "manual",    "lower_limit": None,  "upper_limit": None,  "uom": None,  "is_required": True},
     ],
+    90: [
+        {"code": "ECB-PKG-LABEL",    "name": "Label Verified",       "data_type": "boolean", "source": "manual",    "lower_limit": None,  "upper_limit": None,  "uom": None,  "is_required": True},
+        {"code": "ECB-PKG-ESD",      "name": "ESD Bag Applied",      "data_type": "boolean", "source": "manual",    "lower_limit": None,  "upper_limit": None,  "uom": None,  "is_required": True},
+    ],
 }
 
 # ---------------------------------------------------------------------------
@@ -306,6 +324,7 @@ WORK_CELLS: list[dict] = [
     {"code": "WC-THT",    "name": "Through-Hole & Coating Cell","description": "Wave solder and conformal coating"},
     {"code": "WC-TEST",   "name": "Functional Test Cell",      "description": "In-circuit and functional test"},
     {"code": "WC-REWORK", "name": "Rework Station Cell",       "description": "Manual rework and MRB review bench"},
+    {"code": "WC-PACK",   "name": "Packaging & Labeling Cell",  "description": "ESD bagging, label printing, and outbound QC"},
 ]
 
 EQUIPMENT: list[dict] = [
@@ -317,6 +336,7 @@ EQUIPMENT: list[dict] = [
     {"code": "WS-100",   "name": "Wave Solder + Coat Station","work_cell_code": "WC-THT",   "state_model": "semi_e10", "max_queue_depth": 1},
     {"code": "FCT-200",  "name": "Functional Test Fixture",  "work_cell_code": "WC-TEST",   "state_model": "semi_e10", "max_queue_depth": 1},
     {"code": "RW-BENCH", "name": "Rework Bench",             "work_cell_code": "WC-REWORK", "state_model": "semi_e10", "max_queue_depth": 3},
+    {"code": "PACK-100", "name": "ESD Packaging Station",    "work_cell_code": "WC-PACK",   "state_model": "semi_e10", "max_queue_depth": 10},
 ]
 
 # Equipment-material assignments  (design speed in units/hr, target OEE %)
@@ -329,6 +349,7 @@ EQUIPMENT_MATERIALS: list[dict] = [
     {"equipment_code": "WS-100",   "material_code": "FG-ECB-100", "design_speed": 60.0,  "design_speed_uom": "EA", "reject_uom": "EA", "target_oee": 88.0},
     {"equipment_code": "FCT-200",  "material_code": "FG-ECB-100", "design_speed": 60.0,  "design_speed_uom": "EA", "reject_uom": "EA", "target_oee": 95.0},
     {"equipment_code": "RW-BENCH", "material_code": "FG-ECB-100", "design_speed": 10.0,  "design_speed_uom": "EA", "reject_uom": "EA", "target_oee": 70.0},
+    {"equipment_code": "PACK-100", "material_code": "FG-ECB-100", "design_speed": 60.0,  "design_speed_uom": "EA", "reject_uom": "EA", "target_oee": 95.0},
 ]
 
 # ---------------------------------------------------------------------------
@@ -369,6 +390,7 @@ EQUIPMENT_CLASS_MAP: dict[str, str] = {
     "WS-100":   "WAVE_SOLDER",
     "FCT-200":  "TESTER",
     "RW-BENCH": "MANUAL",
+    "PACK-100": "MANUAL",
 }
 
 # ---------------------------------------------------------------------------
@@ -387,6 +409,7 @@ STEP_EQUIPMENT_CLASS: dict[int, str] = {
     60: "TESTER",       # Functional Test
     70: "MANUAL",       # Rework Station
     80: "MANUAL",       # MRB Review
+    90: "MANUAL",       # Final Packaging & Labeling
 }
 
 # ---------------------------------------------------------------------------
@@ -424,6 +447,8 @@ SEGMENT_EQUIPMENT_REQUIREMENTS: list[dict] = [
     # Rework and MRB share the same bench
     {"step_sequence": 70, "equipment_code": "RW-BENCH", "use_type": "required",  "description": "Manual rework bench"},
     {"step_sequence": 80, "equipment_code": "RW-BENCH", "use_type": "required",  "description": "MRB review at rework bench"},
+    # Final Packaging — dedicated ESD packaging station
+    {"step_sequence": 90, "equipment_code": "PACK-100", "use_type": "required",  "description": "ESD packaging and label station"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -445,9 +470,10 @@ SEGMENT_MATERIAL_REQUIREMENTS: list[dict] = [
     {"step_sequence": 50, "material_code": "RM-THRU-KIT",   "quantity": 1.0, "uom": "EA", "material_use": "consumed", "position": 10, "description": "Through-hole components"},
     {"step_sequence": 50, "material_code": "RM-FLUX",       "quantity": 2.0, "uom": "mL", "material_use": "consumed", "position": 20, "description": "Wave-solder flux"},
     {"step_sequence": 50, "material_code": "RM-CONFORMAL",  "quantity": 3.0, "uom": "mL", "material_use": "consumed", "position": 30, "description": "Conformal coating"},
-    # 60 — Functional Test: produces the finished ECB, ESD bag applied
+    # 60 — Functional Test: the board is verified; FG status assigned on pass
     {"step_sequence": 60, "material_code": "FG-ECB-100",    "quantity": 1.0, "uom": "EA", "material_use": "produced", "position": 10, "description": "Finished Electronic Controller Board"},
-    {"step_sequence": 60, "material_code": "PKG-ESD-BAG",   "quantity": 1.0, "uom": "EA", "material_use": "consumed", "position": 20, "description": "ESD protective bag"},
+    # 90 — Final Packaging & Labeling: ESD bag applied here (not at functional test)
+    {"step_sequence": 90, "material_code": "PKG-ESD-BAG",   "quantity": 1.0, "uom": "EA", "material_use": "consumed", "position": 10, "description": "ESD protective bag"},
 ]
 
 # ---------------------------------------------------------------------------
