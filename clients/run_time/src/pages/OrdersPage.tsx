@@ -281,7 +281,7 @@ function OrderDetail({ order, product, onRefresh }: { order: ProductionOrder; pr
               {lots.map((l) => (
                 <tr key={l.id} className="border-b">
                   <td className="py-1 px-2 font-mono">{l.lot_number}</td>
-                  <td className="py-1 px-2">{l.quantity}{product?.uom_symbol ? ` ${product.uom_symbol}` : ""}</td></td>
+                  <td className="py-1 px-2">{l.quantity}{product?.uom_symbol ? ` ${product.uom_symbol}` : ""}</td>
                   <td className="py-1 px-2"><WipBadge status={l.status} /></td>
                   <td className="py-1 px-2 text-gray-500">{l.current_step_name ?? "—"}</td>
                 </tr>
