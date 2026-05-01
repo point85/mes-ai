@@ -78,7 +78,10 @@ async def _require_erp_seed(
     front and return a clear 422 instead.
     """
     result = await session.execute(
-        select(OperationsDefinition.id).where(OperationsDefinition.name == route_name)
+        select(OperationsDefinition.id).where(
+            OperationsDefinition.name == route_name,
+            OperationsDefinition.is_active.is_(True),
+        )
     )
     if result.scalar_one_or_none() is None:
         raise ValidationException(
