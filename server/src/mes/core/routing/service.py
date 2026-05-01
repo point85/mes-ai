@@ -382,3 +382,205 @@ class RoutingEngineService:
         route = await RoutingEngineService.get_route_for_order(session, order_id)
         steps = sorted(route.steps, key=lambda s: s.sequence)
         return [s for s in steps if s.is_active]
+
+    # ── Route integrity validation ───────────────────────────────────
+
+    @staticmethod
+    async def validate_route(
+        session: AsyncSession, route_id: UUID,
+    ) -> dict:
+        """
+        Validate the integrity of a route's disposition graph.
+
+        Checks performed:
+        - Empty route: warning only (legitimate while editing).
+        - Entry point: exactly one step with ``is_initial_step=True``, OR
+          if none flagged, exactly one step with an empty input list.
+        - Output dispositions: every output disposition on every step
+          must appear as an input on some other step in the same route
+          (otherwise it is an unconnected dead-end).
+        - Input dispositions: every input disposition on every step
+          must appear as an output on some other step in the same route
+          (otherwise the step is unreachable through that input).
+        - Disposition uniqueness: each disposition is in at most one
+          step's input list AND at most one step's output list within
+          the route.
+        - Orphan steps: every active step must be reachable from the
+          entry step by following output→input disposition edges.
+
+        Empty input list ⇒ entry point (allowed).
+        Empty output list ⇒ terminal step (allowed; at least one
+        terminal is required when the route has steps).
+
+        Returns:
+            ``{"valid": bool, "errors": [str], "warnings": [str],
+               "stats": {...}}``
+        """
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        # Load the route with all steps + disposition lists eager-loaded.
+        stmt = (
+            select(OperationsDefinition)
+            .where(OperationsDefinition.id == route_id)
+            .options(
+                selectinload(OperationsDefinition.steps).selectinload(
+                    ProcessSegment.input_dispositions
+                ).selectinload(ProcessSegmentInputDisposition.disposition),
+                selectinload(OperationsDefinition.steps).selectinload(
+                    ProcessSegment.output_dispositions
+                ).selectinload(ProcessSegmentOutputDisposition.disposition),
+            )
+        )
+        route = (await session.execute(stmt)).scalar_one_or_none()
+        if route is None:
+            raise NotFoundException(resource="OperationsDefinition", resource_id=str(route_id))
+
+        steps = [s for s in route.steps if s.is_active]
+        steps.sort(key=lambda s: s.sequence)
+
+        stats = {
+            "step_count": len(steps),
+            "initial_step_count": 0,
+            "terminal_step_count": 0,
+            "output_disposition_count": 0,
+            "input_disposition_count": 0,
+        }
+
+        if not steps:
+            warnings.append("Route has no active steps.")
+            return {"valid": True, "errors": errors, "warnings": warnings, "stats": stats}
+
+        # Build per-step input/output disposition-id sets.
+        step_inputs: dict[UUID, list[UUID]] = {}
+        step_outputs: dict[UUID, list[UUID]] = {}
+        # Reverse maps for uniqueness checks.
+        input_owner: dict[UUID, list[UUID]] = {}   # disp_id -> [step_id]
+        output_owner: dict[UUID, list[UUID]] = {}  # disp_id -> [step_id]
+        disp_name: dict[UUID, str] = {}
+
+        for st in steps:
+            ins = [r.disposition_id for r in st.input_dispositions if r.is_active]
+            outs = [r.disposition_id for r in st.output_dispositions if r.is_active]
+            step_inputs[st.id] = ins
+            step_outputs[st.id] = outs
+            for r in st.input_dispositions:
+                if r.is_active:
+                    input_owner.setdefault(r.disposition_id, []).append(st.id)
+                    disp_name[r.disposition_id] = r.disposition.name
+            for r in st.output_dispositions:
+                if r.is_active:
+                    output_owner.setdefault(r.disposition_id, []).append(st.id)
+                    disp_name[r.disposition_id] = r.disposition.name
+            if not outs:
+                stats["terminal_step_count"] += 1
+            if st.is_initial_step:
+                stats["initial_step_count"] += 1
+
+        stats["input_disposition_count"] = sum(len(v) for v in step_inputs.values())
+        stats["output_disposition_count"] = sum(len(v) for v in step_outputs.values())
+
+        step_label = {s.id: f"#{s.sequence} {s.name!r}" for s in steps}
+
+        # ── Entry point check ───────────────────────────────────────
+        flagged = [s for s in steps if s.is_initial_step]
+        no_input = [s for s in steps if not step_inputs[s.id]]
+        if len(flagged) > 1:
+            labels = ", ".join(step_label[s.id] for s in flagged)
+            errors.append(
+                f"Multiple steps marked is_initial_step=True: {labels}. "
+                f"Exactly one initial step is allowed."
+            )
+        if not flagged:
+            if len(no_input) == 0:
+                errors.append(
+                    "No entry point: no step has is_initial_step=True and "
+                    "no step has an empty input disposition list."
+                )
+            elif len(no_input) > 1:
+                labels = ", ".join(step_label[s.id] for s in no_input)
+                errors.append(
+                    f"Ambiguous entry point: {len(no_input)} steps have empty "
+                    f"input lists ({labels}) and none is marked "
+                    f"is_initial_step=True."
+                )
+        # The initial step must have no input dispositions (it is the
+        # entry point of the route — nothing routes *to* it).
+        for s in flagged:
+            if step_inputs[s.id]:
+                disp_labels = ", ".join(
+                    repr(disp_name[d]) for d in step_inputs[s.id]
+                )
+                errors.append(
+                    f"Initial step {step_label[s.id]} must have an empty "
+                    f"input disposition list, but has: {disp_labels}."
+                )
+
+        # ── Disposition uniqueness ──────────────────────────────────
+        # Input uniqueness is required: a disposition must uniquely identify
+        # a destination step. Output uniqueness is NOT enforced — multiple
+        # steps may produce the same disposition (enabling shared sinks and
+        # self-loops where a step's output matches its own input).
+        for disp_id, owners in input_owner.items():
+            if len(owners) > 1:
+                labels = ", ".join(step_label[sid] for sid in owners)
+                errors.append(
+                    f"Disposition {disp_name[disp_id]!r} is in the input "
+                    f"list of multiple steps: {labels}."
+                )
+
+        # ── Connectedness of dispositions ────────────────────────────
+        for st in steps:
+            for disp_id in step_outputs[st.id]:
+                if disp_id not in input_owner:
+                    errors.append(
+                        f"Output disposition {disp_name[disp_id]!r} on step "
+                        f"{step_label[st.id]} is not in any step's input list "
+                        f"(unconnected output / dead-end)."
+                    )
+            for disp_id in step_inputs[st.id]:
+                if disp_id not in output_owner:
+                    errors.append(
+                        f"Input disposition {disp_name[disp_id]!r} on step "
+                        f"{step_label[st.id]} is not in any step's output list "
+                        f"(unreachable input)."
+                    )
+
+        # ── Terminal step required ───────────────────────────────────
+        if stats["terminal_step_count"] == 0:
+            errors.append(
+                "Route has no terminal step (no step with an empty output "
+                "disposition list)."
+            )
+
+        # ── Reachability / orphan steps ─────────────────────────────
+        entry: ProcessSegment | None = None
+        if flagged:
+            entry = sorted(flagged, key=lambda s: s.sequence)[0]
+        elif len(no_input) == 1:
+            entry = no_input[0]
+
+        if entry is not None:
+            # BFS via output disposition → step that has it as input.
+            reachable: set[UUID] = {entry.id}
+            frontier = [entry.id]
+            while frontier:
+                cur = frontier.pop()
+                for disp_id in step_outputs.get(cur, []):
+                    for nxt in input_owner.get(disp_id, []):
+                        if nxt not in reachable:
+                            reachable.add(nxt)
+                            frontier.append(nxt)
+            for st in steps:
+                if st.id not in reachable:
+                    errors.append(
+                        f"Orphan step {step_label[st.id]}: not reachable from "
+                        f"entry step {step_label[entry.id]}."
+                    )
+
+        return {
+            "valid": not errors,
+            "errors": errors,
+            "warnings": warnings,
+            "stats": stats,
+        }

@@ -13,7 +13,7 @@ import logging
 from typing import Any, Sequence
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -905,15 +905,20 @@ class ProductDefService:
         role: str,  # "input" or "output"
     ) -> None:
         """Reject if any disposition is already used by a *different* step
-        in the same route for the same role (input or output)."""
+        in the same route as an **input**.
+
+        Output uniqueness is intentionally not enforced: multiple steps may
+        produce the same disposition and they all route to the single
+        destination step that lists it as an input (this also enables
+        self-loops, where a step's output disposition matches its own input).
+        """
         if not disposition_ids:
             return
-        if role == "input":
-            link_cls = ProcessSegmentInputDisposition
-        elif role == "output":
-            link_cls = ProcessSegmentOutputDisposition
-        else:
+        if role == "output":
+            return  # output dispositions may be shared across steps
+        if role != "input":
             raise ValueError(f"unknown role: {role}")
+        link_cls = ProcessSegmentInputDisposition
         stmt = (
             select(link_cls.disposition_id, link_cls.step_id)
             .join(ProcessSegment, ProcessSegment.id == link_cls.step_id)
@@ -929,8 +934,9 @@ class ProductDefService:
         if rows:
             d, s = rows[0]
             raise ValueError(
-                f"Disposition {d} is already used as {role} of step {s} in "
-                f"route {route_id}; dispositions must be unique within a route."
+                f"Disposition {d} is already used as input of step {s} in "
+                f"route {route_id}; input dispositions must be unique "
+                f"within a route."
             )
 
     @staticmethod
@@ -948,14 +954,15 @@ class ProductDefService:
             disposition_ids=disposition_ids,
             role="input",
         )
-        existing = (await session.execute(
-            select(ProcessSegmentInputDisposition).where(
+        # Hard-delete prior rows: the (step_id, disposition_id) unique
+        # constraint applies to inactive rows too, so soft-delete would
+        # block re-adding the same disposition.
+        await session.execute(
+            delete(ProcessSegmentInputDisposition).where(
                 ProcessSegmentInputDisposition.step_id == step_id,
-                ProcessSegmentInputDisposition.is_active.is_(True),
             )
-        )).scalars().all()
-        for r in existing:
-            r.is_active = False
+        )
+        await session.flush()
         new_rows: list[ProcessSegmentInputDisposition] = []
         for pos, did in enumerate(disposition_ids):
             row = ProcessSegmentInputDisposition(
@@ -981,14 +988,12 @@ class ProductDefService:
             disposition_ids=disposition_ids,
             role="output",
         )
-        existing = (await session.execute(
-            select(ProcessSegmentOutputDisposition).where(
+        await session.execute(
+            delete(ProcessSegmentOutputDisposition).where(
                 ProcessSegmentOutputDisposition.step_id == step_id,
-                ProcessSegmentOutputDisposition.is_active.is_(True),
             )
-        )).scalars().all()
-        for r in existing:
-            r.is_active = False
+        )
+        await session.flush()
         new_rows: list[ProcessSegmentOutputDisposition] = []
         for pos, did in enumerate(disposition_ids):
             row = ProcessSegmentOutputDisposition(
