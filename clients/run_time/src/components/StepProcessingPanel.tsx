@@ -92,10 +92,10 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
     const hasResultRouting = (outgoing_conditions ?? []).some(
       (c) => c === "on_pass" || c === "on_fail" || c === "on_rework",
     );
-    if (dispositions.length === 1 && !hasResultRouting) {
-      const only = dispositions[0];
-      const value = only.name ?? only.label ?? "";
-      if (value && selectedDisposition !== value) {
+    if (dispositions.length >= 1 && !hasResultRouting) {
+      const first = dispositions[0];
+      const value = first.name ?? first.label ?? "";
+      if (value && selectedDisposition !== value && !dispositions.some((d) => (d.name ?? d.label) === selectedDisposition)) {
         setSelectedDisposition(value);
       }
     }
@@ -886,7 +886,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                   </select>
                 </div>
               )}
-              {dispositions.length > 0 && (
+              {dispositions.length > 1 && (
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">Disposition</label>
                   <select
@@ -894,7 +894,6 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                     onChange={(e) => setSelectedDisposition(e.target.value)}
                     className="input-field"
                   >
-                    <option value="">— None —</option>
                     {dispositions.map((d) => {
                       const destStep = d.to_step_id ? stepNameById[d.to_step_id] : undefined;
                       const destLabel = destStep ? ` → ${destStep}` : " → (terminal)";
