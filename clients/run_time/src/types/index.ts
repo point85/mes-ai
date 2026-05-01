@@ -184,9 +184,11 @@ export interface QualityTest {
 export interface Disposition {
   id: string;
   name: string;
+  code: string;
   description: string;
   category: string;
-  to_step_id: string;
+  /** UUID of the step that consumes this disposition; absent for terminal edges. */
+  to_step_id?: string;
   /** @deprecated Legacy transition-based disposition */
   label?: string;
 }

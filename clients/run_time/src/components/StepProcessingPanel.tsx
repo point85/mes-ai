@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption, UnitHistory, LotHistory, DispositionCatalog, EquipmentCurrentState } from "../types";
 import {
@@ -48,6 +48,14 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   const isUnit = wip_type === "unit";
   const identifier = isUnit ? (wip as Unit).serial_number : (wip as Lot).lot_number;
   const queryClient = useQueryClient();
+
+  // Map step id → "Seq: Name" for destination labels in the disposition dropdown
+  const stepNameById = useMemo(
+    () => Object.fromEntries(
+      route_steps.map((s) => [s.id, `${s.sequence}: ${s.name}`]),
+    ),
+    [route_steps],
+  );
 
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -887,12 +895,16 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                     className="input-field"
                   >
                     <option value="">— None —</option>
-                    {dispositions.map((d) => (
-                      <option key={d.id ?? d.to_step_id} value={d.name ?? d.label}>
-                        {d.name ?? d.label}
-                        {d.description ? ` — ${d.description}` : ""}
-                      </option>
-                    ))}
+                    {dispositions.map((d) => {
+                      const destStep = d.to_step_id ? stepNameById[d.to_step_id] : undefined;
+                      const destLabel = destStep ? ` → ${destStep}` : " → (terminal)";
+                      const descLabel = d.description ? ` — ${d.description}` : "";
+                      return (
+                        <option key={d.id} value={d.name} title={d.description || undefined}>
+                          {d.name}{destLabel}{descLabel}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               )}
