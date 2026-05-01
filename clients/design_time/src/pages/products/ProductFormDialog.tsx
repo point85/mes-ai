@@ -9,6 +9,7 @@ import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useCreateProduct, useUpdateProduct } from "../../hooks/useProductDef";
+import { useUoMs } from "../../hooks/useUoM";
 import type { Product } from "../../types";
 
 const productSchema = z.object({
@@ -35,6 +36,10 @@ export default function ProductFormDialog({ product, onClose }: Props) {
   const isEdit = !!product;
   const createMut = useCreateProduct();
   const updateMut = useUpdateProduct();
+
+  // Fetch all UOMs and exclude rate types (rates are not valid product UOMs)
+  const { data: uomData } = useUoMs();
+  const nonRateUoMs = (uomData?.items ?? []).filter((u) => u.uom_type !== "rate");
 
   const {
     register,
@@ -169,11 +174,20 @@ export default function ProductFormDialog({ product, onClose }: Props) {
                 <label className="block text-sm font-medium text-gray-700">
                   UoM
                 </label>
-                <input
+                <select
                   {...register("uom")}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  placeholder="EA"
-                />
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">— Select —</option>
+                  {nonRateUoMs.map((u) => (
+                    <option key={u.id} value={u.symbol}>
+                      {u.symbol} — {u.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.uom && (
+                  <p className="mt-1 text-xs text-red-600">{errors.uom.message}</p>
+                )}
               </div>
             </div>
 
