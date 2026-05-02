@@ -1,0 +1,82 @@
+id: modbus-equipment-simulator
+name: Modbus Equipment Simulator
+version: "1.0.0"
+description: >
+  In-process Modbus/TCP server that simulates a piece of equipment.
+  Starts a pymodbus TCP server on a configurable port and cycles
+  through a configurable set of equipment states automatically.
+  Use this to test the modbus-equipment plugin and the rest of the
+  MES framework without physical hardware.
+author: MES AI Contributors
+comment: >
+  Requires pymodbus library.
+  Install with: pip install mes-ai[modbus]
+  Start this plugin first, then install and enable modbus-equipment
+  pointing at the same host/port.
+category: equipment
+origin: system
+min_mes_version: "0.1.0"
+pip_dependencies:
+  - "pymodbus>=3.6.0"
+
+parameters:
+  - name: host
+    type: string
+    description: Interface to bind the simulated Modbus server on
+    required: false
+    default: "0.0.0.0"
+  - name: port
+    type: integer
+    description: TCP port to listen on (default 5020 to avoid needing root)
+    required: false
+    default: 5020
+  - name: unit_id
+    type: integer
+    description: Modbus slave/unit ID to answer on
+    required: false
+    default: 1
+
+  # ── Initial register values ────────────────────────────────────
+  - name: initial_state_value
+    type: integer
+    description: >
+      Initial value to place in holding register 0 (the state register).
+      0=Stopped, 1=Idle, 2=Execute, 3=Held, 4=Aborted (matches PackML default).
+    required: false
+    default: 1
+  - name: initial_counter_value
+    type: integer
+    description: >
+      Initial value to place in holding register 100 (a part counter).
+    required: false
+    default: 0
+
+  # ── Auto-cycle ─────────────────────────────────────────────────
+  - name: auto_cycle
+    type: boolean
+    description: >
+      When true, the simulator automatically cycles through
+      Stopped → Idle → Execute → Completing → Complete → Idle
+      (PackML production cycle) at the configured interval.
+    required: false
+    default: false
+  - name: cycle_interval_sec
+    type: number
+    description: Time in seconds to spend in each state during auto-cycle.
+    required: false
+    default: 10.0
+  - name: counter_increment
+    type: integer
+    description: Amount to increment the counter register each cycle step while in Execute.
+    required: false
+    default: 1
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: equipment_driver
+    name: modbus_equipment_simulator
+
+event_subscriptions: []
+dependencies: []

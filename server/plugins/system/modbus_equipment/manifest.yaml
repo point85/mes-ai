@@ -1,0 +1,141 @@
+id: modbus-equipment
+name: Modbus TCP/RTU Equipment Adapter
+version: "1.0.0"
+description: >
+  Modbus TCP and Modbus RTU equipment integration using pymodbus.
+  Reads and writes coils, discrete inputs, holding registers, and input
+  registers.  Subscriptions are poll-based.  Supports automatic equipment
+  state tracking when a state register and state model are configured.
+author: MES AI Contributors
+comment: >
+  Requires pymodbus library.
+  Install with: pip install mes-ai[modbus]
+  For Modbus RTU over serial, also install: pip install pyserial
+category: equipment
+origin: system
+min_mes_version: "0.1.0"
+pip_dependencies:
+  - "pymodbus>=3.6.0"
+
+parameters:
+  - name: mode
+    type: string
+    description: "Transport mode: tcp or rtu"
+    required: false
+    default: tcp
+
+  # ── TCP parameters ─────────────────────────────────────────────
+  - name: host
+    type: string
+    description: Modbus/TCP server hostname or IP address
+    required: false
+    default: localhost
+  - name: port
+    type: integer
+    description: Modbus/TCP port (default 502)
+    required: false
+    default: 502
+
+  # ── RTU parameters ─────────────────────────────────────────────
+  - name: serial_port
+    type: string
+    description: Serial port for Modbus RTU (e.g. COM3, /dev/ttyS0)
+    required: false
+  - name: baudrate
+    type: integer
+    description: Serial baud rate (default 9600)
+    required: false
+    default: 9600
+  - name: bytesize
+    type: integer
+    description: Serial data bits (5–8, default 8)
+    required: false
+    default: 8
+  - name: parity
+    type: string
+    description: "Serial parity: N (none), E (even), O (odd)"
+    required: false
+    default: "N"
+  - name: stopbits
+    type: integer
+    description: Serial stop bits (1 or 2)
+    required: false
+    default: 1
+
+  # ── Common parameters ──────────────────────────────────────────
+  - name: unit_id
+    type: integer
+    description: Modbus slave/unit ID (1–247)
+    required: false
+    default: 1
+  - name: timeout
+    type: number
+    description: Request timeout in seconds
+    required: false
+    default: 3.0
+  - name: retries
+    type: integer
+    description: Number of retry attempts on failure
+    required: false
+    default: 3
+  - name: poll_interval_sec
+    type: number
+    description: Tag subscription poll interval in seconds
+    required: false
+    default: 1.0
+
+  # ── Tag map ────────────────────────────────────────────────────
+  - name: tag_map
+    type: string
+    description: >
+      JSON mapping of logical tag names to Modbus register descriptors.
+      Each entry: {"type": "coil|di|hr|ir", "address": N, "count": 1,
+      "decode": "uint16|int16|float32_be|float32_le", "scale": 1.0, "offset": 0.0}
+      Example:
+        {
+          "status":      {"type": "coil", "address": 0},
+          "alarm":       {"type": "di",   "address": 0},
+          "setpoint":    {"type": "hr",   "address": 100},
+          "temperature": {"type": "ir",   "address": 200, "count": 2, "decode": "float32_be"},
+          "counter":     {"type": "hr",   "address": 300, "scale": 0.1}
+        }
+    required: false
+    default: "{}"
+
+  # ── State tracking ─────────────────────────────────────────────
+  - name: state_tag
+    type: string
+    description: >
+      Tag name (defined in tag_map) whose value represents equipment state.
+      Leave empty to disable automatic state tracking.
+    required: false
+    default: ""
+  - name: state_value_map
+    type: string
+    description: >
+      JSON mapping raw register value (as string) → state name.
+      Example for PackML: {"0":"Stopped","1":"Idle","2":"Execute","3":"Held","4":"Aborted"}
+    required: false
+    default: "{}"
+  - name: state_model_id
+    type: string
+    description: >
+      State model ID for transitions (e.g. packml, semi_e10).
+      Must match an installed and enabled state-model plugin.
+    required: false
+    default: ""
+  - name: equipment_id
+    type: string
+    description: MES equipment UUID for automatic state transition recording
+    required: false
+    default: ""
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: equipment_driver
+    name: modbus_equipment
+
+event_subscriptions: []
+dependencies: []
