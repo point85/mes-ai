@@ -147,6 +147,10 @@ export function useDeleteRotation(scheduleId: string) {
   return useMutation({
     mutationFn: (rotationId: string) => deleteRotation(scheduleId, rotationId),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.all }),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Failed to delete rotation";
+      alert(msg);
+    },
   });
 }
 

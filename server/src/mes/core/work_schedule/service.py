@@ -12,7 +12,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, with_loader_criteria
 
 from .exceptions import (
     DuplicateWorkScheduleNameException,
@@ -42,8 +42,17 @@ from .schemas import ShiftInstanceResult
 # ═══════════════════════════════════════════════════════════════════
 
 def _schedule_options():
-    """Eager-load all child collections for a WorkSchedule."""
+    """Eager-load all child collections for a WorkSchedule, filtering soft-deleted children."""
     return [
+        # Exclude soft-deleted children from every relationship loaded below
+        with_loader_criteria(WorkShift, WorkShift.is_active.is_(True), include_aliases=True),
+        with_loader_criteria(ShiftBreak, ShiftBreak.is_active.is_(True), include_aliases=True),
+        with_loader_criteria(WorkRotation, WorkRotation.is_active.is_(True), include_aliases=True),
+        with_loader_criteria(RotationSegment, RotationSegment.is_active.is_(True), include_aliases=True),
+        with_loader_criteria(WorkTeam, WorkTeam.is_active.is_(True), include_aliases=True),
+        with_loader_criteria(TeamMember, TeamMember.is_active.is_(True), include_aliases=True),
+        with_loader_criteria(NonWorkingPeriod, NonWorkingPeriod.is_active.is_(True), include_aliases=True),
+        # Relationship load paths
         selectinload(WorkSchedule.shifts).selectinload(WorkShift.breaks),
         selectinload(WorkSchedule.rotations).selectinload(WorkRotation.segments).selectinload(RotationSegment.shift),
         selectinload(WorkSchedule.teams).selectinload(WorkTeam.members),
