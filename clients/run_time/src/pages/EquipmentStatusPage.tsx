@@ -300,7 +300,7 @@ export default function EquipmentStatusPage() {
                   <th className="px-3 py-2 border-b">Material Name</th>
                   <th className="px-3 py-2 border-b text-right">Queued</th>
                   <th className="px-3 py-2 border-b text-right">In Process</th>
-                  <th className="px-3 py-2 border-b">UOM</th>
+                  <th className="px-3 py-2 border-b">WIP</th>
                   <th className="px-3 py-2 border-b">State</th>
                   <th className="px-3 py-2 border-b">In State</th>
                   <th className="px-3 py-2 border-b">Dispatch</th>
