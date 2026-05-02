@@ -150,6 +150,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                 summary["material_lots"] += 1
 
     # ── 2. Product ────────────────────────────────────────────────────
+    uom_ids = await _uom_id_map(session)
     product = await _get_or_create_product(session, _inject_uom_id(D.PRODUCT, uom_ids))
     summary["product"] = str(product.id)
 
@@ -259,7 +260,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                 step_id=step.id,
                 material_id=mat_id,
                 quantity=req["quantity"],
-                uom_id=uom_ids[req["uom"]],
+                uom=req["uom"],
                 material_use=req["material_use"],
                 position=req.get("position", 0),
                 description=req.get("description"),
@@ -404,6 +405,7 @@ async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
 
     # ── 4. Equipment–Material assignments ─────────────────────────────
     mat_ids = await _material_id_map(session)
+    uom_ids = await _uom_id_map(session)
 
     for em in D.EQUIPMENT_MATERIALS:
         equip_id = equip_map[em["equipment_code"]]
@@ -598,6 +600,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             summary["material_lots"] += 1
 
     # ── 2. Product ────────────────────────────────────────────────────
+    uom_ids = await _uom_id_map(session)
     product = await _get_or_create_product(session, _inject_uom_id(E.PRODUCT, uom_ids))
     summary["product"] = str(product.id)
 
@@ -706,7 +709,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             step_id=step.id,
             material_id=mat_id,
             quantity=req["quantity"],
-            uom_id=uom_ids[req["uom"]],
+            uom=req["uom"],
             material_use=req["material_use"],
             position=req.get("position", 0),
             description=req.get("description"),
@@ -785,6 +788,7 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
 
     # ── 4. Equipment–Material assignments ─────────────────────────────
     mat_ids = await _material_id_map(session)
+    uom_ids = await _uom_id_map(session)
 
     for em in E.EQUIPMENT_MATERIALS:
         equip_id = equip_map[em["equipment_code"]]
