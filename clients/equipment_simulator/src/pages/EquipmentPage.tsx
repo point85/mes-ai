@@ -105,6 +105,8 @@ export default function EquipmentPage() {
   const [modbusStateCode, setModbusStateCode] = useState(0);
   const [modbusAlarmCode, setModbusAlarmCode] = useState(0);
   const [modbusCounterValue, setModbusCounterValue] = useState(0);
+  const [modbusRejectValue, setModbusRejectValue] = useState(0);
+  const [modbusReworkValue, setModbusReworkValue] = useState(0);
   const [modbusBusy, setModbusBusy] = useState(false);
   const [modbusResult, setModbusResult] = useState<string | null>(null);
   const [modbusError, setModbusError] = useState<string | null>(null);
@@ -480,7 +482,9 @@ export default function EquipmentPage() {
       setModbusSimStatus(status);
       setModbusStateCode(status.state_code);
       setModbusAlarmCode(status.alarm_code);
-      setModbusCounterValue(status.counter);
+      setModbusCounterValue(status.counter_good ?? status.counter);
+      setModbusRejectValue(status.counter_reject ?? 0);
+      setModbusReworkValue(status.counter_rework ?? 0);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setModbusError(`Failed to read Modbus registers: ${msg}`);
@@ -521,17 +525,20 @@ export default function EquipmentPage() {
     }
   }
 
-  async function handleModbusSetCounter() {
+  async function handleModbusSetCounters() {
     setModbusBusy(true);
     setModbusError(null);
     setModbusResult(null);
     try {
-      await modbusSimSetCounter(modbusCounterValue);
-      setModbusResult(`HR[100] = ${modbusCounterValue} (counter written to Modbus registers)`);
-      await refreshModbusSim();
+      await modbusSimSetCounter(modbusCounterValue, 1, 100);
+      await modbusSimSetCounter(modbusRejectValue, 1, 101);
+      await modbusSimSetCounter(modbusReworkValue, 1, 102);
+      setModbusResult(
+        `HR[100]=${modbusCounterValue} (Good), HR[101]=${modbusRejectValue} (Reject), HR[102]=${modbusReworkValue} (Rework) written`,
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setModbusError(`Set counter failed: ${msg}`);
+      setModbusError(`Set counters failed: ${msg}`);
     } finally {
       setModbusBusy(false);
     }
@@ -947,7 +954,7 @@ export default function EquipmentPage() {
 
                 {/* Register snapshot */}
                 {modbusSimStatus && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center text-xs">
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
                       <p className="font-medium text-blue-600 uppercase">State (HR[0])</p>
                       <p className="text-lg font-bold text-blue-800">
@@ -962,7 +969,11 @@ export default function EquipmentPage() {
                     </div>
                     <div className="bg-green-50 border border-green-200 rounded-lg p-2">
                       <p className="font-medium text-green-600 uppercase">Counter (HR[100])</p>
-                      <p className="text-lg font-bold text-green-800">{modbusSimStatus.counter}</p>
+                      <p className="text-lg font-bold text-green-800">{modbusSimStatus.counter_good ?? modbusSimStatus.counter}</p>
+                    </div>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                      <p className="font-medium text-red-600 uppercase">Reject (HR[101])</p>
+                      <p className="text-lg font-bold text-red-800">{modbusSimStatus.counter_reject ?? 0}</p>
                     </div>
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
                       <p className="font-medium text-gray-600 uppercase">Temp (HR[2-3])</p>
@@ -1015,27 +1026,6 @@ export default function EquipmentPage() {
                     disabled={modbusBusy}
                   >
                     Set Alarm
-                  </button>
-                </div>
-
-                {/* Set Counter */}
-                <div className="flex flex-wrap items-end gap-4 border-t pt-3">
-                  <label className="flex flex-col text-xs font-medium text-gray-600">
-                    Part Counter Value
-                    <input
-                      type="number"
-                      min={0}
-                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-32"
-                      value={modbusCounterValue}
-                      onChange={(e) => setModbusCounterValue(Math.max(0, Number(e.target.value)))}
-                    />
-                  </label>
-                  <button
-                    className="px-4 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
-                    onClick={handleModbusSetCounter}
-                    disabled={modbusBusy}
-                  >
-                    Set Counter
                   </button>
                 </div>
 
@@ -1141,6 +1131,74 @@ export default function EquipmentPage() {
                   </div>
                 )}
               </div>
+
+              {/* Modbus Production Counters */}
+              {installedPluginIds.has("modbus-equipment-simulator") && (
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                      Modbus Part Counters — {selectedEquip.code}
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Write Good, Reject, and Rework counts directly to the Modbus simulator's
+                      holding registers (HR[100], HR[101], HR[102]).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Good (HR[100])
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={modbusCounterValue}
+                      onChange={(e) => setModbusCounterValue(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Reject (HR[101])
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={modbusRejectValue}
+                      onChange={(e) => setModbusRejectValue(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Rework (HR[102])
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={modbusReworkValue}
+                      onChange={(e) => setModbusReworkValue(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+                  <button
+                    className="px-4 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                    onClick={handleModbusSetCounters}
+                    disabled={modbusBusy}
+                  >
+                    {modbusBusy ? "Writing…" : "Set Counters"}
+                  </button>
+                </div>
+
+                {modbusResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {modbusResult}
+                  </div>
+                )}
+                {modbusError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {modbusError}
+                  </div>
+                )}
+              </div>
+              )}
 
               {/* MQTT Production Counts Simulation */}
               {installedPluginIds.has("mqtt-equipment") && (

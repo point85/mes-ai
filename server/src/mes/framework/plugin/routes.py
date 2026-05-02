@@ -575,8 +575,9 @@ class ModbusSimSetAlarmRequest(BaseModel):
 
 
 class ModbusSimSetCounterRequest(BaseModel):
-    value: int = Field(..., ge=0, description="Absolute counter value to set in HR[100]")
+    value: int = Field(..., ge=0, description="Absolute counter value to set")
     unit_id: int = Field(1, ge=1, le=247)
+    address: int = Field(100, ge=0, description="Holding register address (default 100 = Good, 101 = Reject, 102 = Rework)")
 
 
 def _get_modbus_sim_plugin():
@@ -604,7 +605,9 @@ async def get_modbus_simulator_status():
     alarm_code = await plugin.get_holding_register(uid, 1)
     temp_hi = await plugin.get_holding_register(uid, 2)
     temp_lo = await plugin.get_holding_register(uid, 3)
-    counter = await plugin.get_holding_register(uid, 100)
+    counter_good = await plugin.get_holding_register(uid, 100)
+    counter_reject = await plugin.get_holding_register(uid, 101)
+    counter_rework = await plugin.get_holding_register(uid, 102)
 
     try:
         temperature = round(struct.unpack(">f", struct.pack(">HH", temp_hi, temp_lo))[0], 2)
@@ -621,7 +624,10 @@ async def get_modbus_simulator_status():
         "state_name": _PACKML_STATE_NAMES.get(state_code, f"Unknown({state_code})"),
         "alarm_code": alarm_code,
         "temperature": temperature,
-        "counter": counter,
+        "counter": counter_good,
+        "counter_good": counter_good,
+        "counter_reject": counter_reject,
+        "counter_rework": counter_rework,
         "server_running": server_running,
     })
 
@@ -653,10 +659,11 @@ async def modbus_simulator_set_alarm(body: ModbusSimSetAlarmRequest):
 
 @router.post("/modbus-equipment-simulator/set-counter")
 async def modbus_simulator_set_counter(body: ModbusSimSetCounterRequest):
-    """Set part counter in simulator HR[100]."""
+    """Set a counter holding register (HR[address]). Default address 100=Good, 101=Reject, 102=Rework."""
     plugin = _get_modbus_sim_plugin()
-    await plugin.set_holding_register(body.unit_id, 100, body.value)
+    await plugin.set_holding_register(body.unit_id, body.address, body.value)
     return success_response({
         "unit_id": body.unit_id,
-        "counter": body.value,
+        "address": body.address,
+        "value": body.value,
     })

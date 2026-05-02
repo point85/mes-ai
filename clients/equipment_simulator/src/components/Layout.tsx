@@ -34,10 +34,10 @@ export default function Layout({ activeTab, onTabChange, children, treePanel }: 
       >
         <div className="px-4 py-4 flex items-center gap-2 border-b border-gray-700">
           <div className="w-7 h-7 bg-emerald-600 rounded flex items-center justify-center text-white text-xs font-bold">
-            AVL
+            EQ
           </div>
           <span className="text-sm font-semibold text-white whitespace-nowrap">
-            Availability Sim
+            Equipment Simulator
           </span>
         </div>
 

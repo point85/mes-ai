@@ -364,6 +364,9 @@ export interface ModbusSimStatus {
   alarm_code: number;
   temperature: number;
   counter: number;
+  counter_good: number;
+  counter_reject: number;
+  counter_rework: number;
   server_running: boolean;
 }
 
@@ -388,10 +391,11 @@ export async function modbusSimSetAlarm(alarmCode: number, unitId = 1): Promise<
   });
 }
 
-export async function modbusSimSetCounter(value: number, unitId = 1): Promise<void> {
+export async function modbusSimSetCounter(value: number, unitId = 1, address = 100): Promise<void> {
   await api.post("/plugins/modbus-equipment-simulator/set-counter", {
     value,
     unit_id: unitId,
+    address,
   });
 }
 

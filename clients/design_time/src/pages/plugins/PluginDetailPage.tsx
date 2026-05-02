@@ -278,6 +278,15 @@ export default function PluginDetailPage() {
           <h2 className="text-sm font-semibold text-gray-700">
             {plugin.installed ? "Configuration" : "Plugin Parameters"}
           </h2>
+          {pluginId === "modbus-equipment" ? (
+            <ModbusParameterForm
+              params={plugin.parameters}
+              values={paramValues}
+              onChange={setParam}
+              equipmentList={equipmentList}
+              stateModelList={stateModelList}
+            />
+          ) : (
           <div className="space-y-3">
             {plugin.parameters.map((param: ParameterSchema) =>
               param.type === "array" && param.items?.length ? (
@@ -302,6 +311,7 @@ export default function PluginDetailPage() {
               ),
             )}
           </div>
+          )}
 
           {!plugin.installed ? (
             <button
@@ -629,6 +639,141 @@ function ParameterArrayField({
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Modbus-specific Parameter Form ──────────────────────────────────
+
+const MODBUS_TCP_PARAMS = new Set(["host", "port"]);
+const MODBUS_RTU_PARAMS = new Set(["serial_port", "baudrate", "bytesize", "parity", "stopbits"]);
+const PARITY_OPTIONS = [
+  { value: "N", label: "N — None" },
+  { value: "E", label: "E — Even" },
+  { value: "O", label: "O — Odd" },
+];
+
+interface ModbusParameterFormProps {
+  params: ParameterSchema[];
+  values: Record<string, unknown>;
+  onChange: (name: string, value: unknown) => void;
+  equipmentList: { id: string; name: string; code: string }[];
+  stateModelList: { model_id: string; name: string }[];
+}
+
+function ModbusParameterForm({
+  params,
+  values,
+  onChange,
+  equipmentList,
+  stateModelList,
+}: ModbusParameterFormProps) {
+  const mode = (values["mode"] as string) || "tcp";
+  const byParam = Object.fromEntries(params.map((p) => [p.name, p]));
+
+  function renderField(name: string) {
+    const param = byParam[name];
+    if (!param) return null;
+    return (
+      <ParameterField
+        key={name}
+        param={param}
+        value={values[name]}
+        onChange={(v) => onChange(name, v)}
+        equipmentList={equipmentList}
+        stateModelList={stateModelList}
+        siblingValues={values}
+      />
+    );
+  }
+
+  const sectionCls = "rounded-md border border-gray-100 bg-gray-50 p-3 space-y-3";
+  const labelCls = "text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2";
+
+  return (
+    <div className="space-y-4">
+      {/* Mode radio */}
+      <div>
+        <p className="text-sm font-medium text-gray-700 mb-2">
+          Transport Mode <span className="text-red-500">*</span>
+        </p>
+        <div className="flex gap-6">
+          {(["tcp", "rtu"] as const).map((m) => (
+            <label key={m} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="modbus_mode"
+                value={m}
+                checked={mode === m}
+                onChange={() => onChange("mode", m)}
+                className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                {m === "tcp" ? "Modbus TCP" : "Modbus RTU (Serial)"}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* TCP parameters */}
+      {mode === "tcp" && (
+        <div className={sectionCls}>
+          <p className={labelCls}>TCP Connection</p>
+          {renderField("host")}
+          {renderField("port")}
+        </div>
+      )}
+
+      {/* RTU parameters */}
+      {mode === "rtu" && (
+        <div className={sectionCls}>
+          <p className={labelCls}>Serial Port</p>
+          {renderField("serial_port")}
+          {renderField("baudrate")}
+          <div className="flex items-start gap-3">
+            <div className="w-48 shrink-0">
+              <label className="text-sm font-medium text-gray-700">Parity</label>
+              <p className="text-xs text-gray-400 mt-0.5">{byParam["parity"]?.description}</p>
+            </div>
+            <select
+              value={(values["parity"] as string) || "N"}
+              onChange={(e) => onChange("parity", e.target.value)}
+              className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            >
+              {PARITY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          {renderField("bytesize")}
+          {renderField("stopbits")}
+        </div>
+      )}
+
+      {/* Common parameters */}
+      <div className={sectionCls}>
+        <p className={labelCls}>Common</p>
+        {renderField("unit_id")}
+        {renderField("timeout")}
+        {renderField("retries")}
+        {renderField("poll_interval_sec")}
+      </div>
+
+      {/* Tag map */}
+      <div className={sectionCls}>
+        <p className={labelCls}>Tag Map</p>
+        {renderField("tag_map")}
+      </div>
+
+      {/* State tracking */}
+      <div className={sectionCls}>
+        <p className={labelCls}>State Tracking</p>
+        {renderField("equipment_id")}
+        {renderField("state_model_id")}
+        {renderField("state_tag")}
+        {renderField("state_value_map")}
+      </div>
     </div>
   );
 }
