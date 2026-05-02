@@ -27,6 +27,7 @@ import {
   TagIcon,
   WrenchScrewdriverIcon,
   QuestionMarkCircleIcon,
+  CalendarDaysIcon,
 } from "@heroicons/react/24/outline";
 import HelpDialog, { type HelpTopic } from "../HelpDialog";
 
@@ -47,6 +48,7 @@ const sections: NavSection[] = [
     title: "Definitions",
     items: [
       { label: "Units of Measure", to: "/uom", icon: ScaleIcon },
+      { label: "Work Schedules", to: "/work-schedules", icon: CalendarDaysIcon },
       { label: "Data Definitions", to: "/data-definitions", icon: ClipboardDocumentListIcon },
     ],
   },

@@ -32,6 +32,7 @@ import mes.core.quality.models  # noqa: F401
 import mes.core.performance.models  # noqa: F401
 import mes.adapters.erp.queue  # noqa: F401
 import mes.adapters.erp.inbound_queue  # noqa: F401
+import mes.core.work_schedule.models  # noqa: F401
 
 from mes.framework.db.base import Base
 
