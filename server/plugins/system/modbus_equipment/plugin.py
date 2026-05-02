@@ -84,7 +84,11 @@ class ModbusEquipmentPlugin(MESPlugin):
         if self._adapter is None:
             return
 
-        await self._adapter.connect()
+        try:
+            await self._adapter.connect()
+        except Exception as exc:  # noqa: BLE001
+            # Device may not be reachable yet; pymodbus will auto-reconnect.
+            logger.warning("Modbus: initial connection failed (%s) — will retry automatically", exc)
 
         # Subscribe to state tag if configured
         state_tag = self._config.get("state_tag", "")

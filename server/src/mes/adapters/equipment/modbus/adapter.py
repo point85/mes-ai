@@ -163,7 +163,6 @@ class ModbusEquipmentAdapter(EquipmentAdapter):
                     port=self._settings.MODBUS_PORT,
                     timeout=self._settings.MODBUS_TIMEOUT,
                     retries=self._settings.MODBUS_RETRIES,
-                    retry_on_empty=True,
                 )
             else:
                 from pymodbus.client import AsyncModbusSerialClient

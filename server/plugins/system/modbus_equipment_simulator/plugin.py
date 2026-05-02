@@ -43,6 +43,12 @@ from mes.framework.plugin.base import MESPlugin
 
 logger = logging.getLogger("mes.plugins.modbus_equipment_simulator")
 
+# pymodbus 3.6 function codes used with async_getValues / async_setValues
+_FC_COIL = 1   # Coils (read/write)
+_FC_DI   = 2   # Discrete inputs (read-only)
+_FC_HR   = 3   # Holding registers (read/write)
+_FC_IR   = 4   # Input registers (read-only)
+
 # PackML state code → name (kept in sync with packml-availability plugin)
 _STATE_NAMES: dict[int, str] = {
     0: "Stopped",
@@ -74,8 +80,8 @@ class ModbusEquipmentSimulatorPlugin(MESPlugin):
         self._config: dict[str, Any] = {}
         self._server_task: asyncio.Task | None = None
         self._cycle_task: asyncio.Task | None = None
-        # pymodbus data store — populated in start()
-        self._context: Any = None
+        self._server: Any = None   # ModbusTcpServer — set in start()
+        self._unit_id: int = 1
 
     # ── Lifecycle ────────────────────────────────────────────────
 
@@ -88,80 +94,76 @@ class ModbusEquipmentSimulatorPlugin(MESPlugin):
         )
 
     async def start(self) -> None:
-        from pymodbus.datastore import (
-            ModbusSequentialDataBlock,
-            ModbusServerContext,
-            ModbusSlaveContext,
-        )
-        from pymodbus.server import StartAsyncTcpServer
+        from pymodbus.server import ModbusTcpServer
+        from pymodbus.simulator.simdata import DataType, SimData
+        from pymodbus.simulator.simdevice import SimDevice
 
         host = self._config.get("host", "0.0.0.0")
         port = int(self._config.get("port", 5020))
         unit_id = int(self._config.get("unit_id", 1))
         initial_state = int(self._config.get("initial_state_value", 1))
         initial_counter = int(self._config.get("initial_counter_value", 0))
+        self._unit_id = unit_id
 
-        # ── Build data store ─────────────────────────────────────────
-
-        # Coils (FC01): indices 0-7
-        # 0: running flag, 1: alarm flag
-        coil_block = ModbusSequentialDataBlock(0, [False] * 8)
-
-        # Discrete inputs (FC02): indices 0-7
-        # 0: safety door closed (always True)
-        di_block = ModbusSequentialDataBlock(0, [True] + [False] * 7)
-
-        # Holding registers (FC03/FC06/FC16): indices 0-200
-        # 0:  state code, 1: alarm code, 2-3: temperature (float32_be), 100: counter
-        hr_values = [0] * 201
-        hr_values[0] = initial_state
-        hr_values[1] = 0  # no alarm
-
-        # Pack 22.5 as float32 big-endian into registers 2 and 3
+        # ── Build initial register values ────────────────────────────────────
+        # HR array (0-based index). SimData uses Modbus 1-based addressing,
+        # so SimData(address=1) maps index 0 → Modbus HR 1, etc.
+        hr_vals = [0] * 201
+        hr_vals[0] = initial_state        # HR[0]: equipment state code
+        hr_vals[1] = 0                    # HR[1]: alarm code (0 = no alarm)
+        # HR[2-3]: temperature 22.5 °C as float32 big-endian
         packed = struct.pack(">f", 22.5)
         hi, lo = struct.unpack(">HH", packed)
-        hr_values[2] = hi
-        hr_values[3] = lo
-        hr_values[100] = initial_counter
+        hr_vals[2] = hi
+        hr_vals[3] = lo
+        hr_vals[100] = initial_counter    # HR[100]: part counter
 
-        hr_block = ModbusSequentialDataBlock(0, hr_values)
+        # ── Build SimDevice with separate function-code blocks ───────────────
+        # Tuple order: (coils, discrete_inputs, holding_registers, input_registers)
+        # SimData address is 1-based Modbus address.
+        coils  = SimData(1, count=8,   datatype=DataType.BITS,      values=[False] * 8)
+        dis    = SimData(1, count=8,   datatype=DataType.BITS,      values=[True] + [False] * 7)
+        hrs    = SimData(1, count=201, datatype=DataType.REGISTERS, values=hr_vals)
+        irs    = SimData(1, count=201, datatype=DataType.REGISTERS, values=hr_vals[:])
+        device = SimDevice(id=unit_id, simdata=([coils], [dis], [hrs], [irs]))
 
-        # Input registers (FC04): same layout as HR but read-only
-        ir_block = ModbusSequentialDataBlock(0, hr_values[:])
+        # ── Start server ─────────────────────────────────────────────────────
+        self._server = ModbusTcpServer(context=device, address=(host, port))
 
-        slave = ModbusSlaveContext(
-            di=di_block,
-            co=coil_block,
-            hr=hr_block,
-            ir=ir_block,
+        logger.info(
+            "Starting Modbus simulator server on %s:%d (unit=%d)", host, port, unit_id
         )
-        self._context = ModbusServerContext(slaves={unit_id: slave}, single=False)
-
-        # ── Start server ─────────────────────────────────────────────
-
-        logger.info("Starting Modbus simulator server on %s:%d (unit=%d)", host, port, unit_id)
         self._server_task = asyncio.create_task(
-            StartAsyncTcpServer(
-                context=self._context,
-                address=(host, port),
-            ),
+            self._server.serve_forever(),
             name="modbus-simulator-server",
         )
 
         # Give the server a moment to bind before returning
         await asyncio.sleep(0.2)
 
-        # ── Auto-cycle ───────────────────────────────────────────────
-        if self._config.get("auto_cycle", False):
+        # ── Auto-cycle ───────────────────────────────────────────────────────
+        auto_cycle = self._config.get("auto_cycle", False)
+        if isinstance(auto_cycle, str):
+            auto_cycle = auto_cycle.lower() in ("true", "1", "yes")
+
+        if auto_cycle:
             self._cycle_task = asyncio.create_task(
                 self._auto_cycle(unit_id),
                 name="modbus-simulator-cycle",
+            )
+            logger.info(
+                "Modbus simulator auto-cycle enabled (interval=%ss)",
+                self._config.get("cycle_interval_sec", 10.0),
             )
 
     async def stop(self) -> None:
         if self._cycle_task is not None:
             self._cycle_task.cancel()
             self._cycle_task = None
+
+        if self._server is not None:
+            await self._server.shutdown()
+            self._server = None
 
         if self._server_task is not None:
             self._server_task.cancel()
@@ -181,28 +183,35 @@ class ModbusEquipmentSimulatorPlugin(MESPlugin):
 
     # ── Register access helpers ──────────────────────────────────
 
-    def get_holding_register(self, unit_id: int, address: int) -> int:
-        """Read a holding register value (for tests / diagnostic REST endpoint)."""
-        if self._context is None:
+    async def get_holding_register(self, unit_id: int, address: int) -> int:
+        """Read a holding register value (0-based address, for tests/diagnostics)."""
+        if self._server is None:
             return 0
-        slave = self._context[unit_id]
-        return slave.getValues(3, address, count=1)[0]  # FC03 = 3
+        vals = await self._server.async_getValues(
+            device_id=unit_id, func_code=_FC_HR, address=address + 1, count=1
+        )
+        return int(vals[0]) if vals else 0
 
-    def set_holding_register(self, unit_id: int, address: int, value: int) -> None:
-        """Write a holding register value (used by auto-cycle and tests)."""
-        if self._context is None:
+    async def set_holding_register(self, unit_id: int, address: int, value: int) -> None:
+        """Write a holding register (0-based address). Mirrors the write into IR."""
+        if self._server is None:
             return
-        slave = self._context[unit_id]
-        slave.setValues(3, address, [value])
-        # Mirror into input registers
-        slave.setValues(4, address, [value])
+        addr1 = address + 1  # convert to 1-based Modbus address
+        await self._server.async_setValues(
+            device_id=unit_id, func_code=_FC_HR, address=addr1, values=[value]
+        )
+        # Mirror into input registers so FC04 reads are consistent
+        await self._server.async_setValues(
+            device_id=unit_id, func_code=_FC_IR, address=addr1, values=[value]
+        )
 
-    def set_coil(self, unit_id: int, address: int, value: bool) -> None:
-        """Write a coil value."""
-        if self._context is None:
+    async def set_coil(self, unit_id: int, address: int, value: bool) -> None:
+        """Write a coil (0-based address)."""
+        if self._server is None:
             return
-        slave = self._context[unit_id]
-        slave.setValues(1, address, [value])
+        await self._server.async_setValues(
+            device_id=unit_id, func_code=_FC_COIL, address=address + 1, values=[value]
+        )
 
     # ── Auto-cycle loop ──────────────────────────────────────────
 
@@ -215,21 +224,22 @@ class ModbusEquipmentSimulatorPlugin(MESPlugin):
         while True:
             try:
                 state_code, state_name = _CYCLE[step_index % len(_CYCLE)]
-                self.set_holding_register(unit_id, 0, state_code)
+                await self.set_holding_register(unit_id, 0, state_code)
 
-                # Update running coil
-                self.set_coil(unit_id, 0, state_code == 2)  # coil 0 = running
+                # Update running coil (coil 0 = running)
+                await self.set_coil(unit_id, 0, state_code == 2)
 
-                # Increment counter while executing
+                # Increment counter while in Execute
                 if state_code == 2:
-                    current = self.get_holding_register(unit_id, 100)
-                    self.set_holding_register(unit_id, 100, current + counter_inc)
+                    current = await self.get_holding_register(unit_id, 100)
+                    await self.set_holding_register(unit_id, 100, current + counter_inc)
 
+                counter = await self.get_holding_register(unit_id, 100)
                 logger.debug(
                     "Modbus simulator: state=%s (%d), counter=%d",
                     state_name,
                     state_code,
-                    self.get_holding_register(unit_id, 100),
+                    counter,
                 )
                 step_index += 1
                 await asyncio.sleep(interval)
