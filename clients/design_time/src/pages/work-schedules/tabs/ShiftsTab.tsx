@@ -29,8 +29,8 @@ function ShiftFormDialog({ initial, onSave, onClose, saving }: {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [startTime, setStartTime] = useState(initial?.start_time?.slice(0, 5) ?? "06:00");
-  const [hours, setHours] = useState(initial ? Math.floor(initial.duration_seconds / 3600) : 8);
-  const [minutes, setMinutes] = useState(initial ? Math.floor((initial.duration_seconds % 3600) / 60) : 0);
+  const [hours, setHours] = useState(initial ? String(Math.floor(initial.duration_seconds / 3600)) : "8");
+  const [minutes, setMinutes] = useState(initial ? String(Math.floor((initial.duration_seconds % 3600) / 60)) : "0");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +38,7 @@ function ShiftFormDialog({ initial, onSave, onClose, saving }: {
       name: name.trim(),
       description: description.trim() || null,
       start_time: `${startTime}:00`,
-      duration_seconds: hours * 3600 + minutes * 60,
+      duration_seconds: (parseInt(hours, 10) || 0) * 3600 + (parseInt(minutes, 10) || 0) * 60,
     });
   };
 
@@ -62,11 +62,11 @@ function ShiftFormDialog({ initial, onSave, onClose, saving }: {
           <div className="flex gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Hours</label>
-              <input type="number" min={0} max={23} className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" value={hours} onChange={(e) => setHours(Number(e.target.value))} />
+              <input type="number" min={0} max={23} className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" value={hours} onChange={(e) => setHours(e.target.value)} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Minutes</label>
-              <input type="number" min={0} max={59} className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} />
+              <input type="number" min={0} max={59} className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
