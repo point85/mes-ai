@@ -419,7 +419,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
           </div>
           <WipStatusBadge status={wip.status} />
         </div>
-        {!isUnit && <p className="text-sm text-gray-500 mt-1">Quantity: {(wip as Lot).quantity}</p>}
+        {!isUnit && <p className="text-sm text-gray-500 mt-1">Quantity: {(wip as Lot).quantity}{(wip as Lot).uom_symbol ? ` ${(wip as Lot).uom_symbol}` : ""}</p>}
       </div>
 
       {/* Step History */}
@@ -910,7 +910,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
               {!isUnit && (
                 <>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Qty Out</label>
+                    <label className="block text-sm text-gray-600 mb-1">Qty Out{(wip as Lot).uom_symbol ? ` (${(wip as Lot).uom_symbol})` : ""}</label>
                     <input
                       type="number"
                       min="0"
@@ -921,7 +921,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Qty Scrapped</label>
+                    <label className="block text-sm text-gray-600 mb-1">Qty Scrapped{(wip as Lot).uom_symbol ? ` (${(wip as Lot).uom_symbol})` : ""}</label>
                     <input
                       type="number"
                       min="0"

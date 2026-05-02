@@ -620,7 +620,7 @@ class LotService:
         order_id: UUID | None = None,
         equipment_id: UUID | None = None,
     ) -> tuple[Sequence[Lot], str | None, bool]:
-        stmt = select(Lot).where(Lot.is_active.is_(True))
+        stmt = select(Lot).where(Lot.is_active.is_(True)).options(selectinload(Lot.product))
         if status is not None:
             stmt = stmt.where(Lot.status == status)
         if order_id is not None:
@@ -631,7 +631,7 @@ class LotService:
 
     @staticmethod
     async def get_lot(session: AsyncSession, lot_id: UUID) -> Lot:
-        stmt = select(Lot).where(Lot.id == lot_id, Lot.is_active.is_(True))
+        stmt = select(Lot).where(Lot.id == lot_id, Lot.is_active.is_(True)).options(selectinload(Lot.product))
         result = await session.execute(stmt)
         lot = result.scalar_one_or_none()
         if lot is None:
@@ -646,7 +646,7 @@ class LotService:
         stmt = select(Lot).where(
             Lot.lot_number == lot_number,
             Lot.is_active.is_(True),
-        )
+        ).options(selectinload(Lot.product))
         result = await session.execute(stmt)
         lot = result.scalar_one_or_none()
         if lot is None:

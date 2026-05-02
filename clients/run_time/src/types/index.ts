@@ -87,6 +87,7 @@ export interface Lot {
   current_equipment_id: string | null;
   status: "queued" | "in_process" | "completed" | "scrapped" | "on_hold";
   is_active: boolean;
+  uom_symbol: string | null;
   created_at: string;
   updated_at: string;
 }

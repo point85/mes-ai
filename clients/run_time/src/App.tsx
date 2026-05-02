@@ -24,13 +24,13 @@ export default function App() {
 
   return (
     <Layout activeTab={activeTab} onTabChange={setActiveTab} wsConnected={connected}>
-      {activeTab === "dashboard" && <DashboardPage events={events} />}
-      {activeTab === "scan" && <ScanPage />}
-      {activeTab === "active-wip" && <ActiveWipPage />}
-      {activeTab === "orders" && <OrdersPage />}
-      {activeTab === "inventory" && <InventoryPage />}
-      {activeTab === "equipment" && <EquipmentStatusPage />}
-      {activeTab === "events" && <EventsPage events={events} onClear={() => setEvents([])} />}
+      <div className={activeTab === "dashboard"  ? undefined : "hidden"}><DashboardPage events={events} /></div>
+      <div className={activeTab === "scan"        ? undefined : "hidden"}><ScanPage /></div>
+      <div className={activeTab === "active-wip"  ? undefined : "hidden"}><ActiveWipPage /></div>
+      <div className={activeTab === "orders"      ? undefined : "hidden"}><OrdersPage /></div>
+      <div className={activeTab === "inventory"   ? undefined : "hidden"}><InventoryPage /></div>
+      <div className={activeTab === "equipment"   ? undefined : "hidden"}><EquipmentStatusPage /></div>
+      <div className={activeTab === "events"      ? undefined : "hidden"}><EventsPage events={events} onClear={() => setEvents([])} /></div>
     </Layout>
   );
 }

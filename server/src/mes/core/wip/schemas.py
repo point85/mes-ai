@@ -91,6 +91,7 @@ class LotRead(BaseModel):
     current_equipment_id: UUID | None = None
     status: str
     is_active: bool
+    uom_symbol: str | None = None
     # RCA fields
     scrap_reason: str | None = None
     scrap_disposition: str | None = None

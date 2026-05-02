@@ -155,7 +155,7 @@ export default function ActiveWipPage() {
                 {lots.map((l) => (
                   <tr key={l.id} className="border-b hover:bg-gray-50">
                     <td className="py-2 px-3 font-mono">{l.lot_number}</td>
-                    <td className="py-2 px-3">{l.quantity}</td>
+                    <td className="py-2 px-3">{l.quantity}{l.uom_symbol ? ` ${l.uom_symbol}` : ""}</td>
                     <td className="py-2 px-3"><StatusBadge status={l.status} /></td>
                     <td className="py-2 px-3 text-sm">{l.current_step_name ?? "—"}</td>
                     <td className="py-2 px-3 font-mono text-xs">{l.order_id.slice(0, 8)}</td>
