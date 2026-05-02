@@ -98,14 +98,23 @@ class RotationSegmentRead(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def extract_shift_name(cls, data: object) -> object:
-        if hasattr(data, "shift") and data.shift is not None:  # type: ignore[union-attr]
-            object.__setattr__(data, "_shift_name", data.shift.name)  # type: ignore[union-attr]
-        return data
-
-    @model_validator(mode="after")
-    def fill_shift_name(self) -> "RotationSegmentRead":
-        # populated during creation via from_attributes
-        return self
+        if isinstance(data, dict):
+            return data
+        # Access shift via __dict__ to avoid triggering SQLAlchemy async lazy load.
+        # If the relationship is already loaded it will be in __dict__; if expired
+        # it won't be, and shift_name stays None until the caller re-fetches.
+        raw_dict = getattr(data, "__dict__", {})
+        shift = raw_dict.get("shift")  # type: ignore[union-attr]
+        return {
+            "id": raw_dict.get("id"),
+            "rotation_id": raw_dict.get("rotation_id"),
+            "shift_id": raw_dict.get("shift_id"),
+            "shift_name": shift.name if shift is not None else None,
+            "days_on": raw_dict.get("days_on"),
+            "days_off": raw_dict.get("days_off"),
+            "sequence": raw_dict.get("sequence"),
+            "is_active": raw_dict.get("is_active", True),
+        }
 
 
 class RotationSegmentUpdate(BaseModel):

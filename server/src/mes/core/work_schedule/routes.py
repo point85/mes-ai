@@ -10,13 +10,16 @@ from datetime import date, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mes.framework.api.responses import list_response, success_response
 from mes.framework.auth.dependencies import require_permission
 from mes.framework.auth.models import User
 from mes.framework.db import get_db_session
 
+from .models import RotationSegment
 from .schemas import (
     NonWorkingPeriodCreate,
     NonWorkingPeriodRead,
@@ -272,7 +275,15 @@ async def add_segment(
         shift_id=body.shift_id, days_on=body.days_on,
         days_off=body.days_off, sequence=body.sequence,
     )
+    seg_id = seg.id
     await session.commit()
+    # Re-fetch after commit to get shift relationship loaded (avoids lazy load in Pydantic)
+    result = await session.execute(
+        select(RotationSegment)
+        .where(RotationSegment.id == seg_id)
+        .options(selectinload(RotationSegment.shift))
+    )
+    seg = result.scalar_one()
     return success_response(RotationSegmentRead.model_validate(seg).model_dump())
 
 

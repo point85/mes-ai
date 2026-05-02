@@ -46,7 +46,11 @@ from mes.core.inventory.models import StorageLocation
 from mes.core.inventory.service import (
     InventoryTransactionService, StorageLocationService,
 )
+from datetime import date, time, timedelta
+
 from mes.core.uom.models import UnitOfMeasure
+from mes.core.work_schedule.models import WorkSchedule as _WorkScheduleModel
+from mes.core.work_schedule.service import WorkScheduleService as _WorkScheduleSvc
 from mes.framework.api.exceptions import MESException, ValidationException
 
 from . import cpg_data as D
@@ -278,6 +282,77 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     return summary
 
 
+async def _seed_four_twelves_schedule(session: AsyncSession) -> dict[str, Any]:
+    """
+    Create the 'four twelves' work schedule if it doesn't already exist.
+    Four 12-hour alternating day/night shifts; idempotent.
+    """
+    SCHED_NAME = "Manufacturing Company - four twelves"
+    existing = await session.execute(
+        select(_WorkScheduleModel).where(_WorkScheduleModel.name == SCHED_NAME)
+    )
+    if existing.scalar_one_or_none() is not None:
+        return {"work_schedule": 0}
+
+    schedule = await _WorkScheduleSvc.create_schedule(
+        session, SCHED_NAME, "Four 12 hour alternating day/night shifts",
+    )
+
+    # Day shift: 07:00 for 12 hours
+    day_shift = await _WorkScheduleSvc.create_shift(
+        session, schedule.id,
+        name="Day", description="Day shift",
+        start_time=time(7, 0, 0),
+        duration_seconds=int(timedelta(hours=12).total_seconds()),
+    )
+    # Night shift: 19:00 for 12 hours
+    night_shift = await _WorkScheduleSvc.create_shift(
+        session, schedule.id,
+        name="Night", description="Night shift",
+        start_time=time(19, 0, 0),
+        duration_seconds=int(timedelta(hours=12).total_seconds()),
+    )
+
+    # 7 days ON, 7 OFF — day rotation
+    day_rotation = await _WorkScheduleSvc.create_rotation(
+        session, schedule.id, name="Day", description="Day",
+    )
+    await _WorkScheduleSvc.add_rotation_segment(
+        session, day_rotation.id,
+        shift_id=day_shift.id, days_on=7, days_off=7, sequence=1,
+    )
+
+    # 7 nights ON, 7 OFF — night rotation
+    night_rotation = await _WorkScheduleSvc.create_rotation(
+        session, schedule.id, name="Night", description="Night",
+    )
+    await _WorkScheduleSvc.add_rotation_segment(
+        session, night_rotation.id,
+        shift_id=night_shift.id, days_on=7, days_off=7, sequence=1,
+    )
+
+    rotation_start_ab = date(2014, 1, 2)
+    rotation_start_cd = date(2014, 1, 9)
+    await _WorkScheduleSvc.create_team(
+        session, schedule.id, name="A", description="A day shift",
+        rotation_id=day_rotation.id, rotation_start=rotation_start_ab,
+    )
+    await _WorkScheduleSvc.create_team(
+        session, schedule.id, name="B", description="B night shift",
+        rotation_id=night_rotation.id, rotation_start=rotation_start_ab,
+    )
+    await _WorkScheduleSvc.create_team(
+        session, schedule.id, name="C", description="C day shift",
+        rotation_id=day_rotation.id, rotation_start=rotation_start_cd,
+    )
+    await _WorkScheduleSvc.create_team(
+        session, schedule.id, name="D", description="D night shift",
+        rotation_id=night_rotation.id, rotation_start=rotation_start_cd,
+    )
+
+    return {"work_schedule": 1}
+
+
 async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
     """
     Create the ISA-95 physical hierarchy, assign equipment state models,
@@ -465,6 +540,10 @@ async def seed_plant_data(session: AsyncSession) -> dict[str, Any]:
                 reason="Demo seed — initial putaway",
             )
             summary["inventory_received"] += 1
+
+    # ── 7. Work Schedule ──────────────────────────────────────────────
+    ws_counts = await _seed_four_twelves_schedule(session)
+    summary.update(ws_counts)
 
     await session.commit()
     logger.info("CPG plant demo data seeded: %s", summary)
@@ -838,6 +917,10 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
                 reason="Electronics demo seed — initial putaway",
             )
             summary["inventory_received"] += 1
+
+    # ── 7. Work Schedule ──────────────────────────────────────────────
+    ws_counts = await _seed_four_twelves_schedule(session)
+    summary.update(ws_counts)
 
     await session.commit()
     logger.info("Electronics plant demo data seeded: %s", summary)
