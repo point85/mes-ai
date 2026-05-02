@@ -8,9 +8,24 @@ import {
 } from "../api/runtime";
 import type { Site, Area, ProductionLine, WorkCell, Equipment } from "../types";
 
+// ── Node kinds used by the checkbox callback ──────────────────────
+
+export type TreeNodeKind = "site" | "area" | "line" | "workcell" | "equipment";
+
+export interface CheckedNode {
+  id: string;
+  kind: TreeNodeKind;
+  code: string;
+  name: string;
+}
+
 interface EquipmentTreeProps {
   selectedEquipmentId: string | null;
   onSelectEquipment: (equip: Equipment) => void;
+  /** Currently checked node IDs (controlled from parent). */
+  checkedNodeIds: Set<string>;
+  /** Called when a checkbox is toggled with the node details. */
+  onToggleCheck: (node: CheckedNode) => void;
 }
 
 type ChildNode = Area | ProductionLine | WorkCell | Equipment;
@@ -18,6 +33,8 @@ type ChildNode = Area | ProductionLine | WorkCell | Equipment;
 export default function EquipmentTree({
   selectedEquipmentId,
   onSelectEquipment,
+  checkedNodeIds,
+  onToggleCheck,
 }: EquipmentTreeProps) {
   const [sites, setSites] = useState<Site[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -28,7 +45,7 @@ export default function EquipmentTree({
     fetchSites().then(setSites).catch(() => {});
   }, []);
 
-  async function toggleNode(
+  async function toggleExpand(
     id: string,
     fetcher: (parentId: string) => Promise<ChildNode[]>,
   ) {
@@ -70,7 +87,22 @@ export default function EquipmentTree({
     <span className="text-[10px] text-gray-400 animate-pulse ml-auto">…</span>
   );
 
-  const branchClass =
+  function Checkbox({ node }: { node: CheckedNode }) {
+    return (
+      <input
+        type="checkbox"
+        checked={checkedNodeIds.has(node.id)}
+        onChange={(e) => {
+          e.stopPropagation();
+          onToggleCheck(node);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="h-3.5 w-3.5 rounded border-gray-400 text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
+      />
+    );
+  }
+
+  const branchCls =
     "flex items-center gap-1.5 py-1 cursor-pointer rounded hover:bg-gray-100";
 
   return (
@@ -81,11 +113,12 @@ export default function EquipmentTree({
       {sites.map((site) => (
         <div key={site.id}>
           <div
-            className={branchClass}
+            className={branchCls}
             style={{ paddingLeft: 4 }}
-            onClick={() => toggleNode(site.id, fetchAreas)}
+            onClick={() => toggleExpand(site.id, fetchAreas)}
           >
             <Chevron open={expanded.has(site.id)} />
+            <Checkbox node={{ id: site.id, kind: "site", code: site.code, name: site.name }} />
             <span className="text-[10px] font-mono text-gray-400 shrink-0">S</span>
             <span className="truncate" title={site.name}>{site.code}</span>
             {loading.has(site.id) && <Spinner />}
@@ -95,11 +128,12 @@ export default function EquipmentTree({
             ((childMap[site.id] as Area[] | undefined) ?? []).map((area) => (
               <div key={area.id}>
                 <div
-                  className={branchClass}
+                  className={branchCls}
                   style={{ paddingLeft: 20 }}
-                  onClick={() => toggleNode(area.id, fetchProductionLines)}
+                  onClick={() => toggleExpand(area.id, fetchProductionLines)}
                 >
                   <Chevron open={expanded.has(area.id)} />
+                  <Checkbox node={{ id: area.id, kind: "area", code: area.code, name: area.name }} />
                   <span className="text-[10px] font-mono text-gray-400 shrink-0">A</span>
                   <span className="truncate" title={area.name}>{area.code}</span>
                   {loading.has(area.id) && <Spinner />}
@@ -109,11 +143,12 @@ export default function EquipmentTree({
                   ((childMap[area.id] as ProductionLine[] | undefined) ?? []).map((line) => (
                     <div key={line.id}>
                       <div
-                        className={branchClass}
+                        className={branchCls}
                         style={{ paddingLeft: 36 }}
-                        onClick={() => toggleNode(line.id, fetchWorkCells)}
+                        onClick={() => toggleExpand(line.id, fetchWorkCells)}
                       >
                         <Chevron open={expanded.has(line.id)} />
+                        <Checkbox node={{ id: line.id, kind: "line", code: line.code, name: line.name }} />
                         <span className="text-[10px] font-mono text-gray-400 shrink-0">L</span>
                         <span className="truncate" title={line.name}>{line.code}</span>
                         {loading.has(line.id) && <Spinner />}
@@ -123,11 +158,12 @@ export default function EquipmentTree({
                         ((childMap[line.id] as WorkCell[] | undefined) ?? []).map((wc) => (
                           <div key={wc.id}>
                             <div
-                              className={branchClass}
+                              className={branchCls}
                               style={{ paddingLeft: 52 }}
-                              onClick={() => toggleNode(wc.id, fetchEquipmentInWorkCell)}
+                              onClick={() => toggleExpand(wc.id, fetchEquipmentInWorkCell)}
                             >
                               <Chevron open={expanded.has(wc.id)} />
+                              <Checkbox node={{ id: wc.id, kind: "workcell", code: wc.code, name: wc.name }} />
                               <span className="text-[10px] font-mono text-gray-400 shrink-0">WC</span>
                               <span className="truncate" title={wc.name}>{wc.code}</span>
                               {loading.has(wc.id) && <Spinner />}
@@ -142,9 +178,10 @@ export default function EquipmentTree({
                                       ? "bg-indigo-50 text-indigo-700 font-medium"
                                       : "hover:bg-gray-100"
                                   }`}
-                                  style={{ paddingLeft: 72 }}
+                                  style={{ paddingLeft: 68 }}
                                   onClick={() => onSelectEquipment(eq)}
                                 >
+                                  <Checkbox node={{ id: eq.id, kind: "equipment", code: eq.code, name: eq.name }} />
                                   <span className="text-indigo-500 text-xs shrink-0">⚙</span>
                                   <span className="truncate" title={eq.name}>{eq.code}</span>
                                 </div>

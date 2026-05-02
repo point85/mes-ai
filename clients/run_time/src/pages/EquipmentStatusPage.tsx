@@ -1,11 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ArrowPathIcon, CpuChipIcon } from "@heroicons/react/24/outline";
 import EquipmentTree from "../components/EquipmentTree";
+import type { CheckedNode } from "../components/EquipmentTree";
 import {
   fetchEquipment,
   fetchEquipmentCurrentState,
   fetchUnits,
   fetchLots,
+  fetchAllEquipmentInSite,
+  fetchAllEquipmentInArea,
+  fetchAllEquipmentInLine,
+  fetchAllEquipmentInWorkCell,
 } from "../api/runtime";
 import type { Equipment, EquipmentCurrentState, Unit, Lot } from "../types";
 
@@ -25,61 +30,190 @@ function formatDateTime(iso: string | null | undefined): string {
   }
 }
 
-export default function EquipmentStatusPage() {
-  const [selected, setSelected] = useState<Equipment | null>(null);
-  const [equipment, setEquipment] = useState<Equipment | null>(null);
-  const [currentState, setCurrentState] = useState<EquipmentCurrentState | null>(null);
-  const [stateError, setStateError] = useState<string | null>(null);
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [lots, setLots] = useState<Lot[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
+function formatRelative(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "< 1 min";
+    if (diffMin < 60) return `${diffMin} min`;
+    const diffHr = Math.floor(diffMin / 60);
+    return `${diffHr}h ${diffMin % 60}m`;
+  } catch {
+    return "—";
+  }
+}
 
+// ── per-equipment row data for summary table ──────────────────────
+
+interface EquipRow {
+  equipment: Equipment;
+  state: EquipmentCurrentState | null;
+  stateError: string | null;
+  queuedCount: number;
+  inProcessCount: number;
+  uom: string;
+}
+
+async function resolveEquipmentForNode(node: CheckedNode): Promise<Equipment[]> {
+  try {
+    switch (node.kind) {
+      case "site":      return await fetchAllEquipmentInSite(node.id);
+      case "area":      return await fetchAllEquipmentInArea(node.id);
+      case "line":      return await fetchAllEquipmentInLine(node.id);
+      case "workcell":  return await fetchAllEquipmentInWorkCell(node.id);
+      case "equipment": {
+        const eq = await fetchEquipment(node.id);
+        return [eq];
+      }
+    }
+  } catch {
+    return [];
+  }
+}
+
+async function loadEquipRow(eq: Equipment): Promise<EquipRow> {
+  const [stateRes, unitsRes, lotsRes] = await Promise.allSettled([
+    fetchEquipmentCurrentState(eq.id),
+    fetchUnits({ equipment_id: eq.id }),
+    fetchLots({ equipment_id: eq.id }),
+  ]);
+  const state = stateRes.status === "fulfilled" ? stateRes.value : null;
+  const stateError = stateRes.status === "rejected" ? "No state model" : null;
+  const units = unitsRes.status === "fulfilled" ? unitsRes.value : [];
+  const lots = lotsRes.status === "fulfilled" ? lotsRes.value : [];
+  const queued = units.filter((u) => u.status === "queued").length
+    + lots.filter((l) => l.status === "queued").length;
+  const inProc = units.filter((u) => u.status === "in_process").length
+    + lots.filter((l) => l.status === "in_process").length;
+  const uom = units.length > 0 ? "units" : lots.length > 0 ? "lots" : "—";
+  return { equipment: eq, state, stateError, queuedCount: queued, inProcessCount: inProc, uom };
+}
+
+export default function EquipmentStatusPage() {
+  // ── single-equipment selection (detail pane) ─────────────────────
+  const [selected, setSelected] = useState<Equipment | null>(null);
+  const [detailEquipment, setDetailEquipment] = useState<Equipment | null>(null);
+  const [detailState, setDetailState] = useState<EquipmentCurrentState | null>(null);
+  const [detailStateError, setDetailStateError] = useState<string | null>(null);
+  const [detailUnits, setDetailUnits] = useState<Unit[]>([]);
+  const [detailLots, setDetailLots] = useState<Lot[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // ── multi-monitor ────────────────────────────────────────────────
+  const [checkedNodes, setCheckedNodes] = useState<Map<string, CheckedNode>>(new Map());
+  const [monitoredEquip, setMonitoredEquip] = useState<Equipment[]>([]);
+  const [summaryRows, setSummaryRows] = useState<EquipRow[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  // ── refresh controls ─────────────────────────────────────────────
+  const [refreshInterval, setRefreshInterval] = useState(10);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const checkedCount = checkedNodes.size;
+  const showSummary = checkedCount > 0;
+  const showSingleDetail = !showSummary && selected !== null;
+
+  // ── auto-refresh timer ───────────────────────────────────────────
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (checkedCount > 0 || selected) {
+      timerRef.current = setInterval(
+        () => setRefreshTick((t) => t + 1),
+        Math.max(1, refreshInterval) * 1000,
+      );
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [checkedCount, selected, refreshInterval]);
+
+  // ── detail pane loader ───────────────────────────────────────────
   const loadDetails = useCallback(async (equipId: string) => {
-    setLoading(true);
-    setStateError(null);
+    setDetailLoading(true);
+    setDetailStateError(null);
     try {
-      // Parallel fetch — current state may 404 if equipment has no state model yet
       const [eqRes, stateRes, unitsRes, lotsRes] = await Promise.allSettled([
         fetchEquipment(equipId),
         fetchEquipmentCurrentState(equipId),
         fetchUnits({ equipment_id: equipId }),
         fetchLots({ equipment_id: equipId }),
       ]);
-      setEquipment(eqRes.status === "fulfilled" ? eqRes.value : null);
+      setDetailEquipment(eqRes.status === "fulfilled" ? eqRes.value : null);
       if (stateRes.status === "fulfilled") {
-        setCurrentState(stateRes.value);
+        setDetailState(stateRes.value);
       } else {
-        setCurrentState(null);
-        setStateError("No state model assigned (assumed available).");
+        setDetailState(null);
+        setDetailStateError("No state model assigned (assumed available).");
       }
-      setUnits(unitsRes.status === "fulfilled" ? unitsRes.value : []);
-      setLots(lotsRes.status === "fulfilled" ? lotsRes.value : []);
+      setDetailUnits(unitsRes.status === "fulfilled" ? unitsRes.value : []);
+      setDetailLots(lotsRes.status === "fulfilled" ? lotsRes.value : []);
     } finally {
-      setLoading(false);
+      setDetailLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (selected) {
-      void loadDetails(selected.id);
+    if (showSingleDetail) {
+      void loadDetails(selected!.id);
     } else {
-      setEquipment(null);
-      setCurrentState(null);
-      setUnits([]);
-      setLots([]);
+      setDetailEquipment(null);
+      setDetailState(null);
+      setDetailUnits([]);
+      setDetailLots([]);
     }
-  }, [selected, refreshTick, loadDetails]);
+  }, [selected, showSingleDetail, refreshTick, loadDetails]);
 
-  const queuedUnits = units.filter((u) => u.status === "queued");
-  const inProcessUnits = units.filter((u) => u.status === "in_process");
-  const queuedLots = lots.filter((l) => l.status === "queued");
-  const inProcessLots = lots.filter((l) => l.status === "in_process");
+  // ── resolve equipment under checked nodes ────────────────────────
+  useEffect(() => {
+    if (checkedCount === 0) {
+      setMonitoredEquip([]);
+      setSummaryRows([]);
+      return;
+    }
+    const nodes = Array.from(checkedNodes.values());
+    void (async () => {
+      const nested = await Promise.all(nodes.map(resolveEquipmentForNode));
+      const seen = new Set<string>();
+      const flat: Equipment[] = [];
+      for (const eq of nested.flat()) {
+        if (!seen.has(eq.id)) { seen.add(eq.id); flat.push(eq); }
+      }
+      setMonitoredEquip(flat);
+    })();
+  }, [checkedNodes]);
 
+  // ── summary data loader ──────────────────────────────────────────
+  useEffect(() => {
+    if (monitoredEquip.length === 0) return;
+    setSummaryLoading(true);
+    void Promise.all(monitoredEquip.map(loadEquipRow))
+      .then(setSummaryRows)
+      .finally(() => setSummaryLoading(false));
+  }, [monitoredEquip, refreshTick]);
+
+  // ── handlers ─────────────────────────────────────────────────────
+  function handleToggleCheck(node: CheckedNode) {
+    setCheckedNodes((prev) => {
+      const next = new Map(prev);
+      if (next.has(node.id)) next.delete(node.id);
+      else next.set(node.id, node);
+      return next;
+    });
+  }
+
+  function handleSelectEquipment(eq: Equipment) {
+    setSelected(eq);
+    setCheckedNodes(new Map()); // clear group monitoring when direct select
+  }
+
+  // ── detail pane derived values ───────────────────────────────────
+  const queuedUnits = detailUnits.filter((u) => u.status === "queued");
+  const inProcessUnits = detailUnits.filter((u) => u.status === "in_process");
+  const queuedLots = detailLots.filter((l) => l.status === "queued");
+  const inProcessLots = detailLots.filter((l) => l.status === "in_process");
   const queueDepth = queuedUnits.length + inProcessUnits.length + queuedLots.length + inProcessLots.length;
-  const maxQueue = equipment?.max_queue_depth;
-
-  const dispatchCategory = currentState?.dispatch_category ?? "available";
+  const maxQueue = detailEquipment?.max_queue_depth;
+  const dispatchCategory = detailState?.dispatch_category ?? "available";
   const badgeClass = DISPATCH_BADGE[dispatchCategory] ?? "bg-gray-100 text-gray-800";
 
   return (
@@ -89,52 +223,157 @@ export default function EquipmentStatusPage() {
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2 py-1">
           ISA-95 Hierarchy
         </h2>
+        <p className="text-[10px] text-gray-400 px-2 pb-1">
+          ☑ Check a node to monitor all equipment beneath it, or click a leaf to view details.
+        </p>
         <EquipmentTree
-          selectedEquipmentId={selected?.id ?? null}
-          onSelectEquipment={(eq) => setSelected(eq)}
+          selectedEquipmentId={showSingleDetail ? (selected?.id ?? null) : null}
+          onSelectEquipment={handleSelectEquipment}
+          checkedNodeIds={new Set(checkedNodes.keys())}
+          onToggleCheck={handleToggleCheck}
         />
       </aside>
 
-      {/* Right: details */}
-      <section className="col-span-12 md:col-span-8 lg:col-span-9 bg-white border rounded-lg shadow-sm p-6">
-        {!selected ? (
+      {/* Right: content */}
+      <section className="col-span-12 md:col-span-8 lg:col-span-9 bg-white border rounded-lg shadow-sm p-4">
+
+        {/* Refresh toolbar — shown whenever something is being monitored */}
+        {(showSummary || showSingleDetail) && (
+          <div className="flex flex-wrap items-center gap-3 mb-4 pb-3 border-b">
+            <button
+              onClick={() => setRefreshTick((t) => t + 1)}
+              disabled={summaryLoading || detailLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${(summaryLoading || detailLoading) ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Refresh every</span>
+              <input
+                type="number"
+                min={1}
+                max={3600}
+                className="w-16 rounded border border-gray-300 px-2 py-1 text-sm text-center"
+                value={refreshInterval}
+                onChange={(e) => setRefreshInterval(Math.max(1, Number(e.target.value)))}
+              />
+              <span>seconds</span>
+            </label>
+            {showSummary && (
+              <span className="ml-auto text-xs text-gray-400">
+                Monitoring {summaryRows.length} equipment across {checkedCount} checked node{checkedCount !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!showSummary && !showSingleDetail && (
           <div className="text-center py-16 text-gray-400">
             <CpuChipIcon className="h-12 w-12 mx-auto mb-3 opacity-40" />
-            <p>Select an equipment from the tree to view its current status.</p>
+            <p>Select an equipment from the tree to view its current status,</p>
+            <p className="text-sm mt-1">or check a node to monitor all equipment within it.</p>
           </div>
-        ) : (
+        )}
+
+        {/* ── Summary table ── */}
+        {showSummary && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="px-3 py-2 border-b">Equipment</th>
+                  <th className="px-3 py-2 border-b">Description</th>
+                  <th className="px-3 py-2 border-b text-right">Queued</th>
+                  <th className="px-3 py-2 border-b text-right">In Process</th>
+                  <th className="px-3 py-2 border-b">UOM</th>
+                  <th className="px-3 py-2 border-b">State</th>
+                  <th className="px-3 py-2 border-b">In State</th>
+                  <th className="px-3 py-2 border-b">Dispatch</th>
+                  <th className="px-3 py-2 border-b text-right">Queue Cap.</th>
+                  <th className="px-3 py-2 border-b">OEE Bucket</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summaryRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="px-3 py-8 text-center text-gray-400 text-xs italic">
+                      {summaryLoading ? "Loading…" : "No equipment found under selected nodes."}
+                    </td>
+                  </tr>
+                ) : summaryRows.map(({ equipment: eq, state, stateError, queuedCount, inProcessCount, uom }) => {
+                  const dc = state?.dispatch_category ?? "available";
+                  const bc = DISPATCH_BADGE[dc] ?? "bg-gray-100 text-gray-800";
+                  return (
+                    <tr
+                      key={eq.id}
+                      className="border-b hover:bg-indigo-50 cursor-pointer"
+                      onClick={() => {
+                        setSelected(eq);
+                        setCheckedNodes(new Map());
+                      }}
+                      title="Click to open detail view"
+                    >
+                      <td className="px-3 py-2 font-medium text-indigo-700 whitespace-nowrap">
+                        <span className="mr-1 text-indigo-400">⚙</span>{eq.code}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600 max-w-xs truncate">{eq.description ?? eq.name}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{queuedCount}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{inProcessCount}</td>
+                      <td className="px-3 py-2 text-gray-500">{uom}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {stateError
+                          ? <span className="text-xs text-amber-500 italic">—</span>
+                          : <span className="font-medium">{state?.state ?? "—"}</span>
+                        }
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                        {formatRelative(state?.started_at)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${bc}`}>
+                          {dc}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-600">
+                        {eq.max_queue_depth ?? "∞"}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600">{state?.oee_bucket ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* ── Single equipment detail pane ── */}
+        {showSingleDetail && (
           <>
             {/* Header */}
             <div className="flex items-start justify-between mb-6 pb-4 border-b">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                   <CpuChipIcon className="h-6 w-6 text-indigo-600" />
-                  {selected.code}
+                  {selected!.code}
                 </h1>
-                <p className="text-sm text-gray-600 mt-1">{selected.name}</p>
-                {(equipment?.description ?? selected.description) && (
+                <p className="text-sm text-gray-600 mt-1">{selected!.name}</p>
+                {(detailEquipment?.description ?? selected!.description) && (
                   <p className="text-sm text-gray-500 mt-1">
-                    {equipment?.description ?? selected.description}
+                    {detailEquipment?.description ?? selected!.description}
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => setRefreshTick((t) => t + 1)}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                Refresh
-              </button>
             </div>
 
             {/* Metrics grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <Metric label="State Model" value={currentState?.state_model ?? equipment?.state_model_id ?? "—"} />
-              <Metric label="Current State" value={currentState?.state ?? "—"} />
+              <Metric label="State Model" value={detailState?.state_model ?? detailEquipment?.state_model_id ?? "—"} />
+              <Metric label="Current State" value={detailState?.state ?? "—"} />
               <Metric
                 label="Entered State At"
-                value={formatDateTime(currentState?.started_at)}
+                value={formatDateTime(detailState?.started_at)}
               />
               <Metric
                 label="Dispatch State"
@@ -150,12 +389,12 @@ export default function EquipmentStatusPage() {
               />
               <Metric
                 label="OEE Bucket"
-                value={currentState?.oee_bucket ?? "—"}
+                value={detailState?.oee_bucket ?? "—"}
               />
             </div>
 
-            {stateError && (
-              <p className="text-xs text-amber-600 mb-4 italic">{stateError}</p>
+            {detailStateError && (
+              <p className="text-xs text-amber-600 mb-4 italic">{detailStateError}</p>
             )}
 
             {/* Queue contents */}

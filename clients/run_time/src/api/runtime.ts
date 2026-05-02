@@ -322,5 +322,33 @@ export const fetchEquipment = (equipId: string) =>
 export const fetchEquipmentCurrentState = (equipId: string) =>
   api.get(`/performance/equipment/${equipId}/current-state`).then(unwrap<EquipmentCurrentState>);
 
+// ── Hierarchy traversal helpers ───────────────────────────────────
+
+/** Collect every Equipment leaf under a WorkCell. */
+export async function fetchAllEquipmentInWorkCell(wcId: string): Promise<Equipment[]> {
+  return fetchEquipmentInWorkCell(wcId);
+}
+
+/** Collect every Equipment leaf under a ProductionLine (all work cells). */
+export async function fetchAllEquipmentInLine(lineId: string): Promise<Equipment[]> {
+  const wcs = await fetchWorkCells(lineId);
+  const nested = await Promise.all(wcs.map((wc) => fetchEquipmentInWorkCell(wc.id)));
+  return nested.flat();
+}
+
+/** Collect every Equipment leaf under an Area (all lines → work cells). */
+export async function fetchAllEquipmentInArea(areaId: string): Promise<Equipment[]> {
+  const lines = await fetchProductionLines(areaId);
+  const nested = await Promise.all(lines.map((l) => fetchAllEquipmentInLine(l.id)));
+  return nested.flat();
+}
+
+/** Collect every Equipment leaf under a Site (all areas → lines → work cells). */
+export async function fetchAllEquipmentInSite(siteId: string): Promise<Equipment[]> {
+  const areas = await fetchAreas(siteId);
+  const nested = await Promise.all(areas.map((a) => fetchAllEquipmentInArea(a.id)));
+  return nested.flat();
+}
+
 export const transitionEquipmentState = (equipId: string, newState: string, notes?: string) =>
   api.post(`/performance/equipment/${equipId}/transition`, { new_state: newState, notes: notes ?? null });
