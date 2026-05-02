@@ -194,10 +194,9 @@ export default function EquipmentStatusPage() {
   // ── handlers ─────────────────────────────────────────────────────
   function handleToggleCheck(node: CheckedNode) {
     setCheckedNodes((prev) => {
-      const next = new Map(prev);
-      if (next.has(node.id)) next.delete(node.id);
-      else next.set(node.id, node);
-      return next;
+      // If already checked, uncheck it; otherwise replace with only this node
+      if (prev.has(node.id)) return new Map();
+      return new Map([[node.id, node]]);
     });
   }
 
@@ -224,7 +223,7 @@ export default function EquipmentStatusPage() {
           ISA-95 Hierarchy
         </h2>
         <p className="text-[10px] text-gray-400 px-2 pb-1">
-          ☑ Check a node to monitor all equipment beneath it, or click a leaf to view details.
+          ☑ Check a node to monitor all equipment beneath it, or click a leaf to view details. Only one node can be checked at a time.
         </p>
         <EquipmentTree
           selectedEquipmentId={showSingleDetail ? (selected?.id ?? null) : null}
@@ -262,7 +261,7 @@ export default function EquipmentStatusPage() {
             </label>
             {showSummary && (
               <span className="ml-auto text-xs text-gray-400">
-                Monitoring {summaryRows.length} equipment across {checkedCount} checked node{checkedCount !== 1 ? "s" : ""}
+                Monitoring {summaryRows.length} equipment
               </span>
             )}
           </div>
