@@ -223,7 +223,7 @@ class WorkScheduleService:
     @staticmethod
     async def create_schedule(session: AsyncSession, name: str, description: str | None) -> WorkSchedule:
         existing = await session.execute(
-            select(WorkSchedule).where(WorkSchedule.name == name)
+            select(WorkSchedule).where(WorkSchedule.name == name, WorkSchedule.is_active.is_(True))
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateWorkScheduleNameException(name)

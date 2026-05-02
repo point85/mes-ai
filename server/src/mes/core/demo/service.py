@@ -292,7 +292,12 @@ async def _seed_four_twelves_schedule(session: AsyncSession) -> dict[str, Any]:
     existing = await session.execute(
         select(_WorkScheduleModel).where(_WorkScheduleModel.name == SCHED_NAME)
     )
-    if existing.scalar_one_or_none() is not None:
+    existing_row = existing.scalar_one_or_none()
+    if existing_row is not None:
+        if not existing_row.is_active:
+            # Soft-deleted — reactivate it; its children are still active
+            existing_row.is_active = True
+            await session.flush()
         return {"work_schedule": 0}
 
     schedule = await _WorkScheduleSvc.create_schedule(

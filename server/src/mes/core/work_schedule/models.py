@@ -45,8 +45,8 @@ class WorkSchedule(BaseModel):
     __tablename__ = "work_schedules"
 
     name: Mapped[str] = mapped_column(
-        String(200), unique=True, nullable=False, index=True,
-        comment="Unique schedule name",
+        String(200), nullable=False, index=True,
+        comment="Unique schedule name (unique among active records only)",
     )
     description: Mapped[str | None] = mapped_column(
         Text, nullable=True,
