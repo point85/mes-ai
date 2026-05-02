@@ -335,3 +335,63 @@ export async function simulateHistorianMaterialSetup(
   );
   return res.data.data;
 }
+
+// ── Plugins ──────────────────────────────────────────────────────
+
+export interface PluginSummary {
+  id: string;
+  name: string;
+  installed: boolean;
+  enabled: boolean;
+  is_running: boolean;
+}
+
+export async function fetchInstalledPlugins(): Promise<PluginSummary[]> {
+  try {
+    const res = await api.get<ListResponse<PluginSummary>>("/plugins");
+    return (res.data.data ?? []).filter((p) => p.installed);
+  } catch {
+    return [];
+  }
+}
+
+// ── Modbus Equipment Simulator ────────────────────────────────────
+
+export interface ModbusSimStatus {
+  unit_id: number;
+  state_code: number;
+  state_name: string;
+  alarm_code: number;
+  temperature: number;
+  counter: number;
+  server_running: boolean;
+}
+
+export async function fetchModbusSimStatus(): Promise<ModbusSimStatus> {
+  const res = await api.get<ApiResponse<ModbusSimStatus>>(
+    "/plugins/modbus-equipment-simulator/status",
+  );
+  return res.data.data;
+}
+
+export async function modbusSimSetState(stateCode: number, unitId = 1): Promise<void> {
+  await api.post("/plugins/modbus-equipment-simulator/set-state", {
+    state_code: stateCode,
+    unit_id: unitId,
+  });
+}
+
+export async function modbusSimSetAlarm(alarmCode: number, unitId = 1): Promise<void> {
+  await api.post("/plugins/modbus-equipment-simulator/set-alarm", {
+    alarm_code: alarmCode,
+    unit_id: unitId,
+  });
+}
+
+export async function modbusSimSetCounter(value: number, unitId = 1): Promise<void> {
+  await api.post("/plugins/modbus-equipment-simulator/set-counter", {
+    value,
+    unit_id: unitId,
+  });
+}
+

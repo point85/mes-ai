@@ -9,6 +9,12 @@ import {
   simulateHistorianState,
   simulateHistorianCounts,
   fetchHistorianMapping,
+  fetchInstalledPlugins,
+  fetchModbusSimStatus,
+  modbusSimSetState,
+  modbusSimSetAlarm,
+  modbusSimSetCounter,
+  type ModbusSimStatus,
   simulateMqttCounts,
   incrementCounter,
   fetchCounters,
@@ -91,6 +97,18 @@ export default function EquipmentPage() {
   const [histCountResult, setHistCountResult] = useState<string | null>(null);
   const [histCountError, setHistCountError] = useState<string | null>(null);
 
+  // Installed plugins — drives visibility of plugin-specific simulation cards
+  const [installedPluginIds, setInstalledPluginIds] = useState<Set<string>>(new Set());
+
+  // Modbus Equipment Simulator state
+  const [modbusSimStatus, setModbusSimStatus] = useState<ModbusSimStatus | null>(null);
+  const [modbusStateCode, setModbusStateCode] = useState(0);
+  const [modbusAlarmCode, setModbusAlarmCode] = useState(0);
+  const [modbusCounterValue, setModbusCounterValue] = useState(0);
+  const [modbusBusy, setModbusBusy] = useState(false);
+  const [modbusResult, setModbusResult] = useState<string | null>(null);
+  const [modbusError, setModbusError] = useState<string | null>(null);
+
   // Simulation tab
   const [simTab, setSimTab] = useState<"availability" | "production" | "material_setup">("availability");
 
@@ -133,10 +151,13 @@ export default function EquipmentPage() {
   const [histResult, setHistResult] = useState<string | null>(null);
   const [histError, setHistError] = useState<string | null>(null);
 
-  // Load state models + reasons on mount
+  // Load state models, reasons, and installed plugins on mount
   useEffect(() => {
     fetchStateModels().then(setModels).catch(() => {});
     fetchReasons().then(setReasons).catch(() => {});
+    fetchInstalledPlugins()
+      .then((plugins) => setInstalledPluginIds(new Set(plugins.map((p) => p.id))))
+      .catch(() => {});
   }, []);
 
   // Load equipment state whenever the context equipmentId changes
@@ -449,6 +470,73 @@ export default function EquipmentPage() {
     return targetBucket === selectedReason.oee_bucket;
   }
 
+  // ── Modbus Simulator handlers ────────────────────────────────────────────
+
+  async function refreshModbusSim() {
+    setModbusBusy(true);
+    setModbusError(null);
+    try {
+      const status = await fetchModbusSimStatus();
+      setModbusSimStatus(status);
+      setModbusStateCode(status.state_code);
+      setModbusAlarmCode(status.alarm_code);
+      setModbusCounterValue(status.counter);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setModbusError(`Failed to read Modbus registers: ${msg}`);
+    } finally {
+      setModbusBusy(false);
+    }
+  }
+
+  async function handleModbusSetState() {
+    setModbusBusy(true);
+    setModbusError(null);
+    setModbusResult(null);
+    try {
+      await modbusSimSetState(modbusStateCode);
+      setModbusResult(`HR[0] = ${modbusStateCode} (state written to Modbus registers)`);
+      await refreshModbusSim();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setModbusError(`Set state failed: ${msg}`);
+    } finally {
+      setModbusBusy(false);
+    }
+  }
+
+  async function handleModbusSetAlarm() {
+    setModbusBusy(true);
+    setModbusError(null);
+    setModbusResult(null);
+    try {
+      await modbusSimSetAlarm(modbusAlarmCode);
+      setModbusResult(`HR[1] = ${modbusAlarmCode} (alarm code written to Modbus registers)`);
+      await refreshModbusSim();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setModbusError(`Set alarm failed: ${msg}`);
+    } finally {
+      setModbusBusy(false);
+    }
+  }
+
+  async function handleModbusSetCounter() {
+    setModbusBusy(true);
+    setModbusError(null);
+    setModbusResult(null);
+    try {
+      await modbusSimSetCounter(modbusCounterValue);
+      setModbusResult(`HR[100] = ${modbusCounterValue} (counter written to Modbus registers)`);
+      await refreshModbusSim();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setModbusError(`Set counter failed: ${msg}`);
+    } finally {
+      setModbusBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Prompt when nothing is selected */}
@@ -623,8 +711,8 @@ export default function EquipmentPage() {
                 )}
               </div>
 
-              {/* OPC-UA State Simulation — PackML-only */}
-              {current?.state_model === "packml" && (
+              {/* OPC-UA State Simulation — PackML + opcua-equipment plugin installed */}
+              {current?.state_model === "packml" && installedPluginIds.has("opcua-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate OPC-UA State Change — {selectedEquip.code}
@@ -685,6 +773,7 @@ export default function EquipmentPage() {
               )}
 
               {/* MQTT State Simulation */}
+              {installedPluginIds.has("mqtt-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate MQTT State Message — {selectedEquip.code}
@@ -760,8 +849,10 @@ export default function EquipmentPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Historian State Simulation */}
+              {installedPluginIds.has("aveva-historian") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate Historian State Change — {selectedEquip.code}
@@ -829,6 +920,137 @@ export default function EquipmentPage() {
                   </div>
                 )}
               </div>
+              )}
+
+              {/* Modbus Equipment Simulator — write registers directly */}
+              {installedPluginIds.has("modbus-equipment-simulator") && (
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                      Modbus TCP Simulator Registers
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Write directly to the Modbus simulator's holding registers. The{" "}
+                      <strong>modbus-equipment</strong> adapter polls these registers
+                      and will apply any state changes to its configured equipment.
+                    </p>
+                  </div>
+                  <button
+                    className="px-3 py-1 text-xs bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 disabled:opacity-50"
+                    onClick={refreshModbusSim}
+                    disabled={modbusBusy}
+                  >
+                    {modbusBusy ? "Reading…" : "Refresh"}
+                  </button>
+                </div>
+
+                {/* Register snapshot */}
+                {modbusSimStatus && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                      <p className="font-medium text-blue-600 uppercase">State (HR[0])</p>
+                      <p className="text-lg font-bold text-blue-800">
+                        {modbusSimStatus.state_code} — {modbusSimStatus.state_name}
+                      </p>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2">
+                      <p className="font-medium text-amber-600 uppercase">Alarm (HR[1])</p>
+                      <p className="text-lg font-bold text-amber-800">
+                        {modbusSimStatus.alarm_code === 0 ? "None" : modbusSimStatus.alarm_code}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                      <p className="font-medium text-green-600 uppercase">Counter (HR[100])</p>
+                      <p className="text-lg font-bold text-green-800">{modbusSimStatus.counter}</p>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
+                      <p className="font-medium text-gray-600 uppercase">Temp (HR[2-3])</p>
+                      <p className="text-lg font-bold text-gray-800">{modbusSimStatus.temperature} °C</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Set State */}
+                <div className="flex flex-wrap items-end gap-4 border-t pt-3">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    PackML State Code
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                      value={modbusStateCode}
+                      onChange={(e) => setModbusStateCode(Number(e.target.value))}
+                    >
+                      <option value={0}>0 — Stopped</option>
+                      <option value={1}>1 — Idle</option>
+                      <option value={2}>2 — Execute (Running)</option>
+                      <option value={3}>3 — Held</option>
+                      <option value={4}>4 — Aborted</option>
+                    </select>
+                  </label>
+                  <button
+                    className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                    onClick={handleModbusSetState}
+                    disabled={modbusBusy}
+                  >
+                    Set State
+                  </button>
+                </div>
+
+                {/* Set Alarm */}
+                <div className="flex flex-wrap items-end gap-4 border-t pt-3">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Alarm Code (0 = no alarm)
+                    <input
+                      type="number"
+                      min={0}
+                      max={255}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-32"
+                      value={modbusAlarmCode}
+                      onChange={(e) => setModbusAlarmCode(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+                  <button
+                    className="px-4 py-1.5 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50"
+                    onClick={handleModbusSetAlarm}
+                    disabled={modbusBusy}
+                  >
+                    Set Alarm
+                  </button>
+                </div>
+
+                {/* Set Counter */}
+                <div className="flex flex-wrap items-end gap-4 border-t pt-3">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Part Counter Value
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-32"
+                      value={modbusCounterValue}
+                      onChange={(e) => setModbusCounterValue(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+                  <button
+                    className="px-4 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                    onClick={handleModbusSetCounter}
+                    disabled={modbusBusy}
+                  >
+                    Set Counter
+                  </button>
+                </div>
+
+                {modbusResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {modbusResult}
+                  </div>
+                )}
+                {modbusError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {modbusError}
+                  </div>
+                )}
+              </div>
+              )}
             </>
           )}
 
@@ -921,6 +1143,7 @@ export default function EquipmentPage() {
               </div>
 
               {/* MQTT Production Counts Simulation */}
+              {installedPluginIds.has("mqtt-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate MQTT Production Counts — {selectedEquip.code}
@@ -995,8 +1218,10 @@ export default function EquipmentPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* AVEVA Historian Production Counts Simulation */}
+              {installedPluginIds.has("aveva-historian") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate Historian Production Counts — {selectedEquip.code}
@@ -1069,6 +1294,7 @@ export default function EquipmentPage() {
                   </div>
                 )}
               </div>
+              )}
             </>
           )}
 
@@ -1209,6 +1435,7 @@ export default function EquipmentPage() {
               </div>
 
               {/* OPC-UA Material Setup Simulation */}
+              {installedPluginIds.has("opcua-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate OPC-UA Material Setup — {selectedEquip.code}
@@ -1292,8 +1519,10 @@ export default function EquipmentPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* MQTT Material Setup Simulation */}
+              {installedPluginIds.has("mqtt-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate MQTT Material Setup — {selectedEquip.code}
@@ -1380,8 +1609,10 @@ export default function EquipmentPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Historian Material Setup Simulation */}
+              {installedPluginIds.has("aveva-historian") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate Historian Material Setup — {selectedEquip.code}
@@ -1465,6 +1696,7 @@ export default function EquipmentPage() {
                   </div>
                 )}
               </div>
+              )}
             </>
           )}
 

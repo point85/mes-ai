@@ -22,6 +22,7 @@ import sys
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -550,3 +551,112 @@ async def update_plugin_config(
 
     logger.info("Updated config for plugin '%s': %s", plugin_id, body.config_overrides)
     return success_response({"plugin_id": plugin_id, "config_overrides": db_cfg.config_overrides})
+
+
+# ── Modbus Equipment Simulator specific routes ─────────────────────────────
+
+_PACKML_STATE_NAMES: dict[int, str] = {
+    0: "Stopped",
+    1: "Idle",
+    2: "Execute",
+    3: "Held",
+    4: "Aborted",
+}
+
+
+class ModbusSimSetStateRequest(BaseModel):
+    state_code: int = Field(..., ge=0, le=255, description="PackML state: 0=Stopped,1=Idle,2=Execute,3=Held,4=Aborted")
+    unit_id: int = Field(1, ge=1, le=247, description="Modbus unit ID")
+
+
+class ModbusSimSetAlarmRequest(BaseModel):
+    alarm_code: int = Field(..., ge=0, le=255, description="Alarm code (0 = no alarm)")
+    unit_id: int = Field(1, ge=1, le=247)
+
+
+class ModbusSimSetCounterRequest(BaseModel):
+    value: int = Field(..., ge=0, description="Absolute counter value to set in HR[100]")
+    unit_id: int = Field(1, ge=1, le=247)
+
+
+def _get_modbus_sim_plugin():
+    """Return the running ModbusEquipmentSimulatorPlugin instance or raise 503."""
+    from mes.main import plugin_manager
+
+    info = plugin_manager.get_plugin("modbus-equipment-simulator")
+    if info is None or not info.is_running or info.instance is None:
+        raise HTTPException(
+            status_code=503,
+            detail="modbus-equipment-simulator plugin is not running",
+        )
+    return info.instance
+
+
+@router.get("/modbus-equipment-simulator/status")
+async def get_modbus_simulator_status():
+    """Read current register snapshot from the running Modbus equipment simulator."""
+    import struct
+
+    plugin = _get_modbus_sim_plugin()
+    uid = plugin._unit_id
+
+    state_code = await plugin.get_holding_register(uid, 0)
+    alarm_code = await plugin.get_holding_register(uid, 1)
+    temp_hi = await plugin.get_holding_register(uid, 2)
+    temp_lo = await plugin.get_holding_register(uid, 3)
+    counter = await plugin.get_holding_register(uid, 100)
+
+    try:
+        temperature = round(struct.unpack(">f", struct.pack(">HH", temp_hi, temp_lo))[0], 2)
+    except Exception:
+        temperature = 0.0
+
+    server_running = (
+        plugin._server_task is not None and not plugin._server_task.done()
+    )
+
+    return success_response({
+        "unit_id": uid,
+        "state_code": state_code,
+        "state_name": _PACKML_STATE_NAMES.get(state_code, f"Unknown({state_code})"),
+        "alarm_code": alarm_code,
+        "temperature": temperature,
+        "counter": counter,
+        "server_running": server_running,
+    })
+
+
+@router.post("/modbus-equipment-simulator/set-state")
+async def modbus_simulator_set_state(body: ModbusSimSetStateRequest):
+    """Set PackML state in simulator HR[0] and update the running coil."""
+    plugin = _get_modbus_sim_plugin()
+    await plugin.set_holding_register(body.unit_id, 0, body.state_code)
+    await plugin.set_coil(body.unit_id, 0, body.state_code == 2)
+    return success_response({
+        "unit_id": body.unit_id,
+        "state_code": body.state_code,
+        "state_name": _PACKML_STATE_NAMES.get(body.state_code, f"Unknown({body.state_code})"),
+    })
+
+
+@router.post("/modbus-equipment-simulator/set-alarm")
+async def modbus_simulator_set_alarm(body: ModbusSimSetAlarmRequest):
+    """Set alarm code in simulator HR[1] and update the alarm coil."""
+    plugin = _get_modbus_sim_plugin()
+    await plugin.set_holding_register(body.unit_id, 1, body.alarm_code)
+    await plugin.set_coil(body.unit_id, 1, body.alarm_code > 0)
+    return success_response({
+        "unit_id": body.unit_id,
+        "alarm_code": body.alarm_code,
+    })
+
+
+@router.post("/modbus-equipment-simulator/set-counter")
+async def modbus_simulator_set_counter(body: ModbusSimSetCounterRequest):
+    """Set part counter in simulator HR[100]."""
+    plugin = _get_modbus_sim_plugin()
+    await plugin.set_holding_register(body.unit_id, 100, body.value)
+    return success_response({
+        "unit_id": body.unit_id,
+        "counter": body.value,
+    })
