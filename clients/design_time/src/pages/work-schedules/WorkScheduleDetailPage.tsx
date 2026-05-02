@@ -5,12 +5,13 @@
 
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, ChartBarIcon } from "@heroicons/react/24/outline";
 import { useWorkSchedule } from "../../hooks/useWorkSchedule";
 import ShiftsTab from "./tabs/ShiftsTab";
 import RotationsTab from "./tabs/RotationsTab";
 import TeamsTab from "./tabs/TeamsTab";
 import NonWorkingPeriodsTab from "./tabs/NonWorkingPeriodsTab";
+import ShiftInstancesDialog from "./ShiftInstancesDialog";
 
 type Tab = "shifts" | "rotations" | "teams" | "non-working";
 
@@ -25,6 +26,7 @@ export default function WorkScheduleDetailPage() {
   const { scheduleId } = useParams<{ scheduleId: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("shifts");
+  const [showInstances, setShowInstances] = useState(false);
 
   const { data: schedule, isLoading, error } = useWorkSchedule(scheduleId ?? "");
 
@@ -47,12 +49,19 @@ export default function WorkScheduleDetailPage() {
         >
           <ArrowLeftIcon className="h-5 w-5" />
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{schedule.name}</h1>
           {schedule.description && (
             <p className="text-sm text-gray-500 mt-0.5">{schedule.description}</p>
           )}
         </div>
+        <button
+          onClick={() => setShowInstances(true)}
+          className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          title="Shift instances"
+        >
+          <ChartBarIcon className="h-4 w-4" /> Shift Instances
+        </button>
       </div>
 
       {/* Tabs */}
@@ -80,6 +89,14 @@ export default function WorkScheduleDetailPage() {
       {tab === "rotations" && <RotationsTab scheduleId={schedule.id} rotations={schedule.rotations} shifts={schedule.shifts} />}
       {tab === "teams" && <TeamsTab scheduleId={schedule.id} teams={schedule.teams} rotations={schedule.rotations} />}
       {tab === "non-working" && <NonWorkingPeriodsTab scheduleId={schedule.id} periods={schedule.non_working_periods} />}
+
+      {showInstances && (
+        <ShiftInstancesDialog
+          scheduleId={schedule.id}
+          scheduleName={schedule.name}
+          onClose={() => setShowInstances(false)}
+        />
+      )}
     </div>
   );
 }
