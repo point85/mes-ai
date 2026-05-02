@@ -215,6 +215,9 @@ export const fetchStepBomItems = (stepId: string) =>
 export const fetchMaterials = () =>
   api.get("/materials").then(unwrapList<Material>);
 
+export const fetchMaterial = (id: string) =>
+  api.get(`/materials/${id}`).then(unwrap<Material>);
+
 export const fetchMaterialLots = (materialId?: string, status?: string) =>
   api.get("/material-lots", { params: { ...(materialId ? { material_id: materialId } : {}), ...(status ? { status } : {}) } }).then(unwrapList<MaterialLot>);
 

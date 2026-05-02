@@ -7,12 +7,13 @@ import {
   fetchEquipmentCurrentState,
   fetchUnits,
   fetchLots,
+  fetchMaterial,
   fetchAllEquipmentInSite,
   fetchAllEquipmentInArea,
   fetchAllEquipmentInLine,
   fetchAllEquipmentInWorkCell,
 } from "../api/runtime";
-import type { Equipment, EquipmentCurrentState, Unit, Lot } from "../types";
+import type { Equipment, EquipmentCurrentState, Unit, Lot, Material } from "../types";
 
 const DISPATCH_BADGE: Record<string, string> = {
   available: "bg-emerald-100 text-emerald-800",
@@ -53,6 +54,7 @@ interface EquipRow {
   queuedCount: number;
   inProcessCount: number;
   uom: string;
+  material: Material | null;
 }
 
 async function resolveEquipmentForNode(node: CheckedNode): Promise<Equipment[]> {
@@ -87,7 +89,17 @@ async function loadEquipRow(eq: Equipment): Promise<EquipRow> {
   const inProc = units.filter((u) => u.status === "in_process").length
     + lots.filter((l) => l.status === "in_process").length;
   const uom = units.length > 0 ? "units" : lots.length > 0 ? "lots" : "—";
-  return { equipment: eq, state, stateError, queuedCount: queued, inProcessCount: inProc, uom };
+
+  // Material the equipment is set up for: infer from the first active WIP item
+  const activeWip = [...units, ...lots].find(
+    (w) => (w.status === "in_process" || w.status === "queued") && w.material_id,
+  );
+  let material: Material | null = null;
+  if (activeWip?.material_id) {
+    try { material = await fetchMaterial(activeWip.material_id); } catch { /* none */ }
+  }
+
+  return { equipment: eq, state, stateError, queuedCount: queued, inProcessCount: inProc, uom, material };
 }
 
 export default function EquipmentStatusPage() {
@@ -284,6 +296,8 @@ export default function EquipmentStatusPage() {
                 <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <th className="px-3 py-2 border-b">Equipment</th>
                   <th className="px-3 py-2 border-b">Description</th>
+                  <th className="px-3 py-2 border-b">Material Code</th>
+                  <th className="px-3 py-2 border-b">Material Name</th>
                   <th className="px-3 py-2 border-b text-right">Queued</th>
                   <th className="px-3 py-2 border-b text-right">In Process</th>
                   <th className="px-3 py-2 border-b">UOM</th>
@@ -297,11 +311,11 @@ export default function EquipmentStatusPage() {
               <tbody>
                 {summaryRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-3 py-8 text-center text-gray-400 text-xs italic">
+                    <td colSpan={12} className="px-3 py-8 text-center text-gray-400 text-xs italic">
                       {summaryLoading ? "Loading…" : "No equipment found under selected nodes."}
                     </td>
                   </tr>
-                ) : summaryRows.map(({ equipment: eq, state, stateError, queuedCount, inProcessCount, uom }) => {
+                ) : summaryRows.map(({ equipment: eq, state, stateError, queuedCount, inProcessCount, uom, material }) => {
                   const dc = state?.dispatch_category ?? "available";
                   const bc = DISPATCH_BADGE[dc] ?? "bg-gray-100 text-gray-800";
                   return (
@@ -318,6 +332,8 @@ export default function EquipmentStatusPage() {
                         <span className="mr-1 text-indigo-400">⚙</span>{eq.code}
                       </td>
                       <td className="px-3 py-2 text-gray-600 max-w-xs truncate">{eq.description ?? eq.name}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-700 whitespace-nowrap">{material?.code ?? "—"}</td>
+                      <td className="px-3 py-2 text-gray-600 max-w-xs truncate">{material?.name ?? "—"}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{queuedCount}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{inProcessCount}</td>
                       <td className="px-3 py-2 text-gray-500">{uom}</td>
