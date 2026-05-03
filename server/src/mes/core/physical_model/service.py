@@ -379,6 +379,56 @@ class PhysicalModelService:
         await session.flush()
         logger.info("Soft-deleted work cell %s", wc_id)
 
+    @staticmethod
+    async def resolve_work_schedule_id(
+        session: AsyncSession, wc_id: UUID
+    ) -> UUID | None:
+        """Return the nearest work schedule by walking the ISA-95 hierarchy.
+
+        Traversal order: WorkCell → ProductionLine → Area → Site.
+        The first non-None ``work_schedule_id`` encountered is returned.
+        Returns ``None`` when no level in the hierarchy has a schedule
+        assigned.
+
+        Raises ``NotFoundException`` when the work cell does not exist.
+        """
+        # One query: grab the work cell's own schedule + its parent IDs
+        # (area_id and site_id are denormalised on WorkCell).
+        row = (
+            await session.execute(
+                select(
+                    WorkCell.work_schedule_id,
+                    WorkCell.line_id,
+                    WorkCell.area_id,
+                    WorkCell.site_id,
+                ).where(WorkCell.id == wc_id, WorkCell.is_active.is_(True))
+            )
+        ).one_or_none()
+
+        if row is None:
+            raise NotFoundException(resource="WorkCell", resource_id=str(wc_id))
+
+        wc_sched, line_id, area_id, site_id = row
+
+        if wc_sched is not None:
+            return wc_sched
+
+        # Check each ancestor level, stopping as soon as a schedule is found.
+        for model_cls, fk_id in (
+            (ProductionLine, line_id),
+            (Area, area_id),
+            (Site, site_id),
+        ):
+            sched = (
+                await session.execute(
+                    select(model_cls.work_schedule_id).where(model_cls.id == fk_id)
+                )
+            ).scalar()
+            if sched is not None:
+                return sched
+
+        return None
+
     # ─── Equipment operations ────────────────────────────────────────
 
     @staticmethod
