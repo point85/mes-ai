@@ -14,6 +14,7 @@ dependencies = [
     "alembic>=1.13.1",
     "pyjwt>=2.8.0",
     "pyyaml>=6.0.1",
+    "tzdata>=2024.1",
 ]
 
 [project.scripts]

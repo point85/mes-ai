@@ -202,9 +202,18 @@ async def _resolve_shift_context(
         logger.warning("Could not load work schedule %s for shift context", schedule_id)
         return None, None, None
 
-    # Normalize to naive UTC — schedule data is stored as naive UTC
-    naive_dt = at_dt.astimezone(timezone.utc).replace(tzinfo=None) if at_dt.tzinfo else at_dt
-    instances = compute_shift_instances_for_time(schedule, naive_dt)
+    # Shift times (start_time, end_time) are stored as local factory times, so
+    # we must convert at_dt to the site's local timezone before comparing.
+    # Fall back to UTC if the site has no timezone configured.
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    site_tz_str = wc.site.timezone if (wc.site and wc.site.timezone) else None
+    try:
+        local_tz = ZoneInfo(site_tz_str) if site_tz_str else timezone.utc
+    except ZoneInfoNotFoundError:
+        logger.warning("Unknown site timezone %r — falling back to UTC", site_tz_str)
+        local_tz = timezone.utc
+    local_dt = at_dt.astimezone(local_tz).replace(tzinfo=None) if at_dt.tzinfo else at_dt
+    instances = compute_shift_instances_for_time(schedule, local_dt)
     if not instances:
         return schedule.name, None, None
 
