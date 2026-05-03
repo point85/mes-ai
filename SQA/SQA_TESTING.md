@@ -370,7 +370,7 @@ The following are sensible defaults; flag any you want changed before SQA-BOOT b
 1. **Auth mode for tests:** default `MES_AUTH_MODE=none`. Add a separate auth-on smoke later? *(default: yes, deferred)*
 2. **Headed vs. headless browser:** default headless in CI, headed locally via `SQA_HEADED=1`. *(default: ok)*
 3. **Issue creation:** auto on every confirmed failure, or only on the RC pipeline? *(default: auto in dev too, with `[SQA]` prefix and dedup-by-fingerprint)*
-4. **Models:** default cheap model for authoring, capable model for triage; configurable via `SQA_MODEL_AUTHOR` / `SQA_MODEL_TRIAGE` env vars. *(default: ok)*
+4. **Models:** **Decision — use VS Code Copilot models by default; no external API account needed for v1.0.** The `SQA_MODEL_AUTHOR` / `SQA_MODEL_TRIAGE` env vars become labels the runner agent uses to pick a Copilot model. An external provider (OpenRouter recommended, single key fronting OpenAI / Anthropic / Google / open-source) is added **only** if the SQA agent needs to run headless on CI without VS Code, or if per-token cost metering is required. See §11 for model selection.
 5. **CI integration:** out of scope for this doc; the pytest harness is CI-ready (JUnit XML) when chosen.
 
 ---
@@ -494,4 +494,64 @@ Every DT-CLIENT CRUD page has the same shape: list page → "New" button → for
 ### 10.5 TL;DR
 
 Agent → writes Playwright/pytest test once → pytest + headless Chromium drive the DT-CLIENT and verify both the UI **and** the REST API → tokens are spent only on first authoring and on the rare triage path.
+
+---
+
+## 11. Model selection — VS Code Copilot
+
+**Decision:** the SQA agent runs inside VS Code chat using Copilot models. No external API account is required for v1.0. An external provider is reserved for headless CI or cost-metered runs (see §11.4).
+
+### 11.1 Why Copilot is sufficient
+
+- Already paid for by the existing subscription.
+- Full tool-calling parity with the agents described in this document (file read/write, terminal, browser, GitHub).
+- Switching models is a one-click change in the VS Code chat picker — the `SQA_MODEL_AUTHOR` / `SQA_MODEL_TRIAGE` env vars become *labels* the runner agent advertises in `status.json`, not credentials.
+
+### 11.2 Recommended Copilot models per role
+
+The SQA pipeline has three distinct LLM roles with different cost / capability sweet spots. Pick the cheapest model that reliably produces correct output for each role.
+
+| Role | Default Copilot model (preferred) | Acceptable substitute | Why |
+|---|---|---|---|
+| **Authoring agent** — emit Playwright/pytest test files from a plan + OpenAPI | `GPT-5 mini` (or `GPT-4.1 mini` / `Gemini 2.5 Flash` / `Claude Haiku` class) | Any "fast / mini / flash / haiku" tier model | Templated output; no deep reasoning needed; small mistakes are cheap because the test runs deterministically right after authoring and surfaces them. |
+| **Runner / orchestrator agent** — pick next module, update `status.json`, call pytest, decide next step | Same fast model as authoring | Same | Pure control flow over short prompts. Token cost dominated by call frequency, not reasoning depth. |
+| **Triage agent** — diagnose a failed test (test bug vs. product bug), patch the test or open a GitHub issue | `Claude Sonnet 4.x` (preferred) **or** `GPT-5` | `Gemini 2.5 Pro` | Requires careful reading of source code, server logs, screenshot context, and ISA-95 domain reasoning. False classification here costs real engineering time, so capability beats price. Invoked rarely (only on failure). |
+| **Exploratory browsing (optional, §2.3)** | `Claude Sonnet 4.x` with vision | `GPT-5` with vision | Needs strong visual reasoning over screenshots; off by default because per-click token cost is high. |
+
+If your Copilot subscription does not currently surface a specific model from the table, use the closest equivalent in the same tier — the contract between the runner and the model is just "tool calling + Markdown/Python output".
+
+#### Summary of model recommendations
+
+| Role | Recommended Copilot model | Tier |
+|---|---|---|
+| Authoring (emit tests) | `GPT-5 mini` / `GPT-4.1 mini` / `Gemini 2.5 Flash` / `Claude Haiku` | Fast/cheap |
+| Runner / orchestrator | Same fast model as authoring | Fast/cheap |
+| **Triage** (failure diagnosis) | **`Claude Sonnet 4.x`** — or `GPT-5` / `Gemini 2.5 Pro` | Capable |
+| Exploratory browsing (opt-in) | `Claude Sonnet 4.x` with vision | Capable + vision |
+
+**Logic:** authoring is templated output where mistakes are caught immediately by the deterministic pytest run, so use a cheap fast model. Triage requires reading source, logs, and screenshots and reasoning about ISA-95 domain semantics — false classifications cost real engineering time, so use a capable model. Triage runs rarely (only on test failure), so its higher per-call cost is amortised.
+
+If a specific model from the table isn't currently in your Copilot picker, use the closest equivalent in the same tier — the agents only require tool-calling + Markdown/Python output.
+
+### 11.3 Concrete defaults the runner advertises
+
+```
+SQA_MODEL_AUTHOR=copilot/gpt-5-mini      # or any "mini/flash/haiku" tier
+SQA_MODEL_TRIAGE=copilot/claude-sonnet-4 # or gpt-5 / gemini-2.5-pro
+SQA_MODEL_EXPLORATORY=copilot/claude-sonnet-4
+```
+
+These strings are written into `SQA/status.json` and `reports/<run_id>/summary.md` so every run records which model produced or triaged the artefacts. They do **not** authenticate anything — model selection happens in the VS Code chat picker at the start of an agent session.
+
+### 11.4 When to add an external provider (revisit, do not act yet)
+
+Add an OpenRouter account (single key fronting OpenAI / Anthropic / Google / OSS models) **only** when *one* of the following becomes true:
+
+1. The SQA agent must run on a build server, scheduler, or Git hook with **no VS Code session**.
+2. You need explicit per-run token cost in `reports/<run_id>/summary.md` (Copilot does not expose token counts).
+3. You need a model Copilot does not surface (e.g. a specific OSS model for cheap authoring).
+4. You want multi-provider fallback if one vendor's model is degraded.
+
+When that day arrives, the SQA harness changes are minimal: the runner agent reads `OPENROUTER_API_KEY` from `SQA/.env` (gitignored) and treats `SQA_MODEL_*` values as full provider-qualified IDs (e.g. `openrouter/anthropic/claude-sonnet-4`). The VS Code Copilot path remains as a fallback.
+
 
