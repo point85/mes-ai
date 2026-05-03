@@ -256,6 +256,7 @@ class NonWorkingPeriodRead(BaseModel):
     description: str | None
     start_datetime: datetime
     duration_seconds: int
+    end_datetime: datetime
     created_at: datetime
     updated_at: datetime
 

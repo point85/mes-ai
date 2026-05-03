@@ -136,7 +136,7 @@ export default function NonWorkingPeriodsTab({ scheduleId, periods }: Props) {
                     {p.description && <span className="ml-2 text-xs text-gray-400">{p.description}</span>}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-gray-600 font-mono">{p.start_datetime.slice(0, 16).replace("T", " ")}</td>
-                  <td className="px-4 py-2.5 text-sm text-gray-600 font-mono">{p.end_datetime.slice(0, 16).replace("T", " ")}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-600 font-mono">{(p.end_datetime ?? new Date(new Date(p.start_datetime).getTime() + p.duration_seconds * 1000).toISOString()).slice(0, 16).replace("T", " ")}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-500">{formatDuration(p.duration_seconds)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex justify-end gap-1">
