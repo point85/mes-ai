@@ -205,7 +205,7 @@ export default function BOMEditorPage() {
                             className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                             title="Edit"
                           >
-                            <PencilSquareIcon className="h-3.5 w-3.5" />
+                            <PencilSquareIcon className="h-4 w-4" />
                           </button>
                           <button
                             onClick={(e) => {
@@ -215,7 +215,7 @@ export default function BOMEditorPage() {
                             className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                             title="Delete"
                           >
-                            <TrashIcon className="h-3.5 w-3.5" />
+                            <TrashIcon className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
@@ -326,14 +326,14 @@ export default function BOMEditorPage() {
                                 className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                                 title="Edit"
                               >
-                                <PencilSquareIcon className="h-3.5 w-3.5" />
+                                <PencilSquareIcon className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteItem(it)}
                                 className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                                 title="Delete"
                               >
-                                <TrashIcon className="h-3.5 w-3.5" />
+                                <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>
                           </td>
