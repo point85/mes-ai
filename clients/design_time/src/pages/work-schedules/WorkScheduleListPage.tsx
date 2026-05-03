@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PlusIcon, TrashIcon, PencilSquareIcon, ChevronRightIcon, ChartBarIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon, PencilSquareIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import {
   useWorkSchedules,
   useCreateWorkSchedule,
@@ -13,7 +13,6 @@ import {
 } from "../../hooks/useWorkSchedule";
 import type { WorkScheduleSummary, WorkScheduleCreate } from "../../types";
 import WorkScheduleFormDialog from "./WorkScheduleFormDialog";
-import ShiftInstancesDialog from "./ShiftInstancesDialog";
 
 export default function WorkScheduleListPage() {
   const navigate = useNavigate();
@@ -24,7 +23,6 @@ export default function WorkScheduleListPage() {
 
   const [editing, setEditing] = useState<WorkScheduleSummary | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [statsSchedule, setStatsSchedule] = useState<WorkScheduleSummary | null>(null);
 
   const schedules = data?.data ?? [];
 
@@ -100,13 +98,6 @@ export default function WorkScheduleListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
-                        onClick={() => setStatsSchedule(s)}
-                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                        title="Shift instances"
-                      >
-                        <ChartBarIcon className="h-4 w-4" />
-                      </button>
-                      <button
                         onClick={() => navigate(`/work-schedules/${s.id}`)}
                         className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
                         title="Open detail"
@@ -145,13 +136,6 @@ export default function WorkScheduleListPage() {
         />
       )}
 
-      {statsSchedule && (
-        <ShiftInstancesDialog
-          scheduleId={statsSchedule.id}
-          scheduleName={statsSchedule.name}
-          onClose={() => setStatsSchedule(null)}
-        />
-      )}
     </div>
   );
 }
