@@ -353,7 +353,7 @@ class NonWorkingPeriod(BaseModel):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_datetime: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False,
+        DateTime(timezone=False), nullable=False,
     )
     duration_seconds: Mapped[int] = mapped_column(
         Integer, nullable=False,

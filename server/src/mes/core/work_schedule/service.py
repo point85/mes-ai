@@ -6,7 +6,7 @@ Domain logic ported from PyShift without localization.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Sequence
 from uuid import UUID
 
@@ -844,6 +844,9 @@ class WorkScheduleService:
         start_datetime: datetime, duration_seconds: int,
     ) -> NonWorkingPeriod:
         await WorkScheduleService.get_schedule(session, schedule_id)
+        # Normalize to naive UTC (same convention as the _utc columns)
+        if start_datetime.tzinfo is not None:
+            start_datetime = start_datetime.astimezone(timezone.utc).replace(tzinfo=None)
         period = NonWorkingPeriod(
             work_schedule_id=schedule_id, name=name,
             description=description, start_datetime=start_datetime,
@@ -860,6 +863,9 @@ class WorkScheduleService:
         period = await WorkScheduleService.get_non_working_period(session, period_id)
         for k, v in kwargs.items():
             if v is not None:
+                # Normalize start_datetime to naive UTC
+                if k == "start_datetime" and isinstance(v, datetime) and v.tzinfo is not None:
+                    v = v.astimezone(timezone.utc).replace(tzinfo=None)
                 setattr(period, k, v)
         await session.flush()
         return period
@@ -893,4 +899,9 @@ class WorkScheduleService:
         from_dt: datetime, to_dt: datetime,
     ) -> timedelta:
         schedule = await WorkScheduleService.get_schedule(session, schedule_id)
+        # Normalize to naive UTC to match stored start_datetime
+        if from_dt.tzinfo is not None:
+            from_dt = from_dt.astimezone(timezone.utc).replace(tzinfo=None)
+        if to_dt.tzinfo is not None:
+            to_dt = to_dt.astimezone(timezone.utc).replace(tzinfo=None)
         return compute_working_time(schedule, from_dt, to_dt)
