@@ -525,8 +525,7 @@ class TestUnitScrap:
         step_id = _uuid()
         unit = _make_unit(status="in_process", current_step_id=step_id)
         mock_get.return_value = unit
-        session = AsyncMock()
-        session.flush = AsyncMock()
+        session = _session_returning(None)
 
         await UnitService.scrap_unit(session, unit.id, "Defective component")
 

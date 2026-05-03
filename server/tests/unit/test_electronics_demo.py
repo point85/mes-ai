@@ -93,7 +93,7 @@ class TestElecDataRoute:
 
     def test_step_count(self):
         from mes.core.demo.electronics_data import STEPS
-        assert len(STEPS) == 8
+        assert len(STEPS) == 9
 
     def test_sequences_unique(self):
         from mes.core.demo.electronics_data import STEPS
@@ -191,7 +191,7 @@ class TestElecDataStepParams:
     def test_total_param_count(self):
         from mes.core.demo.electronics_data import STEP_PARAMS
         total = sum(len(params) for params in STEP_PARAMS.values())
-        assert total == 26
+        assert total == 28
 
     def test_param_data_types_valid(self):
         from mes.core.demo.electronics_data import STEP_PARAMS
@@ -214,7 +214,7 @@ class TestElecDataDataDefs:
     def test_total_data_def_count(self):
         from mes.core.demo.electronics_data import DATA_DEFS
         total = sum(len(defs) for defs in DATA_DEFS.values())
-        assert total == 28
+        assert total == 30
 
     def test_data_def_codes_unique(self):
         from mes.core.demo.electronics_data import DATA_DEFS
@@ -273,7 +273,7 @@ class TestElecDataPhysicalModel:
 
     def test_work_cell_count(self):
         from mes.core.demo.electronics_data import WORK_CELLS
-        assert len(WORK_CELLS) == 7
+        assert len(WORK_CELLS) == 8
 
     def test_work_cell_codes_unique(self):
         from mes.core.demo.electronics_data import WORK_CELLS
@@ -282,7 +282,7 @@ class TestElecDataPhysicalModel:
 
     def test_equipment_count(self):
         from mes.core.demo.electronics_data import EQUIPMENT
-        assert len(EQUIPMENT) == 8
+        assert len(EQUIPMENT) == 9
 
     def test_equipment_codes_unique(self):
         from mes.core.demo.electronics_data import EQUIPMENT
@@ -318,7 +318,7 @@ class TestElecDataEquipmentMaterials:
 
     def test_assignment_count(self):
         from mes.core.demo.electronics_data import EQUIPMENT_MATERIALS
-        assert len(EQUIPMENT_MATERIALS) == 8
+        assert len(EQUIPMENT_MATERIALS) == 9
 
     def test_assignments_reference_valid_equipment(self):
         from mes.core.demo.electronics_data import EQUIPMENT_MATERIALS, EQUIPMENT

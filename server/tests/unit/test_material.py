@@ -60,7 +60,7 @@ def _make_material(**overrides) -> types.SimpleNamespace:
         "code": "STL-BAR-001",
         "description": "Cold-rolled steel bar",
         "material_type": "raw",
-        "uom": "KG",
+        "uom_id": uuid.uuid4(),
         "shelf_life_days": None,
         "is_active": True,
         "created_at": datetime.now(timezone.utc),
@@ -128,7 +128,7 @@ class TestMaterialDefinitionModel:
 
     def test_domain_columns_present(self):
         col_names = {c.key for c in MaterialDefinition.__mapper__.columns}
-        for col in ("name", "code", "description", "material_type", "uom", "shelf_life_days"):
+        for col in ("name", "code", "description", "material_type", "uom_id", "shelf_life_days"):
             assert col in col_names, f"Missing '{col}'"
 
     def test_code_column_is_unique(self):
@@ -239,31 +239,31 @@ class TestAllModelsInheritBase:
 
 class TestMaterialCreateSchema:
     def test_full_creation(self):
+        uom_uid = uuid.uuid4()
         s = MaterialCreate(
             name="Steel Bar",
             code="STL-BAR-001",
             description="Cold-rolled steel bar",
             material_type="raw",
-            uom="KG",
+            uom_id=uom_uid,
             shelf_life_days=365,
         )
         assert s.name == "Steel Bar"
         assert s.code == "STL-BAR-001"
         assert s.material_type == "raw"
-        assert s.uom == "KG"
+        assert s.uom_id == uom_uid
         assert s.shelf_life_days == 365
 
     def test_defaults(self):
-        s = MaterialCreate(name="Widget", code="WDG-001")
+        s = MaterialCreate(name="Widget", code="WDG-001", uom_id=uuid.uuid4())
         assert s.material_type == "raw"
-        assert s.uom == "EA"
         assert s.revision is None
         assert s.shelf_life_days is None
         assert s.description is None
 
     def test_all_material_types_accepted(self):
         for mtype in MATERIAL_TYPES:
-            s = MaterialCreate(name="X", code=f"X-{mtype}", material_type=mtype)
+            s = MaterialCreate(name="X", code=f"X-{mtype}", material_type=mtype, uom_id=uuid.uuid4())
             assert s.material_type == mtype
 
     def test_invalid_material_type_rejected(self):

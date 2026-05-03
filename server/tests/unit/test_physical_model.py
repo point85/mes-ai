@@ -279,8 +279,8 @@ class TestEquipmentMaterialModel:
         col_names = {c.key for c in mapper.columns}
         for col in (
             "equipment_id", "material_id",
-            "design_speed", "design_speed_uom",
-            "reject_uom", "target_oee",
+            "design_speed", "design_speed_uom_id",
+            "reject_uom_id", "target_oee",
         ):
             assert col in col_names, f"Missing column '{col}'"
 
@@ -295,8 +295,8 @@ class TestEquipmentMaterialModel:
             equipment_id=uuid.uuid4(),
             material_id=uuid.uuid4(),
             design_speed=120.0,
-            design_speed_uom="EA/h",
-            reject_uom="EA",
+            design_speed_uom_id=uuid.uuid4(),
+            reject_uom_id=uuid.uuid4(),
             target_oee=85.0,
         )
         r = repr(em)
@@ -312,16 +312,18 @@ class TestEquipmentMaterialSchemas:
     """Test Pydantic schemas for equipment material setups."""
 
     def test_create_valid(self):
+        ds_uid = uuid.uuid4()
+        rj_uid = uuid.uuid4()
         schema = EquipmentMaterialCreate(
             material_id=uuid.uuid4(),
             design_speed=120.5,
-            design_speed_uom="EA/h",
-            reject_uom="EA",
+            design_speed_uom_id=ds_uid,
+            reject_uom_id=rj_uid,
             target_oee=85.0,
         )
         assert schema.design_speed == 120.5
-        assert schema.design_speed_uom == "EA/h"
-        assert schema.reject_uom == "EA"
+        assert schema.design_speed_uom_id == ds_uid
+        assert schema.reject_uom_id == rj_uid
         assert schema.target_oee == 85.0
 
     def test_create_zero_speed_rejected(self):
@@ -329,8 +331,8 @@ class TestEquipmentMaterialSchemas:
             EquipmentMaterialCreate(
                 material_id=uuid.uuid4(),
                 design_speed=0,
-                design_speed_uom="EA/h",
-                reject_uom="EA",
+                design_speed_uom_id=uuid.uuid4(),
+                reject_uom_id=uuid.uuid4(),
                 target_oee=85.0,
             )
 
@@ -339,8 +341,8 @@ class TestEquipmentMaterialSchemas:
             EquipmentMaterialCreate(
                 material_id=uuid.uuid4(),
                 design_speed=-10,
-                design_speed_uom="EA/h",
-                reject_uom="EA",
+                design_speed_uom_id=uuid.uuid4(),
+                reject_uom_id=uuid.uuid4(),
                 target_oee=85.0,
             )
 
@@ -349,8 +351,8 @@ class TestEquipmentMaterialSchemas:
             EquipmentMaterialCreate(
                 material_id=uuid.uuid4(),
                 design_speed=100,
-                design_speed_uom="EA/h",
-                reject_uom="EA",
+                design_speed_uom_id=uuid.uuid4(),
+                reject_uom_id=uuid.uuid4(),
                 target_oee=-1,
             )
 
@@ -359,8 +361,8 @@ class TestEquipmentMaterialSchemas:
             EquipmentMaterialCreate(
                 material_id=uuid.uuid4(),
                 design_speed=100,
-                design_speed_uom="EA/h",
-                reject_uom="EA",
+                design_speed_uom_id=uuid.uuid4(),
+                reject_uom_id=uuid.uuid4(),
                 target_oee=101,
             )
 
@@ -368,8 +370,8 @@ class TestEquipmentMaterialSchemas:
         schema = EquipmentMaterialCreate(
             material_id=uuid.uuid4(),
             design_speed=50,
-            design_speed_uom="EA/h",
-            reject_uom="EA",
+            design_speed_uom_id=uuid.uuid4(),
+            reject_uom_id=uuid.uuid4(),
             target_oee=0.0,
         )
         assert schema.target_oee == 0.0
@@ -378,8 +380,8 @@ class TestEquipmentMaterialSchemas:
         schema = EquipmentMaterialCreate(
             material_id=uuid.uuid4(),
             design_speed=50,
-            design_speed_uom="EA/h",
-            reject_uom="EA",
+            design_speed_uom_id=uuid.uuid4(),
+            reject_uom_id=uuid.uuid4(),
             target_oee=100.0,
         )
         assert schema.target_oee == 100.0
@@ -389,8 +391,8 @@ class TestEquipmentMaterialSchemas:
             EquipmentMaterialCreate(
                 material_id=uuid.uuid4(),
                 design_speed=100,
-                design_speed_uom="",
-                reject_uom="EA",
+                design_speed_uom_id="not-a-valid-uuid",
+                reject_uom_id=uuid.uuid4(),
                 target_oee=85.0,
             )
 
@@ -404,8 +406,8 @@ class TestEquipmentMaterialSchemas:
             equipment_id=equip_id,
             material_id=mat_id,
             design_speed=200.0,
-            design_speed_uom="kg/h",
-            reject_uom="kg",
+            design_speed_uom_id=uuid.uuid4(),
+            reject_uom_id=uuid.uuid4(),
             target_oee=90.0,
             is_active=True,
             created_at=now,
@@ -419,8 +421,8 @@ class TestEquipmentMaterialSchemas:
     def test_update_all_optional(self):
         schema = EquipmentMaterialUpdate()
         assert schema.design_speed is None
-        assert schema.design_speed_uom is None
-        assert schema.reject_uom is None
+        assert schema.design_speed_uom_id is None
+        assert schema.reject_uom_id is None
         assert schema.target_oee is None
 
     def test_update_partial(self):

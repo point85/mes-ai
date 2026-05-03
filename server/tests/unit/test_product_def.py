@@ -157,7 +157,7 @@ class TestProductSchemas:
             code="WDG-A",
             version="2.0",
             description="Premium widget",
-            uom="EA",
+            uom_id=uuid.uuid4(),
             product_type="discrete",
         )
         assert schema.name == "Widget A"
@@ -166,13 +166,12 @@ class TestProductSchemas:
         assert schema.product_type == "discrete"
 
     def test_product_create_defaults(self):
-        schema = ProductCreate(name="Basic Widget", code="WDG-B")
+        schema = ProductCreate(name="Basic Widget", code="WDG-B", uom_id=uuid.uuid4())
         assert schema.version == "1.0"
-        assert schema.uom == "EA"
         assert schema.product_type == "discrete"
 
     def test_product_create_process_type(self):
-        schema = ProductCreate(name="Chemical X", code="CHM-X", product_type="process")
+        schema = ProductCreate(name="Chemical X", code="CHM-X", product_type="process", uom_id=uuid.uuid4())
         assert schema.product_type == "process"
 
     def test_product_create_invalid_type(self):
@@ -190,7 +189,7 @@ class TestProductSchemas:
             name="Widget",
             code="WDG",
             version="1.0",
-            uom="EA",
+            uom_id=uuid.uuid4(),
             product_type="discrete",
             is_active=True,
             created_at=now,
@@ -242,7 +241,7 @@ class TestBOMItemSchemas:
         schema = BOMItemCreate(
             material_code="MAT-001",
             quantity=5.0,
-            uom="KG",
+            uom_id=uuid.uuid4(),
             position=10,
         )
         assert schema.material_code == "MAT-001"
@@ -250,8 +249,7 @@ class TestBOMItemSchemas:
         assert schema.position == 10
 
     def test_bom_item_create_defaults(self):
-        schema = BOMItemCreate(material_code="MAT-001", quantity=1.0)
-        assert schema.uom == "EA"
+        schema = BOMItemCreate(material_code="MAT-001", quantity=1.0, uom_id=uuid.uuid4())
         assert schema.position == 0
 
     def test_bom_item_create_zero_quantity_rejected(self):
@@ -354,7 +352,7 @@ class TestStepParameterSchemas:
         schema = StepParameterCreate(
             name="Torque",
             data_type="numeric",
-            uom="Nm",
+            uom_id=uuid.uuid4(),
             target_value="50",
             lower_limit="45",
             upper_limit="55",
@@ -369,7 +367,7 @@ class TestStepParameterSchemas:
         schema = StepParameterCreate(name="Note")
         assert schema.data_type == "numeric"
         assert schema.is_required is False
-        assert schema.uom is None
+        assert schema.uom_id is None
 
     def test_param_create_boolean_type(self):
         schema = StepParameterCreate(name="Pass/Fail", data_type="boolean")
@@ -448,7 +446,7 @@ class TestRouteStepERPFields:
             step_id=uuid.uuid4(),
             name="Temperature",
             data_type="numeric",
-            uom="°C",
+            uom_id=uuid.uuid4(),
             target_value="22",
             lower_limit="20",
             upper_limit="25",
@@ -458,7 +456,7 @@ class TestRouteStepERPFields:
             updated_at=now,
         )
         assert schema.name == "Temperature"
-        assert schema.uom == "°C"
+        assert schema.uom_id is not None
 
 
 # ─── Event tests ─────────────────────────────────────────────────────
@@ -937,23 +935,24 @@ class TestStepMaterialRequirement:
         assert hasattr(SegmentMaterialRequirement, "step_id")
         assert hasattr(SegmentMaterialRequirement, "material_id")
         assert hasattr(SegmentMaterialRequirement, "quantity")
-        assert hasattr(SegmentMaterialRequirement, "uom")
+        assert hasattr(SegmentMaterialRequirement, "uom_id")
         assert hasattr(SegmentMaterialRequirement, "material_use")
         assert hasattr(SegmentMaterialRequirement, "position")
         assert hasattr(SegmentMaterialRequirement, "description")
 
     def test_create_schema_defaults(self):
+        uom_uid = uuid.uuid4()
         schema = StepMaterialRequirementCreate(
-            material_id=uuid.uuid4(), quantity=5.0,
+            material_id=uuid.uuid4(), quantity=5.0, uom_id=uom_uid,
         )
-        assert schema.uom == "EA"
+        assert schema.uom_id == uom_uid
         assert schema.material_use == "consumed"
         assert schema.position == 0
         assert schema.description is None
 
     def test_create_schema_produced(self):
         schema = StepMaterialRequirementCreate(
-            material_id=uuid.uuid4(), quantity=1.0, material_use="produced",
+            material_id=uuid.uuid4(), quantity=1.0, material_use="produced", uom_id=uuid.uuid4(),
         )
         assert schema.material_use == "produced"
 
@@ -976,7 +975,7 @@ class TestStepMaterialRequirement:
             step_id=uuid.uuid4(),
             material_id=uuid.uuid4(),
             quantity=5.0,
-            uom="kg",
+            uom_id=uuid.uuid4(),
             material_use="consumed",
             position=1,
             is_active=True,

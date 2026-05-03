@@ -106,3 +106,15 @@ async def on_unit_moved(event: MESEvent) -> None:
         except Exception:
             logger.exception("Auto-dispatch failed for unit %s", unit_id_str)
             await session.rollback()
+
+
+@event_handler("wip.lot.completed")
+async def on_lot_completed(event: MESEvent) -> None:
+    """Hook for post-lot-completion actions (e.g. quality checks, reporting)."""
+    pass
+
+
+@event_handler("wip.unit.completed")
+async def on_unit_completed(event: MESEvent) -> None:
+    """Hook for post-unit-completion actions (e.g. quality checks, reporting)."""
+    pass

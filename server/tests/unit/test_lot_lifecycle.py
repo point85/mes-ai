@@ -469,8 +469,7 @@ class TestLotScrap:
         step_id = _uuid()
         lot = _make_lot(status="in_process", current_step_id=step_id, quantity=500)
         mock_get.return_value = lot
-        session = AsyncMock()
-        session.flush = AsyncMock()
+        session = _session_returning(None)
 
         await LotService.scrap_lot(session, lot.id, "Contaminated")
 
@@ -811,9 +810,8 @@ class TestFullLotLifecycleSequence:
                 history = _make_history()
                 session = _session_returning(history)
 
-                with patch("mes.core.wip.service.OperationsRequestService.increment_scrapped", new_callable=AsyncMock):
-                    # 3. Complete step
-                    await LotService.complete_lot_step(session, lot_mock.id, quantity_out=99, quantity_scrapped=1)
+                # 3. Complete step
+                await LotService.complete_lot_step(session, lot_mock.id, quantity_out=100, quantity_scrapped=0)
 
             with patch("mes.core.wip.service.LotService.get_lot", new_callable=AsyncMock) as mock_get:
                 mock_get.return_value = lot_mock
@@ -832,4 +830,4 @@ class TestFullLotLifecycleSequence:
             "wip.lot.started",
             "wip.lot.completed",
             "wip.lot.moved",
-        ]
+        ]  # no quality.nc.created when quantity_scrapped=0

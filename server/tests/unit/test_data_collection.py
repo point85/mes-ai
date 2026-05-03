@@ -55,7 +55,7 @@ def _make_definition(**overrides) -> types.SimpleNamespace:
         "code": "TEMP-OVEN-1",
         "description": "Temperature reading from oven zone 1",
         "data_type": "numeric",
-        "uom": "°C",
+        "uom_id": uuid.uuid4(),
         "step_id": uuid.uuid4(),
         "source": "equipment",
         "is_required": True,
@@ -113,7 +113,7 @@ class TestDataDefinitionModel:
     def test_domain_columns_present(self):
         col_names = {c.key for c in DataDefinition.__mapper__.columns}
         for col in (
-            "name", "code", "description", "data_type", "uom",
+            "name", "code", "description", "data_type", "uom_id",
             "step_id", "source", "is_required", "enum_values",
             "lower_limit", "upper_limit",
         ):
@@ -188,7 +188,7 @@ class TestDataDefinitionCreateSchema:
             code="TEMP-OVEN-1",
             description="Zone 1 temperature",
             data_type="numeric",
-            uom="°C",
+            uom_id=uuid.uuid4(),
             step_id=uuid.uuid4(),
             source="equipment",
             is_required=True,
@@ -206,7 +206,7 @@ class TestDataDefinitionCreateSchema:
         assert s.data_type == "numeric"
         assert s.source == "manual"
         assert s.is_required is False
-        assert s.uom is None
+        assert s.uom_id is None
         assert s.step_id is None
         assert s.enum_values is None
         assert s.lower_limit is None
@@ -261,12 +261,12 @@ class TestDataDefinitionReadSchema:
 
     def test_optional_fields(self):
         obj = _make_definition(
-            description=None, uom=None, step_id=None,
+            description=None, uom_id=None, step_id=None,
             enum_values=None, lower_limit=None, upper_limit=None,
         )
         s = DataDefinitionRead.model_validate(obj, from_attributes=True)
         assert s.description is None
-        assert s.uom is None
+        assert s.uom_id is None
         assert s.step_id is None
 
 
