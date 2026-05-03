@@ -163,6 +163,35 @@ def compute_shift_instances_for_range(
     return results
 
 
+def compute_shift_instances_for_time(
+    schedule: WorkSchedule, dt: datetime,
+) -> list[ShiftInstanceResult]:
+    """
+    Port of PyShift ``WorkSchedule.getShiftInstancesForTime()``.
+
+    Returns all shift instances active at the given datetime — i.e. the
+    day-level instances for ``dt.date()`` where the shift's working period
+    contains ``dt.time()``.
+    """
+    candidates = compute_shift_instances_for_day(schedule, dt.date())
+    return [
+        inst for inst in candidates
+        if is_time_in_shift_by_id(schedule, inst.shift_id, dt.time())
+    ]
+
+
+def is_time_in_shift_by_id(
+    schedule: WorkSchedule, shift_id: UUID, t: time,
+) -> bool:
+    """Look up a shift by id within the schedule and delegate to is_time_in_shift."""
+    for team in schedule.teams:
+        if team.rotation:
+            for seg in team.rotation.segments:
+                if seg.shift and seg.shift.id == shift_id:
+                    return is_time_in_shift(seg.shift, t)
+    return False
+
+
 def _to_rounded_second(t: time) -> int:
     """Convert a time to seconds of day, rounding up on >=500000 microseconds (matches PyShift)."""
     sec = t.hour * 3600 + t.minute * 60 + t.second
@@ -892,6 +921,13 @@ class WorkScheduleService:
     ) -> list[ShiftInstanceResult]:
         schedule = await WorkScheduleService.get_schedule(session, schedule_id)
         return compute_shift_instances_for_range(schedule, from_date, to_date)
+
+    @staticmethod
+    async def get_shift_instances_for_time(
+        session: AsyncSession, schedule_id: UUID, dt: datetime,
+    ) -> list[ShiftInstanceResult]:
+        schedule = await WorkScheduleService.get_schedule(session, schedule_id)
+        return compute_shift_instances_for_time(schedule, dt)
 
     @staticmethod
     async def get_working_time(
