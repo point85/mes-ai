@@ -25,6 +25,7 @@ class SiteCreate(BaseModel):
     description: str | None = None
     timezone: str | None = Field(None, max_length=50)
     address: str | None = None
+    work_schedule_id: UUID | None = Field(None, description="Optional work schedule ID assigned at the Site level.")
 
 
 class SiteRead(BaseModel):
@@ -36,6 +37,7 @@ class SiteRead(BaseModel):
     description: str | None = None
     timezone: str | None = None
     address: str | None = None
+    work_schedule_id: UUID | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -51,6 +53,7 @@ class SiteUpdate(BaseModel):
     description: str | None = None
     timezone: str | None = None
     address: str | None = None
+    work_schedule_id: UUID | None = None
 
 
 # ─── Area ──────────────────────────────────────────────────────────────
@@ -62,6 +65,7 @@ class AreaCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
+    work_schedule_id: UUID | None = Field(None, description="Optional work schedule ID assigned at the Area level.")
 
 
 class AreaRead(BaseModel):
@@ -72,6 +76,7 @@ class AreaRead(BaseModel):
     code: str
     description: str | None = None
     site_id: UUID
+    work_schedule_id: UUID | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -85,6 +90,7 @@ class AreaUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     code: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
+    work_schedule_id: UUID | None = None
 
 
 # ─── ProductionLine ───────────────────────────────────────────────────
@@ -96,6 +102,7 @@ class ProductionLineCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
+    work_schedule_id: UUID | None = Field(None, description="Optional work schedule ID assigned at the Production Line level.")
 
 
 class ProductionLineRead(BaseModel):
@@ -106,6 +113,7 @@ class ProductionLineRead(BaseModel):
     code: str
     description: str | None = None
     area_id: UUID
+    work_schedule_id: UUID | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -119,6 +127,7 @@ class ProductionLineUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     code: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
+    work_schedule_id: UUID | None = None
 
 
 # ─── WorkCell ─────────────────────────────────────────────────────────
@@ -130,6 +139,7 @@ class WorkCellCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
+    work_schedule_id: UUID | None = Field(None, description="Optional work schedule ID assigned at the Work Cell level.")
 
 
 class WorkCellRead(BaseModel):
@@ -140,6 +150,9 @@ class WorkCellRead(BaseModel):
     code: str
     description: str | None = None
     line_id: UUID
+    area_id: UUID
+    site_id: UUID
+    work_schedule_id: UUID | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -153,6 +166,7 @@ class WorkCellUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     code: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
+    work_schedule_id: UUID | None = None
 
 
 # ─── Equipment ────────────────────────────────────────────────────────

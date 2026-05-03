@@ -182,6 +182,27 @@ class TestWorkCellSchemas:
         assert schema.name == "Station A"
         assert schema.code == "WC-A"
 
+    def test_work_cell_read_includes_hierarchy_refs(self):
+        """WorkCellRead must expose area_id and site_id for hierarchy navigation."""
+        now = datetime.now(timezone.utc)
+        line_id = uuid.uuid4()
+        area_id = uuid.uuid4()
+        site_id = uuid.uuid4()
+        schema = WorkCellRead(
+            id=uuid.uuid4(),
+            name="Station A",
+            code="WC-A",
+            line_id=line_id,
+            area_id=area_id,
+            site_id=site_id,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        assert schema.line_id == line_id
+        assert schema.area_id == area_id
+        assert schema.site_id == site_id
+
 
 class TestEquipmentSchemas:
     def test_equipment_create_defaults(self):

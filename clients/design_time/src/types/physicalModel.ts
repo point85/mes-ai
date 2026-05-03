@@ -12,6 +12,7 @@ export interface Site {
   description: string | null;
   timezone: string | null;
   address: string | null;
+  work_schedule_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -23,6 +24,7 @@ export interface SiteCreate {
   description?: string | null;
   timezone?: string | null;
   address?: string | null;
+  work_schedule_id?: string | null;
 }
 
 export interface SiteUpdate {
@@ -31,6 +33,7 @@ export interface SiteUpdate {
   description?: string | null;
   timezone?: string | null;
   address?: string | null;
+  work_schedule_id?: string | null;
 }
 
 // ─── Area ──────────────────────────────────────────────────────────────
@@ -41,6 +44,7 @@ export interface Area {
   code: string;
   description: string | null;
   site_id: string;
+  work_schedule_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -50,12 +54,14 @@ export interface AreaCreate {
   name: string;
   code: string;
   description?: string | null;
+  work_schedule_id?: string | null;
 }
 
 export interface AreaUpdate {
   name?: string;
   code?: string;
   description?: string | null;
+  work_schedule_id?: string | null;
 }
 
 // ─── Production Line ──────────────────────────────────────────────────
@@ -66,6 +72,7 @@ export interface ProductionLine {
   code: string;
   description: string | null;
   area_id: string;
+  work_schedule_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -75,12 +82,14 @@ export interface ProductionLineCreate {
   name: string;
   code: string;
   description?: string | null;
+  work_schedule_id?: string | null;
 }
 
 export interface ProductionLineUpdate {
   name?: string;
   code?: string;
   description?: string | null;
+  work_schedule_id?: string | null;
 }
 
 // ─── Work Cell ───────────────────────────────────────────────────────
@@ -91,6 +100,9 @@ export interface WorkCell {
   code: string;
   description: string | null;
   line_id: string;
+  area_id: string;
+  site_id: string;
+  work_schedule_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -100,12 +112,14 @@ export interface WorkCellCreate {
   name: string;
   code: string;
   description?: string | null;
+  work_schedule_id?: string | null;
 }
 
 export interface WorkCellUpdate {
   name?: string;
   code?: string;
   description?: string | null;
+  work_schedule_id?: string | null;
 }
 
 // ─── Equipment ────────────────────────────────────────────────────────

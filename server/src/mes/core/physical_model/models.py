@@ -53,6 +53,10 @@ class Site(BaseModel):
         comment="IANA timezone identifier (e.g. 'America/Chicago')",
     )
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    work_schedule_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("work_schedules.id"), nullable=True, index=True,
+        comment="Optional work schedule assigned at the Site level.",
+    )
 
     # Relationships
     areas: Mapped[list["Area"]] = relationship(
@@ -80,6 +84,10 @@ class Area(BaseModel):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     site_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("sites.id"), nullable=False, index=True,
+    )
+    work_schedule_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("work_schedules.id"), nullable=True, index=True,
+        comment="Optional work schedule assigned at the Area level.",
     )
 
     # Relationships
@@ -112,6 +120,10 @@ class ProductionLine(BaseModel):
     area_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("areas.id"), nullable=False, index=True,
     )
+    work_schedule_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("work_schedules.id"), nullable=True, index=True,
+        comment="Optional work schedule assigned at the Production Line level.",
+    )
 
     # Relationships
     area: Mapped["Area"] = relationship("Area", back_populates="production_lines")
@@ -142,10 +154,24 @@ class WorkCell(BaseModel):
     line_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("production_lines.id"), nullable=False, index=True,
     )
+    area_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("areas.id"), nullable=False, index=True,
+        comment="Denormalized reference to the parent Area (avoids join through ProductionLine).",
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("sites.id"), nullable=False, index=True,
+        comment="Denormalized reference to the parent Site (avoids two-level join).",
+    )
+    work_schedule_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("work_schedules.id"), nullable=True, index=True,
+        comment="Optional work schedule assigned at the Work Cell level.",
+    )
     # Relationships
     production_line: Mapped["ProductionLine"] = relationship(
         "ProductionLine", back_populates="work_cells",
     )
+    area: Mapped["Area"] = relationship("Area", foreign_keys=[area_id])
+    site: Mapped["Site"] = relationship("Site", foreign_keys=[site_id])
     equipment: Mapped[list["Equipment"]] = relationship(
         "Equipment", back_populates="work_cell", cascade="all, delete-orphan",
         order_by="Equipment.name",

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useCreateWorkCell, useUpdateWorkCell } from "../../hooks/usePhysicalModel";
+import { useWorkSchedules } from "../../hooks/useWorkSchedule";
 import type { WorkCell } from "../../types";
 
 const wcSchema = z.object({
@@ -19,6 +20,7 @@ const wcSchema = z.object({
     .max(50)
     .refine((s) => !s.includes(" "), "Code must not contain spaces"),
   description: z.string().nullable().optional(),
+  work_schedule_id: z.string().uuid().nullable().optional(),
 });
 
 type WCFormData = z.infer<typeof wcSchema>;
@@ -33,6 +35,7 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
   const isEdit = !!workCell;
   const createMut = useCreateWorkCell();
   const updateMut = useUpdateWorkCell();
+  const { data: schedulesData } = useWorkSchedules();
 
   const {
     register,
@@ -41,7 +44,7 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
     formState: { errors, isSubmitting },
   } = useForm<WCFormData>({
     resolver: zodResolver(wcSchema),
-    defaultValues: { name: "", code: "", description: "" },
+    defaultValues: { name: "", code: "", description: "", work_schedule_id: null },
   });
 
   useEffect(() => {
@@ -50,6 +53,7 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
         name: workCell.name,
         code: workCell.code,
         description: workCell.description ?? "",
+        work_schedule_id: workCell.work_schedule_id ?? null,
       });
     }
   }, [workCell, reset]);
@@ -127,6 +131,21 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
                 rows={2}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Work Schedule <span className="text-gray-400">(optional)</span>
+              </label>
+              <select
+                {...register("work_schedule_id")}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">— None —</option>
+                {schedulesData?.data?.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

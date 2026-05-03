@@ -84,7 +84,8 @@ class PhysicalModelService:
     async def update_site(
         session: AsyncSession, site_id: UUID, **kwargs: Any
     ) -> Site:
-        """Update a site's fields. Only non-None values are applied."""
+        """Update a site's fields. Only non-None values are applied, except
+        ``work_schedule_id`` which may be set to None to clear the schedule."""
         site = await PhysicalModelService.get_site(session, site_id)
 
         # Check code uniqueness if code is being changed
@@ -96,7 +97,7 @@ class PhysicalModelService:
                 raise DuplicateCodeException("Site", kwargs["code"])
 
         for key, value in kwargs.items():
-            if value is not None:
+            if value is not None or key == "work_schedule_id":
                 setattr(site, key, value)
         await session.flush()
         return site
@@ -167,7 +168,7 @@ class PhysicalModelService:
                 raise DuplicateCodeException("Area", kwargs["code"])
 
         for key, value in kwargs.items():
-            if value is not None:
+            if value is not None or key == "work_schedule_id":
                 setattr(area, key, value)
         await session.flush()
         return area
@@ -241,7 +242,7 @@ class PhysicalModelService:
                 raise DuplicateCodeException("ProductionLine", kwargs["code"])
 
         for key, value in kwargs.items():
-            if value is not None:
+            if value is not None or key == "work_schedule_id":
                 setattr(line, key, value)
         await session.flush()
         return line
@@ -319,8 +320,16 @@ class PhysicalModelService:
     async def create_work_cell(
         session: AsyncSession, line_id: UUID, **kwargs: Any
     ) -> WorkCell:
-        """Create a new work cell within a production line."""
-        await PhysicalModelService.get_line(session, line_id)
+        """Create a new work cell within a production line.
+
+        Automatically populates ``area_id`` and ``site_id`` from the parent
+        ProductionLine so every WorkCell carries the full ancestor hierarchy
+        as direct UUID references.
+        """
+        line = await PhysicalModelService.get_line(session, line_id)
+
+        # Resolve area to get site_id
+        area = await PhysicalModelService.get_area(session, line.area_id)
 
         existing = await session.execute(
             select(WorkCell).where(WorkCell.code == kwargs["code"])
@@ -328,10 +337,18 @@ class PhysicalModelService:
         if existing.scalar_one_or_none() is not None:
             raise DuplicateCodeException("WorkCell", kwargs["code"])
 
-        wc = WorkCell(line_id=line_id, **kwargs)
+        wc = WorkCell(
+            line_id=line_id,
+            area_id=line.area_id,
+            site_id=area.site_id,
+            **kwargs,
+        )
         session.add(wc)
         await session.flush()
-        logger.info("Created work cell %s (code=%s) in line %s", wc.id, wc.code, line_id)
+        logger.info(
+            "Created work cell %s (code=%s) in line %s / area %s / site %s",
+            wc.id, wc.code, line_id, wc.area_id, wc.site_id,
+        )
         return wc
 
     @staticmethod
@@ -349,7 +366,7 @@ class PhysicalModelService:
                 raise DuplicateCodeException("WorkCell", kwargs["code"])
 
         for key, value in kwargs.items():
-            if value is not None:
+            if value is not None or key == "work_schedule_id":
                 setattr(wc, key, value)
         await session.flush()
         return wc
