@@ -103,6 +103,8 @@ def _get_shift_instance_for_day(
     non_working_periods: list[NonWorkingPeriod],
 ) -> ShiftInstanceResult | None:
     """Return a ShiftInstanceResult if the team is working on *day*, else None."""
+    if team.rotation is None:
+        return None
     periods = _build_period_list(team.rotation)
     if not periods:
         return None
