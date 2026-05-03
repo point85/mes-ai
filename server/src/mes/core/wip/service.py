@@ -136,6 +136,83 @@ async def _write_resource_actuals(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# SHIFT CONTEXT HELPER
+# ═══════════════════════════════════════════════════════════════════
+
+
+async def _resolve_shift_context(
+    session: AsyncSession,
+    equipment_id: UUID | None,
+    at_dt: datetime,
+) -> tuple[str | None, str | None, str | None]:
+    """
+    Walk the ISA-95 physical hierarchy (equipment → work_cell → production_line
+    → area → site) to find the first configured work schedule, then resolve the
+    active shift/team at *at_dt*.
+
+    Returns ``(work_schedule_name, shift_name, team_name)``.
+    All three are ``None`` when no schedule is configured or no shift is active.
+    If multiple shift instances overlap *at_dt* the one with the earliest
+    ``start_datetime`` (oldest) is chosen.
+    """
+    if equipment_id is None:
+        return None, None, None
+
+    from mes.core.physical_model.models import (
+        Equipment as EquipmentModel,
+        WorkCell,
+        ProductionLine,
+        Area,
+        Site,
+    )
+    from mes.core.work_schedule.service import (
+        WorkScheduleService,
+        compute_shift_instances_for_time,
+    )
+
+    equip_result = await session.execute(
+        select(EquipmentModel)
+        .where(EquipmentModel.id == equipment_id)
+        .options(
+            selectinload(EquipmentModel.work_cell)
+            .selectinload(WorkCell.production_line),
+            selectinload(EquipmentModel.work_cell)
+            .selectinload(WorkCell.area),
+            selectinload(EquipmentModel.work_cell)
+            .selectinload(WorkCell.site),
+        )
+    )
+    equip = equip_result.scalar_one_or_none()
+    if equip is None or equip.work_cell is None:
+        return None, None, None
+
+    wc = equip.work_cell
+    schedule_id = (
+        wc.work_schedule_id
+        or (wc.production_line.work_schedule_id if wc.production_line else None)
+        or (wc.area.work_schedule_id if wc.area else None)
+        or (wc.site.work_schedule_id if wc.site else None)
+    )
+    if schedule_id is None:
+        return None, None, None
+
+    try:
+        schedule = await WorkScheduleService.get_schedule(session, schedule_id)
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not load work schedule %s for shift context", schedule_id)
+        return None, None, None
+
+    # Normalize to naive UTC — schedule data is stored as naive UTC
+    naive_dt = at_dt.astimezone(timezone.utc).replace(tzinfo=None) if at_dt.tzinfo else at_dt
+    instances = compute_shift_instances_for_time(schedule, naive_dt)
+    if not instances:
+        return schedule.name, None, None
+
+    earliest = min(instances, key=lambda i: i.start_datetime)
+    return schedule.name, earliest.shift_name, earliest.team_name
+
+
+# ═══════════════════════════════════════════════════════════════════
 # UNIT SERVICE
 # ═══════════════════════════════════════════════════════════════════
 
@@ -274,12 +351,18 @@ class UnitService:
 
         # Create history record
         now = datetime.now(timezone.utc)
+        ws_name, sft_name, tm_name = await _resolve_shift_context(
+            session, unit.current_equipment_id, now,
+        )
         history = SegmentResponseUnit(
             unit_id=unit.id,
             step_id=unit.current_step_id,
             equipment_id=unit.current_equipment_id,
             entered_at=now,
             entered_at_utc=now.replace(tzinfo=None),
+            work_schedule_name=ws_name,
+            shift_name=sft_name,
+            team_name=tm_name,
         )
         session.add(history)
         await session.flush()
@@ -727,6 +810,9 @@ class LotService:
         await session.flush()
 
         now = datetime.now(timezone.utc)
+        ws_name, sft_name, tm_name = await _resolve_shift_context(
+            session, lot.current_equipment_id, now,
+        )
         history = SegmentResponseLot(
             lot_id=lot.id,
             step_id=lot.current_step_id,
@@ -734,6 +820,9 @@ class LotService:
             entered_at=now,
             entered_at_utc=now.replace(tzinfo=None),
             quantity_in=lot.quantity,
+            work_schedule_name=ws_name,
+            shift_name=sft_name,
+            team_name=tm_name,
         )
         session.add(history)
         await session.flush()

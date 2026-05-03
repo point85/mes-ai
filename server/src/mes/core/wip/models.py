@@ -275,6 +275,20 @@ class SegmentResponseUnit(BaseModel):
         comment="Timestamp when the unit left this step (UTC)",
     )
 
+    # ── Genealogy / traceability ────────────────────────────────────
+    work_schedule_name: Mapped[str | None] = mapped_column(
+        String(200), nullable=True,
+        comment="Work schedule name active when this unit entered the step",
+    )
+    shift_name: Mapped[str | None] = mapped_column(
+        String(200), nullable=True,
+        comment="Shift name active when this unit entered the step",
+    )
+    team_name: Mapped[str | None] = mapped_column(
+        String(200), nullable=True,
+        comment="Team name active when this unit entered the step",
+    )
+
     # ── Relationships ───────────────────────────────────────────────
     unit: Mapped["Unit"] = relationship(
         "Unit", back_populates="history",
@@ -356,6 +370,20 @@ class SegmentResponseLot(BaseModel):
     scrap_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True,
         comment="Scrap reason if the lot was scrapped at this step",
+    )
+
+    # ── Genealogy / traceability ────────────────────────────────────
+    work_schedule_name: Mapped[str | None] = mapped_column(
+        String(200), nullable=True,
+        comment="Work schedule name active when this lot entered the step",
+    )
+    shift_name: Mapped[str | None] = mapped_column(
+        String(200), nullable=True,
+        comment="Shift name active when this lot entered the step",
+    )
+    team_name: Mapped[str | None] = mapped_column(
+        String(200), nullable=True,
+        comment="Team name active when this lot entered the step",
     )
 
     # ── Relationships ───────────────────────────────────────────────
