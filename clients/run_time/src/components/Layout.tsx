@@ -6,8 +6,11 @@ import {
   BellAlertIcon,
   ArchiveBoxIcon,
   CpuChipIcon,
+  InformationCircleIcon,
 } from "@heroicons/react/24/outline";
 import type { ReactNode } from "react";
+import { useState } from "react";
+import AboutDialog from "./AboutDialog";
 
 export type TabId = "dashboard" | "scan" | "active-wip" | "orders" | "inventory" | "equipment" | "events";
 
@@ -29,8 +32,10 @@ interface LayoutProps {
 }
 
 export default function Layout({ activeTab, onTabChange, wsConnected, children }: LayoutProps) {
+  const [showAbout, setShowAbout] = useState(false);
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {showAbout && <AboutDialog onClose={() => setShowAbout(false)} />}
       {/* Header */}
       <header className="bg-indigo-700 text-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -38,7 +43,14 @@ export default function Layout({ activeTab, onTabChange, wsConnected, children }
             <WrenchScrewdriverIcon className="h-7 w-7" />
             <h1 className="text-xl font-bold tracking-tight">MES Runtime — Shop Floor</h1>
           </div>
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-3 text-sm">
+            <button
+              onClick={() => setShowAbout(true)}
+              className="text-indigo-200 hover:text-white transition-colors"
+              aria-label="About"
+            >
+              <InformationCircleIcon className="h-5 w-5" />
+            </button>
             <span className={`inline-block w-2.5 h-2.5 rounded-full ${wsConnected ? "bg-green-400" : "bg-red-400"}`} />
             <span>{wsConnected ? "Live" : "Offline"}</span>
           </div>

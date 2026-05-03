@@ -1,7 +1,10 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { createRequire } from 'module'
 
+const require = createRequire(import.meta.url)
+const mesConfig = require('../mes.config.json')
 const MES_SERVER = 'http://localhost:8082'
 
 function erpDetectPlugin(): Plugin {
@@ -31,6 +34,10 @@ function erpDetectPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), erpDetectPlugin()],
+  define: {
+    __MES_VERSION__: JSON.stringify(mesConfig.mesVersion),
+    __MES_RELEASE_DATE__: JSON.stringify(mesConfig.releaseDate),
+  },
   server: {
     port: 5174,
     proxy: {

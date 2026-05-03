@@ -28,8 +28,10 @@ import {
   WrenchScrewdriverIcon,
   QuestionMarkCircleIcon,
   CalendarDaysIcon,
+  InformationCircleIcon,
 } from "@heroicons/react/24/outline";
 import HelpDialog, { type HelpTopic } from "../HelpDialog";
+import AboutDialog from "../AboutDialog";
 
 interface NavItem {
   label: string;
@@ -98,6 +100,7 @@ const sections: NavSection[] = [
 
 export default function Sidebar() {
   const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null);
+  const [showAbout, setShowAbout] = useState(false);
 
   return (
     <aside className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col">
@@ -156,6 +159,20 @@ export default function Sidebar() {
       {helpTopic && (
         <HelpDialog topic={helpTopic} onClose={() => setHelpTopic(null)} />
       )}
+      {showAbout && (
+        <AboutDialog onClose={() => setShowAbout(false)} />
+      )}
+
+      {/* Footer — About */}
+      <div className="border-t border-gray-200 px-4 py-3">
+        <button
+          onClick={() => setShowAbout(true)}
+          className="flex items-center gap-2 text-xs text-gray-500 hover:text-indigo-600 transition-colors"
+        >
+          <InformationCircleIcon className="h-4 w-4" />
+          About MES AI
+        </button>
+      </div>
     </aside>
   );
 }
