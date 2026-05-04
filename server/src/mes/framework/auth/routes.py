@@ -283,9 +283,9 @@ async def create_local_user(
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(require_permission("auth.user.create")),
 ):
-    """Create a new local user (admin only, local auth mode)."""
-    if settings.AUTH_MODE != "local":
-        raise ValidationException(message="Cannot create local users when auth_mode is not 'local'")
+    """Create a new local user (admin only)."""
+    if settings.AUTH_MODE == "oidc":
+        raise ValidationException(message="Cannot create local users in OIDC mode. Users are provisioned via the Identity Provider.")
 
     existing = await AuthService.get_user_by_username(session, body.username)
     if existing is not None:

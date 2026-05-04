@@ -8,6 +8,7 @@ import {
   useCreateTeam, useUpdateTeam, useDeleteTeam,
   useAddTeamMember, useDeleteTeamMember,
 } from "../../../hooks/useWorkSchedule";
+import { listUsers } from "../../../api/auth";
 import type { WorkTeamRead, WorkTeamCreate, WorkRotationRead, TeamMemberCreate } from "../../../types";
 
 interface Props {
@@ -71,12 +72,30 @@ function MemberFormDialog({ onSave, onClose, saving }: {
   onClose: () => void;
   saving?: boolean;
 }) {
-  const [memberId, setMemberId] = useState("");
-  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ member_id: memberId.trim(), name: name.trim() });
+    setError(null);
+    setChecking(true);
+    try {
+      const users = await listUsers();
+      const found = users.find((u) => u.username === username.trim());
+      if (!found) {
+        setError(`User "${username.trim()}" not found.`);
+        return;
+      }
+      onSave({
+        member_id: found.username,
+        name: found.full_name ?? found.username,
+      });
+    } catch {
+      setError("Failed to verify user. Check server connection.");
+    } finally {
+      setChecking(false);
+    }
   };
 
   return (
@@ -85,16 +104,26 @@ function MemberFormDialog({ onSave, onClose, saving }: {
         <h2 className="text-lg font-semibold text-gray-900">Add Member</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID *</label>
-            <input className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" value={memberId} onChange={(e) => setMemberId(e.target.value)} required autoFocus />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Username <span className="text-red-500">*</span></label>
+            <input
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              value={username}
+              onChange={(e) => { setUsername(e.target.value); setError(null); }}
+              required
+              autoFocus
+              placeholder="Enter MES username"
+            />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-            <input className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
-            <button type="submit" disabled={saving} className="px-4 py-2 rounded-md bg-indigo-600 text-sm font-medium text-white disabled:opacity-50">{saving ? "Saving…" : "Add"}</button>
+            <button
+              type="submit"
+              disabled={saving || checking}
+              className="px-4 py-2 rounded-md bg-indigo-600 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {checking ? "Checking…" : saving ? "Saving…" : "Add"}
+            </button>
           </div>
         </form>
       </div>
