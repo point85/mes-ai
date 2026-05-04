@@ -11,7 +11,7 @@ import {
   createRole,
   updateRolePermissions,
   type RoleRead,
-} from "../../api/auth";
+} from "../../../api/auth";
 
 interface Props {
   role: RoleRead | null;  // null = create mode

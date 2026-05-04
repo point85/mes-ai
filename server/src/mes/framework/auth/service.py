@@ -255,6 +255,106 @@ class AuthService:
         logger.info("Seeded default admin user (username=admin, password=admin)")
 
     @staticmethod
+    async def seed_demo_users(session: AsyncSession) -> None:
+        """
+        Create representative demo users for the CPG and SMT/Electronics lines.
+        One user per role per line, plus a cross-site viewer.
+        Safe to run multiple times — skips users that already exist by username.
+
+        Credentials (demo only, not for production):
+          cpg_engineer   / engineer1  (engineer role)
+          cpg_operator1  / operator1  (operator role)
+          cpg_operator2  / operator1  (operator role)
+          smt_engineer   / engineer1  (engineer role)
+          smt_operator1  / operator1  (operator role)
+          smt_operator2  / operator1  (operator role)
+          plant_manager  / viewer1    (viewer role)
+        """
+        demo_users = [
+            # CPG line
+            {
+                "username": "cpg_engineer",
+                "email": "cpg.engineer@mes.local",
+                "full_name": "Emma García",
+                "password": "engineer1",
+                "roles": ["engineer"],
+            },
+            {
+                "username": "cpg_operator1",
+                "email": "cpg.operator1@mes.local",
+                "full_name": "Tom Williams",
+                "password": "operator1",
+                "roles": ["operator"],
+            },
+            {
+                "username": "cpg_operator2",
+                "email": "cpg.operator2@mes.local",
+                "full_name": "Sara Kim",
+                "password": "operator1",
+                "roles": ["operator"],
+            },
+            # SMT / Electronics line
+            {
+                "username": "smt_engineer",
+                "email": "smt.engineer@mes.local",
+                "full_name": "David Chen",
+                "password": "engineer1",
+                "roles": ["engineer"],
+            },
+            {
+                "username": "smt_operator1",
+                "email": "smt.operator1@mes.local",
+                "full_name": "Maria Rossi",
+                "password": "operator1",
+                "roles": ["operator"],
+            },
+            {
+                "username": "smt_operator2",
+                "email": "smt.operator2@mes.local",
+                "full_name": "James Park",
+                "password": "operator1",
+                "roles": ["operator"],
+            },
+            # Cross-site management
+            {
+                "username": "plant_manager",
+                "email": "plant.manager@mes.local",
+                "full_name": "Alex Johnson",
+                "password": "viewer1",
+                "roles": ["viewer"],
+            },
+        ]
+
+        # Load all roles into a name→Role map once
+        roles_result = await session.execute(select(Role))
+        role_map = {r.name: r for r in roles_result.scalars().all()}
+
+        for spec in demo_users:
+            existing = await session.execute(
+                select(User).where(User.username == spec["username"])
+            )
+            if existing.scalar_one_or_none() is not None:
+                continue  # idempotent
+
+            user = User(
+                username=spec["username"],
+                email=spec["email"],
+                full_name=spec["full_name"],
+                hashed_password=AuthService.hash_password(spec["password"]),
+            )
+            session.add(user)
+            await session.flush()
+
+            for role_name in spec["roles"]:
+                role = role_map.get(role_name)
+                if role is not None:
+                    session.add(UserRole(user_id=user.id, role_id=role.id))
+
+            logger.info("Seeded demo user: %s (%s)", spec["username"], ", ".join(spec["roles"]))
+
+        await session.commit()
+
+    @staticmethod
     async def seed_default_roles(session: AsyncSession) -> None:
         """
         Create default roles and permissions if they don't exist.

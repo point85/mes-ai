@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { createUser, updateUser, assignRole, removeRole, type UserRead, type RoleRead } from "../../api/auth";
+import { createUser, updateUser, assignRole, removeRole, type UserRead, type RoleRead } from "../../../api/auth";
 
 interface Props {
   user: UserRead | null;   // null = create mode

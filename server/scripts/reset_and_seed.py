@@ -85,6 +85,7 @@ async def seed_all() -> None:
         seed_erp_data,
         seed_plant_data,
     )
+    from mes.framework.auth.service import AuthService
 
     async with async_session_factory() as session:
         log.info("Seeding built-in UoMs ...")
@@ -105,6 +106,15 @@ async def seed_all() -> None:
         await seed_electronics_erp_data(session)
         log.info("Seeding Electronics plant data ...")
         await seed_electronics_plant_data(session)
+
+    async with async_session_factory() as session:
+        log.info("Seeding default auth roles ...")
+        await AuthService.seed_default_roles(session)
+        log.info("Seeding default admin user ...")
+        await AuthService.seed_admin_user(session)
+        log.info("Seeding demo users (CPG + SMT lines) ...")
+        await AuthService.seed_demo_users(session)
+
     log.info("Seed complete.")
 
 
