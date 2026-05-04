@@ -20,7 +20,7 @@ from typing import Any
 from uuid import UUID
 
 import jwt
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -224,6 +224,35 @@ class AuthService:
                     if perm.is_active:
                         permissions.add(perm.permission)
         return sorted(permissions)
+
+    @staticmethod
+    async def seed_admin_user(session: AsyncSession) -> None:
+        """
+        Create a default admin/admin user if no users exist.
+        Called during application startup in local auth mode.
+        Safe to run every boot — no-ops if users already exist.
+        """
+        count_result = await session.execute(select(func.count(User.id)))
+        count = count_result.scalar_one()
+        if count > 0:
+            return
+
+        admin_user = User(
+            username="admin",
+            email="admin@mes.local",
+            full_name="MES Administrator",
+            hashed_password=AuthService.hash_password("admin"),
+        )
+        session.add(admin_user)
+        await session.flush()  # get admin_user.id
+
+        admin_role_result = await session.execute(select(Role).where(Role.name == "admin"))
+        admin_role = admin_role_result.scalar_one_or_none()
+        if admin_role is not None:
+            session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
+
+        await session.commit()
+        logger.info("Seeded default admin user (username=admin, password=admin)")
 
     @staticmethod
     async def seed_default_roles(session: AsyncSession) -> None:

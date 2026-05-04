@@ -5,6 +5,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppLayout } from "./components/layout";
+import { AuthProvider } from "./contexts/AuthContext";
+import AuthGuard from "./components/AuthGuard";
+import LoginPage from "./pages/login/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import { UoMListPage } from "./pages/uom";
 import { SiteListPage } from "./pages/sites";
@@ -23,6 +26,8 @@ import { GenealogyViewerPage } from "./pages/genealogy";
 import { DispatchPage } from "./pages/dispatch";
 import { PluginListPage, PluginDetailPage } from "./pages/plugins";
 import { ReasonListPage } from "./pages/reasons";
+import { UserListPage } from "./pages/admin/users";
+import { RoleListPage } from "./pages/admin/roles";
 import { DispositionListPage } from "./pages/dispositions";
 import { StorageLocationListPage } from "./pages/storage-locations";
 import { InventoryBalancesPage, InventoryTransactionsPage } from "./pages/inventory";
@@ -41,8 +46,14 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
+        <AuthProvider>
+          <Routes>
+            {/* Public routes (no auth required) */}
+            <Route path="/login" element={<LoginPage />} />
+
+            {/* Protected routes */}
+            <Route element={<AuthGuard />}>
+              <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/uom" element={<UoMListPage />} />
             {/* ISA-95 Plant Model hierarchy */}
@@ -77,11 +88,16 @@ export default function App() {
             <Route path="/work-schedules" element={<WorkScheduleListPage />} />
             <Route path="/work-schedules/:scheduleId" element={<WorkScheduleDetailPage />} />
             {/* Plugin Management */}
-            <Route path="/plugins" element={<PluginListPage />} />
-            <Route path="/plugins/:pluginId" element={<PluginDetailPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="/plugins" element={<PluginListPage />} />
+              <Route path="/plugins/:pluginId" element={<PluginDetailPage />} />
+              {/* Admin */}
+              <Route path="/admin/users" element={<UserListPage />} />
+              <Route path="/admin/roles" element={<RoleListPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
           </Route>
         </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
   );

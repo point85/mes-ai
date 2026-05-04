@@ -14,8 +14,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.config import settings
@@ -33,11 +34,13 @@ from .models import Permission, Role, User, UserRole
 from .schemas import (
     LocalLoginRequest,
     PermissionAssignment,
+    RefreshTokenRequest,
     RoleCreate,
     RoleRead,
     TokenResponse,
     UserCreate,
     UserRead,
+    UserUpdate,
 )
 from .service import AuthService
 
@@ -93,6 +96,53 @@ async def local_login(
     )
 
 
+# --- Token refresh ---
+
+
+@router.post("/local/refresh", response_model=TokenResponse)
+async def refresh_access_token(
+    body: RefreshTokenRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> TokenResponse:
+    """
+    Exchange a valid refresh token for a new access token + refresh token pair.
+    The old refresh token is not revoked (stateless); clients should store the new one.
+    """
+    import jwt
+
+    try:
+        payload = AuthService.decode_token(body.refresh_token)
+    except jwt.ExpiredSignatureError:
+        raise UnauthorizedException(message="Refresh token has expired. Please log in again.")
+    except jwt.InvalidTokenError:
+        raise UnauthorizedException(message="Invalid refresh token")
+
+    if payload.get("type") != "refresh":
+        raise UnauthorizedException(message="Invalid token type")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise UnauthorizedException(message="Invalid token payload")
+
+    user = await AuthService.get_user_by_id(session, UUID(user_id))
+    if user is None:
+        raise UnauthorizedException(message="User not found or inactive")
+
+    roles = AuthService.get_user_roles(user)
+    permissions = AuthService.get_user_permissions(user)
+
+    return TokenResponse(
+        access_token=AuthService.create_access_token(
+            user_id=str(user.id),
+            username=user.username,
+            roles=roles,
+            permissions=permissions,
+        ),
+        refresh_token=AuthService.create_refresh_token(user_id=str(user.id)),
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+
+
 # --- Current user ---
 
 
@@ -113,6 +163,115 @@ async def get_me(user: User = Depends(get_current_user)):
             roles=roles,
         ).model_dump()
     )
+
+
+@router.get("/users")
+async def list_users(
+    session: AsyncSession = Depends(get_db_session),
+    _admin: User = Depends(require_permission("auth.user.read")),
+):
+    """List all active users with their roles (admin only)."""
+    result = await session.execute(
+        select(User)
+        .where(User.is_active.is_(True))
+        .options(selectinload(User.user_roles).selectinload(UserRole.role))
+        .order_by(User.username)
+    )
+    users = result.scalars().all()
+    return success_response([
+        UserRead(
+            id=u.id,
+            username=u.username,
+            email=u.email,
+            full_name=u.full_name,
+            idp_issuer=u.idp_issuer,
+            last_login=u.last_login,
+            is_active=u.is_active,
+            created_at=u.created_at,
+            roles=[ur.role.name for ur in u.user_roles if ur.role.is_active],
+        ).model_dump()
+        for u in users
+    ])
+
+
+@router.get("/users/{user_id}")
+async def get_user(
+    user_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _admin: User = Depends(require_permission("auth.user.read")),
+):
+    """Get a single user by ID (admin only)."""
+    user = await AuthService.get_user_by_id(session, user_id)
+    if user is None:
+        raise NotFoundException(resource="User", resource_id=str(user_id))
+    return success_response(
+        UserRead(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            idp_issuer=user.idp_issuer,
+            last_login=user.last_login,
+            is_active=user.is_active,
+            created_at=user.created_at,
+            roles=AuthService.get_user_roles(user),
+        ).model_dump()
+    )
+
+
+@router.put("/users/{user_id}")
+async def update_user(
+    user_id: UUID,
+    body: UserUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    _admin: User = Depends(require_permission("auth.user.update")),
+):
+    """Update a user's profile and optionally reset password (admin only)."""
+    user = await session.get(User, user_id)
+    if user is None or not user.is_active:
+        raise NotFoundException(resource="User", resource_id=str(user_id))
+
+    if body.email is not None:
+        user.email = body.email
+    if body.full_name is not None:
+        user.full_name = body.full_name
+    if body.is_active is not None:
+        user.is_active = body.is_active
+    if body.password is not None:
+        user.hashed_password = AuthService.hash_password(body.password)
+
+    await session.commit()
+    await session.refresh(user)
+    return success_response(
+        UserRead(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            is_active=user.is_active,
+            created_at=user.created_at,
+            roles=[],
+        ).model_dump()
+    )
+
+
+@router.delete("/users/{user_id}", status_code=204)
+async def delete_user(
+    user_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(require_permission("auth.user.delete")),
+):
+    """Soft-delete a user (admin only). Cannot delete your own account."""
+    if user_id == current_user.id:
+        raise ValidationException(message="Cannot delete your own account")
+
+    user = await session.get(User, user_id)
+    if user is None or not user.is_active:
+        raise NotFoundException(resource="User", resource_id=str(user_id))
+
+    user.is_active = False
+    await session.commit()
+    return Response(status_code=204)
 
 
 # --- User admin (admin only) ---
@@ -252,6 +411,24 @@ async def update_role_permissions(
         select(Permission.permission).where(Permission.role_id == role_id)
     )
     return success_response({"role_id": str(role_id), "permissions": list(perms.scalars().all())})
+
+
+@router.delete("/roles/{role_id}", status_code=204)
+async def delete_role(
+    role_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _admin: User = Depends(require_permission("auth.role.delete")),
+):
+    """Soft-delete a custom role (admin only). Cannot delete system roles."""
+    role = await session.get(Role, role_id)
+    if role is None or not role.is_active:
+        raise NotFoundException(resource="Role", resource_id=str(role_id))
+    if role.is_system:
+        raise ValidationException(message="Cannot delete built-in system roles")
+
+    role.is_active = False
+    await session.commit()
+    return Response(status_code=204)
 
 
 # --- User-role assignment (admin only) ---

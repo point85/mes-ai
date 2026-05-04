@@ -70,6 +70,16 @@ async def lifespan(app: FastAPI):
     """
     logger.info("MES AI server starting (v%s)", settings.VERSION)
 
+    # ── Auth: seed default roles and bootstrap admin user ──
+    try:
+        from mes.framework.db import async_session_factory
+        from mes.framework.auth.service import AuthService
+        async with async_session_factory() as _auth_session:
+            await AuthService.seed_default_roles(_auth_session)
+            await AuthService.seed_admin_user(_auth_session)
+    except Exception as _exc:
+        logger.warning("Could not seed auth defaults (DB may not be ready): %s", _exc)
+
     # Register decorated event handlers with the global event bus
     for topic, handler in get_registered_handlers():
         event_bus.subscribe(topic, handler)

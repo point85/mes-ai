@@ -52,6 +52,7 @@ class UserUpdate(BaseModel):
     email: str | None = None
     full_name: str | None = None
     is_active: bool | None = None
+    password: str | None = Field(None, min_length=8, max_length=128)
 
 
 # --- Role schemas ---
@@ -118,6 +119,12 @@ class LocalLoginRequest(BaseModel):
     """Schema for local authentication login (dev/fallback mode)."""
 
     username: str
+
+
+class RefreshTokenRequest(BaseModel):
+    """Schema for refreshing an access token using a refresh token."""
+
+    refresh_token: str
     password: str
 
 

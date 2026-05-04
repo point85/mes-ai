@@ -1,4 +1,5 @@
 export { default as api } from "./client";
+export * from "./auth";
 export * from "./uom";
 export * from "./physicalModel";
 export * from "./productDef";

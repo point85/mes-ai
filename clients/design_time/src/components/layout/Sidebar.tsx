@@ -29,9 +29,12 @@ import {
   QuestionMarkCircleIcon,
   CalendarDaysIcon,
   InformationCircleIcon,
+  UsersIcon,
+  ArrowRightOnRectangleIcon,
 } from "@heroicons/react/24/outline";
 import HelpDialog, { type HelpTopic } from "../HelpDialog";
 import AboutDialog from "../AboutDialog";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface NavItem {
   label: string;
@@ -92,6 +95,8 @@ const sections: NavSection[] = [
   {
     title: "Admin",
     items: [
+      { label: "Users", to: "/admin/users", icon: UsersIcon },
+      { label: "Roles", to: "/admin/roles", icon: ShieldCheckIcon },
       { label: "Plugins", to: "/plugins", icon: PuzzlePieceIcon },
       { label: "Settings", to: "/settings", icon: Cog6ToothIcon },
     ],
@@ -101,6 +106,7 @@ const sections: NavSection[] = [
 export default function Sidebar() {
   const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null);
   const [showAbout, setShowAbout] = useState(false);
+  const { authMode, currentUser, logout } = useAuth();
 
   return (
     <aside className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col">
@@ -163,8 +169,21 @@ export default function Sidebar() {
         <AboutDialog onClose={() => setShowAbout(false)} />
       )}
 
-      {/* Footer — About */}
-      <div className="border-t border-gray-200 px-4 py-3">
+      {/* Footer — current user + About */}
+      <div className="border-t border-gray-200 px-4 py-3 space-y-2">
+        {/* Current user (only when auth is active) */}
+        {authMode !== "none" && currentUser && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-600 font-medium truncate">{currentUser.username}</span>
+            <button
+              onClick={logout}
+              className="ml-2 rounded p-0.5 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              title="Sign out"
+            >
+              <ArrowRightOnRectangleIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <button
           onClick={() => setShowAbout(true)}
           className="flex items-center gap-2 text-xs text-gray-500 hover:text-indigo-600 transition-colors"
