@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.framework.api.responses import success_response
 from mes.framework.db import get_db_session
+from mes.framework.auth.service import AuthService
 
 from .service import seed_erp_data, seed_plant_data
 from .service import seed_electronics_erp_data, seed_electronics_plant_data
@@ -47,6 +48,9 @@ async def seed_cpg_plant(session: AsyncSession = Depends(get_db_session)):
     equipment-material links).
     """
     summary = await seed_plant_data(session)
+    await AuthService.seed_default_roles(session)
+    await AuthService.seed_demo_users(session)
+    summary["demo_users_seeded"] = True
     return success_response(summary)
 
 
@@ -76,4 +80,7 @@ async def seed_electronics_plant(session: AsyncSession = Depends(get_db_session)
     equipment-material links).
     """
     summary = await seed_electronics_plant_data(session)
+    await AuthService.seed_default_roles(session)
+    await AuthService.seed_demo_users(session)
+    summary["demo_users_seeded"] = True
     return success_response(summary)
