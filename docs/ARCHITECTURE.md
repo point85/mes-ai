@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), ISA-95 Part 4 Process Segment model with equipment_class_id on route steps, SegmentEquipmentRequirement and SegmentMaterialRequirement tables, 3-tier dispatch equipment resolution (D049–D052, §5.11, §10.3), 1869 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), ISA-95 Part 4 Process Segment model with equipment_class_id on route steps, SegmentEquipmentRequirement and SegmentMaterialRequirement tables, 3-tier dispatch equipment resolution (D049–D052, §5.11, §10.3), **full auth system: 3-mode AUTH_MODE (none/local/oidc), PBKDF2-SHA256 password hashing, JWT access+refresh tokens with silent refresh, RBAC with wildcard permission matching, User/Role/Permission/UserRole data model, 4 seeded system roles, admin bootstrap on first boot, demo users seeded by demo endpoints, DT-CLIENT auth UI (LoginPage, AuthGuard, AuthContext, UserListPage, RoleListPage) (§11)**, 1869 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
 
 ---
 
@@ -5428,27 +5428,397 @@ The `GET /dispatch/equipment/{equipment_id}/status` endpoint returns a composite
 
 ## 11. Authentication & Authorization (AUTH)
 
-### 11.1 Authentication — OpenID Connect (OIDC) SSO
+> **Implementation status:** Fully implemented. All endpoints, data models, service
+> methods, and client-side UI described in this section exist in the codebase.
 
-The MES delegates authentication to an external Identity Provider (IdP) via the **OpenID Connect** standard. The MES server never stores passwords.
+### 11.1 Auth Mode
+
+The server supports three auth modes controlled by the `MES_AUTH_MODE` environment variable.
+The current mode is always visible at `GET /health` (`auth_mode` field) and is read by all
+clients on startup.
+
+| Mode | Value | Description |
+|---|---|---|
+| **None** | `"none"` | All auth checks skipped. Development default. `require_permission()` is a no-op. |
+| **Local** | `"local"` | Username/password login, JWT tokens, full RBAC enforcement. |
+| **OIDC** | `"oidc"` | Delegates authentication to an external Identity Provider. Full RBAC enforcement. |
+
+```python
+# Server startup (mes/main.py lifespan)
+if settings.AUTH_MODE in ("local", "oidc"):
+    await AuthService.seed_default_roles(session)
+    await AuthService.seed_admin_user(session)   # only if no users exist
+```
+
+Setting `MES_AUTH_MODE=none` (dev default) leaves all existing REST endpoints
+unchanged — no `Authorization` header is required and no JWT processing occurs.
+
+---
+
+### 11.2 Data Model
+
+All auth tables reside in the same PostgreSQL schema as the core MES tables.
+Module: `mes/framework/auth/models.py`.
+
+#### 11.2.1 User
+
+```
+users
+─────────────────────────────────────────────────────────────────
+id              UUID PK
+username        VARCHAR(64) UNIQUE NOT NULL    — local login handle
+email           VARCHAR(255) UNIQUE            — optional
+full_name       VARCHAR(255)                   — optional display name
+hashed_password VARCHAR(255)                   — PBKDF2-SHA256; NULL for OIDC-only users
+idp_subject     VARCHAR(255)                   — OIDC `sub` claim (IdP user ID)
+idp_issuer      VARCHAR(255)                   — OIDC `iss` claim (IdP URL)
+is_active       BOOLEAN NOT NULL DEFAULT TRUE  — soft-disable without deletion
+last_login      TIMESTAMPTZ                    — updated on every successful login
+created_at      TIMESTAMPTZ NOT NULL           — immutable
+```
+
+- `hashed_password` is populated only for local auth. OIDC users have `NULL` here.
+- `idp_subject` + `idp_issuer` form a composite unique key for JIT provisioning.
+- Soft-delete: set `is_active = FALSE`. The record is never physically deleted.
+
+#### 11.2.2 Role
+
+```
+roles
+─────────────────────────────────────────────────────────────────
+id          UUID PK
+name        VARCHAR(64) UNIQUE NOT NULL
+description VARCHAR(255)
+is_system   BOOLEAN NOT NULL DEFAULT FALSE   — system roles cannot be deleted
+is_active   BOOLEAN NOT NULL DEFAULT TRUE
+created_at  TIMESTAMPTZ NOT NULL
+```
+
+System roles (`is_system=TRUE`) are seeded on startup and cannot be deleted via the API.
+Custom roles created by admins have `is_system=FALSE`.
+
+#### 11.2.3 Permission
+
+```
+permissions
+─────────────────────────────────────────────────────────────────
+id          UUID PK
+role_id     UUID FK → roles.id
+permission  VARCHAR(255) NOT NULL    — e.g. "wip.*", "auth.user.read", "*"
+is_active   BOOLEAN NOT NULL DEFAULT TRUE
+```
+
+Multiple permission strings can belong to one role. Wildcard matching is evaluated at
+runtime — a permission string of `"*"` grants all access; `"wip.*"` grants all WIP
+operations; `"*.read"` grants read-only access across all modules.
+
+#### 11.2.4 UserRole (junction)
+
+```
+user_roles
+─────────────────────────────────────────────────────────────────
+id          UUID PK
+user_id     UUID FK → users.id
+role_id     UUID FK → roles.id
+assigned_at TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+A user can have multiple roles. Permissions are the union of all assigned roles.
+
+#### 11.2.5 IdPGroupMapping (OIDC mode)
+
+```
+idp_group_mappings
+─────────────────────────────────────────────────────────────────
+id          UUID PK
+idp_group   VARCHAR(255) NOT NULL    — e.g. "MES-Operators", "plant-engineers"
+role_id     UUID FK → roles.id
+is_active   BOOLEAN NOT NULL DEFAULT TRUE
+```
+
+Used to map IdP group claims to MES roles at login time (JIT role sync).
+
+---
+
+### 11.3 Password Hashing
+
+Local auth uses **PBKDF2-SHA256** with a per-user random salt (256-bit) and 600,000
+iterations — meeting NIST SP 800-132 recommendations. Python's `hashlib.pbkdf2_hmac`
+is used directly; no external bcrypt dependency is required.
+
+```python
+# AuthService.hash_password(password) → "pbkdf2:sha256:<iterations>$<salt_hex>$<hash_hex>"
+# AuthService.verify_password(password, stored_hash) → bool
+```
+
+Passwords must be 8–128 characters (enforced at the schema level via Pydantic
+`min_length=8, max_length=128`).
+
+---
+
+### 11.4 JWT Tokens
+
+Both local and OIDC modes issue MES-internal JWTs after successful authentication.
+
+| Token | Lifetime | Storage (client) | Purpose |
+|---|---|---|---|
+| **Access token** | 15 minutes | `localStorage["mes_access_token"]` | `Authorization: Bearer <token>` on all API calls |
+| **Refresh token** | 7 days | `localStorage["mes_refresh_token"]` | Obtain a new access token without re-authenticating |
+
+**Payload structure:**
+
+```json
+{
+  "sub":         "user-uuid",
+  "username":    "cpg_engineer",
+  "roles":       ["engineer"],
+  "permissions": ["physical_model.*", "product_def.*", "wip.read", "..."],
+  "type":        "access",     // or "refresh"
+  "iat":         1714512000,
+  "exp":         1714512900
+}
+```
+
+Algorithm: `HS256`. Secret: `MES_JWT_SECRET` environment variable (no default — must be
+set explicitly in non-dev deployments).
+
+**Silent refresh (client-side):**  
+The `api/client.ts` Axios instance has a 401 response interceptor implementing the
+`isRefreshing` + `failedQueue` pattern:
+
+1. First 401 response triggers a raw `axios.post("/api/v1/auth/local/refresh")` call
+   (bypasses the instance interceptor to avoid infinite loops).
+2. Concurrent requests during refresh are queued and retried once a new token is obtained.
+3. If refresh fails (token expired or revoked), localStorage is cleared and the user is
+   redirected to `/login`.
+
+---
+
+### 11.5 REST API Endpoints
+
+All auth endpoints are under `POST/GET /api/v1/auth/...`.
+
+> **Response shape note:** `POST /auth/local/login` and `POST /auth/local/refresh` return
+> `TokenResponse` **directly** (not wrapped). All other auth endpoints return the standard
+> `{ data: ..., meta: { timestamp: ... } }` envelope.
+
+#### 11.5.1 Authentication
+
+| Method | Path | Auth Required | Description |
+|---|---|---|---|
+| `POST` | `/auth/local/login` | None | Local login: `{username, password}` → `TokenResponse` |
+| `POST` | `/auth/local/refresh` | None | Exchange refresh token → new `TokenResponse` |
+| `GET` | `/auth/me` | Bearer | Returns `UserRead` for the calling user |
+
+**TokenResponse schema:**
+
+```json
+{
+  "access_token":  "eyJ...",
+  "refresh_token": "eyJ...",
+  "token_type":    "bearer",
+  "expires_in":    900
+}
+```
+
+#### 11.5.2 User Management
+
+| Method | Path | Permission | Description |
+|---|---|---|---|
+| `GET` | `/auth/users` | `auth.user.read` | List all active users with their roles |
+| `GET` | `/auth/users/{id}` | `auth.user.read` | Get a single user |
+| `POST` | `/auth/users` | `auth.user.create` | Create a local user |
+| `PUT` | `/auth/users/{id}` | `auth.user.update` | Update email / full_name / is_active / password |
+| `DELETE` | `/auth/users/{id}` | `auth.user.delete` | Soft-delete (cannot delete self) |
+| `POST` | `/auth/users/{uid}/roles/{rid}` | `auth.role.update` | Assign a role to a user |
+| `DELETE` | `/auth/users/{uid}/roles/{rid}` | `auth.role.update` | Remove a role from a user |
+
+**UserRead response:**
+
+```json
+{
+  "id":          "uuid",
+  "username":    "smt_engineer",
+  "email":       "smt.engineer@mes.local",
+  "full_name":   "David Chen",
+  "is_active":   true,
+  "created_at":  "2026-05-03T...",
+  "last_login":  "2026-05-03T...",
+  "idp_issuer":  null,
+  "roles":       ["engineer"]
+}
+```
+
+#### 11.5.3 Role Management
+
+| Method | Path | Permission | Description |
+|---|---|---|---|
+| `GET` | `/auth/roles` | `auth.role.read` | List all active roles with permissions |
+| `POST` | `/auth/roles` | `auth.role.create` | Create a custom role |
+| `POST` | `/auth/roles/{id}/permissions` | `auth.role.update` | Add or remove permission strings (`{add: [], remove: []}`) |
+| `DELETE` | `/auth/roles/{id}` | `auth.role.delete` | Soft-delete a custom role (system roles are protected) |
+
+---
+
+### 11.6 RBAC — Authorization
+
+- **Model**: Role-Based Access Control (RBAC)
+- **Enforcement**: FastAPI dependency `require_permission("permission.string")` — injects
+  the current user and returns HTTP 403 if the permission is not satisfied
+- **Wildcard matching**: Evaluated at runtime against each permission string in the user's
+  roles using a recursive part-matching algorithm
+
+```python
+# Usage in any route:
+@router.post("/units/{unit_id}/move")
+async def move_unit(
+    unit_id: UUID,
+    current_user: User = Depends(require_permission("wip.unit.move"))
+):
+    ...
+```
+
+When `AUTH_MODE=none`, `require_permission()` returns a stub that always succeeds.
+
+#### 11.6.1 Permission String Structure
+
+Pattern: **`module.resource.action`**
+
+| Component | Examples |
+|---|---|
+| **module** | `physical_model`, `product_def`, `production`, `wip`, `dispatch`, `material`, `quality`, `data_collect`, `performance`, `plugin`, `auth` |
+| **resource** | `site`, `area`, `line`, `work_cell`, `equipment`, `product`, `route`, `order`, `unit`, `lot`, `test`, `nc`, `user`, `role` |
+| **action** | `read`, `create`, `update`, `delete`, `execute` |
+
+Wildcards:
+
+| Pattern | Grants |
+|---|---|
+| `*` | All permissions (admin only) |
+| `wip.*` | All WIP operations |
+| `*.read` | Read-only access across all modules |
+| `quality.*` | All quality operations |
+| `auth.user.*` | All user management operations |
+
+#### 11.6.2 Full Permission Map
+
+| Module | Permission | Description |
+|---|---|---|
+| **PHYS-MODEL** | `physical_model.read` | View sites, areas, lines, work cells, equipment |
+| | `physical_model.create` | Create physical model entities |
+| | `physical_model.update` | Update entities, change equipment status |
+| | `physical_model.delete` | Soft-delete entities |
+| **PROD-DEF** | `product_def.read` | View products, BOMs, routes, steps |
+| | `product_def.create` | Create products, routes, BOMs |
+| | `product_def.update` | Modify products, routes, BOMs |
+| | `product_def.delete` | Soft-delete product definitions |
+| **OPS-REQUEST** | `production.order.read` | View production orders |
+| | `production.order.create` | Create production orders |
+| | `production.order.update` | Update order details |
+| | `production.order.execute` | Release, complete, close orders |
+| **WIP-TRACK** | `wip.read` | View units, lots, history, genealogy |
+| | `wip.unit.create` | Create units |
+| | `wip.unit.move` | Start, complete, move units |
+| | `wip.unit.hold` | Place/release hold on units |
+| | `wip.unit.scrap` | Scrap units |
+| | `wip.lot.*` | Same pattern for lots |
+| **DISPATCH** | `dispatch.read` | View dispatch queues, strategies |
+| | `dispatch.execute` | Evaluate and execute dispatch decisions |
+| **MAT-MGMT** | `material.read` | View materials, lots, consumption |
+| | `material.create` | Create material definitions, lots |
+| | `material.update` | Update materials, lots |
+| | `material.consume` | Record material consumption |
+| **QUAL-MGMT** | `quality.read` | View tests, results, non-conformances |
+| | `quality.test.create` | Define quality tests |
+| | `quality.result.record` | Record test results |
+| | `quality.nc.create` | Create non-conformances |
+| | `quality.nc.resolve` | Resolve/disposition non-conformances |
+| **DATA-COLLECT** | `data_collect.read` | View data definitions, data points |
+| | `data_collect.define` | Create data definitions |
+| | `data_collect.record` | Collect data points |
+| **PERF-ANALYSIS** | `performance.read` | View OEE, states, counters |
+| | `performance.record` | Record equipment states, counters |
+| **PLUGIN-FW** | `plugin.read` | View installed plugins, config |
+| | `plugin.manage` | Install, uninstall, enable, disable, configure |
+| **AUTH** | `auth.user.read` | View user list |
+| | `auth.user.create` | Create users |
+| | `auth.user.update` | Update user profile and password |
+| | `auth.user.delete` | Soft-delete users |
+| | `auth.role.read` | View roles and permissions |
+| | `auth.role.create` | Create custom roles |
+| | `auth.role.update` | Assign/remove permissions and user-role assignments |
+| | `auth.role.delete` | Soft-delete custom roles |
+
+#### 11.6.3 Default Roles (seeded on startup)
+
+| Role | `is_system` | Permissions | Typical User |
+|---|---|---|---|
+| **admin** | Yes | `*` | System administrator |
+| **engineer** | Yes | `physical_model.*`, `product_def.*`, `production.order.*`, `dispatch.*`, `material.*`, `quality.*`, `data_collect.*`, `performance.*`, `wip.read`, `plugin.read` | Process/manufacturing engineer |
+| **operator** | Yes | `wip.*`, `dispatch.read`, `dispatch.execute`, `data_collect.read`, `data_collect.record`, `quality.result.record`, `quality.nc.create`, `material.read`, `material.consume`, `performance.read`, `physical_model.read`, `product_def.read`, `production.order.read` | Shop floor operator |
+| **viewer** | Yes | `*.read` | Management, auditors |
+
+System roles are idempotent — re-running startup does not duplicate them.
+
+#### 11.6.4 Example Scenarios
+
+1. **Operator scans a unit at a work cell**: Needs `wip.unit.move` — allowed. Tries to modify a route — needs `product_def.update` — **403 Forbidden**.
+2. **Engineer creates a new product**: Needs `product_def.create` — allowed. Tries to install a plugin — needs `plugin.manage` — **403 Forbidden**.
+3. **Headless equipment client**: Service account with only `data_collect.record` + `wip.unit.move` + `performance.record`.
+4. **Viewer dashboard**: Needs `performance.read` — allowed. Tries to scrap a unit — needs `wip.unit.scrap` — **403 Forbidden**.
+
+---
+
+### 11.7 Bootstrap — Default Users
+
+On first boot with `AUTH_MODE=local` (or after `scripts/reset_and_seed.py`), the following
+users are created automatically. All are idempotent — re-running is safe.
+
+#### 11.7.1 Admin User
+
+`AuthService.seed_admin_user(session)` — called from `lifespan()` in `main.py`. Creates
+`admin`/`admin` with the `admin` role only if **no users exist** in the database.
+
+> **Security note:** The default `admin`/`admin` credential must be changed before exposing
+> the server to any network. It is appropriate only for a fresh local development database.
+
+#### 11.7.2 Demo Users (seeded by demo endpoints)
+
+`AuthService.seed_demo_users(session)` — called automatically when the CPG or Electronics
+plant demo is seeded (via the DT-CLIENT Dashboard or `scripts/reset_and_seed.py`).
+
+| Username | Password | Role | Line |
+|---|---|---|---|
+| `cpg_engineer` | `engineer1` | engineer | CPG |
+| `cpg_operator1` | `operator1` | operator | CPG |
+| `cpg_operator2` | `operator1` | operator | CPG |
+| `smt_engineer` | `engineer1` | engineer | SMT / Electronics |
+| `smt_operator1` | `operator1` | operator | SMT / Electronics |
+| `smt_operator2` | `operator1` | operator | SMT / Electronics |
+| `plant_manager` | `viewer1` | viewer | cross-site |
+
+---
+
+### 11.8 OIDC / SSO (Production Mode)
+
+For production deployments with an external Identity Provider, set `MES_AUTH_MODE=oidc`.
 
 **Supported Identity Providers** (any OIDC-compliant IdP):
 
-| Provider | Type | Common In |
-|---|---|---|
-| **Microsoft Entra ID** (Azure AD) | Cloud | Microsoft-heavy enterprises, Office 365 shops |
-| **Keycloak** | Self-hosted (open source) | On-premise factories, air-gapped environments |
-| **WSO2 Identity Server** | Self-hosted (open source) | Manufacturing, integration-heavy environments |
-| **Okta** / **Auth0** | Cloud | Mid-to-large enterprises, SaaS-heavy environments |
-| **PingIdentity / PingFederate** | Hybrid | Large enterprises, legacy SAML environments |
-| **AWS Cognito** | Cloud | AWS-hosted deployments |
-| **Google Workspace** | Cloud | Google-centric organizations |
-| **ADFS** | Self-hosted | Windows Server environments, legacy Microsoft shops |
+| Provider | Type |
+|---|---|
+| **Microsoft Entra ID** (Azure AD) | Cloud |
+| **Keycloak** | Self-hosted (open source) |
+| **Okta / Auth0** | Cloud |
+| **PingFederate** | Hybrid |
+| **AWS Cognito** | Cloud |
+| **Google Workspace** | Cloud |
+| **ADFS** | Self-hosted (Windows Server) |
 
-**Authentication Flow** (OIDC Authorization Code with PKCE):
+**Authentication Flow (OIDC Authorization Code + PKCE):**
 
 ```
-User opens MES client (browser)
+User opens MES client
        │
        ▼
 GET /api/v1/auth/login → 302 redirect to IdP authorization endpoint
@@ -5457,222 +5827,99 @@ GET /api/v1/auth/login → 302 redirect to IdP authorization endpoint
 User authenticates at IdP (password, MFA, smart card, biometric, etc.)
        │
        ▼
-IdP redirects to GET /api/v1/auth/callback?code=...&state=...
+IdP redirects → GET /api/v1/auth/callback?code=...&state=...
        │
        ▼
-MES server exchanges authorization code for ID token + access token
+MES exchanges code for ID token + access token
        │
        ▼
-MES server reads user claims (sub, name, email, groups) from ID token
+JIT provisioning: create or update User from token claims (sub, name, email, groups)
        │
        ▼
-JIT (Just-In-Time) user provisioning:
-  - If user (idp_subject + idp_issuer) exists → update last_login
-  - If user is new → create User record from token claims
+Map IdP groups → MES roles via IdPGroupMapping table
        │
        ▼
-Map IdP groups → MES roles (via IdPGroupMapping table)
-       │
-       ▼
-Issue MES-internal JWT (short-lived) for subsequent API calls
+Issue MES JWT (access + refresh) for subsequent API calls
 ```
 
-**Token Details:**
+**Key design points:**
+- MES is an **OIDC Relying Party** — it validates tokens, never acts as an IdP
+- **PKCE** required for browser SPA clients
+- **Headless clients** (equipment adapters, automation) use OIDC **Client Credentials** flow
+- **Python library**: `authlib` — full OIDC client, async-compatible
+- On every login, user roles are re-synced from IdP group claims
 
-| Token | Lifetime | Purpose |
-|---|---|---|
-| MES Access Token (JWT) | 15 minutes | API authorization (`Authorization: Bearer <token>`) |
-| MES Refresh Token | 7 days | Obtain new access token without re-authenticating |
-| IdP ID Token | per IdP config | Used once during callback to read claims; not stored |
+---
 
-**Key Design Points:**
-- The MES server is an **OIDC Relying Party** — it only validates tokens, never issues them at the IdP level
-- **PKCE** (Proof Key for Code Exchange) is required for public clients (browser SPAs)
-- **Headless clients** (equipment adapters, automation) use OIDC **Client Credentials** flow (machine-to-machine)
-- **Python library**: `authlib` — full OIDC client, async-compatible, well-maintained
+### 11.9 Client-Side Auth (DT-CLIENT)
 
-### 11.2 Local Authentication (Development/Fallback)
+Implemented in `clients/design_time/src/`.
 
-For development, testing, and air-gapped environments where no IdP is available:
-
-- **Mode**: `MES_AUTH_MODE=local` in configuration
-- **Method**: Username/password with bcrypt hash, stored in `User.hashed_password` (nullable field, only populated in local mode)
-- **Login**: `POST /api/v1/auth/local/login` with `{username, password}` → MES JWT
-- **Disabled in production by default** — must be explicitly enabled via configuration
-
-### 11.3 Authorization
-
-- **Model**: Role-Based Access Control (RBAC)
-- **Granularity**: Per-endpoint — every REST API endpoint declares its required permission(s)
-- **Enforcement**: FastAPI dependency injection — routes declare required permissions; unauthorized requests receive HTTP 403
-- **Role mapping**: Configurable IdP group → MES role mapping via `IdPGroupMapping` table and `/api/v1/auth/group-mappings` API
-- **JIT role sync**: On every login, user's MES roles are re-synced from IdP group claims, ensuring changes in the IdP are immediately reflected
-
-**Endpoint-Level Enforcement Example:**
-
-```python
-@router.post("/api/v1/units/{unit_id}/move")
-async def move_unit(
-    unit_id: UUID,
-    current_user: User = Depends(require_permission("wip.unit.move"))
-):
-    ...
-# A user without "wip.unit.move" permission gets HTTP 403 Forbidden
-```
-
-#### 11.3.1 Permission Structure
-
-Permissions follow the pattern: **`module.resource.action`**
-
-| Component | Values |
+| File | Purpose |
 |---|---|
-| **module** | `physical_model`, `product_def`, `production`, `wip`, `dispatch`, `material`, `quality`, `data_collect`, `performance`, `plugin`, `auth` |
-| **resource** | `site`, `area`, `line`, `work_cell`, `equipment`, `product`, `route`, `order`, `unit`, `lot`, `test`, `nc`, `user`, `role`, etc. |
-| **action** | `read`, `create`, `update`, `delete`, `execute` |
+| `api/client.ts` | Axios instance with Bearer token request interceptor + 401 silent-refresh response interceptor |
+| `api/auth.ts` | All auth API functions: `login`, `refreshAccessToken`, `getMe`, user CRUD, role CRUD |
+| `contexts/AuthContext.tsx` | `AuthProvider` + `useAuth()` hook — exposes `authMode`, `currentUser`, `login()`, `logout()` |
+| `components/AuthGuard.tsx` | Route guard — passes through when `authMode=none`, redirects to `/login` otherwise |
+| `pages/login/LoginPage.tsx` | Username/password login form |
+| `pages/admin/users/UserListPage.tsx` | Users table with create/edit/delete and role assignment |
+| `pages/admin/users/UserFormDialog.tsx` | Create or edit a user; password reset; role checkbox assignment |
+| `pages/admin/roles/RoleListPage.tsx` | Roles table; system role badge; delete disabled for system roles |
+| `pages/admin/roles/RoleFormDialog.tsx` | Create role; edit permissions (add/remove individual strings) |
 
-**Wildcard matching** is supported at any level:
-- `*` — all permissions (admin only)
-- `wip.*` — all WIP operations
-- `*.read` — read access to everything
-- `quality.*` — all quality operations
+**Token storage**: `localStorage` keys `mes_access_token` and `mes_refresh_token`.
 
-#### 11.3.2 Full Permission Map
+**Auth-mode awareness**: `AuthContext` fetches `/health` on mount to read `auth_mode`.
+When `auth_mode = "none"`, `AuthGuard` passes through without checking tokens, and the
+sidebar omits the user display + logout button.
 
-| Module | Permission | Description | Endpoints Guarded |
-|---|---|---|---|
-| **PHYS-MODEL** | `physical_model.read` | View sites, areas, lines, work cells, equipment | All GET endpoints |
-| | `physical_model.create` | Create physical model entities | All POST endpoints |
-| | `physical_model.update` | Update entities, change equipment status | All PUT/PATCH endpoints |
-| | `physical_model.delete` | Soft-delete entities | All DELETE endpoints |
-| **PROD-DEF** | `product_def.read` | View products, BOMs, routes, steps | All GET endpoints |
-| | `product_def.create` | Create products, routes, BOMs | All POST endpoints |
-| | `product_def.update` | Modify products, routes, BOMs | All PUT endpoints |
-| | `product_def.delete` | Soft-delete product definitions | All DELETE endpoints |
-| **OPS-REQUEST** | `production.order.read` | View production orders | GET endpoints |
-| | `production.order.create` | Create production orders | POST create |
-| | `production.order.update` | Update order details | PUT endpoints |
-| | `production.order.execute` | Release, complete, close orders | POST release/complete |
-| **WIP-TRACK** | `wip.read` | View units, lots, history, genealogy | All GET endpoints |
-| | `wip.unit.create` | Create units | POST create |
-| | `wip.unit.move` | Start, complete, move units | POST start/complete/move |
-| | `wip.unit.hold` | Place/release hold on units | POST hold/release-hold |
-| | `wip.unit.scrap` | Scrap units | POST scrap |
-| | `wip.lot.*` | Same pattern for lots | Lot endpoints |
-| **DISPATCH** | `dispatch.read` | View dispatch queues, strategies | GET endpoints |
-| | `dispatch.execute` | Evaluate and execute dispatch decisions | POST evaluate/execute |
-| **MAT-MGMT** | `material.read` | View materials, lots, consumption | All GET endpoints |
-| | `material.create` | Create material definitions, lots | POST endpoints |
-| | `material.update` | Update materials, lots | PUT endpoints |
-| | `material.consume` | Record material consumption | POST consume |
-| **QUAL-MGMT** | `quality.read` | View tests, results, non-conformances | All GET endpoints |
-| | `quality.test.create` | Define quality tests | POST test definitions |
-| | `quality.result.record` | Record test results | POST test results |
-| | `quality.nc.create` | Create non-conformances | POST non-conformances |
-| | `quality.nc.resolve` | Resolve/disposition non-conformances | PUT non-conformances |
-| **DATA-COLLECT** | `data_collect.read` | View data definitions, data points | GET endpoints |
-| | `data_collect.define` | Create data definitions | POST definitions |
-| | `data_collect.record` | Collect data points | POST collect/collect-batch |
-| **PERF-ANALYSIS** | `performance.read` | View OEE, states, counters | GET endpoints |
-| | `performance.record` | Record equipment states, counters | POST endpoints |
-| **PLUGIN-FW** | `plugin.read` | View installed plugins, config | GET endpoints |
-| | `plugin.manage` | Install, uninstall, enable, disable, configure | POST/DELETE/PUT endpoints |
-| **AUTH** | `auth.user.read` | View user list | GET users |
-| | `auth.user.manage` | Create/update users | POST/PUT users |
-| | `auth.role.manage` | Create/update roles, group mappings | POST/PUT roles, group-mappings |
+**Sidebar integration**: When `authMode !== "none"` and a user is logged in, the Sidebar
+footer shows the current username and a logout button. The Admin section includes
+**Users** and **Roles** navigation links.
 
-#### 11.3.3 Default Roles
+---
 
-| Role | Permissions | Typical User |
-|---|---|---|
-| **admin** | `*` (all permissions) | System administrator, IT |
-| **engineer** | `physical_model.*`, `product_def.*`, `production.order.*`, `dispatch.*`, `material.*`, `quality.*`, `data_collect.*`, `performance.*`, `wip.read`, `plugin.read` | Process engineer, manufacturing engineer |
-| **operator** | `wip.*`, `dispatch.read`, `dispatch.execute`, `data_collect.read`, `data_collect.record`, `quality.result.record`, `quality.nc.create`, `material.read`, `material.consume`, `performance.read`, `physical_model.read`, `product_def.read`, `production.order.read` | Shop floor operator |
-| **viewer** | `*.read` (all read permissions) | Management, reporting, auditors |
+### 11.10 Plugin Permissions
 
-#### 11.3.4 Example Scenarios
+Plugins participate in the same RBAC system as core modules.
 
-1. **Operator scans a unit at a work cell**: Needs `wip.unit.move` — allowed. Tries to modify a production route — needs `product_def.update` — **denied (403)**.
-2. **Engineer creates a new product definition**: Needs `product_def.create` — allowed. Tries to install a plugin — needs `plugin.manage` — **denied (403)**.
-3. **Headless equipment client reporting data**: Uses service account with only `data_collect.record` + `wip.unit.move` + `performance.record`.
-4. **Viewer dashboard querying OEE**: Needs `performance.read` — allowed. Tries to scrap a unit — needs `wip.unit.scrap` — **denied (403)**.
-
-#### 11.3.5 Plugin Permissions
-
-Plugins participate in the same RBAC permission system as core modules. No separate mechanism is needed.
-
-**Declaration:** Plugins declare custom permissions in `manifest.yaml` under the `permissions` key (see §7.2):
+**Declaration** in `manifest.yaml`:
 
 ```yaml
-# manifest.yaml
 permissions:
   - id: my_plugin.config.read
     description: View plugin configuration
-  - id: my_plugin.config.update
-    description: Modify plugin settings
   - id: my_plugin.simulate
-    description: Run custom simulations
+    description: Run simulations
 ```
 
-**Enforcement:** Plugin endpoints use the same `require_permission()` mechanism as core modules:
+**Enforcement** in plugin routes:
 
 ```python
-# my_plugin/routes.py
 from mes.framework.auth import require_permission
 
 @router.get("/config")
-async def get_config(
-    user: User = Depends(require_permission("my_plugin.config.read"))
-):
-    ...
-
-@router.post("/simulate")
-async def run_simulation(
-    user: User = Depends(require_permission("my_plugin.simulate"))
-):
+async def get_config(user: User = Depends(require_permission("my_plugin.config.read"))):
     ...
 ```
 
-**Auto-Registration:** On plugin install, the framework:
-1. Reads `permissions` from the manifest
-2. Registers them in the `Permission` registry (namespaced by plugin ID)
-3. Makes them available for assignment to roles via the admin API
+**Auto-registration**: On plugin install, the framework reads `permissions` from the
+manifest and registers them for assignment to roles.
 
-**Naming Convention:** Plugin permissions must use the plugin ID as prefix to prevent collisions:
-
-| Pattern | Example | Description |
-|---|---|---|
-| `{plugin_id}.read` | `my_plugin.read` | Read plugin data |
-| `{plugin_id}.{resource}.{action}` | `my_plugin.config.update` | Specific resource action |
-| `{plugin_id}.*` | `my_plugin.*` | Wildcard — all plugin permissions |
-
-A plugin cannot declare permissions in another plugin's namespace or in the core namespace.
-
-**Role Assignment:** Plugin permissions are assigned to roles the same way as core permissions:
-
-```
-POST /api/v1/auth/roles/{role_id}/permissions
-{ "add": ["my_plugin.config.read", "my_plugin.simulate"] }
-```
-
-IdP group mappings can include plugin permissions via the role they map to:
-
-```
-IdP Group "DispatchEngineers"
-  → MES Role "dispatch_engineer"
-    → Permissions: ["dispatch.*", "my_plugin.*", "wip.read"]
-```
-
-**Permission Behavior by Extension Point Type:**
+**Naming convention**: Plugin permissions must use the plugin ID as a prefix to prevent
+namespace collisions.
 
 | Extension Point | Permission Behavior |
 |---|---|
-| **rest_endpoint** | Plugin declares and enforces its own custom permissions |
-| **dispatch_strategy** | Guarded by core `dispatch.execute` — no separate plugin permission needed |
-| **operation_hook** | Runs with the caller's existing core permissions (hook fires if the user can perform the core operation) |
-| **event_handler** | Internal — no user-facing permission (events are system-level) |
-| **data_processor** | Runs inline during data collection — guarded by `data_collect.record` |
-| **report_generator** | Plugin declares read permission for custom report endpoints |
-| **equipment_driver** | Runs as system service — uses service account credentials |
+| `rest_endpoint` | Plugin declares and enforces its own custom permissions |
+| `dispatch_strategy` | Guarded by core `dispatch.execute` |
+| `operation_hook` | Runs with the caller's existing permissions |
+| `event_handler` | Internal — no user-facing permission |
+| `data_processor` | Guarded by `data_collect.record` |
+| `report_generator` | Plugin declares its own read permission |
+| `equipment_driver` | Runs as system service — uses service account |
+
+
 
 ## 12. Configuration (SESSION-META / config)
 
@@ -5693,7 +5940,7 @@ class MESConfig(BaseSettings):
     cors_origins: list[str] = ["*"]
 
     # Auth
-    auth_mode: str = "oidc"             # "oidc" | "local" (dev only)
+    auth_mode: str = "none"             # "none" (dev) | "local" | "oidc"
     jwt_secret: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
