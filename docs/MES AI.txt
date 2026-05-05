@@ -157,7 +157,10 @@ cd c:\dev\mes_ai\server
 c:\dev\mes_ai\.venv\Scripts\Activate.ps1
 # alembic upgrade head (if schema change)
 # python scripts/seed_uom.py (for new data)
-$env:MES_AUTH_MODE = "none"
+$env:MES_AUTH_MODE = "none"    # dev — no login required
+$env:MES_AUTH_MODE = "local"   # username/password login
+$env:MES_AUTH_MODE = "oidc"    # enterprise SSO
+
 uvicorn mes.main:app --reload --port 8082
 
 Terminal 2 — Now use DT-CLIENT Register plugins (one time) and enable/disable

@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon,
   PencilSquareIcon, PlayIcon, CheckIcon, LockClosedIcon, XMarkIcon,
+  DocumentTextIcon,
 } from "@heroicons/react/24/outline";
+import { printUnitHistoryReport, printLotHistoryReport } from "../components/WipHistoryReport";
 import {
   fetchOrders, releaseOrder, completeOrder, closeOrder,
   createOrder, updateOrder,
@@ -275,16 +277,12 @@ function OrderDetail({ order, product, onRefresh }: { order: ProductionOrder; pr
                 <th className="py-1 px-2">Qty</th>
                 <th className="py-1 px-2">Status</th>
                 <th className="py-1 px-2">Step</th>
+                <th className="py-1 px-2"></th>
               </tr>
             </thead>
             <tbody>
               {lots.map((l) => (
-                <tr key={l.id} className="border-b">
-                  <td className="py-1 px-2 font-mono">{l.lot_number}</td>
-                  <td className="py-1 px-2">{l.quantity}{product?.uom_symbol ? ` ${product.uom_symbol}` : ""}</td>
-                  <td className="py-1 px-2"><WipBadge status={l.status} /></td>
-                  <td className="py-1 px-2 text-gray-500">{l.current_step_name ?? "—"}</td>
-                </tr>
+                <LotRow key={l.id} lot={l} uomSymbol={product?.uom_symbol ?? null} />
               ))}
             </tbody>
           </table>
@@ -301,15 +299,12 @@ function OrderDetail({ order, product, onRefresh }: { order: ProductionOrder; pr
                 <th className="py-1 px-2">Serial #</th>
                 <th className="py-1 px-2">Status</th>
                 <th className="py-1 px-2">Step</th>
+                <th className="py-1 px-2"></th>
               </tr>
             </thead>
             <tbody>
               {units.map((u) => (
-                <tr key={u.id} className="border-b">
-                  <td className="py-1 px-2 font-mono">{u.serial_number}</td>
-                  <td className="py-1 px-2"><WipBadge status={u.status} /></td>
-                  <td className="py-1 px-2 text-gray-500">{u.current_step_name ?? "—"}</td>
-                </tr>
+                <UnitRow key={u.id} unit={u} />
               ))}
             </tbody>
           </table>
@@ -320,6 +315,77 @@ function OrderDetail({ order, product, onRefresh }: { order: ProductionOrder; pr
         <p className="text-xs text-gray-400">No lots or units for this order</p>
       )}
     </div>
+  );
+}
+
+function LotRow({ lot: l, uomSymbol }: { lot: Lot; uomSymbol: string | null }) {
+  const [busy, setBusy] = useState(false);
+
+  const handleReport = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
+    try {
+      await printLotHistoryReport(l.id, l.lot_number);
+    } catch {
+      alert("Failed to load lot history. Check server connection.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <tr className="border-b hover:bg-gray-50">
+      <td className="py-1 px-2 font-mono">{l.lot_number}</td>
+      <td className="py-1 px-2">{l.quantity}{uomSymbol ? ` ${uomSymbol}` : ""}</td>
+      <td className="py-1 px-2"><WipBadge status={l.status} /></td>
+      <td className="py-1 px-2 text-gray-500">{l.current_step_name ?? "—"}</td>
+      <td className="py-1 px-2">
+        <button
+          onClick={handleReport}
+          disabled={busy}
+          title="Print lot history report"
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-indigo-600 hover:bg-indigo-50 disabled:opacity-40"
+        >
+          <DocumentTextIcon className="h-3.5 w-3.5" />
+          {busy ? "Loading…" : "Report"}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function UnitRow({ unit: u }: { unit: Unit }) {
+  const [busy, setBusy] = useState(false);
+
+  const handleReport = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
+    try {
+      await printUnitHistoryReport(u.id, u.serial_number);
+    } catch {
+      alert("Failed to load unit history. Check server connection.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <tr className="border-b hover:bg-gray-50">
+      <td className="py-1 px-2 font-mono">{u.serial_number}</td>
+      <td className="py-1 px-2"><WipBadge status={u.status} /></td>
+      <td className="py-1 px-2 text-gray-500">{u.current_step_name ?? "—"}</td>
+      <td className="py-1 px-2">
+        <button
+          onClick={handleReport}
+          disabled={busy}
+          title="Print unit history report"
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-indigo-600 hover:bg-indigo-50 disabled:opacity-40"
+        >
+          <DocumentTextIcon className="h-3.5 w-3.5" />
+          {busy ? "Loading…" : "Report"}
+        </button>
+      </td>
+    </tr>
   );
 }
 

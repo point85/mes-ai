@@ -5,6 +5,7 @@ import type {
   StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption,
   InventoryTransaction, InventoryBalance, StorageLocation,
   Site, Area, ProductionLine, WorkCell, Equipment, EquipmentCurrentState,
+  GenealogyRecord,
 } from "../types";
 
 const api = axios.create({ baseURL: "/api/v1" });
@@ -355,3 +356,11 @@ export async function fetchAllEquipmentInSite(siteId: string): Promise<Equipment
 
 export const transitionEquipmentState = (equipId: string, newState: string, notes?: string) =>
   api.post(`/performance/equipment/${equipId}/transition`, { new_state: newState, notes: notes ?? null });
+
+// ── Genealogy / Traceability ─────────────────────────────────────
+
+export const fetchUnitGenealogy = (unitId: string) =>
+  api.get(`/units/${unitId}/genealogy`).then(unwrap<GenealogyRecord>);
+
+export const fetchLotGenealogy = (lotId: string) =>
+  api.get(`/lots/${lotId}/genealogy`).then(unwrap<GenealogyRecord>);
