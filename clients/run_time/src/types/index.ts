@@ -4,6 +4,7 @@
 
 export interface GenealogyStepRecord {
   step_id: string | null;
+  step_sequence: number | null;
   step_name: string | null;
   entered_at: string | null;
   exited_at: string | null;
@@ -48,7 +49,9 @@ export interface GenealogyRecord {
   serial_number: string | null;
   lot_number: string | null;
   order_id: string | null;
+  order_number: string | null;
   product_id: string | null;
+  product_name: string | null;
   status: string | null;
   steps: GenealogyStepRecord[];
   materials: GenealogyMaterialRecord[];
@@ -120,6 +123,7 @@ export interface Unit {
   id: string;
   serial_number: string;
   order_id: string;
+  order_number: string | null;
   product_id: string;
   material_id: string | null;
   current_step_id: string | null;
@@ -135,6 +139,7 @@ export interface Lot {
   id: string;
   lot_number: string;
   order_id: string;
+  order_number: string | null;
   product_id: string;
   quantity: number;
   material_id: string | null;

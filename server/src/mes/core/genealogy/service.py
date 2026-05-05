@@ -20,6 +20,8 @@ from mes.core.wip.models import Unit, Lot, SegmentResponseUnit, SegmentResponseL
 from mes.core.material.models import MaterialConsumption, MaterialDefinition, MaterialLot
 from mes.core.quality.models import TestResult, QualityTest
 from mes.core.data_collection.models import DataPoint, DataDefinition
+from mes.core.operations.models import OperationsRequest
+from mes.core.product_def.models import ProductDefinition, ProcessSegment
 
 from .schemas import (
     GenealogyDataRecord,
@@ -57,23 +59,26 @@ class GenealogyService:
 
         # ── Processing history ──────────────────────────────────────
         hist_stmt = (
-            select(SegmentResponseUnit)
+            select(SegmentResponseUnit, ProcessSegment)
+            .outerjoin(ProcessSegment, SegmentResponseUnit.step_id == ProcessSegment.id)
             .where(SegmentResponseUnit.unit_id == unit_id)
             .order_by(SegmentResponseUnit.entered_at)
         )
         hist_result = await session.execute(hist_stmt)
-        histories = hist_result.scalars().all()
+        histories = hist_result.all()
 
         steps = [
             GenealogyStepRecord(
                 step_id=h.step_id,
+                step_sequence=seg.sequence if seg else None,
+                step_name=seg.name if seg else None,
                 entered_at=h.entered_at,
                 exited_at=h.exited_at,
                 result=h.result,
                 equipment_id=h.equipment_id,
                 data_snapshot=h.data_snapshot,
             )
-            for h in histories
+            for h, seg in histories
         ]
 
         # ── Consumed materials ──────────────────────────────────────
@@ -148,11 +153,23 @@ class GenealogyService:
             for dp, dd in data_rows
         ]
 
+        # ── Fetch order and product names ───────────────────────────
+        order_number: str | None = None
+        product_name: str | None = None
+        if unit.order_id:
+            order_stmt = select(OperationsRequest.order_number).where(OperationsRequest.id == unit.order_id)
+            order_number = (await session.execute(order_stmt)).scalar_one_or_none()
+        if unit.product_id:
+            product_stmt = select(ProductDefinition.name).where(ProductDefinition.id == unit.product_id)
+            product_name = (await session.execute(product_stmt)).scalar_one_or_none()
+
         return GenealogyRecord(
             unit_id=unit.id,
             serial_number=unit.serial_number,
             order_id=unit.order_id,
+            order_number=order_number,
             product_id=unit.product_id,
+            product_name=product_name,
             status=unit.status,
             steps=steps,
             materials=materials,
@@ -178,16 +195,19 @@ class GenealogyService:
 
         # ── Processing history ──────────────────────────────────────
         hist_stmt = (
-            select(SegmentResponseLot)
+            select(SegmentResponseLot, ProcessSegment)
+            .outerjoin(ProcessSegment, SegmentResponseLot.step_id == ProcessSegment.id)
             .where(SegmentResponseLot.lot_id == lot_id)
             .order_by(SegmentResponseLot.entered_at)
         )
         hist_result = await session.execute(hist_stmt)
-        histories = hist_result.scalars().all()
+        histories = hist_result.all()
 
         steps = [
             GenealogyStepRecord(
                 step_id=h.step_id,
+                step_sequence=seg.sequence if seg else None,
+                step_name=seg.name if seg else None,
                 entered_at=h.entered_at,
                 entered_at_utc=h.entered_at_utc,
                 exited_at=h.exited_at,
@@ -195,7 +215,7 @@ class GenealogyService:
                 result=h.result,
                 equipment_id=h.equipment_id,
             )
-            for h in histories
+            for h, seg in histories
         ]
 
         # ── Consumed materials ──────────────────────────────────────
@@ -271,11 +291,23 @@ class GenealogyService:
             for dp, dd in data_rows
         ]
 
+        # ── Fetch order and product names ───────────────────────────
+        order_number: str | None = None
+        product_name: str | None = None
+        if lot.order_id:
+            order_stmt = select(OperationsRequest.order_number).where(OperationsRequest.id == lot.order_id)
+            order_number = (await session.execute(order_stmt)).scalar_one_or_none()
+        if lot.product_id:
+            product_stmt = select(ProductDefinition.name).where(ProductDefinition.id == lot.product_id)
+            product_name = (await session.execute(product_stmt)).scalar_one_or_none()
+
         return GenealogyRecord(
             lot_id=lot.id,
             lot_number=lot.lot_number,
             order_id=lot.order_id,
+            order_number=order_number,
             product_id=lot.product_id,
+            product_name=product_name,
             status=lot.status,
             steps=steps,
             materials=materials,

@@ -108,6 +108,9 @@ class Unit(BaseModel):
     def current_step_name(self) -> str | None:
         return self.current_step.name if self.current_step else None
     @property
+    def order_number(self) -> str | None:
+        return self.order.order_number if self.order else None
+    @property
     def uom_symbol(self) -> str | None:
         return self.product.uom_symbol if self.product else None
     def __repr__(self) -> str:
@@ -198,6 +201,10 @@ class Lot(BaseModel):
     @property
     def current_step_name(self) -> str | None:
         return self.current_step.name if self.current_step else None
+
+    @property
+    def order_number(self) -> str | None:
+        return self.order.order_number if self.order else None
 
     @property
     def uom_symbol(self) -> str | None:

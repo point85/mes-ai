@@ -42,6 +42,7 @@ class UnitRead(BaseModel):
     current_step_id: UUID | None = None
     current_step_name: str | None = None
     current_equipment_id: UUID | None = None
+    order_number: str | None = None
     status: str
     is_active: bool
     # RCA fields
@@ -89,6 +90,7 @@ class LotRead(BaseModel):
     current_step_id: UUID | None = None
     current_step_name: str | None = None
     current_equipment_id: UUID | None = None
+    order_number: str | None = None
     status: str
     is_active: bool
     uom_symbol: str | None = None

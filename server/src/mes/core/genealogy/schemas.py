@@ -16,6 +16,7 @@ class GenealogyStepRecord(BaseModel):
     """A single step in the genealogy — what happened at one route step."""
 
     step_id: UUID | None = None
+    step_sequence: int | None = None
     step_name: str | None = None
     entered_at: datetime | None = None
     entered_at_utc: datetime | None = None
@@ -78,7 +79,9 @@ class GenealogyRecord(BaseModel):
     serial_number: str | None = None
     lot_number: str | None = None
     order_id: UUID | None = None
+    order_number: str | None = None
     product_id: UUID | None = None
+    product_name: str | None = None
     status: str | None = None
 
     steps: list[GenealogyStepRecord] = []

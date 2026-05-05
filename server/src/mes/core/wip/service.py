@@ -239,7 +239,7 @@ class UnitService:
         order_id: UUID | None = None,
         equipment_id: UUID | None = None,
     ) -> tuple[Sequence[Unit], str | None, bool]:
-        stmt = select(Unit).where(Unit.is_active.is_(True))
+        stmt = select(Unit).where(Unit.is_active.is_(True)).options(selectinload(Unit.order))
         if status is not None:
             stmt = stmt.where(Unit.status == status)
         if order_id is not None:

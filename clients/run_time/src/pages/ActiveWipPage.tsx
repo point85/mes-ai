@@ -121,7 +121,7 @@ export default function ActiveWipPage() {
                     <td className="py-2 px-3 font-mono">{u.serial_number}</td>
                     <td className="py-2 px-3"><StatusBadge status={u.status} /></td>
                     <td className="py-2 px-3 text-sm">{u.current_step_name ?? "—"}</td>
-                    <td className="py-2 px-3 font-mono text-xs">{u.order_id.slice(0, 8)}</td>
+                    <td className="py-2 px-3">{u.order_number ?? u.order_id.slice(0, 8)}</td>
                     <td className="py-2 px-3 text-xs text-gray-400">{new Date(u.created_at).toLocaleString()}</td>
                     <td className="py-2 px-3">
                       <button onClick={() => openContext("unit", u.id)} className="text-indigo-600 text-xs hover:underline">
@@ -158,7 +158,7 @@ export default function ActiveWipPage() {
                     <td className="py-2 px-3">{l.quantity}{l.uom_symbol ? ` ${l.uom_symbol}` : ""}</td>
                     <td className="py-2 px-3"><StatusBadge status={l.status} /></td>
                     <td className="py-2 px-3 text-sm">{l.current_step_name ?? "—"}</td>
-                    <td className="py-2 px-3 font-mono text-xs">{l.order_id.slice(0, 8)}</td>
+                    <td className="py-2 px-3">{l.order_number ?? l.order_id.slice(0, 8)}</td>
                     <td className="py-2 px-3 text-xs text-gray-400">{new Date(l.created_at).toLocaleString()}</td>
                     <td className="py-2 px-3">
                       <button onClick={() => openContext("lot", l.id)} className="text-indigo-600 text-xs hover:underline">

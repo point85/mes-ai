@@ -64,9 +64,13 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
   // Steps
   const stepsHtml = rec.steps.length === 0
     ? `<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:8px;">No step history recorded</td></tr>`
-    : rec.steps.map((s, i) => `
-        <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f9fafb"};">
-          <td style="padding:6px 10px;">${s.step_name ?? s.step_id ?? "—"}</td>
+    : rec.steps.map((s, i) => {
+        const stepLabel = s.step_sequence != null
+          ? `${s.step_sequence} — ${s.step_name ?? ""}`
+          : (s.step_name ?? "—");
+        return `
+        <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f9fafb"}">
+          <td style="padding:6px 10px;">${stepLabel}</td>
           <td style="padding:6px 10px;">${fmt(s.entered_at)}</td>
           <td style="padding:6px 10px;">${fmt(s.exited_at)}</td>
           <td style="padding:6px 10px;">${duration(s.entered_at, s.exited_at)}</td>
@@ -78,7 +82,8 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
             ${dataSnapshotRows(s.data_snapshot)}
           </td>
         </tr>` : ""}
-      `).join("");
+      `;
+      }).join("");
 
   // Materials
   const matsHtml = rec.materials.length === 0
@@ -169,8 +174,8 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
   <div class="meta-grid">
     <div class="meta-item"><span class="meta-label">WIP:</span><span class="meta-value">${wipLabel}</span></div>
     <div class="meta-item"><span class="meta-label">Status:</span><span class="meta-value">${rec.status ?? "—"}</span></div>
-    <div class="meta-item"><span class="meta-label">Order ID:</span><span class="meta-value" style="font-family:monospace;font-size:11px;">${rec.order_id ?? "—"}</span></div>
-    <div class="meta-item"><span class="meta-label">Product ID:</span><span class="meta-value" style="font-family:monospace;font-size:11px;">${rec.product_id ?? "—"}</span></div>
+    <div class="meta-item"><span class="meta-label">Order:</span><span class="meta-value">${rec.order_number ?? rec.order_id ?? "—"}</span></div>
+    <div class="meta-item"><span class="meta-label">Product:</span><span class="meta-value">${rec.product_name ?? rec.product_id ?? "—"}</span></div>
   </div>
 
   <!-- Processing steps -->
