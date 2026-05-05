@@ -85,6 +85,10 @@ class Unit(BaseModel):
         Text, nullable=True,
         comment="Reason the unit was placed on hold",
     )
+    release_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Disposition/reason selected when releasing the unit from hold",
+    )
 
     # ── Relationships ───────────────────────────────────────────────
     order: Mapped["OperationsRequest"] = relationship(  # noqa: F821
@@ -178,6 +182,10 @@ class Lot(BaseModel):
     hold_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True,
         comment="Reason the lot was placed on hold",
+    )
+    release_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Disposition/reason selected when releasing the lot from hold",
     )
 
     # ── Relationships ───────────────────────────────────────────────

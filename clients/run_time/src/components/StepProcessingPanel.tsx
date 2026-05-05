@@ -78,6 +78,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   // Hold/scrap reason
   const [holdReason, setHoldReason] = useState("");
   const [scrapReason, setScrapReason] = useState("");
+  const [releaseReason, setReleaseReason] = useState("");
 
   // Lot completion quantities
   const [qtyOut, setQtyOut] = useState<string>("");
@@ -183,6 +184,10 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   const { data: scrapDispositions = [] } = useQuery<DispositionCatalog[]>({
     queryKey: ["dispositions", "scrap"],
     queryFn: () => fetchDispositionCatalog("scrap"),
+  });
+  const { data: releaseDispositions = [] } = useQuery<DispositionCatalog[]>({
+    queryKey: ["dispositions", "release"],
+    queryFn: () => fetchDispositionCatalog("release"),
   });
 
   // Build step lookup for history table
@@ -379,7 +384,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
 
   const handleReleaseHold = () =>
     runAction(
-      () => isUnit ? releaseHoldUnit(wip.id) : releaseHoldLot(wip.id),
+      () => isUnit ? releaseHoldUnit(wip.id, releaseReason) : releaseHoldLot(wip.id, releaseReason),
       "Released from hold",
     );
 
@@ -998,10 +1003,31 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       {/* Hold / Release Hold */}
       {wip.status === "on_hold" && (
         <div className="bg-white rounded-lg shadow p-5">
-          <h4 className="font-semibold text-gray-700 mb-3">On Hold</h4>
-          <button onClick={handleReleaseHold} disabled={actionLoading} className="btn-primary">
-            Release Hold
-          </button>
+          <h4 className="font-semibold text-gray-700 mb-1">On Hold</h4>
+          {wip.hold_reason && (
+            <p className="text-sm text-gray-500 mb-3">Reason: {wip.hold_reason}</p>
+          )}
+          <div className="flex gap-2 items-center">
+            <select
+              value={releaseReason}
+              onChange={(e) => setReleaseReason(e.target.value)}
+              className="input-field flex-1"
+            >
+              <option value="">— Select release disposition —</option>
+              {releaseDispositions.map((d) => (
+                <option key={d.id} value={d.name}>
+                  {d.name}{d.description ? ` — ${d.description}` : ""}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleReleaseHold}
+              disabled={actionLoading || !releaseReason}
+              className="btn-primary disabled:opacity-50"
+            >
+              Release Hold
+            </button>
+          </div>
         </div>
       )}
 

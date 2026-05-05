@@ -132,6 +132,8 @@ export interface Unit {
   current_equipment_id: string | null;
   status: "queued" | "in_process" | "completed" | "scrapped" | "on_hold";
   is_active: boolean;
+  hold_reason: string | null;
+  release_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +152,8 @@ export interface Lot {
   status: "queued" | "in_process" | "completed" | "scrapped" | "on_hold";
   is_active: boolean;
   uom_symbol: string | null;
+  hold_reason: string | null;
+  release_reason: string | null;
   created_at: string;
   updated_at: string;
 }

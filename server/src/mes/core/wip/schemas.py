@@ -51,6 +51,7 @@ class UnitRead(BaseModel):
     defect_code_id: UUID | None = None
     scrapped_at: datetime | None = None
     hold_reason: str | None = None
+    release_reason: str | None = None
     created_at: datetime
     created_at_utc: datetime | None = None
     updated_at: datetime
@@ -100,6 +101,7 @@ class LotRead(BaseModel):
     defect_code_id: UUID | None = None
     scrapped_at: datetime | None = None
     hold_reason: str | None = None
+    release_reason: str | None = None
     created_at: datetime
     created_at_utc: datetime | None = None
     updated_at: datetime
@@ -221,6 +223,12 @@ class HoldRequest(BaseModel):
     """Request to place a unit/lot on hold."""
 
     reason: str = Field(..., min_length=1, max_length=500)
+
+
+class ReleaseHoldRequest(BaseModel):
+    """Request to release a unit/lot from hold."""
+
+    reason: str = Field(..., min_length=1, max_length=500, description="Release disposition / reason selected from the catalog")
 
 
 class ScrapRequest(BaseModel):

@@ -48,8 +48,8 @@ export const moveUnit = (id: string, opts?: { target_step_id?: string; result?: 
 export const holdUnit = (id: string, reason: string) =>
   api.post(`/units/${id}/hold`, { reason }).then(unwrap<Unit>);
 
-export const releaseHoldUnit = (id: string) =>
-  api.post(`/units/${id}/release-hold`).then(unwrap<Unit>);
+export const releaseHoldUnit = (id: string, reason: string) =>
+  api.post(`/units/${id}/release-hold`, { reason }).then(unwrap<Unit>);
 
 export const scrapUnit = (id: string, reason: string) =>
   api.post(`/units/${id}/scrap`, { reason }).then(unwrap<Unit>);
@@ -83,8 +83,8 @@ export const moveLot = (id: string, opts?: { target_step_id?: string; result?: s
 export const holdLot = (id: string, reason: string) =>
   api.post(`/lots/${id}/hold`, { reason }).then(unwrap<Lot>);
 
-export const releaseHoldLot = (id: string) =>
-  api.post(`/lots/${id}/release-hold`).then(unwrap<Lot>);
+export const releaseHoldLot = (id: string, reason: string) =>
+  api.post(`/lots/${id}/release-hold`, { reason }).then(unwrap<Lot>);
 
 export const scrapLot = (id: string, reason: string) =>
   api.post(`/lots/${id}/scrap`, { reason }).then(unwrap<Lot>);
@@ -94,7 +94,7 @@ export const scrapLot = (id: string, reason: string) =>
 export const fetchDispositions = (stepId: string) =>
   api.get(`/process-segments/${stepId}/dispositions`).then(unwrap<Disposition[]>);
 
-export const fetchDispositionCatalog = (category?: "route" | "hold" | "scrap") =>
+export const fetchDispositionCatalog = (category?: "route" | "hold" | "scrap" | "release") =>
   api
     .get("/dispositions", { params: category ? { category } : undefined })
     .then(unwrapList<DispositionCatalog>);

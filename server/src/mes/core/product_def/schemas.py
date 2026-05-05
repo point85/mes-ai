@@ -22,7 +22,7 @@ class DispositionCreate(BaseModel):
     code: str = Field(..., min_length=1, max_length=50)
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
-    category: str = Field("route", pattern=r"^(route|hold|scrap)$")
+    category: str = Field("route", pattern=r"^(route|hold|scrap|release)$")
 
 
 class DispositionRead(BaseModel):
@@ -45,7 +45,7 @@ class DispositionUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
-    category: str | None = Field(None, pattern=r"^(route|hold|scrap)$")
+    category: str | None = Field(None, pattern=r"^(route|hold|scrap|release)$")
 
 
 # ─── ProductDefinition ────────────────────────────────────────────────

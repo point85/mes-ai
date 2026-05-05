@@ -604,7 +604,7 @@ class UnitService:
 
     @staticmethod
     async def release_hold_unit(
-        session: AsyncSession, unit_id: UUID,
+        session: AsyncSession, unit_id: UUID, reason: str | None = None,
     ) -> Unit:
         """Release a unit from hold, returning it to 'queued'."""
         unit = await UnitService.get_unit(session, unit_id)
@@ -613,10 +613,12 @@ class UnitService:
                 unit.serial_number, unit.status, "release-hold",
             )
         unit.status = "queued"
+        if reason:
+            unit.release_reason = reason
         await session.flush()
 
         await event_bus.publish(unit_released(str(unit.id)))
-        logger.info("Released hold on unit %s", unit.id)
+        logger.info("Released hold on unit %s: %s", unit.id, reason)
         return unit
 
     @staticmethod
@@ -1072,7 +1074,7 @@ class LotService:
 
     @staticmethod
     async def release_hold_lot(
-        session: AsyncSession, lot_id: UUID,
+        session: AsyncSession, lot_id: UUID, reason: str | None = None,
     ) -> Lot:
         """Release a lot from hold, returning it to 'queued'."""
         lot = await LotService.get_lot(session, lot_id)
@@ -1081,10 +1083,12 @@ class LotService:
                 lot.lot_number, lot.status, "release-hold",
             )
         lot.status = "queued"
+        if reason:
+            lot.release_reason = reason
         await session.flush()
 
         await event_bus.publish(lot_released(str(lot.id)))
-        logger.info("Released hold on lot %s", lot.id)
+        logger.info("Released hold on lot %s: %s", lot.id, reason)
         return lot
 
     @staticmethod

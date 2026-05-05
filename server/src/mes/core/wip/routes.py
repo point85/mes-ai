@@ -50,7 +50,7 @@ from .schemas import (
     UnitCreate, UnitRead, UnitHistoryRead,
     LotCreate, LotRead, LotHistoryRead,
     StartRequest, CompleteRequest, MoveRequest,
-    HoldRequest, ScrapRequest,
+    HoldRequest, ReleaseHoldRequest, ScrapRequest,
 )
 from .serial import SerialNumberService
 from .service import UnitService, LotService
@@ -207,11 +207,12 @@ async def hold_unit(
 @router.post("/units/{unit_id}/release-hold")
 async def release_hold_unit(
     unit_id: UUID,
+    body: ReleaseHoldRequest,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("wip.update")),
 ):
     """Release a unit from hold."""
-    unit = await UnitService.release_hold_unit(session, unit_id)
+    unit = await UnitService.release_hold_unit(session, unit_id, reason=body.reason)
     await session.commit()
     return success_response(UnitRead.model_validate(unit).model_dump())
 
@@ -402,11 +403,12 @@ async def hold_lot(
 @router.post("/lots/{lot_id}/release-hold")
 async def release_hold_lot(
     lot_id: UUID,
+    body: ReleaseHoldRequest,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("wip.update")),
 ):
     """Release a lot from hold."""
-    lot = await LotService.release_hold_lot(session, lot_id)
+    lot = await LotService.release_hold_lot(session, lot_id, reason=body.reason)
     await session.commit()
     return success_response(LotRead.model_validate(lot).model_dump())
 
