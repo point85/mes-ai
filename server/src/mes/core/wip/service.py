@@ -457,7 +457,7 @@ class UnitService:
                 step_id=unit.current_step_id,
                 nc_type="defect",
                 description=description,
-                disposition=disposition,
+                disposition=None,  # left open for QA to assign controlled value
                 status="open",
             )
             await session.flush()
@@ -928,13 +928,16 @@ class LotService:
                 f"{quantity_scrapped} unit(s) scrapped at step {lot.current_step_id}"
                 if quantity_scrapped > 0 else f"Step failed: {lot.current_step_id}"
             )
+            # Use a controlled vocabulary value for NC disposition;
+            # never pass the operator's free-text disposition string here.
+            nc_disposition = "scrap" if quantity_scrapped > 0 else None
             await NonConformanceService.create_nc(
                 session,
                 lot_id=lot_id,
                 step_id=lot.current_step_id,
                 nc_type="defect",
                 description=description,
-                disposition=disposition or ("scrap" if quantity_scrapped > 0 else None),
+                disposition=nc_disposition,
                 status="open",
             )
             await session.flush()
