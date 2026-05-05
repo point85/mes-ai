@@ -217,43 +217,18 @@ STEP_PARAMS: dict[int, list[dict]] = {
 # Data Collection Definitions  (actual measurement collection)
 # ---------------------------------------------------------------------------
 
+# Data definitions kept here are those with NO matching step parameter (unique time-series
+# measurements). Parameters that duplicate step parameters were removed — use step parameters
+# for spec-limit display; use data definitions for time-series data collection only.
 DATA_DEFS: dict[int, list[dict]] = {
-    10: [
-        {"code": "CPG-BLEND-TIME",  "name": "Blend Mix Time",        "data_type": "numeric", "source": "equipment", "lower_limit": 12.0,  "upper_limit": 20.0,  "uom": "min", "is_required": True},
-        {"code": "CPG-BLEND-TEMP",  "name": "Blend Temperature",     "data_type": "numeric", "source": "sensor",    "lower_limit": 20.0,  "upper_limit": 30.0,  "uom": "°C",  "is_required": True},
-        {"code": "CPG-BLEND-RATIO", "name": "Blend Ratio (W:C)",     "data_type": "numeric", "source": "equipment", "lower_limit": 3.8,   "upper_limit": 4.2,   "uom": None,  "is_required": True},
+    10: [  # Blending — three unique measurements not covered by step parameters
+        {"code": "CPG-BLEND-TIME",  "name": "Blend Mix Time",    "data_type": "numeric", "source": "equipment", "lower_limit": 12.0, "upper_limit": 20.0, "uom": "min", "is_required": True},
+        {"code": "CPG-BLEND-TEMP",  "name": "Blend Temperature", "data_type": "numeric", "source": "sensor",    "lower_limit": 20.0, "upper_limit": 30.0, "uom": "°C",  "is_required": True},
+        {"code": "CPG-BLEND-RATIO", "name": "Blend Ratio (W:C)", "data_type": "numeric", "source": "equipment", "lower_limit": 3.8,  "upper_limit": 4.2,  "uom": None,  "is_required": True},
     ],
-    20: [
-        {"code": "CPG-PAST-TEMP",   "name": "HTST Temperature",      "data_type": "numeric", "source": "equipment", "lower_limit": 71.5,  "upper_limit": 73.0,  "uom": "°C", "is_required": True},
-        {"code": "CPG-PAST-HOLD",   "name": "Hold Time",             "data_type": "numeric", "source": "equipment", "lower_limit": 15.0,  "upper_limit": 20.0,  "uom": "s",  "is_required": True},
-        {"code": "CPG-PAST-EXIT",   "name": "Exit Temperature",      "data_type": "numeric", "source": "sensor",    "lower_limit": 2.0,   "upper_limit": 6.0,   "uom": "°C", "is_required": True},
-    ],
-    30: [
-        {"code": "CPG-QC-BRIX",     "name": "Brix Value",            "data_type": "numeric", "source": "manual",    "lower_limit": 11.0,  "upper_limit": 12.0,  "uom": "°Bx",    "is_required": True},
-        {"code": "CPG-QC-PH",       "name": "pH Value",              "data_type": "numeric", "source": "manual",    "lower_limit": 3.5,   "upper_limit": 4.0,   "uom": None,     "is_required": True},
-        {"code": "CPG-QC-MICRO",    "name": "Microbial Count",       "data_type": "numeric", "source": "manual",    "lower_limit": 0.0,   "upper_limit": 10.0,  "uom": "CFU/mL", "is_required": True},
-        {"code": "CPG-QC-COLOR",    "name": "Color Index",           "data_type": "numeric", "source": "manual",    "lower_limit": 30.0,  "upper_limit": 40.0,  "uom": None,     "is_required": True},
-        {"code": "CPG-QC-TASTE",    "name": "Taste Approved",        "data_type": "boolean", "source": "manual",    "lower_limit": None,  "upper_limit": None,  "uom": None,     "is_required": True},
-    ],
-    40: [
-        {"code": "CPG-FILL-VOL",    "name": "Fill Volume",           "data_type": "numeric", "source": "equipment", "lower_limit": 995.0, "upper_limit": 1010.0,"uom": "mL", "is_required": True},
-        {"code": "CPG-FILL-TORQUE", "name": "Cap Torque",            "data_type": "numeric", "source": "equipment", "lower_limit": 1.0,   "upper_limit": 1.5,   "uom": "Nm", "is_required": True},
-        {"code": "CPG-FILL-HEAD",   "name": "Headspace",             "data_type": "numeric", "source": "sensor",    "lower_limit": 10.0,  "upper_limit": 20.0,  "uom": "mm", "is_required": True},
-    ],
-    50: [
-        {"code": "CPG-PACK-LABEL",  "name": "Label Aligned",         "data_type": "boolean", "source": "sensor",    "lower_limit": None,  "upper_limit": None,  "uom": None, "is_required": True},
-        {"code": "CPG-PACK-DATE",   "name": "Date Code Legible",     "data_type": "boolean", "source": "sensor",    "lower_limit": None,  "upper_limit": None,  "uom": None, "is_required": True},
-        {"code": "CPG-PACK-COUNT",  "name": "Case Count",            "data_type": "numeric", "source": "equipment", "lower_limit": 12.0,  "upper_limit": 12.0,  "uom": "EA", "is_required": True},
-    ],
-    60: [
-        {"code": "CPG-RW-NOTES",    "name": "Adjustment Notes",      "data_type": "string",  "source": "manual",    "lower_limit": None,  "upper_limit": None,  "uom": None, "is_required": True},
-        {"code": "CPG-RW-ACTION",   "name": "Corrective Action",     "data_type": "enum",    "source": "manual",    "lower_limit": None,  "upper_limit": None,  "uom": None, "is_required": True,
-         "enum_values": "add_concentrate,add_sugar,add_citric,dilute,other"},
-    ],
-    70: [
-        {"code": "CPG-MRB-DISP",    "name": "Disposition",           "data_type": "enum",    "source": "manual",    "lower_limit": None,  "upper_limit": None,  "uom": None, "is_required": True,
-         "enum_values": "return_to_blend,use_as_is,scrap"},
-        {"code": "CPG-MRB-NOTES",   "name": "Review Notes",          "data_type": "string",  "source": "manual",    "lower_limit": None,  "upper_limit": None,  "uom": None, "is_required": True},
+    30: [  # Quality Testing — Brix Value and pH Value are unique (step params use different names)
+        {"code": "CPG-QC-BRIX", "name": "Brix Value", "data_type": "numeric", "source": "manual", "lower_limit": 11.0, "upper_limit": 12.0, "uom": "°Bx", "is_required": True},
+        {"code": "CPG-QC-PH",   "name": "pH Value",   "data_type": "numeric", "source": "manual", "lower_limit": 3.5,  "upper_limit": 4.0,  "uom": None,  "is_required": True},
     ],
 }
 

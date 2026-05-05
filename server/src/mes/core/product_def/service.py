@@ -665,6 +665,7 @@ class ProductDefService:
         param = SegmentParameter(step_id=step_id, **kwargs)
         session.add(param)
         await session.flush()
+        await session.refresh(param)
         logger.info("Created step parameter %s (%s) for step %s", param.id, param.name, step_id)
         return param
 
@@ -698,6 +699,7 @@ class ProductDefService:
                 continue
             setattr(param, key, value)
         await session.flush()
+        await session.refresh(param)
         return param
 
     @staticmethod
