@@ -416,6 +416,7 @@ class UnitService:
                 SegmentResponseUnit.exited_at.is_(None),
             )
             .order_by(SegmentResponseUnit.entered_at.desc())
+            .limit(1)
         )
         history_result = await session.execute(stmt)
         history = history_result.scalar_one_or_none()
@@ -657,6 +658,7 @@ class UnitService:
                     SegmentResponseUnit.exited_at.is_(None),
                 )
                 .order_by(SegmentResponseUnit.entered_at.desc())
+                .limit(1)
             )
             history_result = await session.execute(stmt)
             history = history_result.scalar_one_or_none()
@@ -878,6 +880,7 @@ class LotService:
                 SegmentResponseLot.exited_at.is_(None),
             )
             .order_by(SegmentResponseLot.entered_at.desc())
+            .limit(1)
         )
         history_result = await session.execute(stmt)
         history = history_result.scalar_one_or_none()
@@ -1127,6 +1130,7 @@ class LotService:
                     SegmentResponseLot.exited_at.is_(None),
                 )
                 .order_by(SegmentResponseLot.entered_at.desc())
+                .limit(1)
             )
             history_result = await session.execute(stmt)
             history = history_result.scalar_one_or_none()

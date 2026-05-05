@@ -198,8 +198,9 @@ class GenealogyService:
 
         # ── Processing history ──────────────────────────────────────
         hist_stmt = (
-            select(SegmentResponseLot, ProcessSegment)
+            select(SegmentResponseLot, ProcessSegment, Equipment)
             .outerjoin(ProcessSegment, SegmentResponseLot.step_id == ProcessSegment.id)
+            .outerjoin(Equipment, SegmentResponseLot.equipment_id == Equipment.id)
             .where(SegmentResponseLot.lot_id == lot_id)
             .order_by(SegmentResponseLot.entered_at)
         )
@@ -217,8 +218,10 @@ class GenealogyService:
                 exited_at_utc=h.exited_at_utc,
                 result=h.result,
                 equipment_id=h.equipment_id,
+                equipment_name=equip.name if equip else None,
+                data_snapshot=h.data_snapshot,
             )
-            for h, seg in histories
+            for h, seg, equip in histories
         ]
 
         # ── Consumed materials ──────────────────────────────────────
