@@ -74,8 +74,8 @@ export const fetchLotHistory = (id: string) =>
 export const startLot = (id: string, equipmentId?: string) =>
   api.post(`/lots/${id}/start`, { equipment_id: equipmentId ?? null }).then(unwrap<Lot>);
 
-export const completeLot = (id: string, quantityOut?: number, quantityScrapped?: number, disposition?: string) =>
-  api.post(`/lots/${id}/complete`, { quantity_out: quantityOut, quantity_scrapped: quantityScrapped, disposition: disposition ?? null }).then(unwrap<Lot>);
+export const completeLot = (id: string, quantityOut?: number, quantityScrapped?: number, disposition?: string, dataSnapshot?: Record<string, unknown>) =>
+  api.post(`/lots/${id}/complete`, { quantity_out: quantityOut, quantity_scrapped: quantityScrapped, disposition: disposition ?? null, data_snapshot: dataSnapshot ?? null }).then(unwrap<Lot>);
 
 export const moveLot = (id: string, opts?: { target_step_id?: string; result?: string; disposition?: string }) =>
   api.post(`/lots/${id}/move`, opts ?? null).then(unwrap<Lot>);

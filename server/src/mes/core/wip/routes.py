@@ -352,6 +352,7 @@ async def complete_lot(
     result = body.result if body else "pass"
     failure_mode = body.failure_mode if body else None
     defect_code_id = body.defect_code_id if body else None
+    data = body.data_snapshot if body else None
     lot = await LotService.complete_lot_step(
         session, lot_id,
         result=result,
@@ -360,6 +361,7 @@ async def complete_lot(
         disposition=disp,
         failure_mode=failure_mode,
         defect_code_id=defect_code_id,
+        data_snapshot=data,
     )
     await session.commit()
     return success_response(LotRead.model_validate(lot).model_dump())

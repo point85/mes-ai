@@ -69,6 +69,9 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   // data points in the database.
   const [savedValues, setSavedValues] = useState<Record<string, string>>({});
 
+  // Actual values entered by operator for step parameters (stored in data_snapshot)
+  const [paramValues, setParamValues] = useState<Record<string, string>>({});
+
   // Quality test results
   const [testResults, setTestResults] = useState<Record<string, "pass" | "fail">>({});
 
@@ -326,11 +329,15 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       }
     }
 
-    // Build data snapshot from collected values
+    // Build data snapshot from collected values + step parameter actuals
     const snapshot: Record<string, unknown> = {};
     for (const dd of data_definitions) {
       const val = dataValues[dd.id];
       if (val !== undefined && val !== "") snapshot[dd.code] = dd.data_type === "numeric" ? parseFloat(val) : val;
+    }
+    for (const p of step_parameters) {
+      const val = paramValues[p.id];
+      if (val !== undefined && val !== "") snapshot[p.code] = p.data_type === "numeric" ? parseFloat(val) : val;
     }
 
     await runAction(
@@ -338,12 +345,13 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
         const disp = selectedDisposition || undefined;
         const moveOpts: { disposition?: string; result?: string } = { result: completeResult };
         if (disp) moveOpts.disposition = disp;
+        const snap = Object.keys(snapshot).length > 0 ? snapshot : undefined;
         const equipIdAtComplete = wip.current_equipment_id;
         if (isUnit) {
-          await completeUnit(wip.id, completeResult, Object.keys(snapshot).length > 0 ? snapshot : undefined, disp);
+          await completeUnit(wip.id, completeResult, snap, disp);
           await moveUnit(wip.id, moveOpts);
         } else {
-          await completeLot(wip.id, qtyOut ? parseInt(qtyOut) : undefined, parseInt(qtyScrapped) || 0, disp);
+          await completeLot(wip.id, qtyOut ? parseInt(qtyOut) : undefined, parseInt(qtyScrapped) || 0, disp, snap);
           await moveLot(wip.id, moveOpts);
         }
         if (transitionOnComplete && equipIdAtComplete) {
@@ -689,7 +697,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
             </div>
           )}
 
-          {/* Step Parameters (spec limits display) */}
+          {/* Step Parameters */}
           {step_parameters.length > 0 && (
             <div className="bg-white rounded-lg shadow p-5">
               <h4 className="font-semibold text-gray-700 mb-3">Step Parameters</h4>
@@ -701,18 +709,57 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                     <th className="py-1 px-2">Lower</th>
                     <th className="py-1 px-2">Upper</th>
                     <th className="py-1 px-2">UoM</th>
+                    <th className="py-1 px-2">Actual</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {step_parameters.map((p) => (
-                    <tr key={p.id} className="border-b">
-                      <td className="py-1 px-2">{p.name}</td>
-                      <td className="py-1 px-2 font-mono">{p.target_value ?? "—"}</td>
-                      <td className="py-1 px-2 font-mono">{p.lower_limit ?? "—"}</td>
-                      <td className="py-1 px-2 font-mono">{p.upper_limit ?? "—"}</td>
-                      <td className="py-1 px-2">{p.uom_symbol ?? "—"}</td>
-                    </tr>
-                  ))}
+                  {step_parameters.map((p) => {
+                    const actual = paramValues[p.id] ?? "";
+                    const numVal = actual !== "" && p.data_type === "numeric" ? parseFloat(actual) : null;
+                    const outOfSpec = numVal !== null && (
+                      (p.lower_limit != null && numVal < Number(p.lower_limit)) ||
+                      (p.upper_limit != null && numVal > Number(p.upper_limit))
+                    );
+                    return (
+                      <tr key={p.id} className="border-b">
+                        <td className="py-1 px-2">
+                          {p.name}
+                          {p.is_required && <span className="text-red-500 ml-1">*</span>}
+                        </td>
+                        <td className="py-1 px-2 font-mono">{p.target_value ?? "—"}</td>
+                        <td className="py-1 px-2 font-mono">{p.lower_limit ?? "—"}</td>
+                        <td className="py-1 px-2 font-mono">{p.upper_limit ?? "—"}</td>
+                        <td className="py-1 px-2">{p.uom_symbol ?? "—"}</td>
+                        <td className="py-1 px-2">
+                          {p.data_type === "boolean" ? (
+                            <select
+                              value={actual}
+                              onChange={(e) => setParamValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                              disabled={wip.status !== "in_process"}
+                              className="border rounded px-1.5 py-0.5 text-xs w-24"
+                            >
+                              <option value="">—</option>
+                              <option value="true">True</option>
+                              <option value="false">False</option>
+                            </select>
+                          ) : (
+                            <input
+                              type={p.data_type === "numeric" ? "number" : "text"}
+                              step="any"
+                              value={actual}
+                              onChange={(e) => setParamValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                              disabled={wip.status !== "in_process"}
+                              placeholder="Enter value"
+                              className={`border rounded px-1.5 py-0.5 text-xs w-28 ${outOfSpec ? "border-red-400 bg-red-50" : ""}`}
+                            />
+                          )}
+                          {outOfSpec && (
+                            <span className="block text-xs text-red-500 mt-0.5">Out of spec</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

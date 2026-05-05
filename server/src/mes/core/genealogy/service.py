@@ -22,6 +22,7 @@ from mes.core.quality.models import TestResult, QualityTest
 from mes.core.data_collection.models import DataPoint, DataDefinition
 from mes.core.operations.models import OperationsRequest
 from mes.core.product_def.models import ProductDefinition, ProcessSegment
+from mes.core.physical_model.models import Equipment
 
 from .schemas import (
     GenealogyDataRecord,
@@ -59,8 +60,9 @@ class GenealogyService:
 
         # ── Processing history ──────────────────────────────────────
         hist_stmt = (
-            select(SegmentResponseUnit, ProcessSegment)
+            select(SegmentResponseUnit, ProcessSegment, Equipment)
             .outerjoin(ProcessSegment, SegmentResponseUnit.step_id == ProcessSegment.id)
+            .outerjoin(Equipment, SegmentResponseUnit.equipment_id == Equipment.id)
             .where(SegmentResponseUnit.unit_id == unit_id)
             .order_by(SegmentResponseUnit.entered_at)
         )
@@ -76,9 +78,10 @@ class GenealogyService:
                 exited_at=h.exited_at,
                 result=h.result,
                 equipment_id=h.equipment_id,
+                equipment_name=equip.name if equip else None,
                 data_snapshot=h.data_snapshot,
             )
-            for h, seg in histories
+            for h, seg, equip in histories
         ]
 
         # ── Consumed materials ──────────────────────────────────────

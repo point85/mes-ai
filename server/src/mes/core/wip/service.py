@@ -712,7 +712,7 @@ class LotService:
         order_id: UUID | None = None,
         equipment_id: UUID | None = None,
     ) -> tuple[Sequence[Lot], str | None, bool]:
-        stmt = select(Lot).where(Lot.is_active.is_(True)).options(selectinload(Lot.product))
+        stmt = select(Lot).where(Lot.is_active.is_(True)).options(selectinload(Lot.product), selectinload(Lot.order))
         if status is not None:
             stmt = stmt.where(Lot.status == status)
         if order_id is not None:
@@ -723,7 +723,7 @@ class LotService:
 
     @staticmethod
     async def get_lot(session: AsyncSession, lot_id: UUID) -> Lot:
-        stmt = select(Lot).where(Lot.id == lot_id, Lot.is_active.is_(True)).options(selectinload(Lot.product))
+        stmt = select(Lot).where(Lot.id == lot_id, Lot.is_active.is_(True)).options(selectinload(Lot.product), selectinload(Lot.order))
         result = await session.execute(stmt)
         lot = result.scalar_one_or_none()
         if lot is None:
@@ -738,7 +738,7 @@ class LotService:
         stmt = select(Lot).where(
             Lot.lot_number == lot_number,
             Lot.is_active.is_(True),
-        ).options(selectinload(Lot.product))
+        ).options(selectinload(Lot.product), selectinload(Lot.order))
         result = await session.execute(stmt)
         lot = result.scalar_one_or_none()
         if lot is None:
@@ -856,6 +856,7 @@ class LotService:
         result: str = "pass",
         failure_mode: str | None = None,
         defect_code_id: UUID | None = None,
+        data_snapshot: dict | None = None,
     ) -> Lot:
         lot = await LotService.get_lot(session, lot_id)
         if lot.status != "in_process":
@@ -891,6 +892,8 @@ class LotService:
             history.disposition = disposition
             history.failure_mode = failure_mode
             history.defect_code_id = defect_code_id
+            if data_snapshot:
+                history.data_snapshot = data_snapshot
             if quantity_scrapped > 0 and not history.scrap_reason:
                 history.scrap_reason = failure_mode
 

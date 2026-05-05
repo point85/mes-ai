@@ -63,7 +63,7 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
 
   // Steps
   const stepsHtml = rec.steps.length === 0
-    ? `<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:8px;">No step history recorded</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:8px;">No step history recorded</td></tr>`
     : rec.steps.map((s, i) => {
         const stepLabel = s.step_sequence != null
           ? `${s.step_sequence} — ${s.step_name ?? ""}`
@@ -71,6 +71,7 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
         return `
         <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f9fafb"}">
           <td style="padding:6px 10px;">${stepLabel}</td>
+          <td style="padding:6px 10px;">${s.equipment_name ?? "—"}</td>
           <td style="padding:6px 10px;">${fmt(s.entered_at)}</td>
           <td style="padding:6px 10px;">${fmt(s.exited_at)}</td>
           <td style="padding:6px 10px;">${duration(s.entered_at, s.exited_at)}</td>
@@ -78,7 +79,7 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
         </tr>
         ${s.data_snapshot && Object.keys(s.data_snapshot).length ? `
         <tr style="background:#f3f4f6;">
-          <td colspan="5" style="padding:2px 10px 6px 32px;">
+          <td colspan="6" style="padding:2px 10px 6px 32px;">
             ${dataSnapshotRows(s.data_snapshot)}
           </td>
         </tr>` : ""}
@@ -184,6 +185,7 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
     <table>
       <thead><tr>
         <th ${thStyle}>Step</th>
+        <th ${thStyle}>Equipment</th>
         <th ${thStyle}>Started</th>
         <th ${thStyle}>Completed</th>
         <th ${thStyle}>Duration</th>

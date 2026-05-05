@@ -10,6 +10,7 @@ export interface GenealogyStepRecord {
   exited_at: string | null;
   result: string | null;
   equipment_id: string | null;
+  equipment_name: string | null;
   data_snapshot: Record<string, unknown> | null;
 }
 

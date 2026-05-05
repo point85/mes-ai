@@ -24,6 +24,7 @@ class GenealogyStepRecord(BaseModel):
     exited_at_utc: datetime | None = None
     result: str | None = None
     equipment_id: UUID | None = None
+    equipment_name: str | None = None
     data_snapshot: dict | None = None
 
 
