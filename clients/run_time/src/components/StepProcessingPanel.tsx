@@ -342,7 +342,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
     }
     for (const p of step_parameters) {
       const val = paramValues[p.id];
-      if (val !== undefined && val !== "") snapshot[p.code] = p.data_type === "numeric" ? parseFloat(val) : val;
+      if (val !== undefined && val !== "") snapshot[p.name] = p.data_type === "numeric" ? parseFloat(val) : val;
     }
 
     await runAction(

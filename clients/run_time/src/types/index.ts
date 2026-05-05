@@ -205,7 +205,6 @@ export interface StepParameter {
   id: string;
   step_id: string;
   name: string;
-  code: string;
   data_type: string;
   uom_id: string | null;
   uom_symbol: string | null;
