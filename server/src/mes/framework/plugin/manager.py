@@ -23,7 +23,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from mes.config import settings
 from mes.framework.events import event_bus
 
 from .base import MESPlugin
@@ -86,8 +85,8 @@ class PluginManager:
         discovered: list[str] = []
 
         for plugin_dir, origin in [
-            (Path(settings.PLUGIN_DIR), "system"),
-            (Path(settings.PLUGIN_USER_DIR), "user"),
+            (Path("plugins/system"), "system"),
+            (Path("plugins/user"), "user"),
         ]:
             if not plugin_dir.exists():
                 logger.info("Plugin directory '%s' does not exist, skipping", plugin_dir)

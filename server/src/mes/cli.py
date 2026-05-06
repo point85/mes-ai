@@ -22,7 +22,6 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from mes.config import settings
 from mes.framework.plugin.manifest import PluginManifest
 
 # Default server URL for CLI → REST API calls
@@ -32,7 +31,7 @@ DEFAULT_SERVER_URL = "http://localhost:8000"
 def _discover_manifests() -> list[PluginManifest]:
     """Scan both system and user plugin directories and return parsed manifests."""
     manifests: list[PluginManifest] = []
-    for plugin_dir in [Path(settings.PLUGIN_DIR), Path(settings.PLUGIN_USER_DIR)]:
+    for plugin_dir in [Path("plugins/system"), Path("plugins/user")]:
         if not plugin_dir.exists():
             continue
         for candidate in sorted(plugin_dir.iterdir()):
@@ -49,7 +48,7 @@ def cmd_list(_args: argparse.Namespace) -> None:
     """List plugins discovered in system and user directories."""
     manifests = _discover_manifests()
     if not manifests:
-        print("No plugins found in", settings.PLUGIN_DIR, "or", settings.PLUGIN_USER_DIR)
+        print("No plugins found in plugins/system or plugins/user")
         return
     print(f"{'ID':<30} {'Version':<10} {'Origin':<8} {'Category':<12} {'Name'}")
     print("-" * 90)

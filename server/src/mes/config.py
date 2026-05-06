@@ -34,16 +34,11 @@ class Settings(BaseSettings):
     OIDC_ROLE_CLAIM: str = "groups"
     OIDC_REDIRECT_URI: str = ""
 
-    # --- Plugin Framework (PLUGIN-FW) ---
-    PLUGIN_DIR: str = "plugins/system"
-    PLUGIN_USER_DIR: str = "plugins/user"
-
     # --- Event Bus (EVENT-BUS) ---
     EVENT_BUS_TYPE: str = "memory"  # "memory" | "redis" | "kafka" | "nats"
     REDIS_URL: str = "redis://localhost:6379"
 
     # --- Logging (LOG-CONFIG) ---
-    LOG_DIR: str = "logs"
     LOG_FILE: str = "mes_server.log"
     LOG_LEVEL: str = "WARNING"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
     LOG_MAX_BYTES: int = 10 * 1024 * 1024  # 10 MB per file before rotation

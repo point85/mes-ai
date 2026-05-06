@@ -10,6 +10,7 @@ import {
   HomeIcon,
   ScaleIcon,
   CubeIcon,
+  Cog6ToothIcon,
   BuildingOffice2Icon,
   BeakerIcon,
   ClipboardDocumentListIcon,
@@ -91,6 +92,7 @@ const sections: NavSection[] = [
       { label: "Users", to: "/admin/users", icon: UsersIcon },
       { label: "Roles", to: "/admin/roles", icon: ShieldCheckIcon },
       { label: "Plugins", to: "/plugins", icon: PuzzlePieceIcon },
+      { label: "Settings", to: "/admin/settings", icon: Cog6ToothIcon },
     ],
   },
 ];

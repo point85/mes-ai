@@ -162,6 +162,7 @@ $env:MES_AUTH_MODE = "local"   # username/password login
 $env:MES_AUTH_MODE = "oidc"    # enterprise SSO
 
 uvicorn mes.main:app --reload --port 8082
+uvicorn mes.main:app --reload --reload-include .env --port 8082
 
 Terminal 2 — Now use DT-CLIENT Register plugins (one time) and enable/disable
 cd c:\dev\mes_ai\server

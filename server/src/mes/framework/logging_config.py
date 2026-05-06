@@ -33,7 +33,7 @@ def configure_logging() -> Path:
     """
     global _configured
 
-    log_dir = Path(settings.LOG_DIR)
+    log_dir = Path("logs")
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / settings.LOG_FILE
 

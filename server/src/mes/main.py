@@ -50,6 +50,9 @@ from mes.core.demo.routes import router as demo_router
 # Plugin management routes
 from mes.framework.plugin.routes import router as plugin_router
 
+# Admin routes
+from mes.framework.admin import config_router
+
 logger = logging.getLogger("mes")
 
 # Initialize file + console logging before the app spins up so import-time
@@ -274,6 +277,9 @@ def create_app() -> FastAPI:
 
     # Plugin management routes
     app.include_router(plugin_router)
+
+    # Admin routes
+    app.include_router(config_router)
 
     # Dashboard aggregation routes
     app.include_router(dashboard_router)
