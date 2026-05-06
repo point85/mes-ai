@@ -31,6 +31,7 @@ import {
   InformationCircleIcon,
   UsersIcon,
   ArrowRightOnRectangleIcon,
+  CpuChipIcon,
 } from "@heroicons/react/24/outline";
 import HelpDialog, { type HelpTopic } from "../HelpDialog";
 import AboutDialog from "../AboutDialog";
@@ -93,6 +94,13 @@ const sections: NavSection[] = [
       { label: "Roles", to: "/admin/roles", icon: ShieldCheckIcon },
       { label: "Plugins", to: "/plugins", icon: PuzzlePieceIcon },
       { label: "Settings", to: "/admin/settings", icon: Cog6ToothIcon },
+    ],
+  },
+  {
+    title: "Demos",
+    items: [
+      { label: "CPG Demo", to: "/demos/cpg", icon: BeakerIcon },
+      { label: "Electronics Demo", to: "/demos/electronics", icon: CpuChipIcon },
     ],
   },
 ];

@@ -32,6 +32,8 @@ import { StorageLocationListPage } from "./pages/storage-locations";
 import { InventoryBalancesPage, InventoryTransactionsPage } from "./pages/inventory";
 import { WorkScheduleListPage, WorkScheduleDetailPage } from "./pages/work-schedules";
 import SettingsPage from "./pages/SettingsPage";
+import DemoCpgPage from "./pages/DemoCpgPage";
+import DemoElectronicsPage from "./pages/DemoElectronicsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -92,6 +94,9 @@ export default function App() {
               <Route path="/admin/users" element={<UserListPage />} />
               <Route path="/admin/roles" element={<RoleListPage />} />
               <Route path="/admin/settings" element={<SettingsPage />} />
+              {/* Demos */}
+              <Route path="/demos/cpg" element={<DemoCpgPage />} />
+              <Route path="/demos/electronics" element={<DemoElectronicsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Route>
