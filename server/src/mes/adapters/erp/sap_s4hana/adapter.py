@@ -46,6 +46,8 @@ class SAPS4HANAInboundAdapter(ERPInboundAdapter):
       - Work Centers
     """
 
+    erp_type: str = "sap"
+
     def __init__(self) -> None:
         self._client = SAPS4HANAClient()
         self._transform = SAPS4HANATransformLayer()

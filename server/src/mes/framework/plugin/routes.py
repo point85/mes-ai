@@ -470,6 +470,26 @@ async def enable_plugin_route(
     if errors:
         raise HTTPException(status_code=422, detail={"errors": errors})
 
+    # Enforce single-active-ERP rule: only one plugin with erp_inbound/erp_outbound
+    # extension points may run at a time.
+    _ERP_EP_TYPES = {"erp_inbound", "erp_outbound"}
+    incoming_ep_types = {ep.type for ep in info.manifest.extension_points}
+    if incoming_ep_types & _ERP_EP_TYPES:
+        for other_id, other_info in plugin_manager._plugins.items():
+            if other_id == plugin_id:
+                continue
+            if not other_info.is_running:
+                continue
+            other_ep_types = {ep.type for ep in other_info.manifest.extension_points}
+            if other_ep_types & _ERP_EP_TYPES:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"ERP plugin '{other_id}' is already active. "
+                        f"Disable it before enabling '{plugin_id}'."
+                    ),
+                )
+
     db_cfg.enabled = True
     if body and body.notes is not None:
         db_cfg.notes = body.notes

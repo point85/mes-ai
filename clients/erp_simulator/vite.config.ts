@@ -19,6 +19,7 @@ function erpDetectPlugin(): Plugin {
             const erpType = ((json.data?.erp_type) ?? 'unknown').toUpperCase()
             const label = erpType === 'SAP' ? '\x1b[34mSAP S/4HANA\x1b[0m'
                         : erpType === 'ORACLE' ? '\x1b[31mOracle Cloud\x1b[0m'
+                        : erpType === 'MOCK' ? '\x1b[90mMock ERP\x1b[0m'
                         : `\x1b[33m${erpType}\x1b[0m`
             console.log(`\n  \x1b[1m⚙  ERP Simulator → ${label}\x1b[0m\n`)
           } else {

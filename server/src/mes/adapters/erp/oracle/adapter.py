@@ -46,6 +46,8 @@ class OracleInboundAdapter(ERPInboundAdapter):
       - Work centers
     """
 
+    erp_type: str = "oracle"
+
     def __init__(self) -> None:
         self._client = OracleClient()
         self._transform = OracleTransformLayer()

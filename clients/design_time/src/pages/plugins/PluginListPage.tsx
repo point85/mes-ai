@@ -19,6 +19,7 @@ import {
   useEnablePlugin,
   useDisablePlugin,
 } from "../../hooks/usePlugins";
+import { formatApiError } from "../../api/errors";
 import type { PluginSummary } from "../../types";
 
 type Tab = "available" | "installed";
@@ -129,6 +130,19 @@ export default function PluginListPage() {
       {error && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
           Failed to load plugins.
+        </div>
+      )}
+
+      {/* Mutation error banner */}
+      {(enableMut.error || disableMut.error || installMut.error || uninstallMut.error) && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+          <strong>
+            {enableMut.error ? "Enable failed" : disableMut.error ? "Disable failed" : installMut.error ? "Install failed" : "Uninstall failed"}:
+          </strong>{" "}
+          {formatApiError(
+            enableMut.error ?? disableMut.error ?? installMut.error ?? uninstallMut.error,
+            "Request failed — see server log for details.",
+          )}
         </div>
       )}
 

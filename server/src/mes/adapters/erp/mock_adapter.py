@@ -52,6 +52,8 @@ class MockERPInboundAdapter(ERPInboundAdapter):
         failure_rate: Probability [0.0, 1.0) of raising an error (default 0.0).
     """
 
+    erp_type: str = "mock"
+
     def __init__(
         self,
         fixture_dir: str | Path | None = None,
