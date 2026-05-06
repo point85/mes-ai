@@ -119,7 +119,9 @@ async def _write_resource_actuals(
 
     if where_clauses:
         consumptions_result = await session.execute(
-            _select(MaterialConsumption).where(*where_clauses)
+            _select(MaterialConsumption)
+            .options(selectinload(MaterialConsumption.material_lot))
+            .where(*where_clauses)
         )
         for mc in consumptions_result.scalars().all():
             mat_actual = MaterialActual(

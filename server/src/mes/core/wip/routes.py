@@ -97,6 +97,7 @@ async def create_unit(
         )
     unit = await UnitService.create_unit(session, **data)
     await session.commit()
+    await session.refresh(unit, ["order", "product"])
     return success_response(UnitRead.model_validate(unit).model_dump())
 
 
@@ -288,6 +289,7 @@ async def create_lot(
         )
     lot = await LotService.create_lot(session, **data)
     await session.commit()
+    await session.refresh(lot, ["order", "product"])
     return success_response(LotRead.model_validate(lot).model_dump())
 
 
