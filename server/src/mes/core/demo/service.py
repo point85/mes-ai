@@ -124,14 +124,15 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                                 "route_material_assignments": 0}
 
     # ── 0. Ensure demo-specific UOMs exist (°Bx, pH, CFU/mL, ...) ───
-    # Must run BEFORE materials — MaterialDefinition.uom has an FK to
-    # units_of_measure.symbol.
+    # Must run BEFORE materials — MaterialDefinition.uom_id has an FK to
+    # units_of_measure.id.
     await _ensure_demo_uoms(session)
+    uom_ids = await _uom_id_map(session)
 
     # ── 1. Materials ──────────────────────────────────────────────────
     mat_ids: dict[str, UUID] = {}
     for m in D.MATERIALS:
-        mat = await _get_or_create_material(session, m)
+        mat = await _get_or_create_material(session, _inject_uom_id(m, uom_ids))
         mat_ids[m["code"]] = mat.id
         summary["materials"] += 1
 
@@ -150,7 +151,6 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                 summary["material_lots"] += 1
 
     # ── 2. Product ────────────────────────────────────────────────────
-    uom_ids = await _uom_id_map(session)
     product = await _get_or_create_product(session, _inject_uom_id(D.PRODUCT, uom_ids))
     summary["product"] = str(product.id)
 
@@ -578,14 +578,15 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
                                 "route_material_assignments": 0}
 
     # ── 0. Ensure demo-specific UOMs exist (mL, g, mm, °C, ...) ─────
-    # Must run BEFORE materials — MaterialDefinition.uom has an FK to
-    # units_of_measure.symbol.
+    # Must run BEFORE materials — MaterialDefinition.uom_id has an FK to
+    # units_of_measure.id.
     await _ensure_demo_uoms(session)
+    uom_ids = await _uom_id_map(session)
 
     # ── 1. Materials ──────────────────────────────────────────────────
     mat_ids: dict[str, UUID] = {}
     for m in E.MATERIALS:
-        mat = await _get_or_create_material(session, m)
+        mat = await _get_or_create_material(session, _inject_uom_id(m, uom_ids))
         mat_ids[m["code"]] = mat.id
         summary["materials"] += 1
 
@@ -605,7 +606,6 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             summary["material_lots"] += 1
 
     # ── 2. Product ────────────────────────────────────────────────────
-    uom_ids = await _uom_id_map(session)
     product = await _get_or_create_product(session, _inject_uom_id(E.PRODUCT, uom_ids))
     summary["product"] = str(product.id)
 

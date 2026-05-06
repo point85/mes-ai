@@ -249,3 +249,11 @@ on its detail page define properties (name/data type/UoM/default) →
 return to the equipment's Capabilities page → 
 Add Capability → pick that class → the property inputs now show up, 
 you enter values, and save.
+
+to clean out the database:
+cd C:\dev\mes_ai\server
+python scripts/reset_and_seed.py
+
+This will: drop and recreate the schema, 
+run all Alembic migrations to head, 
+then seed both CPG and Electronics demo data fresh.
