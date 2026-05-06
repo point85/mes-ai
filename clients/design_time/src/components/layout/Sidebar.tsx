@@ -27,6 +27,7 @@ import {
   WrenchScrewdriverIcon,
   QuestionMarkCircleIcon,
   CalendarDaysIcon,
+  ExclamationTriangleIcon,
   InformationCircleIcon,
   UsersIcon,
   ArrowRightOnRectangleIcon,
@@ -54,6 +55,7 @@ const sections: NavSection[] = [
       { label: "Units of Measure", to: "/uom", icon: ScaleIcon },
       { label: "Work Schedules", to: "/work-schedules", icon: CalendarDaysIcon },
       { label: "Data Definitions", to: "/data-definitions", icon: ClipboardDocumentListIcon },
+      { label: "Reason Codes", to: "/reasons", icon: ExclamationTriangleIcon },
     ],
   },
   {
