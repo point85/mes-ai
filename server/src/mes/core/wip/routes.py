@@ -164,10 +164,9 @@ async def complete_unit(
     data = body.data_snapshot if body else None
     disp = body.disposition if body else None
     failure_mode = body.failure_mode if body else None
-    defect_code_id = body.defect_code_id if body else None
     unit = await UnitService.complete_unit_step(
         session, unit_id, result=result, disposition=disp, data_snapshot=data,
-        failure_mode=failure_mode, defect_code_id=defect_code_id,
+        failure_mode=failure_mode,
     )
     await session.commit()
     return success_response(UnitRead.model_validate(unit).model_dump())
@@ -230,7 +229,6 @@ async def scrap_unit(
         session, unit_id,
         reason=body.reason,
         disposition=body.disposition,
-        defect_code_id=body.defect_code_id,
         failure_mode=body.failure_mode,
     )
     await session.commit()
@@ -354,7 +352,6 @@ async def complete_lot(
     disp = body.disposition if body else None
     result = body.result if body else "pass"
     failure_mode = body.failure_mode if body else None
-    defect_code_id = body.defect_code_id if body else None
     data = body.data_snapshot if body else None
     lot = await LotService.complete_lot_step(
         session, lot_id,
@@ -363,7 +360,6 @@ async def complete_lot(
         quantity_scrapped=qty_scrapped or 0,
         disposition=disp,
         failure_mode=failure_mode,
-        defect_code_id=defect_code_id,
         data_snapshot=data,
     )
     await session.commit()
@@ -427,7 +423,6 @@ async def scrap_lot(
         session, lot_id,
         reason=body.reason,
         disposition=body.disposition,
-        defect_code_id=body.defect_code_id,
         failure_mode=body.failure_mode,
     )
     await session.commit()

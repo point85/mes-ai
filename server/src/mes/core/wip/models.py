@@ -72,11 +72,6 @@ class Unit(BaseModel):
         String(50), nullable=True,
         comment="Disposition applied at scrap (e.g. rework, destroy, return)",
     )
-    defect_code_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("defect_codes.id"),
-        nullable=True, index=True,
-        comment="Structured defect code from catalog — enables Pareto analysis",
-    )
     scrapped_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
         comment="Timestamp when the unit was scrapped",
@@ -169,11 +164,6 @@ class Lot(BaseModel):
     scrap_disposition: Mapped[str | None] = mapped_column(
         String(50), nullable=True,
         comment="Disposition applied at scrap (e.g. rework, destroy, return)",
-    )
-    defect_code_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("defect_codes.id"),
-        nullable=True, index=True,
-        comment="Structured defect code from catalog — enables Pareto analysis",
     )
     scrapped_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
@@ -269,11 +259,6 @@ class SegmentResponseUnit(BaseModel):
     failure_mode: Mapped[str | None] = mapped_column(
         String(200), nullable=True,
         comment="Free-text failure mode description when result=fail",
-    )
-    defect_code_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("defect_codes.id"),
-        nullable=True, index=True,
-        comment="Structured defect code — enables Pareto across steps",
     )
     scrap_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True,
@@ -376,11 +361,6 @@ class SegmentResponseLot(BaseModel):
     failure_mode: Mapped[str | None] = mapped_column(
         String(200), nullable=True,
         comment="Free-text failure mode description when result=fail",
-    )
-    defect_code_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("defect_codes.id"),
-        nullable=True, index=True,
-        comment="Structured defect code — enables Pareto across steps",
     )
     scrap_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True,

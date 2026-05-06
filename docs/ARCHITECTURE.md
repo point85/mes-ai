@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), ISA-95 Part 4 Process Segment model with equipment_class_id on route steps, SegmentEquipmentRequirement and SegmentMaterialRequirement tables, 3-tier dispatch equipment resolution (D049–D052, §5.11, §10.3), **full auth system: 3-mode AUTH_MODE (none/local/oidc), PBKDF2-SHA256 password hashing, JWT access+refresh tokens with silent refresh, RBAC with wildcard permission matching, User/Role/Permission/UserRole data model, 4 seeded system roles, admin bootstrap on first boot, demo users seeded by demo endpoints, DT-CLIENT auth UI (LoginPage, AuthGuard, AuthContext, UserListPage, RoleListPage) (§11)**, 1869 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), ISA-95 Part 4 Process Segment model with equipment_class_id on route steps, SegmentEquipmentRequirement and SegmentMaterialRequirement tables, 3-tier dispatch equipment resolution (D049–D052, §5.11, §10.3), **full auth system: 3-mode AUTH_MODE (none/local/oidc), PBKDF2-SHA256 password hashing, JWT access+refresh tokens with silent refresh, RBAC with wildcard permission matching, User/Role/Permission/UserRole data model, 4 seeded system roles, admin bootstrap on first boot, demo users seeded by demo endpoints, DT-CLIENT auth UI (LoginPage, AuthGuard, AuthContext, UserListPage, RoleListPage) (§11)**, 1869 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated. Quality management (QUAL-MGMT) module removed — quality tests, test results, and non-conformances are no longer part of the core framework; quality tracking should be implemented as a plugin by end users.
 
 ---
 
@@ -36,7 +36,7 @@ An open-source Manufacturing Execution System (MES) framework with a plugin arch
 │  │            Plugin Framework (PLUGIN-FW)                │   │
 │  │  ┌───────────────┐ ┌────────────┐ ┌────────────────┐  │   │
 │  │  │ Core Modules   │ │  Built-in  │ │  User/Custom   │  │   │
-│  │  │ (12 modules)   │ │  Plugins   │ │   Plugins      │  │   │
+│  │  │ (11 modules)   │ │  Plugins   │ │   Plugins      │  │   │
 │  │  └───────────────┘ └────────────┘ └────────────────┘  │   │
 │  └────────────────────────────────────────────────────────┘   │
 │  ┌────────────────┐  ┌──────────────┐  ┌─────────────────┐   │
@@ -181,7 +181,7 @@ client.send(orderReq, BodyHandlers.ofString());
 | **Equipment controller → MES** | C, C++, C# | PLC/microcontroller reports state changes, data collection, unit completions via REST calls to the MES server |
 | **ERP bridge → MES** | Java, C# | ERP system pushes production orders, material definitions, BOM updates to MES inbound endpoints |
 | **MES → ERP bridge** | Java, C# | MES posts WIP completions, material consumption, scrap reports to an ERP adapter service |
-| **Test equipment → MES** | C, C++, LabVIEW | Test stations post quality test results and data collection points |
+| **Test equipment → MES** | C, C++, LabVIEW | Test stations post measurement results and data collection points |
 | **Custom dashboard → MES** | Any | Read-only client queries performance OEE, production status, genealogy |
 | **MES → MOM/MQ** | Java, C# | Message-oriented middleware bridge subscribes to MES WebSocket events and publishes to Kafka/RabbitMQ/JMS |
 
@@ -265,7 +265,6 @@ mes_ai/
 │   │       │   ├── data_collection/   # DATA-COLLECT
 │   │       │   ├── product_def/       # PROD-DEF
 │   │       │   ├── inventory/          # INVENTORY
-│   │       │   ├── quality/           # QUAL-MGMT
 │   │       │   ├── performance/       # PERF-ANALYSIS
 │   │       │   ├── genealogy/         # GENEALOGY
 │   │       │   └── demo/              # CPG-DEMO + ELEC-DEMO seed modules
@@ -429,11 +428,9 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
 
-┌──────────────────── Quality & Data ──────────────────────────┐
+┌──────────────────── Data Collection ─────────────────────────┐
 │                                                               │
 │  DataDefinition ──1:N──▶ DataPoint                           │
-│  QualityTest ──1:N──▶ TestResult                             │
-│  NonConformance ──▶ Unit/Lot                                 │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
 
@@ -502,10 +499,9 @@ The data model is organized by domain and aligned with ISA-95 object models. All
 > 1. **Execution sequencing** — When a unit completes step 20 the MES must know step 30 is next
 >    and which work cells can run it. Calling the ERP on every unit move would introduce
 >    unacceptable latency, tight coupling, and loss of offline resilience.
-> 2. **Data collection anchoring** — Every quality test, data point, material consumption,
->    non-conformance, and history record is captured per `ProcessSegment`. The step is the foreign-key
->    anchor for `QualityTest`, `DataPoint`, `MaterialConsumption`, `NonConformance`,
->    `SegmentResponseUnit`, and `SegmentResponseLot`.
+> 2. **Data collection anchoring** — Every data point, material consumption, and history record
+>    is captured per `ProcessSegment`. The step is the foreign-key anchor for `DataPoint`,
+>    `MaterialConsumption`, `SegmentResponseUnit`, and `SegmentResponseLot`.
 > 3. **Outbound reporting** — `ERPOutboundAdapter.report_completion()` reports per-operation
 >    actuals (labor, material, yield). The MES must know which operation just finished to map it
 >    back to the ERP's cost-posting structure.
@@ -614,13 +610,7 @@ Variables support Python format-spec for zero-padding, e.g. `{seq:05d}` pads to 
 >
 > **WIP Genealogy Bridge (D055):** When `inventory.consume()` is called with `reference_type` of `"unit"` or `"lot"`, the service also calls `MaterialLotService.consume()` to create a `MaterialConsumption` genealogy record. This bridges inventory tracking with WIP traceability — a single consume operation decrements the inventory balance *and* records the consumption against the WIP item for as-built genealogy.
 
-#### Quality Management (QUAL-MGMT)
-
-| Entity | Fields | Relations |
-|---|---|---|
-| **QualityTest** | `id`, `name`, `code`, `description`, `test_type` (inline/offline/destructive), `step_id`, `parameters` (JSON) | → ProcessSegment |
-| **TestResult** | `id`, `test_id`, `unit_id`/`lot_id`, `result` (pass/fail), `measured_values` (JSON), `operator_id`, `equipment_id`, `tested_at` | → QualityTest, → Unit/Lot |
-| **NonConformance** | `id`, `unit_id`/`lot_id`, `step_id`, `nc_type` (defect/out_of_spec/other), `description`, `disposition` (rework/scrap/use_as_is/return), `status` (open/investigating/resolved/closed), `created_at`, `resolved_at` | → Unit/Lot, → ProcessSegment |
+> **Note — Quality Management removed from core:** The QUAL-MGMT module (QualityTest, TestResult, NonConformance tables and REST API) has been removed from the core framework. Quality tracking is a domain-specific concern that varies significantly between industries. End users should implement quality functionality as a plugin, using the `DataDefinition`/`DataPoint` system for measurement capture and the `ProcessSegmentDependency` graph for pass/fail routing decisions. See §7 (Plugin Framework) for how to extend the MES with custom domain logic.
 
 #### Data Collection (DATA-COLLECT)
 
@@ -640,7 +630,7 @@ Variables support Python format-spec for zero-padding, e.g. `{seq:05d}` pads to 
 
 #### Genealogy (GENEALOGY)
 
-Genealogy is built from the relationships between `Unit/Lot`, `SegmentResponseUnit/SegmentResponseLot`, `MaterialConsumption`, `TestResult`, and `DataPoint`. No separate genealogy table is needed — it is a query that traverses existing records to build the full as-built record for a unit or lot.
+Genealogy is built from the relationships between `Unit/Lot`, `SegmentResponseUnit/SegmentResponseLot`, `MaterialConsumption`, and `DataPoint`. No separate genealogy table is needed — it is a query that traverses existing records to build the full as-built record for a unit or lot.
 
 #### Auth (AUTH)
 
@@ -858,7 +848,7 @@ Every migration file follows a strict naming pattern for AI predictability:
 0001_multi_initial_schema.py
 0012_phys_model_add_equipment_capabilities_json.py
 0013_wip_track_add_unit_hold_reason.py
-0014_qual_mgmt_rename_nc_type_to_nc_category.py
+0014_wip_track_add_hold_reason_category.py
 0025_multi_add_audit_columns_to_all_entities.py
 0026_perf_analysis_add_reasons_table.py
 ```
@@ -1221,7 +1211,7 @@ PATTERN = re.compile(r"^\d{4}_[a-z][a-z0-9_]+\.py$")
 VALID_MODULES = {
     "multi", "phys_model", "prod_def", "prod_order", "wip_track",
     "route_def", "route_engine", "dispatch", "mat_mgmt",
-    "data_collect", "qual_mgmt", "perf_analysis", "genealogy",
+    "data_collect", "perf_analysis", "genealogy",
     "auth", "data_layer", "event_bus", "rest_api", "plugin_fw",
 }
 
@@ -1472,7 +1462,7 @@ The server logs a schema health summary at startup:
 
 ```
 [2026-02-23 08:00:01] INFO  Schema validation:
-  Core:     ✓ at revision 0042_qual_mgmt_add_spc_limits (head)
+  Core:     ✓ at revision 0042_perf_analysis_add_spc_limits (head)
   Plugin sap_s4_adapter:  ✓ at revision 0003 (head)
   Plugin custom_dispatch:  ✓ at revision 0001 (head)
   Plugin oee_dashboard:    – no migrations
@@ -2258,7 +2248,7 @@ can coexist on the same step.
 - Use `on_fail` when failure routing is **automatic and deterministic** (e.g. auto-test fails →
   retry station; no human judgment).
 - Use **disposition** when a human picks one outcome from a menu of quality decisions, or when
-  the outcome needs a compliance-visible name (ISA-95, QMS, regulated industries).
+  the outcome needs a compliance-visible name (ISA-95, regulated industries).
 - Because disposition is evaluated **first**, an explicit inspector choice (e.g. `USE_AS_IS`)
   overrides the default `on_fail` edge — a deliberate human override of the graph.
 
@@ -2267,9 +2257,9 @@ Worked example (electronics seed, step 60 Final Inspection):
 | Operator action | Next step | Mechanism |
 |---|---|---|
 | Result = PASS | 80 Pack | `on_pass` edge |
-| Result = FAIL, disposition = REWORK | 70 Rework | disposition (inspector choice) |
-| Result = FAIL, disposition = MRB_HOLD | 85 MRB Hold | disposition (inspector choice) |
-| Result = FAIL, disposition = SCRAP | 99 Scrap | disposition (inspector choice) |
+| Result = FAIL, disposition = REWORK | 70 Rework | disposition (operator choice) |
+| Result = FAIL, disposition = MRB_HOLD | 85 MRB Hold | disposition (operator choice) |
+| Result = FAIL, disposition = SCRAP | 99 Scrap | disposition (operator choice) |
 | Result = FAIL, no disposition | 85 MRB Hold | `on_fail` edge (default fallback) |
 
 #### 5.8.2 Linear Fallback Routing
@@ -2761,17 +2751,6 @@ availability gate → capability gate → capacity gate.
 | `POST` | `/api/v1/material-lots/{lot_id}/consume` | Record material consumption |
 | `GET` | `/api/v1/units/{unit_id}/consumed-materials` | Materials consumed for a unit |
 
-#### Quality Management (QUAL-MGMT)
-
-| Method | Path | Description |
-|---|---|---|
-| `GET/POST` | `/api/v1/quality/tests` | List / create quality test definitions |
-| `GET/PUT` | `/api/v1/quality/tests/{test_id}` | Get / update quality test |
-| `GET/POST` | `/api/v1/quality/results` | List / record test results |
-| `GET` | `/api/v1/quality/results/{result_id}` | Get test result |
-| `GET/POST` | `/api/v1/quality/non-conformances` | List / create non-conformances |
-| `PUT` | `/api/v1/quality/non-conformances/{nc_id}` | Update / resolve non-conformance |
-
 #### Data Collection (DATA-COLLECT)
 
 | Method | Path | Description |
@@ -2864,7 +2843,6 @@ availability gate → capability gate → capacity gate.
 | `POST` | `/api/v1/erp/report/scrap` | Report scrap to ERP |
 | `POST` | `/api/v1/erp/report/labor` | Report labor time to ERP |
 | `POST` | `/api/v1/erp/report/downtime` | Report equipment downtime to ERP |
-| `POST` | `/api/v1/erp/report/quality-result` | Report quality test result to ERP |
 | `GET` | `/api/v1/erp/confirmations` | List outbound confirmation documents |
 | `GET` | `/api/v1/erp/queue` | List failed outbound queue items |
 | `GET` | `/api/v1/erp/queue/stats` | Outbound queue statistics |
@@ -3436,9 +3414,6 @@ class MESEvent:
 | `equipment.state.changed` | PHYS-MODEL | `{equipment_id, old_state, new_state, reason}` |
 | `production.counter.updated` | PERF-ANALYSIS | `{equipment_id, good_delta, reject_delta, rework_delta, source_plugin}` |
 | `performance.oee.calculated` | PERF-ANALYSIS | `{equipment_id, oee}` |
-| `quality.test.passed` | QUAL-MGMT | `{test_id, unit_id, result_id}` |
-| `quality.test.failed` | QUAL-MGMT | `{test_id, unit_id, result_id}` |
-| `quality.nc.created` | QUAL-MGMT | `{nc_id, unit_id, nc_type}` |
 | `material.consumed` | MAT-MGMT | `{material_lot_id, unit_id, quantity}` |
 | `inventory.received` | INVENTORY | `{material_lot_id, location_id, quantity}` |
 | `inventory.putaway` | INVENTORY | `{material_lot_id, from_location_id, to_location_id, quantity}` |
@@ -3471,9 +3446,6 @@ async def on_unit_completed(event: MESEvent) -> None:
 async def on_any_unit_event(event: MESEvent) -> None:
     ...
 
-@event_handler("quality.*")
-async def on_any_quality_event(event: MESEvent) -> None:
-    ...
 ```
 
 ### 8.5 Future: Distributed Event Bus
@@ -3647,9 +3619,8 @@ contract. Concretely:
   real fixture.
 - *Parameters:* `equipment_id`, `pass_rate` (`0.0–1.0`), optional
   `measurements` map.
-- *Primary consumer:* the `QualityTestExecutionService` (§9.4.1), unit tests
-  in `tests/unit/test_test_equipment_adapters.py`, and any custom plugin
-  built against the `TestEquipmentAdapter` interface.
+- *Primary consumer:* unit tests in `tests/unit/test_test_equipment_adapters.py`
+  and any custom plugin built against the `TestEquipmentAdapter` interface.
 
 ##### When to use a mock vs. a real adapter
 
@@ -3716,7 +3687,6 @@ The MES integrates with the enterprise ERP system at ISA-95 Level 3↔Level 4 bo
 | **Scrap Reporting** | WIP-TRACK (unit/lot scrapped) | ERP scrap posting | Event: `wip.unit.scrapped` |
 | **Labor Reporting** | DATA-COLLECT (operator time at step) | ERP time confirmation | Event: `wip.unit.completed` (with labor data) |
 | **Equipment Downtime** | PERF-ANALYSIS (equipment state log) | ERP maintenance notification | Event: `equipment.state.changed` (to down) |
-| **Quality Results** | QUAL-MGMT (test pass/fail) | ERP quality notification | Event: `quality.test.failed` |
 | **WIP Status** | WIP-TRACK (current quantities, status) | ERP WIP reporting | Scheduled or on-demand |
 
 > **Event-Driven Outbound Reporting (D045)**
@@ -3755,7 +3725,7 @@ So why does this MES store `OperationsDefinition` and `ProcessSegment` entities 
 | Need | Why | Example |
 |---|---|---|
 | Execution sequencing | Know *what comes next* for every unit/lot in real time | Unit completes step 20 → engine selects step 30 → dispatches to eligible work cell |
-| Data anchoring | Foreign-key target for quality, data, material, NC, history records | `QualityTest.step_id`, `DataPoint.step_id`, `MaterialConsumption.step_id` |
+| Data anchoring | Foreign-key target for data, material, and history records | `DataPoint.step_id`, `MaterialConsumption.step_id` |
 | Outbound mapping | Map completed step back to ERP operation for cost posting | `report_completion(order, operation, qty, labor_hours)` |
 | Runtime deviation | Handle rework loops, step skips, alternate routes by equipment | ERP route = plan; MES execution = reality |
 
@@ -4737,74 +4707,11 @@ class MockEquipmentAdapter(EquipmentAdapter):
 
 ### 9.4 Test Equipment Adapter (TEST-INTFC)
 
-Collects test results from quality/test equipment (e.g., coordinate measuring machines, electrical testers, optical inspection systems).
+Collects measurement data from test/inspection equipment (e.g., coordinate measuring machines, electrical testers, optical inspection systems). The adapter delivers results as `TestResultDTO` objects via file-drop, REST, OPC-UA, or MOM transports.
 
-**Supported protocols:** Same as equipment adapter (OPC-UA, MQTT, REST, MOM). Test equipment typically exposes results via:
-- **File drop**: Equipment writes result file (CSV/XML) to shared directory
-- **REST API**: Modern test equipment serves results via HTTP
-- **OPC-UA**: Inline test equipment integrated into PLC network
-- **MOM**: Test results published to message queue/topic
+> **Note:** The core `QualityTestExecutionService` and related quality persistence layer were removed. If quality test execution is required, implement it as a plugin using this adapter interface and the `DataDefinition`/`DataPoint` system for result storage.
 
-**Interface:**
-```python
-class TestEquipmentAdapter(BaseAdapter):
-    """Abstract interface for test equipment data collection."""
-
-    async def get_test_result(self, test_id: str) -> TestResultDTO: ...
-
-    async def subscribe_results(
-        self, callback: Callable[[TestResultDTO], None]
-    ) -> SubscriptionHandle: ...
-
-    async def get_test_status(self, equipment_id: str) -> str: ...
-
-
-class FileDropTestAdapter(TestEquipmentAdapter):
-    """Watches a directory for test result files."""
-
-    async def watch_directory(
-        self, path: str, pattern: str = "*.csv"
-    ) -> None: ...
-```
-
-**Mock implementation:** Generates random test results within configurable pass/fail distributions and measurement ranges.
-
-#### 9.4.1 QualityTestExecutionService (core consumer)
-
-The service at `mes.core.quality.service.QualityTestExecutionService` is the core-side consumer of the `test_equipment` adapter. It connects a defined [QualityTest](../server/src/mes/core/quality/models.py) (typically attached to a process-segment step) to whichever plugin is currently providing the `test_equipment` extension point.
-
-**Contract:**
-
-```python
-result = await QualityTestExecutionService.execute(
-    session,
-    test_id=quality_test_id,
-    unit_id=..., lot_id=...,           # either or both — optional
-    operator_id=..., equipment_id=..., # optional provenance
-    notes=...,                         # optional
-)  # → persisted TestResult row
-```
-
-**Flow:**
-
-1. Load and validate the `QualityTest` definition (`NotFoundException` on unknown id).
-2. Resolve the running adapter: `plugin_manager.get_adapter_by_type("test_equipment")`.
-    - If no plugin is running, raise `ServiceUnavailableException` with error code `TEST_EQUIPMENT_ADAPTER_UNAVAILABLE`. Enable e.g. `mock-test-equipment` to satisfy this.
-3. Call `adapter.get_test_result(str(test.id)) → TestResultDTO`.
-4. Map the DTO onto a `TestResult` row (`test_id`, `result`, `measured_values`, `tested_at`, optional `unit_id`/`lot_id`/`operator_id`/`equipment_id`) via `TestResultService.record_result`, which also publishes the `quality.test.passed` or `quality.test.failed` event.
-5. Return the persisted row. The REST route layer commits the session.
-
-**REST surface:**
-
-```
-POST /api/v1/quality/tests/{test_id}/execute
-    body: ExecuteQualityTestRequest { unit_id?, lot_id?, operator_id?, equipment_id?, notes? }
-    → 201 TestResultRead
-    → 404 if the QualityTest id is unknown
-    → 503 if no test_equipment adapter plugin is running
-```
-
-Because the adapter is resolved by extension-point type at call time, swapping `mock-test-equipment` for a real adapter (e.g. a `file_drop_test_results` or OPC-UA tester plugin) requires zero changes to this service or its route.
+**Mock implementation:** `mock-test-equipment` generates synthetic results within configurable pass/fail distributions. Used by the equipment simulator and unit tests (`tests/unit/test_test_equipment_adapters.py`).
 
 ### 9.5 Production Counter Data Collection
 
@@ -5289,7 +5196,7 @@ After dispatch executes, the unit or lot's location is updated on the WIP entity
 | `current_equipment_id` | Chosen equipment's ID | The specific equipment assigned to process it |
 | `status` | `queued` | WIP is waiting in the equipment's queue |
 
-The WIP is logically **queued at a specific equipment within the next route step's work cell**. It remains `queued` until the equipment begins processing it (status → `in_process`), at which point processing, data collection, and quality tests can be recorded against that step.
+The WIP is logically **queued at a specific equipment within the next route step's work cell**. It remains `queued` until the equipment begins processing it (status → `in_process`), at which point processing and data collection can be recorded against that step.
 
 ### 10.2 Dispatch Strategies
 
@@ -5697,7 +5604,6 @@ Wildcards:
 | `*` | All permissions (admin only) |
 | `wip.*` | All WIP operations |
 | `*.read` | Read-only access across all modules |
-| `quality.*` | All quality operations |
 | `auth.user.*` | All user management operations |
 
 #### 11.6.2 Full Permission Map
@@ -5728,11 +5634,6 @@ Wildcards:
 | | `material.create` | Create material definitions, lots |
 | | `material.update` | Update materials, lots |
 | | `material.consume` | Record material consumption |
-| **QUAL-MGMT** | `quality.read` | View tests, results, non-conformances |
-| | `quality.test.create` | Define quality tests |
-| | `quality.result.record` | Record test results |
-| | `quality.nc.create` | Create non-conformances |
-| | `quality.nc.resolve` | Resolve/disposition non-conformances |
 | **DATA-COLLECT** | `data_collect.read` | View data definitions, data points |
 | | `data_collect.define` | Create data definitions |
 | | `data_collect.record` | Collect data points |
@@ -5754,8 +5655,8 @@ Wildcards:
 | Role | `is_system` | Permissions | Typical User |
 |---|---|---|---|
 | **admin** | Yes | `*` | System administrator |
-| **engineer** | Yes | `physical_model.*`, `product_def.*`, `production.order.*`, `dispatch.*`, `material.*`, `quality.*`, `data_collect.*`, `performance.*`, `wip.read`, `plugin.read` | Process/manufacturing engineer |
-| **operator** | Yes | `wip.*`, `dispatch.read`, `dispatch.execute`, `data_collect.read`, `data_collect.record`, `quality.result.record`, `quality.nc.create`, `material.read`, `material.consume`, `performance.read`, `physical_model.read`, `product_def.read`, `production.order.read` | Shop floor operator |
+| **engineer** | Yes | `physical_model.*`, `product_def.*`, `production.order.*`, `dispatch.*`, `material.*`, `data_collect.*`, `performance.*`, `wip.read`, `plugin.read` | Process/manufacturing engineer |
+| **operator** | Yes | `wip.*`, `dispatch.read`, `dispatch.execute`, `data_collect.read`, `data_collect.record`, `material.read`, `material.consume`, `performance.read`, `physical_model.read`, `product_def.read`, `production.order.read` | Shop floor operator |
 | **viewer** | Yes | `*.read` | Management, auditors |
 
 System roles are idempotent — re-running startup does not duplicate them.
@@ -6065,8 +5966,6 @@ contact: "dispatch-team@factory.com"
 server/src/mes/core/physical_model/   @team-infrastructure
 server/src/mes/core/wip/              @team-production
 server/src/mes/core/dispatch/         @team-dispatch
-server/src/mes/core/quality/          @team-quality
-
 # Plugins
 plugins/custom_dispatch/              @agent-a
 plugins/spc_engine/                   @agent-b
@@ -6114,7 +6013,7 @@ dependencies:
 
 ## 15. Design-Time Configuration Environment (DT-CLIENT)
 
-The Design-Time Client is the **reference configuration environment** for defining the plant physical model, product definitions, process routes, quality tests, material masters, and all other foundational data that must exist before production begins. It is a React + TypeScript web application that communicates exclusively via the REST API (§6).
+The Design-Time Client is the **reference configuration environment** for defining the plant physical model, product definitions, process routes, material masters, and all other foundational data that must exist before production begins. It is a React + TypeScript web application that communicates exclusively via the REST API (§6).
 
 > **Key distinction:** The DT-CLIENT is the reference implementation for *configuring* the MES. End users may have their AI build a completely different configuration UI or use headless scripts. The DT-CLIENT proves the API is sufficient for full configuration and serves as a working example.
 
@@ -6129,7 +6028,6 @@ The DT-CLIENT handles **definition-time** activities — everything that happens
 | **Physical Model** | Sites, areas, production lines, work cells, equipment (with capabilities/properties) |
 | **Product Definition** | Products, BOMs, BOM items, process routes, route steps (with equipment class selection), step parameters, step equipment/material requirements |
 | **Material Masters** | Material definitions (raw, intermediate, finished), units of measure |
-| **Quality Setup** | Quality test definitions, pass/fail criteria, sampling plans |
 | **Data Collection Setup** | Data definitions (what to collect at each step), sources, limits |
 | **Auth Administration** | Users, roles, permissions, IdP group mappings |
 | **Plugin Management** | Install/uninstall/enable/disable plugins, plugin configuration |
@@ -6279,7 +6177,6 @@ clients/design_time/
 │   │   ├── physical-model.ts          # PHYS-MODEL API functions
 │   │   ├── product-def.ts             # PROD-DEF API functions
 │   │   ├── material.ts                # MAT-MGMT API functions
-│   │   ├── quality.ts                 # QUAL-MGMT API functions
 │   │   ├── data-collection.ts         # DATA-COLLECT API functions
 │   │   ├── auth.ts                    # AUTH API functions
 │   │   ├── plugins.ts                 # PLUGIN-FW API functions
@@ -6313,10 +6210,6 @@ clients/design_time/
 │   │   ├── material/
 │   │   │   ├── MaterialListPage.tsx
 │   │   │   └── MaterialDetailPage.tsx
-│   │   │
-│   │   ├── quality/
-│   │   │   ├── TestDefinitionListPage.tsx
-│   │   │   └── TestDefinitionEditorPage.tsx
 │   │   │
 │   │   ├── data-collection/
 │   │   │   ├── DataDefListPage.tsx
@@ -6736,10 +6629,6 @@ const routes = [
   { path: "/materials",             element: <MaterialListPage /> },
   { path: "/materials/:materialId", element: <MaterialDetailPage /> },
 
-  // Quality Setup
-  { path: "/quality/tests",         element: <TestDefinitionListPage /> },
-  { path: "/quality/tests/:testId", element: <TestDefinitionEditorPage /> },
-
   // Data Collection Setup
   { path: "/data-definitions",      element: <DataDefListPage /> },
   { path: "/data-definitions/:id",  element: <DataDefEditorPage /> },
@@ -6814,7 +6703,7 @@ The DT-CLIENT landing page provides a configuration completeness overview:
 │                                                          │
 │  ⚠ Configuration Warnings:                              │
 │  • 3 materials missing unit of measure                   │
-│  • 5 quality tests missing pass/fail limits              │
+│  • 5 data definitions missing limits                     │
 │  • 2 route steps have no eligible equipment assigned     │
 │  • 1 product has no default route                        │
 │                                                          │
@@ -7437,7 +7326,7 @@ async def seed_all(client: httpx.AsyncClient):
                            {"name": "Widget-A", "code": "WGT-A", "version": "1.0", "uom": "ea"})
     route = await create(client, f"/products/{product['id']}/routes",
                          {"name": "Main Route", "version": "1.0", "is_default": True})
-    # ... steps, parameters, materials, quality tests
+    # ... steps, parameters, materials
 
     print(f"Seeded: 1 site, 1 area, 1 line, 3 work cells, 1 equipment, 1 product, 1 route")
 ```
@@ -7610,7 +7499,7 @@ The **Runtime Client** is a shop-floor operator client for real-time WIP process
 | Barcode / serial-number scanning to locate WIP | Route / product / material editing (DT-CLIENT) |
 | Step processing: start, complete, move, hold, scrap | Plugin management (DT-CLIENT) |
 | Data collection (numeric, string, boolean, enum) | ERP synchronization (ERP-SIM-GUI) |
-| Quality test pass / fail recording | Equipment state transitions (Equipment Simulator) |
+| MRB disposition selection | Equipment state transitions (Equipment Simulator) |
 | MRB disposition selection | User / role administration (DT-CLIENT) |
 | Route progress visualization | |
 | Production order monitoring | |
@@ -7677,7 +7566,7 @@ clients/run_time/
     ├── types/
     │   └── index.ts          # Unit, Lot, StepContext, MESEvent, InventoryBalance, …
     ├── api/
-    │   └── runtime.ts        # ~38 API functions (units, lots, routing, quality, inventory, …)
+    │   └── runtime.ts        # ~30 API functions (units, lots, routing, data collection, inventory, …)
     ├── hooks/
     │   └── useWebSocket.ts   # Auto-reconnect, topic subscription
     ├── components/
@@ -7704,7 +7593,7 @@ The RT-CLIENT uses a **flat tab layout** (no nested routing) optimized for shop-
 | **Active WIP** | `ActiveWipPage` | List all units or lots with status filter. Open any item → `StepProcessingPanel` |
 | **Orders** | `OrdersPage` | Production orders with status filter, priority badges, ERP reference, qty progress |
 | **Inventory** | `InventoryPage` | Three sub-tabs: **Operations** (receive, putaway, pick, move, consume, adjust forms), **Balances** (on-hand/reserved/available by material+location), **Log** (transaction audit trail with color-coded type badges) |
-| **Live Events** | `EventsPage` | Real-time WebSocket feed with category filter (WIP, Orders, Quality, Dispatch, Data, Equipment) |
+| **Live Events** | `EventsPage` | Real-time WebSocket feed with category filter (WIP, Orders, Dispatch, Data, Equipment) |
 
 ### 18.6 StepProcessingPanel — Core Operator Work Screen
 
@@ -7724,10 +7613,6 @@ The `StepProcessingPanel` is the central component, rendered by both the Scan an
 │  │ Visual OK?  │ [✓]      │ (boolean)         │     │
 │  └─────────────┴──────────┴───────────────────┘     │
 ├─────────────────────────────────────────────────────┤
-│  QUALITY TESTS                                      │
-│  Dimensional Check  [Pass] [Fail]                   │
-│  Electrical Test    [Pass] [Fail]                   │
-├─────────────────────────────────────────────────────┤
 │  [ Complete Step ▾ pass ]   [ Move → Next Step ]    │
 │  [ Hold ] reason: [_____]   [ Scrap ] reason: [___] │
 └─────────────────────────────────────────────────────┘
@@ -7737,7 +7622,7 @@ The `StepProcessingPanel` is the central component, rendered by both the Scan an
 | WIP Status | Available Actions |
 |------------|------------------|
 | `queued` | Start |
-| `in_process` | Collect data, record quality, complete step, move, hold, scrap |
+| `in_process` | Collect data, complete step, move, hold, scrap |
 | `on_hold` | Release hold |
 | `completed` / `scrapped` | None (terminal states) |
 
@@ -7758,13 +7643,12 @@ GET /api/v1/lots/{lot_id}/step-context
   "step": { "id": "…", "name": "Assembly", "step_type": "standard", "sequence": 3, … },
   "step_parameters": [ { "name": "Torque", "target": 12.5, "lower_limit": 10.0, "upper_limit": 15.0, … } ],
   "data_definitions": [ { "name": "Torque (Nm)", "data_type": "numeric", "step_id": "…", … } ],
-  "quality_tests": [ { "name": "Dimensional Check", "test_type": "pass_fail", … } ],
   "dispositions": [ { "label": "Rework", "to_step_id": "…" }, { "label": "Scrap", "to_step_id": null } ],
   "route_steps": [ { "id": "…", "name": "Mix", "sequence": 1 }, … ]
 }
 ```
 
-The builder (`server/src/mes/core/wip/step_context.py`) loads: WIP item → current step → step parameters → data definitions → quality tests → dispositions (for MRB steps) → all route steps (for progress tracker).
+The builder (`server/src/mes/core/wip/step_context.py`) loads: WIP item → current step → step parameters → data definitions → dispositions (for MRB steps) → all route steps (for progress tracker).
 
 ### 18.8 Server-Side Support: Barcode Scan Endpoints
 
@@ -7783,7 +7667,7 @@ The RT-CLIENT connects to `ws://localhost:8082/api/v1/events/ws` and subscribes 
 ```json
 { "action": "subscribe", "topics": [
     "wip.*", "production.order.*", "dispatch.*",
-    "quality.*", "data.*", "equipment.state.*"
+    "data.*", "equipment.state.*"
 ] }
 ```
 
@@ -7804,7 +7688,6 @@ The `useWebSocket` hook handles auto-reconnection (3-second delay) and exposes a
 | **Lots** | `fetchLots`, `fetchLotByNumber`, `fetchLotStepContext`, `fetchLotHistory`, `startLot`, `completeLot`, `moveLot`, `holdLot`, `releaseHoldLot`, `scrapLot` |
 | **Routing** | `fetchDispositions` |
 | **Data Collection** | `collectDataPoint`, `collectDataBatch` |
-| **Quality** | `recordQualityResult` |
 | **Orders** | `fetchOrders` |
 | **Inventory** | `fetchInventoryBalances`, `receiveInventory`, `putawayInventory`, `pickInventory`, `moveInventory`, `consumeInventory`, `adjustInventory`, `fetchInventoryTransactions` |
 | **Dashboard** | `fetchOrderProgress`, `fetchLineStatus`, `fetchShiftSummary` |
@@ -7829,7 +7712,7 @@ npm run dev
 **Operator workflow:**
 1. Open http://localhost:5176 → Dashboard shows order progress and shift summary
 2. Navigate to **Scan WIP** → scan a serial number → step context loads → process the step
-3. Collect data points, record quality test results, complete the step
+3. Collect data points, complete the step
 4. WIP moves to the next step (or select a disposition for MRB steps)
 5. Monitor **Live Events** tab for real-time WebSocket feed across all domains
 
@@ -7897,7 +7780,6 @@ Entities that are **MES-only** and are *not* sent to the ERP (pure ISA-95 plant 
 - `StepTransition` — conditional routing graph (ERP sees a linear operation sequence)
 - `Disposition` catalog (pass / fail / rework / MRB)
 - `DataDefinition` / `DataPoint` (time-series process data collection)
-- `QualityTest` limits and `TestResult` values
 - `Unit` (individual serialized WIP piece) and its step-by-step history
 - `Genealogy` as-built tree
 - `EquipmentStateLog`, OEE / PackML state models
@@ -7917,7 +7799,6 @@ This is precisely why the ERP-simulator seed covers the first group and the DT-C
 | Transitions | 9 | Pass/fail/always/disposition conditions; rework loop (QC fail → Re-Blend → Blending); MRB branches (return-to-reblend, scrap, resume-labeling) |
 | Step Parameters | 21 | Recipe targets (temperatures, pressures, speeds, volumes) |
 | Data Definitions | 21 | Collection templates matching step parameters |
-| Quality Tests | 1 | Brix/pH/micro inline at QC Testing step |
 | Production Orders | 3 | PO-OJ-001/002/003 (qty 500/1000/2000) |
 | Physical Model | 1 site, 1 area, 1 line, 6 work cells, 7 equipment | Dual fillers FL-400A/FL-400B for dispatch demonstration |
 | Equipment Materials | 7 | Design speeds and target OEE per equipment |
@@ -7934,7 +7815,6 @@ This is precisely why the ERP-simulator seed covers the first group and the DT-C
 | Transitions | 10 | AOI branches (pass/fail/rework); rework loops back to AOI; MRB disposition (return-to-rework, scrap, resume-coating) |
 | Step Parameters | 26 | Recipe targets (temperatures, pressures, speeds, times) |
 | Data Definitions | 28 | Collection templates matching step parameters |
-| Quality Tests | 1 | ECB-FCT-BOARD functional test at step 60 |
 | Production Orders | 3 | PO-ECB-001/002/003 (qty 50/100/25) |
 | Physical Model | 1 site, 1 area, 1 line, 7 work cells, 8 equipment | Dual PNP-800A/PNP-800B pick-and-place machines for dispatch demonstration |
 | Equipment Materials | 8 | Design speeds and target OEE per equipment |
@@ -8146,7 +8026,7 @@ Layer 3 (Execution):
   DISPATCH → DATA-COLLECT → MAT-MGMT
 
 Layer 4 (Quality & Analysis):
-  QUAL-MGMT → PERF-ANALYSIS → GENEALOGY
+  PERF-ANALYSIS → GENEALOGY
 
 Layer 5 (Integration - Phase 4):
   ERP-IBOUND → ERP-OBOUND → EQUIP-INTFC → TEST-INTFC

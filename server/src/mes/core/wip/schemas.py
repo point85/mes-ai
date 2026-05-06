@@ -48,7 +48,7 @@ class UnitRead(BaseModel):
     # RCA fields
     scrap_reason: str | None = None
     scrap_disposition: str | None = None
-    defect_code_id: UUID | None = None
+
     scrapped_at: datetime | None = None
     hold_reason: str | None = None
     release_reason: str | None = None
@@ -98,7 +98,7 @@ class LotRead(BaseModel):
     # RCA fields
     scrap_reason: str | None = None
     scrap_disposition: str | None = None
-    defect_code_id: UUID | None = None
+
     scrapped_at: datetime | None = None
     hold_reason: str | None = None
     release_reason: str | None = None
@@ -132,7 +132,6 @@ class UnitHistoryRead(BaseModel):
     # RCA fields
     disposition: str | None = None
     failure_mode: str | None = None
-    defect_code_id: UUID | None = None
     scrap_reason: str | None = None
     created_at: datetime
     created_at_utc: datetime | None = None
@@ -159,7 +158,6 @@ class LotHistoryRead(BaseModel):
     result: str | None = None
     disposition: str | None = None
     failure_mode: str | None = None
-    defect_code_id: UUID | None = None
     scrap_reason: str | None = None
     created_at: datetime
     created_at_utc: datetime | None = None
@@ -194,7 +192,6 @@ class CompleteRequest(BaseModel):
     quantity_scrapped: int | None = Field(None, ge=0, description="For lots: quantity scrapped at step")
     # RCA fields
     failure_mode: str | None = Field(None, max_length=200, description="Short description of failure mode (for fail results)")
-    defect_code_id: UUID | None = Field(None, description="Reference to defect code catalog entry")
 
 
 class MoveRequest(BaseModel):
@@ -236,5 +233,4 @@ class ScrapRequest(BaseModel):
 
     reason: str = Field(..., min_length=1, max_length=500)
     disposition: str | None = Field(None, max_length=100, description="Scrap disposition (e.g. 'rework', 'discard', 'return-to-supplier')")
-    defect_code_id: UUID | None = Field(None, description="Reference to defect code catalog entry")
     failure_mode: str | None = Field(None, max_length=200, description="Short description of the failure mode")

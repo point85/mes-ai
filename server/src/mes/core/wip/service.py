@@ -396,7 +396,6 @@ class UnitService:
         disposition: str | None = None,
         data_snapshot: dict | None = None,
         failure_mode: str | None = None,
-        defect_code_id: UUID | None = None,
     ) -> Unit:
         """
         Complete the current step for a unit.
@@ -433,7 +432,6 @@ class UnitService:
             # Item B: persist RCA fields on the history row
             history.disposition = disposition
             history.failure_mode = failure_mode
-            history.defect_code_id = defect_code_id
 
         await session.flush()
 
@@ -630,7 +628,6 @@ class UnitService:
         unit_id: UUID,
         reason: str,
         disposition: str | None = None,
-        defect_code_id: UUID | None = None,
         failure_mode: str | None = None,
     ) -> Unit:
         """Scrap a unit. Persists scrap context and increments the order's scrapped count."""
@@ -646,7 +643,6 @@ class UnitService:
         # Item A: persist scrap context on the unit row
         unit.scrap_reason = reason
         unit.scrap_disposition = disposition
-        unit.defect_code_id = defect_code_id
         unit.scrapped_at = now
         await session.flush()
 
@@ -670,21 +666,7 @@ class UnitService:
                 history.result = "fail"
                 history.disposition = disposition
                 history.failure_mode = failure_mode
-                history.defect_code_id = defect_code_id
                 history.scrap_reason = reason
-
-        # Item C: auto-create a NonConformance record
-        from mes.core.quality.service import NonConformanceService
-        await NonConformanceService.create_nc(
-            session,
-            unit_id=unit_id,
-            step_id=step_id,
-            nc_type="defect",
-            description=reason,
-            disposition="scrap",
-            status="open",
-        )
-        await session.flush()
 
         # Increment order scrapped count
         await OperationsRequestService.increment_scrapped(session, unit.order_id)
@@ -861,7 +843,6 @@ class LotService:
         disposition: str | None = None,
         result: str = "pass",
         failure_mode: str | None = None,
-        defect_code_id: UUID | None = None,
         data_snapshot: dict | None = None,
     ) -> Lot:
         lot = await LotService.get_lot(session, lot_id)
@@ -898,7 +879,6 @@ class LotService:
             history.result = result if quantity_scrapped == 0 or result != "pass" else "pass"
             history.disposition = disposition
             history.failure_mode = failure_mode
-            history.defect_code_id = defect_code_id
             if data_snapshot:
                 history.data_snapshot = data_snapshot
             if quantity_scrapped > 0 and not history.scrap_reason:
@@ -925,27 +905,6 @@ class LotService:
                 ended_at=history.exited_at,
                 lot_id=lot_id,
                 step_id=lot.current_step_id,
-            )
-            await session.flush()
-
-        # Item C: auto-create NonConformance when result is fail or there is scrap
-        if result == "fail" or quantity_scrapped > 0:
-            from mes.core.quality.service import NonConformanceService
-            description = failure_mode or (
-                f"{quantity_scrapped} unit(s) scrapped at step {lot.current_step_id}"
-                if quantity_scrapped > 0 else f"Step failed: {lot.current_step_id}"
-            )
-            # Use a controlled vocabulary value for NC disposition;
-            # never pass the operator's free-text disposition string here.
-            nc_disposition = "scrap" if quantity_scrapped > 0 else None
-            await NonConformanceService.create_nc(
-                session,
-                lot_id=lot_id,
-                step_id=lot.current_step_id,
-                nc_type="defect",
-                description=description,
-                disposition=nc_disposition,
-                status="open",
             )
             await session.flush()
 
@@ -1102,7 +1061,6 @@ class LotService:
         lot_id: UUID,
         reason: str,
         disposition: str | None = None,
-        defect_code_id: UUID | None = None,
         failure_mode: str | None = None,
     ) -> Lot:
         """Scrap a lot. Persists scrap context and increments the order's scrapped count."""
@@ -1118,7 +1076,6 @@ class LotService:
         # Item A: persist scrap context on the lot row
         lot.scrap_reason = reason
         lot.scrap_disposition = disposition
-        lot.defect_code_id = defect_code_id
         lot.scrapped_at = now
         await session.flush()
 
@@ -1142,21 +1099,7 @@ class LotService:
                 history.result = "fail"
                 history.disposition = disposition
                 history.failure_mode = failure_mode
-                history.defect_code_id = defect_code_id
                 history.scrap_reason = reason
-
-        # Item C: auto-create a NonConformance record
-        from mes.core.quality.service import NonConformanceService
-        await NonConformanceService.create_nc(
-            session,
-            lot_id=lot_id,
-            step_id=step_id,
-            nc_type="defect",
-            description=reason,
-            disposition="scrap",
-            status="open",
-        )
-        await session.flush()
 
         await OperationsRequestService.increment_scrapped(
             session, lot.order_id, lot.quantity,

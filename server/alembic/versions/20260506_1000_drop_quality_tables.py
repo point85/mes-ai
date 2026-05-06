@@ -19,7 +19,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Drop in FK-dependency order: child tables first
+    # Drop defect_code_id FK columns from tables that reference defect_codes
+    op.drop_column("units", "defect_code_id")
+    op.drop_column("lots", "defect_code_id")
+    op.drop_column("segment_response_units", "defect_code_id")
+    op.drop_column("segment_response_lots", "defect_code_id")
+
+    # Drop quality tables in FK-dependency order: child tables first
     op.drop_table("non_conformances")
     op.drop_table("test_results")
     op.drop_table("quality_tests")
@@ -95,3 +101,12 @@ def downgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("nc_number"),
     )
+    # Restore defect_code_id FK columns
+    op.add_column("units", sa.Column("defect_code_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.add_column("lots", sa.Column("defect_code_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.add_column("segment_response_units", sa.Column("defect_code_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.add_column("segment_response_lots", sa.Column("defect_code_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.create_foreign_key("fk_units_defect_code_id", "units", "defect_codes", ["defect_code_id"], ["id"])
+    op.create_foreign_key("fk_lots_defect_code_id", "lots", "defect_codes", ["defect_code_id"], ["id"])
+    op.create_foreign_key("fk_sru_defect_code_id", "segment_response_units", "defect_codes", ["defect_code_id"], ["id"])
+    op.create_foreign_key("fk_srl_defect_code_id", "segment_response_lots", "defect_codes", ["defect_code_id"], ["id"])
