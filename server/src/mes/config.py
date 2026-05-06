@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     # --- Database (DATA-LAYER) ---
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/mes_ai"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/mes_ai_s95"
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
