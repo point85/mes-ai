@@ -288,7 +288,16 @@ export default function PluginDetailPage() {
             />
           ) : (
           <div className="space-y-3">
-            {plugin.parameters.map((param: ParameterSchema) =>
+            {plugin.parameters
+              .filter((param: ParameterSchema) => {
+                // Only show token_url when OAuth2 auth is selected
+                if (param.name === "token_url") {
+                  const authType = String(paramValues["auth_type"] ?? "oauth2");
+                  return authType === "oauth2";
+                }
+                return true;
+              })
+              .map((param: ParameterSchema) =>
               param.type === "array" && param.items?.length ? (
                 <ParameterArrayField
                   key={param.name}

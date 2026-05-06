@@ -333,7 +333,16 @@ class PluginManager:
             # Store for config resolution
             info._parameter_values = parameter_values  # type: ignore[attr-defined]
 
-        await self._load_plugin(info)
+        if info.is_loaded and info.instance is not None:
+            # Plugin was previously loaded (then disabled). Re-initialize with the
+            # latest config so settings (e.g. auth_type) reflect the current values.
+            config = self._resolve_config(info.manifest)
+            pv = getattr(info, "_parameter_values", None)
+            if pv:
+                config.update(pv)
+            await info.instance.initialize(config)
+        else:
+            await self._load_plugin(info)
         await self._start_plugin(plugin_id, info)
 
     async def disable_plugin(self, plugin_id: str) -> None:
