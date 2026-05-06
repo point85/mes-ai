@@ -4,7 +4,6 @@ export * from "./useProductDef";
 export * from "./useMaterial";
 export * from "./useDataCollection";
 
-export * from "./useQuality";
 export * from "./usePerformance";
 export * from "./useGenealogy";
 export * from "./useDispatch";

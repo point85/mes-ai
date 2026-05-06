@@ -265,20 +265,6 @@ DATA_DEFS: dict[int, list[dict]] = {
 }
 
 # ---------------------------------------------------------------------------
-# Quality Test  (at Functional Test step 60)
-# ---------------------------------------------------------------------------
-
-QUALITY_TEST = {
-    "code": "ECB-FCT-BOARD",
-    "name": "Board Functional Test",
-    "test_type": "inline",
-    "parameters": {
-        "description": "Supply voltage, current draw, I/O channel response, firmware checksum verification",
-        "pass_criteria": "Voltage within +/-0.1V, current under 800mA, all I/O OK, firmware checksum match",
-    },
-}
-
-# ---------------------------------------------------------------------------
 # Production Orders  (removed — create via Production Orders page in ERP Sim)
 # ---------------------------------------------------------------------------
 

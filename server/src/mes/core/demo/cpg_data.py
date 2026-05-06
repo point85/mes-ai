@@ -233,20 +233,6 @@ DATA_DEFS: dict[int, list[dict]] = {
 }
 
 # ---------------------------------------------------------------------------
-# Quality Test  (at QC step 30)
-# ---------------------------------------------------------------------------
-
-QUALITY_TEST = {
-    "code": "CPG-QC-INLINE",
-    "name": "Juice Quality Panel",
-    "test_type": "inline",
-    "parameters": {
-        "description": "Brix, pH, microbial count, color index, and taste panel",
-        "pass_criteria": "All numeric parameters within limits and taste approved",
-    },
-}
-
-# ---------------------------------------------------------------------------
 # Production Orders  (removed — create via Production Orders page in ERP Sim)
 # ---------------------------------------------------------------------------
 

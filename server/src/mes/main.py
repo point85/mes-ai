@@ -29,7 +29,6 @@ from mes.core.data_collection.routes import router as data_collection_router
 from mes.core.inventory.routes import router as inventory_router
 
 # Layer 4 routers
-from mes.core.quality.routes import router as quality_router
 from mes.core.performance.routes import router as performance_router
 from mes.core.genealogy.routes import router as genealogy_router
 from mes.core.dispatch.routes import router as dispatch_router
@@ -266,7 +265,6 @@ def create_app() -> FastAPI:
     app.include_router(inventory_router)
 
     # Layer 4 routers
-    app.include_router(quality_router)
     app.include_router(performance_router)
     app.include_router(genealogy_router)
     app.include_router(dispatch_router)

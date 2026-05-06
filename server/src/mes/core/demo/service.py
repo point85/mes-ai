@@ -35,8 +35,6 @@ from mes.core.operations.models import OperationsRequest
 from mes.core.operations.service import OperationsRequestService
 from mes.core.data_collection.models import DataDefinition
 from mes.core.data_collection.service import DataDefinitionService
-from mes.core.quality.models import QualityTest
-from mes.core.quality.service import QualityTestService
 from mes.core.physical_model.service import PhysicalModelService
 from mes.core.physical_model.models import (
     Site, Area, ProductionLine, WorkCell, Equipment, EquipmentMaterial,
@@ -118,7 +116,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                                 "input_disposition_links": 0,
                                 "output_disposition_links": 0,
                                 "segment_parameters": 0, "data_definitions": 0,
-                                "quality_tests": 0, "material_lots": 0,
+                                "material_lots": 0,
                                 "dispositions": 0,
                                 "segment_material_requirements": 0,
                                 "route_material_assignments": 0}
@@ -238,15 +236,6 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
             dd["step_id"] = step.id
             if await _get_or_create_data_def(session, **dd):
                 summary["data_definitions"] += 1
-
-    # ── 9. Quality Test ───────────────────────────────────────────────
-    qc_step = step_by_seq[30]
-    qt_kwargs = dict(D.QUALITY_TEST)
-    qt_code = qt_kwargs.pop("code")
-    if await _get_or_create_quality_test(
-        session, code=qt_code, step_id=qc_step.id, **qt_kwargs,
-    ):
-        summary["quality_tests"] += 1
 
     # ── 10. Segment Material Requirements (ISA-95 Part 2) ─────────────
     if hasattr(D, "SEGMENT_MATERIAL_REQUIREMENTS"):
@@ -572,7 +561,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
                                 "input_disposition_links": 0,
                                 "output_disposition_links": 0,
                                 "segment_parameters": 0, "data_definitions": 0,
-                                "quality_tests": 0, "dispositions": 0,
+                                "dispositions": 0,
                                 "material_lots": 0,
                                 "segment_material_requirements": 0,
                                 "route_material_assignments": 0}
@@ -693,15 +682,6 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             dd["step_id"] = step.id
             if await _get_or_create_data_def(session, **dd):
                 summary["data_definitions"] += 1
-
-    # ── 9. Quality Test ───────────────────────────────────────────────
-    fct_step = step_by_seq[60]
-    qt_kwargs = dict(E.QUALITY_TEST)
-    qt_code = qt_kwargs.pop("code")
-    if await _get_or_create_quality_test(
-        session, code=qt_code, step_id=fct_step.id, **qt_kwargs,
-    ):
-        summary["quality_tests"] += 1
 
     # ── 10. Segment Material Requirements (ISA-95 Part 2) ─────────────
     for req in E.SEGMENT_MATERIAL_REQUIREMENTS:
@@ -1090,19 +1070,6 @@ async def _get_or_create_data_def(
     if result.scalar_one_or_none() is not None:
         return False
     await DataDefinitionService.create_definition(session, code=code, **kwargs)
-    return True
-
-
-async def _get_or_create_quality_test(
-    session: AsyncSession, code: str, **kwargs: Any
-) -> bool:
-    """Create quality test if code doesn't exist. Returns True if created."""
-    result = await session.execute(
-        select(QualityTest.id).where(QualityTest.code == code)
-    )
-    if result.scalar_one_or_none() is not None:
-        return False
-    await QualityTestService.create_test(session, code=code, **kwargs)
     return True
 
 

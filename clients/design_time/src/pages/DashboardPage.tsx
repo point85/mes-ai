@@ -45,12 +45,6 @@ const cards = [
       "Create and manage production orders through release, execution, and close.",
   },
   {
-    title: "Quality Management",
-    to: "/quality-tests",
-    description:
-      "Configure quality tests and manage non-conformances with disposition tracking.",
-  },
-  {
     title: "Performance Analysis",
     to: "/performance",
     description:

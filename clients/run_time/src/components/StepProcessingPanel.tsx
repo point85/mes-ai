@@ -4,7 +4,7 @@ import type { StepContext, Unit, Lot, DataDefinition, StepEquipmentStatus, BOMIt
 import {
   startUnit, completeUnit, moveUnit, holdUnit, releaseHoldUnit, scrapUnit,
   startLot, completeLot, moveLot, holdLot, releaseHoldLot, scrapLot,
-  collectDataBatch, recordQualityResult, fetchStepEquipment,
+  collectDataBatch, fetchStepEquipment,
   fetchStepBomItems, fetchMaterials, fetchMaterialLots, consumeMaterial, fetchConsumedMaterials,
   fetchUnitHistory, fetchLotHistory, fetchDispositionCatalog,
   fetchEquipmentCurrentState, transitionEquipmentState,
@@ -44,7 +44,7 @@ interface Props {
 }
 
 export default function StepProcessingPanel({ context, onRefresh }: Props) {
-  const { wip_type, wip, step, step_parameters, data_definitions, quality_tests, dispositions, route_steps, outgoing_conditions } = context;
+  const { wip_type, wip, step, step_parameters, data_definitions, dispositions, route_steps, outgoing_conditions } = context;
   const isUnit = wip_type === "unit";
   const identifier = isUnit ? (wip as Unit).serial_number : (wip as Lot).lot_number;
   const queryClient = useQueryClient();
@@ -71,9 +71,6 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
 
   // Actual values entered by operator for step parameters (stored in data_snapshot)
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
-
-  // Quality test results
-  const [testResults, setTestResults] = useState<Record<string, "pass" | "fail">>({});
 
   // Hold/scrap reason
   const [holdReason, setHoldReason] = useState("");
@@ -321,20 +318,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
     // Collect data points if any
     await submitDataCollection();
 
-    // Record quality test results
-    for (const qt of quality_tests) {
-      const result = testResults[qt.id];
-      if (result) {
-        await recordQualityResult({
-          test_id: qt.id,
-          ...(isUnit ? { unit_id: wip.id } : { lot_id: wip.id }),
-          result,
-          tested_at: new Date().toISOString(),
-        });
-      }
-    }
-
-    // Build data snapshot from collected values + step parameter actuals
+    // Build data snapshot
     const snapshot: Record<string, unknown> = {};
     for (const dd of data_definitions) {
       const val = dataValues[dd.id];
@@ -767,45 +751,6 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
-
-          {/* Quality Tests */}
-          {quality_tests.length > 0 && (
-            <div className="bg-white rounded-lg shadow p-5">
-              <h4 className="font-semibold text-gray-700 mb-3">Quality Tests</h4>
-              <div className="space-y-2">
-                {quality_tests.map((qt) => (
-                  <div key={qt.id} className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <p className="text-sm font-medium">{qt.name}</p>
-                      <p className="text-xs text-gray-400">{qt.test_type} · {qt.code}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setTestResults({ ...testResults, [qt.id]: "pass" })}
-                        className={`px-3 py-1 text-xs rounded-md font-medium ${
-                          testResults[qt.id] === "pass"
-                            ? "bg-green-600 text-white"
-                            : "bg-green-50 text-green-700 hover:bg-green-100"
-                        }`}
-                      >
-                        Pass
-                      </button>
-                      <button
-                        onClick={() => setTestResults({ ...testResults, [qt.id]: "fail" })}
-                        className={`px-3 py-1 text-xs rounded-md font-medium ${
-                          testResults[qt.id] === "fail"
-                            ? "bg-red-600 text-white"
-                            : "bg-red-50 text-red-700 hover:bg-red-100"
-                        }`}
-                      >
-                        Fail
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 

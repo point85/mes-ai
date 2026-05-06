@@ -41,19 +41,6 @@ class GenealogyMaterialRecord(BaseModel):
     step_id: UUID | None = None
 
 
-class GenealogyTestRecord(BaseModel):
-    """A quality test result associated with the unit/lot."""
-
-    result_id: UUID
-    test_code: str | None = None
-    test_name: str | None = None
-    result: str
-    measured_values: dict | None = None
-    tested_at: datetime
-    tested_at_utc: datetime | None = None
-    equipment_id: UUID | None = None
-
-
 class GenealogyDataRecord(BaseModel):
     """A data collection point associated with the unit/lot."""
 
@@ -87,5 +74,4 @@ class GenealogyRecord(BaseModel):
 
     steps: list[GenealogyStepRecord] = []
     materials: list[GenealogyMaterialRecord] = []
-    test_results: list[GenealogyTestRecord] = []
     data_points: list[GenealogyDataRecord] = []

@@ -15,7 +15,6 @@ import {
   BeakerIcon,
   ClipboardDocumentListIcon,
   ShieldCheckIcon,
-  ExclamationTriangleIcon,
   ChartBarIcon,
   LinkIcon,
   ArrowsRightLeftIcon,
@@ -72,13 +71,6 @@ const sections: NavSection[] = [
       { label: "Dispositions", to: "/dispositions", icon: TagIcon },
       { label: "Materials", to: "/materials", icon: BeakerIcon, helpTopic: "materials" as HelpTopic },
       { label: "Material Lots", to: "/material-lots", icon: BeakerIcon },
-    ],
-  },
-  {
-    title: "Quality",
-    items: [
-      { label: "Quality Tests", to: "/quality-tests", icon: ShieldCheckIcon },
-      { label: "Non-Conformances", to: "/non-conformances", icon: ExclamationTriangleIcon },
     ],
   },
   {

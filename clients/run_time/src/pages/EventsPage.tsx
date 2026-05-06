@@ -11,7 +11,6 @@ const EVENT_CATEGORIES = [
   { label: "All", prefix: "" },
   { label: "WIP", prefix: "wip." },
   { label: "Orders", prefix: "operations.request." },
-  { label: "Quality", prefix: "quality." },
   { label: "Dispatch", prefix: "dispatch." },
   { label: "Data", prefix: "data." },
   { label: "Equipment", prefix: "equipment." },
@@ -87,7 +86,6 @@ function EventTypeBadge({ type }: { type: string }) {
   let color = "bg-gray-100 text-gray-700";
   if (type.startsWith("wip.")) color = "bg-blue-100 text-blue-700";
   else if (type.startsWith("operations.request.")) color = "bg-purple-100 text-purple-700";
-  else if (type.startsWith("quality.")) color = "bg-green-100 text-green-700";
   else if (type.startsWith("dispatch.")) color = "bg-orange-100 text-orange-700";
   else if (type.startsWith("data.")) color = "bg-teal-100 text-teal-700";
   else if (type.startsWith("equipment.")) color = "bg-red-100 text-red-700";

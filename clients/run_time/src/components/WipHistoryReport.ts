@@ -99,19 +99,6 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
         </tr>
       `).join("");
 
-  // Test results
-  const testsHtml = rec.test_results.length === 0
-    ? `<tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:8px;">No quality tests recorded</td></tr>`
-    : rec.test_results.map((t, i) => `
-        <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f9fafb"};">
-          <td style="padding:6px 10px;">${t.test_code ?? "—"}</td>
-          <td style="padding:6px 10px;">${t.test_name ?? "—"}</td>
-          <td style="padding:6px 10px;color:${resultColor(t.result)};font-weight:600;">${fmtResult(t.result)}</td>
-          <td style="padding:6px 10px;">${fmt(t.tested_at)}</td>
-          <td style="padding:6px 10px;">${t.measured_values ? JSON.stringify(t.measured_values) : "—"}</td>
-        </tr>
-      `).join("");
-
   // Data points
   const dataHtml = rec.data_points.length === 0
     ? `<tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:8px;">No data points collected</td></tr>`
@@ -207,21 +194,6 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
         <th ${thStyle}>Consumed At</th>
       </tr></thead>
       <tbody>${matsHtml}</tbody>
-    </table>
-  </div>
-
-  <!-- Quality test results -->
-  <div ${sectionStyle}>
-    <h2 ${headingStyle}>Quality Test Results (${rec.test_results.length})</h2>
-    <table>
-      <thead><tr>
-        <th ${thStyle}>Code</th>
-        <th ${thStyle}>Test Name</th>
-        <th ${thStyle}>Result</th>
-        <th ${thStyle}>Tested At</th>
-        <th ${thStyle}>Measured Values</th>
-      </tr></thead>
-      <tbody>${testsHtml}</tbody>
     </table>
   </div>
 

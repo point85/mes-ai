@@ -18,7 +18,6 @@ from mes.framework.api.exceptions import NotFoundException
 
 from mes.core.wip.models import Unit, Lot, SegmentResponseUnit, SegmentResponseLot
 from mes.core.material.models import MaterialConsumption, MaterialDefinition, MaterialLot
-from mes.core.quality.models import TestResult, QualityTest
 from mes.core.data_collection.models import DataPoint, DataDefinition
 from mes.core.operations.models import OperationsRequest
 from mes.core.product_def.models import ProductDefinition, ProcessSegment
@@ -29,7 +28,6 @@ from .schemas import (
     GenealogyMaterialRecord,
     GenealogyRecord,
     GenealogyStepRecord,
-    GenealogyTestRecord,
 )
 
 logger = logging.getLogger("mes.genealogy")
@@ -108,30 +106,6 @@ class GenealogyService:
             for consumption, lot, mat_def in mat_rows
         ]
 
-        # ── Quality test results ────────────────────────────────────
-        test_stmt = (
-            select(TestResult, QualityTest)
-            .join(QualityTest, TestResult.test_id == QualityTest.id)
-            .where(TestResult.unit_id == unit_id)
-            .order_by(TestResult.tested_at)
-        )
-        test_result = await session.execute(test_stmt)
-        test_rows = test_result.all()
-
-        test_records = [
-            GenealogyTestRecord(
-                result_id=tr.id,
-                test_code=qt.code,
-                test_name=qt.name,
-                result=tr.result,
-                measured_values=tr.measured_values,
-                tested_at=tr.tested_at,
-                tested_at_utc=tr.tested_at_utc,
-                equipment_id=tr.equipment_id,
-            )
-            for tr, qt in test_rows
-        ]
-
         # ── Data points ─────────────────────────────────────────────
         data_stmt = (
             select(DataPoint, DataDefinition)
@@ -176,7 +150,6 @@ class GenealogyService:
             status=unit.status,
             steps=steps,
             materials=materials,
-            test_results=test_records,
             data_points=data_records,
         )
 
@@ -249,30 +222,6 @@ class GenealogyService:
             for consumption, mat_lot, mat_def in mat_rows
         ]
 
-        # ── Quality test results ────────────────────────────────────
-        test_stmt = (
-            select(TestResult, QualityTest)
-            .join(QualityTest, TestResult.test_id == QualityTest.id)
-            .where(TestResult.lot_id == lot_id)
-            .order_by(TestResult.tested_at)
-        )
-        test_result = await session.execute(test_stmt)
-        test_rows = test_result.all()
-
-        test_records = [
-            GenealogyTestRecord(
-                result_id=tr.id,
-                test_code=qt.code,
-                test_name=qt.name,
-                result=tr.result,
-                measured_values=tr.measured_values,
-                tested_at=tr.tested_at,
-                tested_at_utc=tr.tested_at_utc,
-                equipment_id=tr.equipment_id,
-            )
-            for tr, qt in test_rows
-        ]
-
         # ── Data points ─────────────────────────────────────────────
         data_stmt = (
             select(DataPoint, DataDefinition)
@@ -317,6 +266,5 @@ class GenealogyService:
             status=lot.status,
             steps=steps,
             materials=materials,
-            test_results=test_records,
             data_points=data_records,
         )

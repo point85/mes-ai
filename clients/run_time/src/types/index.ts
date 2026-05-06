@@ -236,19 +236,6 @@ export interface DataDefinition {
   updated_at: string;
 }
 
-export interface QualityTest {
-  id: string;
-  name: string;
-  code: string;
-  description: string | null;
-  test_type: string;
-  step_id: string | null;
-  parameters: Record<string, unknown> | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Disposition {
   id: string;
   name: string;
@@ -276,7 +263,6 @@ export interface StepContext {
   step: RouteStep | null;
   step_parameters: StepParameter[];
   data_definitions: DataDefinition[];
-  quality_tests: QualityTest[];
   dispositions: Disposition[];
   route_steps: RouteStep[];
   outgoing_conditions?: string[];

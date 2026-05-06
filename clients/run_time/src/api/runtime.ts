@@ -133,18 +133,6 @@ export const collectDataBatch = (items: Array<{
   value_boolean?: boolean;
 }>) => api.post("/data/collect-batch", { items }).then(unwrap<unknown>);
 
-// ── Quality ──────────────────────────────────────────────────────
-
-export const recordQualityResult = (payload: {
-  test_id: string;
-  unit_id?: string;
-  lot_id?: string;
-  result: "pass" | "fail";
-  measured_values?: Record<string, unknown>;
-  tested_at: string;
-  notes?: string;
-}) => api.post("/quality/results", payload).then(unwrap<unknown>);
-
 // ── Orders ───────────────────────────────────────────────────────
 
 export const fetchOrders = (params?: { status?: string }) =>

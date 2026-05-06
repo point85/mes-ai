@@ -10,7 +10,7 @@ import EventsPage from "./pages/EventsPage";
 import InventoryPage from "./pages/InventoryPage";
 import EquipmentStatusPage from "./pages/EquipmentStatusPage";
 
-const WS_TOPICS = ["wip.*", "operations.request.*", "dispatch.*", "quality.*", "data.*", "equipment.state.*"];
+const WS_TOPICS = ["wip.*", "operations.request.*", "dispatch.*", "data.*", "equipment.state.*"];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");

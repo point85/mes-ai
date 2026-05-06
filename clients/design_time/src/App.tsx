@@ -20,7 +20,6 @@ import { ProductListPage, ProductDetailPage, BOMEditorPage } from "./pages/produ
 import { RouteEditorPage } from "./pages/routes";
 import { MaterialListPage, MaterialLotListPage } from "./pages/materials";
 import { DataDefListPage } from "./pages/data-collection";
-import { QualityTestListPage, NCListPage } from "./pages/quality";
 import { PerformancePage } from "./pages/performance";
 import { GenealogyViewerPage } from "./pages/genealogy";
 import { DispatchPage } from "./pages/dispatch";
@@ -74,8 +73,6 @@ export default function App() {
             <Route path="/materials" element={<MaterialListPage />} />
             <Route path="/material-lots" element={<MaterialLotListPage />} />
             <Route path="/data-definitions" element={<DataDefListPage />} />
-            <Route path="/quality-tests" element={<QualityTestListPage />} />
-            <Route path="/non-conformances" element={<NCListPage />} />
             <Route path="/performance" element={<PerformancePage />} />
             <Route path="/reasons" element={<ReasonListPage />} />
             <Route path="/dispositions" element={<DispositionListPage />} />
