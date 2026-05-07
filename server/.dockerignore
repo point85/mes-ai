@@ -1,0 +1,32 @@
+# server/.dockerignore — keep the server image lean
+
+# Python artefacts
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+*.egg-info/
+
+# Dev-only files
+.env
+.env.*
+!.env.example
+tests/
+scripts/dev-setup.sh
+scripts/fix_alembic.py
+scripts/tmp/
+
+# Logs
+logs/*.log
+
+# Editor / OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db

@@ -1,0 +1,15 @@
+# clients/.dockerignore — keep client images lean
+# Applied when build context is clients/
+
+# Node artefacts
+**/node_modules/
+**/dist/
+**/.vite/
+**/.turbo/
+**/coverage/
+
+# Editor / OS
+**/.vscode/
+**/.idea/
+**/*.DS_Store
+**/Thumbs.db

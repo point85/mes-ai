@@ -258,3 +258,15 @@ python scripts/reset_and_seed.py
 This will: drop and recreate the schema, 
 run all Alembic migrations to head, 
 then seed both CPG and Electronics demo data fresh.
+
+Docker installer
+git clone ... && cd mes-ai
+
+# Windows:
+.\install.ps1
+
+# macOS/Linux:
+chmod +x install.sh && ./install.sh
+→ Waits ~30–60 s for migrations + seed → prints URLs → done.
+
+To update (once images are on ghcr.io): set MES_IMAGE_TAG=1.0.1 in .env, then .install.ps1 --pull.
