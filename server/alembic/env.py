@@ -72,7 +72,14 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection: Connection) -> None:
     """Configure Alembic context with the given connection and run."""
-    context.configure(connection=connection, target_metadata=target_metadata)
+    # SQLite does not support ALTER TABLE ... ADD CONSTRAINT, so use
+    # batch mode (copy-and-move strategy) for SQLite migrations.
+    is_sqlite = connection.dialect.name == "sqlite"
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        render_as_batch=is_sqlite,
+    )
     with context.begin_transaction():
         context.run_migrations()
 

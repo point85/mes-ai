@@ -34,7 +34,7 @@ USAGE
 
 ARGUMENTS
   Database             (required)  Database engine (case-insensitive):
-                                     PostgreSQL | MySQL | SQLite | MSSQL
+                                     PostgreSQL | MySQL | MSSQL
                                      Oracle | CockroachDB | DB2
   DbName               (optional)  MES database name.  Default: mes_ai
 
@@ -53,7 +53,6 @@ SUPPORTED DATABASES
   ----------    ------------  ------------  -----------------------------------------------
   PostgreSQL        5432      asyncpg       postgresql+asyncpg://user:pass@host:5432/mes_ai
   MySQL             3306      aiomysql      mysql+aiomysql://user:pass@host:3306/mes_ai
-  SQLite             N/A      aiosqlite     sqlite+aiosqlite:///./mes_ai.db
   MSSQL             1433      pyodbc        mssql+pyodbc://user:pass@host:1433/mes_ai?driver=ODBC+Driver+18+for+SQL+Server
   Oracle            1521      oracledb      oracle+oracledb://user:pass@host:1521/mes_ai
   CockroachDB      26257      asyncpg       cockroachdb+asyncpg://user:pass@host:26257/mes_ai
@@ -63,8 +62,6 @@ EXAMPLES
   ./run-server.sh PostgreSQL
   ./run-server.sh PostgreSQL mes_ai -u postgres -p secret
   ./run-server.sh MySQL mes_ai -s db.example.com:3306 -u root -p pass
-  ./run-server.sh SQLite
-  ./run-server.sh SQLite -n test_mes --port 8092
   ./run-server.sh MSSQL mes_ai -u sa -p MyPass123 --port 8090
   ./run-server.sh Oracle mes_ai -s oracle-host:1521 -u mes -p oracle
   ./run-server.sh CockroachDB mes_ai -u root
@@ -155,14 +152,13 @@ DB_TYPE_LOWER=$(echo "$DATABASE" | tr '[:upper:]' '[:lower:]')
 case "$DB_TYPE_LOWER" in
     postgresql)  DEFAULT_PORT=5432  ;;
     mysql)       DEFAULT_PORT=3306  ;;
-    sqlite)      DEFAULT_PORT=0     ;;
     mssql)       DEFAULT_PORT=1433  ;;
     oracle)      DEFAULT_PORT=1521  ;;
     cockroachdb) DEFAULT_PORT=26257 ;;
     db2)         DEFAULT_PORT=50000 ;;
     *)
         echo "Error: Unknown database '$DATABASE'." >&2
-        echo "Valid options: PostgreSQL, MySQL, SQLite, MSSQL, Oracle, CockroachDB, DB2" >&2
+        echo "Valid options: PostgreSQL, MySQL, MSSQL, Oracle, CockroachDB, DB2" >&2
         exit 1
         ;;
 esac
@@ -186,24 +182,22 @@ fi
 # ---------------------------------------------------------------------------
 # Credential defaults / validation
 # ---------------------------------------------------------------------------
-if [[ "$DB_TYPE_LOWER" != "sqlite" ]]; then
-    if [[ -z "$USERNAME" ]]; then
-        case "$DB_TYPE_LOWER" in
-            postgresql)
-                USERNAME="postgres"
-                PASSWORD="${PASSWORD:-postgres}"
-                echo "INFO: No credentials supplied — using PostgreSQL defaults (postgres/postgres)."
-                ;;
-            cockroachdb)
-                USERNAME="root"
-                echo "INFO: No username supplied — using CockroachDB default (root)."
-                ;;
-            *)
-                echo "Error: --username is required for $DATABASE." >&2
-                exit 1
-                ;;
-        esac
-    fi
+if [[ -z "$USERNAME" ]]; then
+    case "$DB_TYPE_LOWER" in
+        postgresql)
+            USERNAME="postgres"
+            PASSWORD="${PASSWORD:-postgres}"
+            echo "INFO: No credentials supplied — using PostgreSQL defaults (postgres/postgres)."
+            ;;
+        cockroachdb)
+            USERNAME="root"
+            echo "INFO: No username supplied — using CockroachDB default (root)."
+            ;;
+        *)
+            echo "Error: --username is required for $DATABASE." >&2
+            exit 1
+            ;;
+    esac
 fi
 
 # ---------------------------------------------------------------------------
@@ -215,9 +209,6 @@ case "$DB_TYPE_LOWER" in
         ;;
     mysql)
         CONN_STR="mysql+aiomysql://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-        ;;
-    sqlite)
-        CONN_STR="sqlite+aiosqlite:///./${DB_NAME}.db"
         ;;
     mssql)
         CONN_STR="mssql+pyodbc://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server"
@@ -241,10 +232,8 @@ echo "MES AI Server Startup"
 echo "====================="
 echo "  Database  : $DATABASE"
 echo "  DB Name   : $DB_NAME"
-if [[ "$DB_TYPE_LOWER" != "sqlite" ]]; then
-    echo "  DB Server : ${DB_HOST}:${DB_PORT}"
-    echo "  Username  : $USERNAME"
-fi
+echo "  DB Server : ${DB_HOST}:${DB_PORT}"
+echo "  Username  : $USERNAME"
 echo "  URL       : $CONN_STR"
 echo "  API Port  : $UVICORN_PORT"
 echo ""
@@ -268,7 +257,7 @@ fi
 # ---------------------------------------------------------------------------
 # Set environment variables
 # ---------------------------------------------------------------------------
-export DATABASE_URL="$CONN_STR"
+export MES_DATABASE_URL="$CONN_STR"
 export MES_AUTH_MODE="${MES_AUTH_MODE:-none}"
 
 # ---------------------------------------------------------------------------
