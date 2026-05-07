@@ -275,6 +275,38 @@ echo "Activating virtual environment..."
 source "$VENV_ACTIVATE"
 
 # ---------------------------------------------------------------------------
+# Check database exists (PostgreSQL / MSSQL; Oracle uses service names)
+# ---------------------------------------------------------------------------
+echo "Checking database '$DB_NAME' exists on ${DB_HOST}:${DB_PORT}..."
+if [[ "$DB_TYPE_LOWER" == "postgresql" ]]; then
+    if command -v psql &>/dev/null; then
+        db_exists=$(PGPASSWORD="$PASSWORD" psql -U "$USERNAME" -h "$DB_HOST" -p "$DB_PORT" \
+            -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" postgres 2>&1)
+        if [[ "$db_exists" != "1" ]]; then
+            echo "Error: Database '$DB_NAME' does not exist on ${DB_HOST}:${DB_PORT}." >&2
+            echo "Create it first:" >&2
+            echo "  psql -U $USERNAME -h $DB_HOST -p $DB_PORT -c \"CREATE DATABASE \\\"$DB_NAME\\\";\"" >&2
+            exit 1
+        fi
+    else
+        echo "  WARNING: psql not found - skipping database existence check." >&2
+    fi
+elif [[ "$DB_TYPE_LOWER" == "mssql" ]]; then
+    if command -v sqlcmd &>/dev/null; then
+        result=$(sqlcmd -S "${DB_HOST},${DB_PORT}" -U "$USERNAME" -P "$PASSWORD" \
+            -Q "SET NOCOUNT ON; IF DB_ID('$DB_NAME') IS NULL PRINT 'MISSING'" -h -1 2>&1)
+        if echo "$result" | grep -q "MISSING"; then
+            echo "Error: Database '$DB_NAME' does not exist on ${DB_HOST}:${DB_PORT}." >&2
+            echo "Create it first:" >&2
+            echo "  sqlcmd -S ${DB_HOST},${DB_PORT} -U $USERNAME -Q \"CREATE DATABASE [$DB_NAME]\"" >&2
+            exit 1
+        fi
+    else
+        echo "  WARNING: sqlcmd not found - skipping database existence check." >&2
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Alembic migrations
 # ---------------------------------------------------------------------------
 echo "Running Alembic migrations..."

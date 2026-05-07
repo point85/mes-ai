@@ -149,7 +149,7 @@ if ($Username -eq "") {
     if ($dbType -eq "postgresql") {
         $Username = "postgres"
         if ($Password.Length -eq 0) { $Password = ConvertTo-SecureString "postgres" -AsPlainText -Force }
-        Write-Host "INFO: No credentials supplied — using PostgreSQL defaults (postgres/postgres)."
+        Write-Host "INFO: No credentials supplied - using PostgreSQL defaults (postgres/postgres)."
     } else {
         Write-Error "-Username is required for $Database."
         exit 1
@@ -236,6 +236,40 @@ if (-not $env:MES_AUTH_MODE) { $env:MES_AUTH_MODE = "none" }
 # ---------------------------------------------------------------------------
 Write-Host "Activating virtual environment..."
 & $venvActivate
+
+# ---------------------------------------------------------------------------
+# Check database exists (PostgreSQL / MSSQL; Oracle uses service names)
+# ---------------------------------------------------------------------------
+Write-Host "Checking database '$DbName' exists on ${dbHost}:${dbPort}..."
+if ($dbType -eq "postgresql") {
+    if (Get-Command psql -ErrorAction SilentlyContinue) {
+        $bstrChk         = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
+        $env:PGPASSWORD  = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstrChk)
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstrChk)
+        $dbExists        = & psql -U $Username -h $dbHost -p $dbPort -tAc "SELECT 1 FROM pg_database WHERE datname='$DbName'" postgres 2>&1
+        $env:PGPASSWORD  = ""
+        if (($dbExists -join "").Trim() -ne "1") {
+            Write-Error "Database '$DbName' does not exist on ${dbHost}:${dbPort}.`nCreate it first:`n  psql -U $Username -h $dbHost -p $dbPort -c `"CREATE DATABASE `\`"$DbName`\`";`""
+            exit 1
+        }
+    } else {
+        Write-Host "  WARNING: psql not found - skipping database existence check." -ForegroundColor Yellow
+    }
+} elseif ($dbType -eq "mssql") {
+    if (Get-Command sqlcmd -ErrorAction SilentlyContinue) {
+        $bstrChk = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
+        $tmpPwd  = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstrChk)
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstrChk)
+        $result  = & sqlcmd -S "${dbHost},${dbPort}" -U $Username -P $tmpPwd -Q "SET NOCOUNT ON; IF DB_ID('$DbName') IS NULL PRINT 'MISSING'" -h -1 2>&1
+        Remove-Variable tmpPwd
+        if ($result -match "MISSING") {
+            Write-Error "Database '$DbName' does not exist on ${dbHost}:${dbPort}.`nCreate it first:`n  sqlcmd -S ${dbHost},${dbPort} -U $Username -Q `"CREATE DATABASE [$DbName]`""
+            exit 1
+        }
+    } else {
+        Write-Host "  WARNING: sqlcmd not found - skipping database existence check." -ForegroundColor Yellow
+    }
+}
 
 # ---------------------------------------------------------------------------
 # Alembic migrations
