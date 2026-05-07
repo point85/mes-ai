@@ -10,7 +10,7 @@ WORKDIR /app/equipment_simulator
 COPY mes.config.json /app/mes.config.json
 
 COPY equipment_simulator/package*.json ./
-RUN npm ci
+RUN npm install --no-audit --no-fund
 
 COPY equipment_simulator/ ./
 RUN npm run build

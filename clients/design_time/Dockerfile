@@ -13,7 +13,7 @@ COPY mes.config.json /app/mes.config.json
 
 # Install dependencies (cached separately from source)
 COPY design_time/package*.json ./
-RUN npm ci
+RUN npm install --no-audit --no-fund
 
 # Copy source and build
 COPY design_time/ ./

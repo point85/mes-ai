@@ -10,7 +10,7 @@ WORKDIR /app/erp_simulator
 COPY mes.config.json /app/mes.config.json
 
 COPY erp_simulator/package*.json ./
-RUN npm ci
+RUN npm install --no-audit --no-fund
 
 COPY erp_simulator/ ./
 RUN npm run build

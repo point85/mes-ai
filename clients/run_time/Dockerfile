@@ -10,7 +10,7 @@ WORKDIR /app/run_time
 COPY mes.config.json /app/mes.config.json
 
 COPY run_time/package*.json ./
-RUN npm ci
+RUN npm install --no-audit --no-fund
 
 COPY run_time/ ./
 RUN npm run build
