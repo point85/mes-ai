@@ -22,6 +22,7 @@ DB_SERVER=""
 USERNAME=""
 PASSWORD=""
 UVICORN_PORT=8082
+STAMP=false
 
 # ---------------------------------------------------------------------------
 # Help
@@ -44,6 +45,8 @@ OPTIONS
                             Required for MSSQL and Oracle.
   -p, --password PASS       DB password.  Defaults to "postgres" for PostgreSQL.
       --port PORT            uvicorn port.  Default: 8082
+      --stamp               Purge stale Alembic revision and re-stamp to head
+                            before running migrations (use after consolidation).
   -h, --help                Show this help message.
 
 SUPPORTED DATABASES
@@ -109,6 +112,10 @@ while [[ $# -gt 0 ]]; do
             fi
             UVICORN_PORT="$2"
             shift 2
+            ;;
+        --stamp)
+            STAMP=true
+            shift
             ;;
         -*)
             echo "Error: Unknown option '$1'." >&2
@@ -311,7 +318,16 @@ fi
 # ---------------------------------------------------------------------------
 echo "Running Alembic migrations..."
 cd "$SERVER_DIR"
-alembic upgrade head
+if [[ "$STAMP" == true ]]; then
+    echo "  Stamping database to current head (purging stale revision)..."
+    alembic stamp head --purge
+fi
+if ! alembic upgrade head; then
+    echo "Error: Alembic migration failed." >&2
+    echo "If the database has a stale revision from a prior migration consolidation," >&2
+    echo "re-run with --stamp to reset it." >&2
+    exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Uvicorn

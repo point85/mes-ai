@@ -29,6 +29,11 @@
 .PARAMETER UvicornPort
     Optional. Port for the uvicorn web server. Default: 8082
 
+.PARAMETER Stamp
+    Purge the alembic_version table and re-stamp to the current head before
+    running migrations.  Use this when an existing database has a stale
+    revision (e.g. after a migration consolidation).
+
 .PARAMETER Help
     Show usage information, supported databases, and example connection strings.
 
@@ -61,6 +66,9 @@ param(
     [int]$UvicornPort = 8082,
 
     [Parameter()]
+    [switch]$Stamp,
+
+    [Parameter()]
     [switch]$Help
 )
 
@@ -88,6 +96,8 @@ OPTIONS
                           Required for MSSQL and Oracle.
   -Password  PASS         DB password.  Defaults to "postgres" for PostgreSQL.
   -UvicornPort  PORT      uvicorn port.  Default: 8082
+  -Stamp                  Purge stale Alembic revision and re-stamp to head
+                          before running migrations (use after consolidation).
   -Help                   Show this help message.
 
 SUPPORTED DATABASES
@@ -277,9 +287,17 @@ if ($dbType -eq "postgresql") {
 Write-Host "Running Alembic migrations..."
 Push-Location $serverDir
 try {
+    if ($Stamp) {
+        Write-Host "  Stamping database to current head (purging stale revision)..."
+        alembic stamp head --purge
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Alembic stamp failed (exit code $LASTEXITCODE)."
+            exit $LASTEXITCODE
+        }
+    }
     alembic upgrade head
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Alembic migration failed (exit code $LASTEXITCODE)."
+        Write-Error "Alembic migration failed (exit code $LASTEXITCODE).`nIf the database has a stale revision from a prior migration consolidation, re-run with -Stamp to reset it."
         exit $LASTEXITCODE
     }
 } finally {
