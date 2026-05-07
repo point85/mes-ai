@@ -270,3 +270,11 @@ chmod +x install.sh && ./install.sh
 → Waits ~30–60 s for migrations + seed → prints URLs → done.
 
 To update (once images are on ghcr.io): set MES_IMAGE_TAG=1.0.1 in .env, then .install.ps1 --pull.
+
+Simplest setup for an end-user pulling a public repo:
+git clone https://github.com/point85/mes-ai.git
+cd mes-ai
+./install.ps1 or sh
+
+docker version
+docker compose version
