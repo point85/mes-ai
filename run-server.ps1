@@ -155,11 +155,35 @@ if ($Username -eq "") {
 }
 
 # ---------------------------------------------------------------------------
+# MSSQL: verify ODBC driver is installed
+# ---------------------------------------------------------------------------
+if ($dbType -eq "mssql") {
+    $odbcDrivers = Get-ItemProperty "HKLM:\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers" -ErrorAction SilentlyContinue
+    $driver18    = $odbcDrivers."ODBC Driver 18 for SQL Server"
+    $driver17    = $odbcDrivers."ODBC Driver 17 for SQL Server"
+
+    if ($driver18 -eq "Installed") {
+        Write-Host "INFO: ODBC Driver 18 for SQL Server detected."
+        $odbcDriverName = "ODBC+Driver+18+for+SQL+Server"
+    } elseif ($driver17 -eq "Installed") {
+        Write-Host "INFO: ODBC Driver 17 for SQL Server detected (18 preferred)."
+        $odbcDriverName = "ODBC+Driver+17+for+SQL+Server"
+    } else {
+        Write-Error @"
+ODBC Driver for SQL Server not found.
+Install 'ODBC Driver 18 for SQL Server' from:
+  https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server
+"@
+        exit 1
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Build connection string
 # ---------------------------------------------------------------------------
 $connStr = switch ($dbType) {
     "postgresql" { "postgresql+asyncpg://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
-    "mssql"      { "mssql+pyodbc://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}?driver=ODBC+Driver+18+for+SQL+Server" }
+    "mssql"      { "mssql+pyodbc://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}?driver=${odbcDriverName}" }
     "oracle"     { "oracle+oracledb://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
 }
 

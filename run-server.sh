@@ -186,6 +186,37 @@ if [[ -z "$USERNAME" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# MSSQL: verify ODBC driver is installed
+# ---------------------------------------------------------------------------
+if [[ "$DB_TYPE_LOWER" == "mssql" ]]; then
+    ODBC_DRIVER_NAME=""
+    # Check odbcinst.ini (unixODBC)
+    if command -v odbcinst &>/dev/null; then
+        if odbcinst -q -d | grep -q "ODBC Driver 18 for SQL Server"; then
+            ODBC_DRIVER_NAME="ODBC+Driver+18+for+SQL+Server"
+        elif odbcinst -q -d | grep -q "ODBC Driver 17 for SQL Server"; then
+            echo "INFO: ODBC Driver 17 for SQL Server detected (18 preferred)."
+            ODBC_DRIVER_NAME="ODBC+Driver+17+for+SQL+Server"
+        fi
+    fi
+    # Fallback: check /etc/odbcinst.ini directly
+    if [[ -z "$ODBC_DRIVER_NAME" ]] && [[ -f /etc/odbcinst.ini ]]; then
+        if grep -q "ODBC Driver 18 for SQL Server" /etc/odbcinst.ini; then
+            ODBC_DRIVER_NAME="ODBC+Driver+18+for+SQL+Server"
+        elif grep -q "ODBC Driver 17 for SQL Server" /etc/odbcinst.ini; then
+            echo "INFO: ODBC Driver 17 for SQL Server detected (18 preferred)."
+            ODBC_DRIVER_NAME="ODBC+Driver+17+for+SQL+Server"
+        fi
+    fi
+    if [[ -z "$ODBC_DRIVER_NAME" ]]; then
+        echo "Error: ODBC Driver for SQL Server not found." >&2
+        echo "Install 'ODBC Driver 18 for SQL Server':" >&2
+        echo "  https://learn.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server" >&2
+        exit 1
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Build connection string
 # ---------------------------------------------------------------------------
 case "$DB_TYPE_LOWER" in
@@ -193,7 +224,7 @@ case "$DB_TYPE_LOWER" in
         CONN_STR="postgresql+asyncpg://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
         ;;
     mssql)
-        CONN_STR="mssql+pyodbc://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server"
+        CONN_STR="mssql+pyodbc://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?driver=${ODBC_DRIVER_NAME}"
         ;;
     oracle)
         CONN_STR="oracle+oracledb://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
