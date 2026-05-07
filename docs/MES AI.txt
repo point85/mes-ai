@@ -279,7 +279,7 @@ cd mes-ai
 docker version
 docker compose version
 
-Use a fresh clone (git clone https://github.com/point85/mes-ai.git mes-ai-docker-test)
+Use a fresh clone (git clone https://github.com/point85/mes-ai.git mes-ai-test)
 After the clone, from that folder:
 .\install.ps1 -Build
 
