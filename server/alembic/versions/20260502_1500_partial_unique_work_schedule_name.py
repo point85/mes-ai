@@ -13,6 +13,7 @@ from typing import Sequence, Union
 
 from alembic import op
 
+
 # revision identifiers, used by Alembic.
 revision: str = 'c9d8e7f6a5b4'
 down_revision: Union[str, None] = 'f72c48a370e4'
@@ -20,14 +21,25 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _dialect() -> str:
+    return op.get_bind().dialect.name
+
+
 def upgrade() -> None:
     # Drop the old full unique index
     op.drop_index('ix_work_schedules_name', table_name='work_schedules')
-    # Create a partial unique index — only active rows must have distinct names
-    op.execute(
-        "CREATE UNIQUE INDEX ix_work_schedules_name "
-        "ON work_schedules (name) WHERE (is_active = TRUE)"
-    )
+    # Create a partial unique index for PostgreSQL; plain unique index for MySQL
+    # (MySQL does not support WHERE clause in CREATE INDEX)
+    if _dialect() == "mysql":
+        op.execute(
+            "CREATE UNIQUE INDEX ix_work_schedules_name "
+            "ON work_schedules (name)"
+        )
+    else:
+        op.execute(
+            "CREATE UNIQUE INDEX ix_work_schedules_name "
+            "ON work_schedules (name) WHERE (is_active = TRUE)"
+        )
 
 
 def downgrade() -> None:

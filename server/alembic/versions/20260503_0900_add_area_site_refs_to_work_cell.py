@@ -16,13 +16,16 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'd4e5f6a7b8c9'
 down_revision: Union[str, None] = 'c9d8e7f6a5b4'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+
+def _dialect() -> str:
+    return op.get_bind().dialect.name
 
 
 def upgrade() -> None:
@@ -47,19 +50,27 @@ def upgrade() -> None:
     )
 
     # Back-fill: resolve area_id and site_id via the existing FK chain.
-    op.execute("""
-        UPDATE work_cells wc
-        SET
-            area_id = pl.area_id,
-            site_id = a.site_id
-        FROM production_lines pl
-        JOIN areas a ON a.id = pl.area_id
-        WHERE wc.line_id = pl.id
-    """)
+    if _dialect() == "mysql":
+        op.execute("""
+            UPDATE work_cells wc
+            JOIN production_lines pl ON wc.line_id = pl.id
+            JOIN areas a ON a.id = pl.area_id
+            SET wc.area_id = pl.area_id, wc.site_id = a.site_id
+        """)
+    else:
+        op.execute("""
+            UPDATE work_cells wc
+            SET
+                area_id = pl.area_id,
+                site_id = a.site_id
+            FROM production_lines pl
+            JOIN areas a ON a.id = pl.area_id
+            WHERE wc.line_id = pl.id
+        """)
 
     # Now enforce NOT NULL and add FK constraints + indexes.
-    op.alter_column('work_cells', 'area_id', nullable=False)
-    op.alter_column('work_cells', 'site_id', nullable=False)
+    op.alter_column('work_cells', 'area_id', nullable=False, existing_type=sa.Uuid())
+    op.alter_column('work_cells', 'site_id', nullable=False, existing_type=sa.Uuid())
 
     op.create_foreign_key(
         'fk_work_cells_area_id',

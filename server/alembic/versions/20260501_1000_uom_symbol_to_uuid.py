@@ -32,6 +32,10 @@ depends_on: Union[str, Sequence[str], None] = None
 # Helper
 # ---------------------------------------------------------------------------
 
+def _dialect() -> str:
+    return op.get_bind().dialect.name
+
+
 def _migrate_uom_column(
     table: str,
     old_col: str,
@@ -47,24 +51,40 @@ def _migrate_uom_column(
     # 1. Add new nullable UUID column
     op.add_column(table, sa.Column(new_col, sa.Uuid(), nullable=True))
 
-    # 2. Populate from join
-    op.execute(
-        f"""
-        UPDATE {table} t
-        SET {new_col} = u.id
-        FROM units_of_measure u
-        WHERE u.symbol = t.{old_col}
-        """
-    )
+    # 2. Populate from join (syntax differs between PostgreSQL and MySQL)
+    if _dialect() == "mysql":
+        op.execute(
+            f"UPDATE {table} t "
+            f"JOIN units_of_measure u ON u.symbol = t.{old_col} "
+            f"SET t.{new_col} = u.id"
+        )
+    else:
+        op.execute(
+            f"UPDATE {table} t "
+            f"SET {new_col} = u.id "
+            f"FROM units_of_measure u "
+            f"WHERE u.symbol = t.{old_col}"
+        )
 
     # 3. Set NOT NULL if required
     if not nullable:
-        op.alter_column(table, new_col, nullable=False)
+        op.alter_column(table, new_col, nullable=False, existing_type=sa.Uuid())
 
     # 4. Create FK constraint
     op.create_foreign_key(fk_name, table, "units_of_measure", [new_col], ["id"])
 
-    # 5. Drop old string column
+    # 5. On MySQL, drop the FK on the old column before dropping it
+    if _dialect() == "mysql":
+        result = op.get_bind().execute(sa.text(
+            "SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t "
+            "AND COLUMN_NAME = :c AND REFERENCED_TABLE_NAME IS NOT NULL"
+        ), {"t": table, "c": old_col})
+        row = result.fetchone()
+        if row:
+            op.drop_constraint(row[0], table, type_="foreignkey")
+
+    # 6. Drop old string column
     op.drop_column(table, old_col)
 
 
@@ -93,16 +113,21 @@ def downgrade() -> None:
             fk_name = f"fk_{table}_{new_col}_uom"
         op.drop_constraint(fk_name, table, type_="foreignkey")
         op.add_column(table, sa.Column(old_col, sa.String(20), nullable=True))
-        op.execute(
-            f"""
-            UPDATE {table} t
-            SET {old_col} = u.symbol
-            FROM units_of_measure u
-            WHERE u.id = t.{new_col}
-            """
-        )
+        if _dialect() == "mysql":
+            op.execute(
+                f"UPDATE {table} t "
+                f"JOIN units_of_measure u ON u.id = t.{new_col} "
+                f"SET t.{old_col} = u.symbol"
+            )
+        else:
+            op.execute(
+                f"UPDATE {table} t "
+                f"SET {old_col} = u.symbol "
+                f"FROM units_of_measure u "
+                f"WHERE u.id = t.{new_col}"
+            )
         if not nullable:
-            op.alter_column(table, old_col, nullable=False)
+            op.alter_column(table, old_col, nullable=False, existing_type=sa.String(20))
         op.drop_column(table, new_col)
 
     _reverse("equipment_materials", "reject_uom",       "reject_uom_id",

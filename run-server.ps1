@@ -8,7 +8,7 @@
     the uvicorn web server.
 
 .PARAMETER Database
-    Required. Database engine: PostgreSQL | MySQL | MSSQL | Oracle | CockroachDB | DB2
+    Required. Database engine: PostgreSQL | MSSQL | Oracle
 
 .PARAMETER DbName
     Optional. Name of the MES database. Default: mes_ai
@@ -33,12 +33,8 @@
 .EXAMPLE
     .\run-server.ps1 PostgreSQL
     .\run-server.ps1 PostgreSQL -DbName prod_mes -Username postgres -Password secret
-    .\run-server.ps1 MySQL mes_ai -DbServer db.example.com:3306 -Username root -Password pass
-
     .\run-server.ps1 MSSQL mes_ai -Username sa -Password MyPass123
     .\run-server.ps1 Oracle mes_ai -DbServer oracle-host:1521 -Username mes -Password oracle
-    .\run-server.ps1 CockroachDB mes_ai -Username root -Password ""
-    .\run-server.ps1 DB2 mes_ai -DbServer db2-host:50000 -Username db2inst1 -Password pass
     .\run-server.ps1 -Help
 #>
 
@@ -80,15 +76,14 @@ USAGE
 
 ARGUMENTS
   Database             (required)  Database engine (case-insensitive):
-                                     PostgreSQL | MySQL | MSSQL
-                                     Oracle | CockroachDB | DB2
+                                     PostgreSQL | MSSQL | Oracle
   DbName               (optional)  MES database name.  Default: mes_ai
 
 OPTIONS
   -DbServer  HOST[:PORT]  DB host and optional port.
                           Default: localhost with the engine's standard port.
   -Username  USER         DB username.  Defaults to "postgres" for PostgreSQL.
-                          Required for MySQL, MSSQL, Oracle, CockroachDB, DB2.
+                          Required for MSSQL and Oracle.
   -Password  PASS         DB password.  Defaults to "postgres" for PostgreSQL.
   -UvicornPort  PORT      uvicorn port.  Default: 8082
   -Help                   Show this help message.
@@ -97,20 +92,14 @@ SUPPORTED DATABASES
   Engine        Default Port  Async Driver  Example Connection String
   ----------    ------------  ------------  ------------------------------------------------
   PostgreSQL        5432      asyncpg       postgresql+asyncpg://user:pass@host:5432/mes_ai
-  MySQL             3306      aiomysql      mysql+aiomysql://user:pass@host:3306/mes_ai
   MSSQL             1433      pyodbc        mssql+pyodbc://user:pass@host:1433/mes_ai?driver=ODBC+Driver+18+for+SQL+Server
   Oracle            1521      oracledb      oracle+oracledb://user:pass@host:1521/mes_ai
-  CockroachDB      26257      asyncpg       cockroachdb+asyncpg://user:pass@host:26257/mes_ai
-  DB2              50000      ibm_db        db2+ibm_db://user:pass@host:50000/mes_ai
 
 EXAMPLES
   .\run-server.ps1 PostgreSQL
   .\run-server.ps1 PostgreSQL mes_ai -Username postgres -Password secret
-  .\run-server.ps1 MySQL mes_ai -DbServer db.example.com:3306 -Username root -Password pass
   .\run-server.ps1 MSSQL mes_ai -Username sa -Password MyPass123 -UvicornPort 8090
   .\run-server.ps1 Oracle mes_ai -DbServer oracle-host:1521 -Username mes -Password oracle
-  .\run-server.ps1 CockroachDB mes_ai -Username root
-  .\run-server.ps1 DB2 mes_ai -DbServer db2-host:50000 -Username db2inst1 -Password pass
 
 "@
 }
@@ -124,18 +113,15 @@ if ($Help -or [string]::IsNullOrEmpty($Database)) {
 # Default ports per engine
 # ---------------------------------------------------------------------------
 $defaultPorts = @{
-    postgresql  = 5432
-    mysql       = 3306
-    mssql       = 1433
-    oracle      = 1521
-    cockroachdb = 26257
-    db2         = 50000
+    postgresql = 5432
+    mssql      = 1433
+    oracle     = 1521
 }
 
 $dbType = $Database.ToLower()
 
 if (-not $defaultPorts.ContainsKey($dbType)) {
-    Write-Error "Unknown database '$Database'.`nValid options: PostgreSQL, MySQL, MSSQL, Oracle, CockroachDB, DB2"
+    Write-Error "Unknown database '$Database'.`nValid options: PostgreSQL, MSSQL, Oracle"
     exit 1
 }
 
@@ -162,9 +148,6 @@ if ($Username -eq "") {
         $Username = "postgres"
         if ($Password -eq "") { $Password = "postgres" }
         Write-Host "INFO: No credentials supplied — using PostgreSQL defaults (postgres/postgres)."
-    } elseif ($dbType -eq "cockroachdb") {
-        $Username = "root"
-        Write-Host "INFO: No username supplied — using CockroachDB default (root)."
     } else {
         Write-Error "-Username is required for $Database."
         exit 1
@@ -175,12 +158,9 @@ if ($Username -eq "") {
 # Build connection string
 # ---------------------------------------------------------------------------
 $connStr = switch ($dbType) {
-    "postgresql"  { "postgresql+asyncpg://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
-    "mysql"       { "mysql+aiomysql://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
-    "mssql"       { "mssql+pyodbc://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}?driver=ODBC+Driver+18+for+SQL+Server" }
-    "oracle"      { "oracle+oracledb://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
-    "cockroachdb" { "cockroachdb+asyncpg://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
-    "db2"         { "db2+ibm_db://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
+    "postgresql" { "postgresql+asyncpg://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
+    "mssql"      { "mssql+pyodbc://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}?driver=ODBC+Driver+18+for+SQL+Server" }
+    "oracle"     { "oracle+oracledb://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
 }
 
 # ---------------------------------------------------------------------------

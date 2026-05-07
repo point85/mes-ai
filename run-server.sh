@@ -34,16 +34,14 @@ USAGE
 
 ARGUMENTS
   Database             (required)  Database engine (case-insensitive):
-                                     PostgreSQL | MySQL | MSSQL
-                                     Oracle | CockroachDB | DB2
+                                     PostgreSQL | MSSQL | Oracle
   DbName               (optional)  MES database name.  Default: mes_ai
 
 OPTIONS
   -s, --server HOST[:PORT]  DB host and optional port.
                             Default: localhost with the engine's standard port.
-  -u, --username USER       DB username.  Defaults to "postgres" for PostgreSQL,
-                            "root" for CockroachDB.
-                            Required for MySQL, MSSQL, Oracle, DB2.
+  -u, --username USER       DB username.  Defaults to "postgres" for PostgreSQL.
+                            Required for MSSQL and Oracle.
   -p, --password PASS       DB password.  Defaults to "postgres" for PostgreSQL.
       --port PORT            uvicorn port.  Default: 8082
   -h, --help                Show this help message.
@@ -52,20 +50,14 @@ SUPPORTED DATABASES
   Engine        Default Port  Async Driver  Example Connection String
   ----------    ------------  ------------  -----------------------------------------------
   PostgreSQL        5432      asyncpg       postgresql+asyncpg://user:pass@host:5432/mes_ai
-  MySQL             3306      aiomysql      mysql+aiomysql://user:pass@host:3306/mes_ai
   MSSQL             1433      pyodbc        mssql+pyodbc://user:pass@host:1433/mes_ai?driver=ODBC+Driver+18+for+SQL+Server
   Oracle            1521      oracledb      oracle+oracledb://user:pass@host:1521/mes_ai
-  CockroachDB      26257      asyncpg       cockroachdb+asyncpg://user:pass@host:26257/mes_ai
-  DB2              50000      ibm_db        db2+ibm_db://user:pass@host:50000/mes_ai
 
 EXAMPLES
   ./run-server.sh PostgreSQL
   ./run-server.sh PostgreSQL mes_ai -u postgres -p secret
-  ./run-server.sh MySQL mes_ai -s db.example.com:3306 -u root -p pass
   ./run-server.sh MSSQL mes_ai -u sa -p MyPass123 --port 8090
   ./run-server.sh Oracle mes_ai -s oracle-host:1521 -u mes -p oracle
-  ./run-server.sh CockroachDB mes_ai -u root
-  ./run-server.sh DB2 mes_ai -s db2-host:50000 -u db2inst1 -p pass
 
 EOF
 }
@@ -151,14 +143,11 @@ DB_TYPE_LOWER=$(echo "$DATABASE" | tr '[:upper:]' '[:lower:]')
 
 case "$DB_TYPE_LOWER" in
     postgresql)  DEFAULT_PORT=5432  ;;
-    mysql)       DEFAULT_PORT=3306  ;;
     mssql)       DEFAULT_PORT=1433  ;;
     oracle)      DEFAULT_PORT=1521  ;;
-    cockroachdb) DEFAULT_PORT=26257 ;;
-    db2)         DEFAULT_PORT=50000 ;;
     *)
         echo "Error: Unknown database '$DATABASE'." >&2
-        echo "Valid options: PostgreSQL, MySQL, MSSQL, Oracle, CockroachDB, DB2" >&2
+        echo "Valid options: PostgreSQL, MSSQL, Oracle" >&2
         exit 1
         ;;
 esac
@@ -189,10 +178,6 @@ if [[ -z "$USERNAME" ]]; then
             PASSWORD="${PASSWORD:-postgres}"
             echo "INFO: No credentials supplied — using PostgreSQL defaults (postgres/postgres)."
             ;;
-        cockroachdb)
-            USERNAME="root"
-            echo "INFO: No username supplied — using CockroachDB default (root)."
-            ;;
         *)
             echo "Error: --username is required for $DATABASE." >&2
             exit 1
@@ -207,20 +192,11 @@ case "$DB_TYPE_LOWER" in
     postgresql)
         CONN_STR="postgresql+asyncpg://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
         ;;
-    mysql)
-        CONN_STR="mysql+aiomysql://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-        ;;
     mssql)
         CONN_STR="mssql+pyodbc://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server"
         ;;
     oracle)
         CONN_STR="oracle+oracledb://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-        ;;
-    cockroachdb)
-        CONN_STR="cockroachdb+asyncpg://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-        ;;
-    db2)
-        CONN_STR="db2+ibm_db://${USERNAME}:${PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
         ;;
 esac
 

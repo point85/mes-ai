@@ -54,7 +54,6 @@ class PluginConfig(BaseModel):
     parameter_values: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
-        server_default="{}",
         nullable=False,
         comment="User-provided parameter values (filled during install)",
     )
@@ -62,7 +61,6 @@ class PluginConfig(BaseModel):
     config_overrides: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
-        server_default="{}",
         nullable=False,
         comment="Additional runtime config overrides (merged over manifest defaults)",
     )
