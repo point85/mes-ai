@@ -18,6 +18,15 @@ branch_labels: Union[str, Sequence[str], None] = ${repr(branch_labels)}
 depends_on: Union[str, Sequence[str], None] = ${repr(depends_on)}
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _dialect() -> str:
+    """Return the active database dialect name: 'postgresql', 'mssql', 'oracle'."""
+    return op.get_context().dialect.name
+
+
 def upgrade() -> None:
     ${upgrades if upgrades else "pass"}
 

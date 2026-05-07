@@ -1,8 +1,14 @@
 """
 Alembic environment configuration for MES AI.
 
-Uses async SQLAlchemy engine (asyncpg) for both autogenerate and
-online migration execution.
+Supports all three database backends:
+  - PostgreSQL + asyncpg  → async engine path
+  - MSSQL     + pyodbc    → sync engine path (pyodbc has no async support)
+  - Oracle    + oracledb  → sync engine path
+
+The backend is detected from the DATABASE_URL driver component.
+Async drivers: asyncpg
+Sync drivers:  pyodbc, oracledb (everything else)
 """
 
 from __future__ import annotations
@@ -11,7 +17,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -72,16 +78,17 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection: Connection) -> None:
     """Configure Alembic context with the given connection and run."""
-    # SQLite does not support ALTER TABLE ... ADD CONSTRAINT, so use
-    # batch mode (copy-and-move strategy) for SQLite migrations.
-    is_sqlite = connection.dialect.name == "sqlite"
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
-        render_as_batch=is_sqlite,
     )
     with context.begin_transaction():
         context.run_migrations()
+
+
+def _url_is_async(url: str) -> bool:
+    """Return True if the URL uses an async driver (asyncpg)."""
+    return "asyncpg" in url
 
 
 async def run_async_migrations() -> None:
@@ -96,9 +103,25 @@ async def run_async_migrations() -> None:
     await connectable.dispose()
 
 
+def run_sync_migrations() -> None:
+    """Create a sync engine and run migrations — used for pyodbc (MSSQL) and
+    oracledb (Oracle) which do not support asyncio."""
+    connectable = create_engine(
+        config.get_main_option("sqlalchemy.url"),
+        poolclass=pool.NullPool,
+    )
+    with connectable.connect() as connection:
+        do_run_migrations(connection)
+    connectable.dispose()
+
+
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode — uses a live async connection."""
-    asyncio.run(run_async_migrations())
+    """Run migrations in 'online' mode, choosing sync vs async based on driver."""
+    url = config.get_main_option("sqlalchemy.url")
+    if _url_is_async(url):
+        asyncio.run(run_async_migrations())
+    else:
+        run_sync_migrations()
 
 
 # ---------------------------------------------------------------------------
