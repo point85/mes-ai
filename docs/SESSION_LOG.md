@@ -17,7 +17,7 @@ Authoritative project state is in [PROJECT_STATE.json](PROJECT_STATE.json).
 ### Project state at reset (2026-05-06)
 
 - **Phases complete**: P1 Survey, P2 Architecture, P3 Core Server (all 5 layers), P4 Integration Adapters, P5 Clients (DT/RT/ERP/Equipment simulators), P6 Schema/UX consolidation.
-- **Current focus**: Post-P6 polish; P7 (Testing & CI) not yet started.
+- **Current focus**: Post-P6 polish.
 - **Active database**: `mes_ai_s95` on `localhost:5432`.
 - **Server**: FastAPI/uvicorn on port 8082. Start: `cd server && uvicorn mes.main:app --reload --port 8082`.
 - **Clients**: DT-CLIENT port 5173, RT-CLIENT 5176, ERP Sim 5174, Equipment Sim 5175.
@@ -55,7 +55,6 @@ Routing rules at runtime:
 7. `clients/run_time/src/components/StepProcessingPanel.tsx` -- disposition picker only when N outputs.
 
 **Other**:
-- P7 -- CI pipeline + `server/tests/integration/` + mock simulation layer.
 - Docker installer end-to-end test (requires Docker Desktop).
 
 ---
@@ -95,7 +94,34 @@ Database housekeeping and cross-dialect Alembic infrastructure.
 
 ### Next session
 - DT-CLIENT 7-file frontend update (broken since S042) — still deferred.
-- P7: CI pipeline + integration tests.
-- MSSQL / Oracle migration smoke-test (requires available test instances).
+
+---
+
+## Session S045 — 2026-05-07
+
+### Summary
+DT-CLIENT + RT-CLIENT frontend fixed (broken since S042 routing model refactor).
+
+### Work completed
+
+**Removed `StepTransition` model from DT-CLIENT**
+- `clients/design_time/src/types/productDef.ts`: Deleted `StepTransition`, `StepTransitionCreate`, `StepTransitionUpdate` interfaces. `RouteStep` already had the new `input_dispositions`, `output_dispositions`, `is_initial_step` fields.
+- `clients/design_time/src/api/productDef.ts`: Removed imports of deleted types and deleted `fetchStepTransitions`, `createStepTransition`, `updateStepTransition`, `deleteStepTransition` functions.
+- `clients/design_time/src/hooks/useProductDef.ts`: Removed imports, `KEYS.transitions`, and `useStepTransitions`, `useCreateStepTransition`, `useUpdateStepTransition`, `useDeleteStepTransition` hook functions.
+- `clients/design_time/src/pages/products/TransitionFormDialog.tsx`: **Deleted**.
+
+**Updated ProductDetailPage.tsx right panel**
+- Old: "Transitions" panel with Add/Edit/Delete calling the removed API.
+- New: "Step Detail" card — `is_initial_step` badge, input disposition chips (blue), output disposition chips (green), routing hint (0=terminal, 1=auto-routed, N>1=operator picks), Edit Step button.
+
+**Already correct (no changes needed)**
+- `StepFormDialog.tsx`: Already had `is_initial_step` + input/output disposition multi-selects.
+- `RouteFlowDiagram.tsx`: Already rendered edges from output→input disposition matching.
+- `RT-CLIENT StepProcessingPanel.tsx`: Already used `dispositions.length > 1` guard for disposition picker.
+
+**TypeScript**: Both clients pass `npx tsc --noEmit` with zero errors.
+
+### Next session
+- Regression test: graph-routed terminal-step lot completion.
 
 ---

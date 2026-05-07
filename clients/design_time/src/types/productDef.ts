@@ -310,40 +310,6 @@ export interface StepParameterUpdate {
   is_required?: boolean;
 }
 
-// ─── Step Transition ──────────────────────────────────────────────────
-
-export interface StepTransition {
-  id: string;
-  from_step_id: string;
-  to_step_id: string;
-  condition: string;
-  is_default: boolean;
-  priority: number;
-  label: string | null;
-  disposition_id: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface StepTransitionCreate {
-  to_step_id: string;
-  condition?: string;
-  is_default?: boolean;
-  priority?: number;
-  label?: string | null;
-  disposition_id?: string | null;
-}
-
-export interface StepTransitionUpdate {
-  to_step_id?: string;
-  condition?: string;
-  is_default?: boolean;
-  priority?: number;
-  label?: string | null;
-  disposition_id?: string | null;
-}
-
 // ─── Route–Product Assignment ─────────────────────────────────────────
 
 export interface RouteProductAssignment {

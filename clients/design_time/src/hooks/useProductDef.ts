@@ -27,10 +27,6 @@ import {
   createStepParameter,
   updateStepParameter,
   deleteStepParameter,
-  fetchStepTransitions,
-  createStepTransition,
-  updateStepTransition,
-  deleteStepTransition,
   fetchAllRoutes,
   createStandaloneRoute,
   updateStandaloneRoute,
@@ -68,8 +64,6 @@ import type {
   RouteStepUpdate,
   StepParameterCreate,
   StepParameterUpdate,
-  StepTransitionCreate,
-  StepTransitionUpdate,
   RouteProductAssignmentCreate,
   RouteMaterialAssignmentCreate,
   DispositionCreate,
@@ -90,7 +84,6 @@ const KEYS = {
   routeMaterials: (routeId: string) => ["routeMaterials", routeId] as const,
   steps: (routeId: string) => ["steps", routeId] as const,
   params: (stepId: string) => ["stepParams", stepId] as const,
-  transitions: (stepId: string) => ["stepTransitions", stepId] as const,
   dispositions: ["dispositions"] as const,
   stepEquipReqs: (stepId: string) => ["stepEquipReqs", stepId] as const,
   stepMatReqs: (stepId: string) => ["stepMatReqs", stepId] as const,
@@ -298,120 +291,6 @@ export function useDeleteStepParameter() {
   return useMutation({
     mutationFn: (id: string) => deleteStepParameter(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["stepParams"] }),
-  });
-}
-
-// ─── Step Transitions ─────────────────────────────────────────────────
-
-export function useStepTransitions(stepId: string) {
-  return useQuery({
-    queryKey: KEYS.transitions(stepId),
-    queryFn: () => fetchStepTransitions(stepId),
-    enabled: !!stepId,
-  });
-}
-
-export function useCreateStepTransition() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ stepId, ...body }: StepTransitionCreate & { stepId: string }) =>
-      createStepTransition(stepId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["stepTransitions"] }),
-  });
-}
-
-export function useUpdateStepTransition() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, ...body }: StepTransitionUpdate & { id: string }) =>
-      updateStepTransition(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["stepTransitions"] }),
-  });
-}
-
-export function useDeleteStepTransition() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => deleteStepTransition(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["stepTransitions"] }),
-  });
-}
-
-// ─── Standalone Routes (Route Editor) ─────────────────────────────────
-
-export function useAllRoutes() {
-  return useQuery({ queryKey: KEYS.allRoutes, queryFn: fetchAllRoutes });
-}
-
-export function useCreateStandaloneRoute() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: RouteCreate) => createStandaloneRoute(body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: KEYS.allRoutes });
-      qc.invalidateQueries({ queryKey: ["routes"] });
-    },
-  });
-}
-
-// ─── Route–Product Assignments ────────────────────────────────────────
-
-export function useRouteProducts(routeId: string) {
-  return useQuery({
-    queryKey: KEYS.routeProducts(routeId),
-    queryFn: () => fetchRouteProducts(routeId),
-    enabled: !!routeId,
-  });
-}
-
-export function useAssignProductToRoute() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ routeId, ...body }: RouteProductAssignmentCreate & { routeId: string }) =>
-      assignProductToRoute(routeId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["routeProducts"] }),
-  });
-}
-
-export function useUnassignProductFromRoute() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ routeId, productId }: { routeId: string; productId: string }) =>
-      unassignProductFromRoute(routeId, productId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["routeProducts"] }),
-  });
-}
-
-// ─── Standalone Route Update / Delete ─────────────────────────────────
-
-export function useUpdateStandaloneRoute() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, ...body }: RouteUpdate & { id: string }) =>
-      updateStandaloneRoute(id, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: KEYS.allRoutes });
-      qc.invalidateQueries({ queryKey: ["routes"] });
-    },
-  });
-}
-
-export function useDeleteRoute() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (routeId: string) => deleteRoute(routeId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: KEYS.allRoutes });
-      qc.invalidateQueries({ queryKey: ["routes"] });
-    },
-  });
-}
-
-export function useDeleteStep() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (stepId: string) => deleteStep(stepId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["steps"] }),
   });
 }
 

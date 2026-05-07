@@ -1,5 +1,5 @@
 /**
- * Product Detail Page — routes, steps, and step transitions editor.
+ * Product Detail Page — routes, steps, and step dispositions editor.
  * URL: /products/:productId
  */
 
@@ -10,13 +10,10 @@ import {
   PencilSquareIcon,
   ChevronRightIcon,
   ArrowLeftIcon,
-  TrashIcon,
 } from "@heroicons/react/24/outline";
 import {
   useRoutes,
   useRouteSteps,
-  useStepTransitions,
-  useDeleteStepTransition,
   useBOMs,
   useBOMItems,
 } from "../../hooks/useProductDef";
@@ -25,29 +22,11 @@ import { useQuery } from "@tanstack/react-query";
 import type {
   ProcessRoute,
   RouteStep,
-  StepTransition,
   BOMItem,
 } from "../../types";
 import RouteFormDialog from "./RouteFormDialog";
 import StepFormDialog from "./StepFormDialog";
 import StepEquipReqCountBadge from "./StepEquipReqCountBadge";
-import TransitionFormDialog from "./TransitionFormDialog";
-
-const CONDITION_LABELS: Record<string, string> = {
-  always: "Always",
-  on_pass: "On Pass",
-  on_fail: "On Fail",
-  on_rework: "On Rework",
-  disposition: "Disposition",
-};
-
-const CONDITION_COLORS: Record<string, string> = {
-  always: "bg-gray-100 text-gray-700",
-  on_pass: "bg-green-100 text-green-700",
-  on_fail: "bg-red-100 text-red-700",
-  on_rework: "bg-amber-100 text-amber-700",
-  disposition: "bg-purple-100 text-purple-700",
-};
 
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
@@ -58,8 +37,6 @@ export default function ProductDetailPage() {
   const [showRouteForm, setShowRouteForm] = useState(false);
   const [showStepForm, setShowStepForm] = useState(false);
   const [editingStep, setEditingStep] = useState<RouteStep | null>(null);
-  const [showTransitionForm, setShowTransitionForm] = useState(false);
-  const [editingTransition, setEditingTransition] = useState<StepTransition | null>(null);
 
   // Queries
   const { data: product, isLoading: productLoading } = useQuery({
@@ -72,10 +49,6 @@ export default function ProductDetailPage() {
 
   const { data: stepsData } = useRouteSteps(selectedRoute?.id ?? "");
   const steps = (stepsData?.data ?? []).sort((a, b) => a.sequence - b.sequence);
-
-  const { data: transitionsData, isLoading: transitionsLoading } =
-    useStepTransitions(selectedStep?.id ?? "");
-  const transitions = transitionsData?.data ?? [];
 
   // BOM items for step-material display
   const { data: bomsData } = useBOMs(productId ?? "");
@@ -93,11 +66,6 @@ export default function ProductDetailPage() {
       stepMaterialsMap.set(item.process_segment_id, list);
     }
   }
-
-  // Step name lookup for transitions display
-  const stepNameMap = new Map(steps.map((s) => [s.id, `${s.sequence}. ${s.name}`]));
-
-  const deleteMut = useDeleteStepTransition();
 
   if (productLoading) {
     return <p className="text-sm text-gray-500 p-6">Loading…</p>;
@@ -361,102 +329,100 @@ export default function ProductDetailPage() {
           )}
         </div>
 
-        {/* Right panel — Transitions */}
+        {/* Right panel — Step Detail */}
         <div className="lg:col-span-1">
           {selectedStep ? (
             <div className="rounded-lg border border-gray-200 bg-white shadow-sm sticky top-6">
               <div className="border-b border-gray-200 px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-gray-900">
-                    Transitions
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setEditingTransition(null);
-                      setShowTransitionForm(true);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
-                  >
-                    <PlusIcon className="h-3.5 w-3.5" />
-                    Add
-                  </button>
-                </div>
+                <h2 className="text-sm font-semibold text-gray-900">Step Detail</h2>
                 <p className="mt-1 text-xs text-gray-500">
-                  From: <span className="font-medium">{selectedStep.sequence}. {selectedStep.name}</span>
+                  <span className="font-medium">{selectedStep.sequence}. {selectedStep.name}</span>
+                  {selectedStep.is_initial_step && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+                      initial
+                    </span>
+                  )}
                 </p>
               </div>
-
-              {transitionsLoading ? (
-                <p className="px-4 py-4 text-sm text-gray-500">Loading…</p>
-              ) : transitions.length === 0 ? (
-                <div className="px-4 py-6 text-center">
-                  <p className="text-sm text-gray-400">No transitions.</p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    Linear sequence will be used.
+              <div className="divide-y divide-gray-100 p-4 space-y-4">
+                {/* Input Dispositions */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-700 mb-1">
+                    Input Dispositions
+                    <span className="ml-1 text-gray-400 font-normal">(WIP routed in by)</span>
                   </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {transitions.map((t) => (
-                    <div
-                      key={t.id}
-                      className="px-4 py-3 space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between">
+                  {(selectedStep.input_dispositions ?? []).length === 0 ? (
+                    <p className="text-xs italic text-gray-400">
+                      {selectedStep.is_initial_step ? "Entry point — no input dispositions needed" : "None"}
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {selectedStep.input_dispositions.map((d) => (
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                            CONDITION_COLORS[t.condition] ?? "bg-gray-100 text-gray-600"
-                          }`}
+                          key={d.id}
+                          className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-xs font-mono text-blue-700 ring-1 ring-inset ring-blue-600/20"
+                          title={d.name}
                         >
-                          {CONDITION_LABELS[t.condition] ?? t.condition}
-                          {t.condition === "disposition" && t.label
-                            ? `: ${t.label}`
-                            : ""}
+                          {d.code}
                         </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => {
-                              setEditingTransition(t);
-                              setShowTransitionForm(true);
-                            }}
-                            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                            title="Edit"
-                          >
-                            <PencilSquareIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm("Delete this transition?")) {
-                                deleteMut.mutate(t.id);
-                              }
-                            }}
-                            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                            title="Delete"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        → {stepNameMap.get(t.to_step_id) ?? t.to_step_id.slice(0, 8)}
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                        <span>Priority: {t.priority}</span>
-                        {t.is_default && (
-                          <span className="text-amber-600 font-medium">Default</span>
-                        )}
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
+                {/* Output Dispositions */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-700 mb-1">
+                    Output Dispositions
+                    <span className="ml-1 text-gray-400 font-normal">(WIP routed out by)</span>
+                  </p>
+                  {(selectedStep.output_dispositions ?? []).length === 0 ? (
+                    <p className="text-xs italic text-gray-400">Terminal — WIP completes here</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {selectedStep.output_dispositions.map((d) => (
+                        <span
+                          key={d.id}
+                          className="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-xs font-mono text-emerald-700 ring-1 ring-inset ring-emerald-600/20"
+                          title={d.name}
+                        >
+                          {d.code}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Routing hint */}
+                <div className="rounded bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                  {(selectedStep.output_dispositions ?? []).length === 0 && (
+                    <p>0 outputs → <strong>terminal step</strong>. WIP is completed here.</p>
+                  )}
+                  {(selectedStep.output_dispositions ?? []).length === 1 && (
+                    <p>1 output → <strong>auto-routed</strong>. No operator disposition pick needed.</p>
+                  )}
+                  {(selectedStep.output_dispositions ?? []).length > 1 && (
+                    <p>{selectedStep.output_dispositions.length} outputs → <strong>operator picks</strong> a disposition at completion.</p>
+                  )}
+                </div>
+                <div className="pt-1">
+                  <button
+                    onClick={() => {
+                      setEditingStep(selectedStep);
+                      setShowStepForm(true);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                  >
+                    <PencilSquareIcon className="h-3.5 w-3.5" />
+                    Edit Step
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
               <p className="text-sm text-gray-400">
                 {selectedRoute
-                  ? "Select a step to view its transitions."
-                  : "Select a route, then a step to manage transitions."}
+                  ? "Select a step to view its dispositions."
+                  : "Select a route, then a step to see details."}
               </p>
             </div>
           )}
@@ -477,17 +443,6 @@ export default function ProductDetailPage() {
           onClose={() => {
             setShowStepForm(false);
             setEditingStep(null);
-          }}
-        />
-      )}
-      {showTransitionForm && selectedStep && (
-        <TransitionFormDialog
-          stepId={selectedStep.id}
-          transition={editingTransition}
-          steps={steps}
-          onClose={() => {
-            setShowTransitionForm(false);
-            setEditingTransition(null);
           }}
         />
       )}

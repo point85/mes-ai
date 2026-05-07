@@ -23,9 +23,6 @@ import type {
   StepParameter,
   StepParameterCreate,
   StepParameterUpdate,
-  StepTransition,
-  StepTransitionCreate,
-  StepTransitionUpdate,
   RouteProductAssignment,
   RouteProductAssignmentCreate,
   RouteMaterialAssignment,
@@ -244,44 +241,6 @@ export async function updateStepParameter(
 
 export async function deleteStepParameter(paramId: string): Promise<void> {
   await api.delete(`/segment-parameters/${paramId}`);
-}
-
-// ─── Step Transitions ─────────────────────────────────────────────────
-
-export async function fetchStepTransitions(
-  stepId: string,
-): Promise<ApiListResponse<StepTransition>> {
-  const { data } = await api.get<ApiListResponse<StepTransition>>(
-    `/process-segments/${stepId}/dependencies`,
-    { params: { limit: "200" } },
-  );
-  return data;
-}
-
-export async function createStepTransition(
-  stepId: string,
-  body: StepTransitionCreate,
-): Promise<StepTransition> {
-  const { data } = await api.post<ApiResponse<StepTransition>>(
-    `/process-segments/${stepId}/dependencies`,
-    body,
-  );
-  return data.data;
-}
-
-export async function updateStepTransition(
-  transitionId: string,
-  body: StepTransitionUpdate,
-): Promise<StepTransition> {
-  const { data } = await api.put<ApiResponse<StepTransition>>(
-    `/process-segment-dependencies/${transitionId}`,
-    body,
-  );
-  return data.data;
-}
-
-export async function deleteStepTransition(transitionId: string): Promise<void> {
-  await api.delete(`/process-segment-dependencies/${transitionId}`);
 }
 
 // ─── Standalone Routes (Route Editor) ─────────────────────────────────
