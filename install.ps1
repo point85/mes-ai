@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    MES AI — Windows bootstrapper
+    MES AI - Windows bootstrapper
 
 .DESCRIPTION
     Installs and starts MES AI using Docker Compose.
@@ -20,7 +20,7 @@
     Stop and remove containers (data volume is preserved).
 
 .PARAMETER Reset
-    Stop containers AND delete the PostgreSQL data volume (destructive — all data lost).
+    Stop containers AND delete the PostgreSQL data volume (destructive - all data lost).
 
 .EXAMPLE
     .\install.ps1             # build from source + start
@@ -39,7 +39,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# -- Helpers -------------------------------------------------------------------
 function Write-Step  { param($msg) Write-Host "  $msg" -ForegroundColor Cyan }
 function Write-Ok    { param($msg) Write-Host "  [OK] $msg" -ForegroundColor Green }
 function Write-Warn  { param($msg) Write-Host "  [WARN] $msg" -ForegroundColor Yellow }
@@ -50,16 +50,16 @@ function Get-RandomSecret {
     return -join (1..48 | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] })
 }
 
-# ── Banner ────────────────────────────────────────────────────────────────────
+# -- Banner --------------------------------------------------------------------
 Write-Host ""
-Write-Host "  ╔══════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "  ║        MES AI  —  Installer          ║" -ForegroundColor Cyan
-Write-Host "  ╚══════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "  ========================================" -ForegroundColor Cyan
+Write-Host "         MES AI  -  Installer           " -ForegroundColor Cyan
+Write-Host "  ========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ── Stop / Reset shortcuts ────────────────────────────────────────────────────
+# -- Stop / Reset shortcuts ----------------------------------------------------
 if ($Reset) {
-    Write-Warn "Stopping containers and deleting database volume (all data will be lost)..."
+    Write-Warn "Stopping containers and deleting database volume - all data will be lost..."
     docker compose down -v
     Write-Ok "Done. Run .\install.ps1 to start fresh."
     exit 0
@@ -71,7 +71,7 @@ if ($Down) {
     exit 0
 }
 
-# ── 1. Check Docker ───────────────────────────────────────────────────────────
+# -- 1. Check Docker -----------------------------------------------------------
 Write-Step "Checking Docker..."
 if (-not (Get-Command "docker" -ErrorAction SilentlyContinue)) {
     Write-Fail "Docker not found."
@@ -85,7 +85,7 @@ if (-not $daemonVersion) {
 }
 Write-Ok "Docker $daemonVersion"
 
-# ── 2. .env setup ─────────────────────────────────────────────────────────────
+# -- 2. .env setup -------------------------------------------------------------
 Write-Step "Checking .env..."
 if (-not (Test-Path ".env")) {
     Copy-Item ".env.example" ".env"
@@ -96,11 +96,11 @@ if (-not (Test-Path ".env")) {
     Write-Ok ".env already exists."
 }
 
-# ── 3. Read image tag ─────────────────────────────────────────────────────────
+# -- 3. Read image tag ---------------------------------------------------------
 $imageTag = (Get-Content ".env" | Where-Object { $_ -match "^MES_IMAGE_TAG=" }) -replace "MES_IMAGE_TAG=", ""
 if (-not $imageTag) { $imageTag = "local" }
 
-# ── 4. Pull or build images ───────────────────────────────────────────────────
+# -- 4. Pull or build images ---------------------------------------------------
 if ($Pull -or ($imageTag -ne "local" -and -not $Build)) {
     Write-Step "Pulling images (tag: $imageTag)..."
     docker compose pull
@@ -111,12 +111,12 @@ if ($Pull -or ($imageTag -ne "local" -and -not $Build)) {
     Write-Ok "Images built."
 }
 
-# ── 5. Start services ─────────────────────────────────────────────────────────
+# -- 5. Start services ---------------------------------------------------------
 Write-Step "Starting services..."
 docker compose up -d
 Write-Ok "Containers started."
 
-# ── 6. Wait for server health ─────────────────────────────────────────────────
+# -- 6. Wait for server health -------------------------------------------------
 Write-Step "Waiting for MES server to be ready (up to 90 s)..."
 $maxWait  = 90
 $waited   = 0
@@ -135,7 +135,7 @@ if ($health -eq "healthy") {
     Write-Host "    Check logs: docker compose logs mes-server" -ForegroundColor Gray
 }
 
-# ── 7. Print access URLs ──────────────────────────────────────────────────────
+# -- 7. Print access URLs ------------------------------------------------------
 $portDt    = (Get-Content ".env" | Where-Object { $_ -match "^PORT_DT=" })    -replace "PORT_DT=", ""
 $portRt    = (Get-Content ".env" | Where-Object { $_ -match "^PORT_RT=" })    -replace "PORT_RT=", ""
 $portErp   = (Get-Content ".env" | Where-Object { $_ -match "^PORT_ERP_SIM=" }) -replace "PORT_ERP_SIM=", ""
@@ -161,3 +161,4 @@ Write-Host "    docker compose logs mes-server  server logs only" -ForegroundCol
 Write-Host "    .\install.ps1 -Down             stop services" -ForegroundColor Gray
 Write-Host "    .\install.ps1 -Reset            stop + wipe database" -ForegroundColor Gray
 Write-Host ""
+
