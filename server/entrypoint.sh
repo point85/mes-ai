@@ -11,16 +11,24 @@ echo "================================================"
 echo " MES AI Server — starting up"
 echo "================================================"
 
-# ── Alembic migrations ────────────────────────────────────────────────────────
-# alembic.ini is at WORKDIR (/app), so no -c flag needed.
-echo "Running database migrations..."
-alembic upgrade head
-echo "Migrations complete."
+# ── Database initialisation ───────────────────────────────────────────────────
+# SQLite: bypass Alembic (migration files use PostgreSQL-specific DDL) and
+# initialise the schema directly via SQLAlchemy create_all + seed script.
+# Any other driver (postgresql, etc.): run Alembic as normal.
+if [[ "${MES_DATABASE_URL:-}" == sqlite* ]]; then
+    echo "SQLite detected — initialising schema with create_all..."
+    python scripts/init_sqlite.py
+    echo "SQLite initialisation complete."
+else
+    echo "Running database migrations..."
+    alembic upgrade head
+    echo "Migrations complete."
 
-# ── Seed built-in units of measure (idempotent) ───────────────────────────────
-echo "Seeding built-in units of measure..."
-python scripts/seed_uom.py
-echo "Seeding complete."
+    # ── Seed built-in units of measure (idempotent) ───────────────────────────
+    echo "Seeding built-in units of measure..."
+    python scripts/seed_uom.py
+    echo "Seeding complete."
+fi
 
 # ── Start application server ──────────────────────────────────────────────────
 echo "Starting uvicorn on port 8082..."

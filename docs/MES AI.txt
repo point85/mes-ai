@@ -278,3 +278,14 @@ cd mes-ai
 
 docker version
 docker compose version
+
+Use a fresh clone (git clone https://github.com/point85/mes-ai.git mes-ai-docker-test)
+After the clone, from that folder:
+.\install.ps1 -Build
+
+Service	Dev	SQLite compose
+MES Server	8082	8092
+DT-CLIENT	5173	5183
+ERP Simulator	5174	5184
+Equipment Simulator	5175	5185
+RT-CLIENT	5176	5186

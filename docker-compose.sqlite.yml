@@ -1,0 +1,113 @@
+# MES AI — SQLite Docker Compose (for installer testing)
+#
+# Starts all MES services using SQLite instead of PostgreSQL.
+# No external database container required — the DB lives in a named volume.
+#
+# Usage:
+#   docker compose -f docker-compose.sqlite.yml up -d --build
+#   docker compose -f docker-compose.sqlite.yml down
+#   docker compose -f docker-compose.sqlite.yml down -v   # wipe DB
+#
+# Ports (offset +10 from dev to avoid conflict):
+#   8092  MES Server API
+#   5183  Design-Time Client
+#   5184  ERP Simulator
+#   5185  Equipment Simulator
+#   5186  Run-Time Client
+#
+# Notes:
+#   - The server auto-detects the sqlite+aiosqlite:// URL and bypasses Alembic,
+#     creating all tables via SQLAlchemy create_all instead.
+#   - SQLite supports only a single writer at a time; this compose uses
+#     --workers 1 (the default). Not suitable for multi-replica production.
+#   - For production, use docker-compose.yml (PostgreSQL).
+
+name: mes-ai-sqlite
+
+services:
+
+  # ── MES Server (FastAPI + uvicorn + SQLite) ─────────────────────────────────
+  mes-server:
+    image: ghcr.io/point85/mes-ai-server:${MES_IMAGE_TAG:-local}
+    build:
+      context: server
+      dockerfile: Dockerfile
+    container_name: mes-server
+    restart: unless-stopped
+    ports:
+      - "${PORT_SERVER:-8092}:8082"
+    environment:
+      MES_DATABASE_URL:   sqlite+aiosqlite:////data/mes.db
+      MES_AUTH_MODE:      ${MES_AUTH_MODE:-none}
+      MES_SECRET_KEY:     ${MES_SECRET_KEY:-change-me-in-production}
+      MES_LOG_LEVEL:      ${MES_LOG_LEVEL:-INFO}
+      MES_EVENT_BUS_TYPE: ${MES_EVENT_BUS_TYPE:-memory}
+    volumes:
+      - sqlite_data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8082/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ── Design-Time Client (DT) ─────────────────────────────────────────────────
+  dt-client:
+    image: ghcr.io/point85/mes-ai-dt:${MES_IMAGE_TAG:-local}
+    build:
+      context: clients
+      dockerfile: design_time/Dockerfile
+    container_name: mes-dt
+    restart: unless-stopped
+    ports:
+      - "${PORT_DT:-5183}:80"
+    depends_on:
+      mes-server:
+        condition: service_healthy
+
+  # ── Run-Time Client (RT) ────────────────────────────────────────────────────
+  rt-client:
+    image: ghcr.io/point85/mes-ai-rt:${MES_IMAGE_TAG:-local}
+    build:
+      context: clients
+      dockerfile: run_time/Dockerfile
+    container_name: mes-rt
+    restart: unless-stopped
+    ports:
+      - "${PORT_RT:-5186}:80"
+    depends_on:
+      mes-server:
+        condition: service_healthy
+
+  # ── ERP Simulator ───────────────────────────────────────────────────────────
+  erp-sim:
+    image: ghcr.io/point85/mes-ai-erp:${MES_IMAGE_TAG:-local}
+    build:
+      context: clients
+      dockerfile: erp_simulator/Dockerfile
+    container_name: mes-erp
+    restart: unless-stopped
+    ports:
+      - "${PORT_ERP_SIM:-5184}:80"
+    depends_on:
+      mes-server:
+        condition: service_healthy
+
+  # ── Equipment Simulator ─────────────────────────────────────────────────────
+  equip-sim:
+    image: ghcr.io/point85/mes-ai-equip:${MES_IMAGE_TAG:-local}
+    build:
+      context: clients
+      dockerfile: equipment_simulator/Dockerfile
+    container_name: mes-equip
+    restart: unless-stopped
+    ports:
+      - "${PORT_EQUIP_SIM:-5185}:80"
+    depends_on:
+      mes-server:
+        condition: service_healthy
+
+volumes:
+  sqlite_data:
+    name: mes-ai-sqlite-data
