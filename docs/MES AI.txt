@@ -289,3 +289,9 @@ DT-CLIENT	5173	5183
 ERP Simulator	5174	5184
 Equipment Simulator	5175	5185
 RT-CLIENT	5176	5186
+
+# Inline (non-interactive):
+.\run-server.ps1 PostgreSQL -Username postgres -Password (ConvertTo-SecureString 'mypass' -AsPlainText -Force)
+
+# Interactive prompt (recommended):
+.\run-server.ps1 MSSQL -Username sa -Password (Read-Host -AsSecureString 'DB Password')

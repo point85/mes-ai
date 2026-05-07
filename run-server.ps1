@@ -22,7 +22,9 @@
     Required for MySQL, MSSQL, Oracle, CockroachDB, DB2.
 
 .PARAMETER Password
-    Optional. Database password. Defaults to "postgres" for PostgreSQL.
+    Optional. Database password as a SecureString. Defaults to "postgres" for PostgreSQL.
+    Pass with: -Password (ConvertTo-SecureString 'pass' -AsPlainText -Force)
+    Or prompt:  -Password (Read-Host -AsSecureString 'DB Password')
 
 .PARAMETER UvicornPort
     Optional. Port for the uvicorn web server. Default: 8082
@@ -32,9 +34,9 @@
 
 .EXAMPLE
     .\run-server.ps1 PostgreSQL
-    .\run-server.ps1 PostgreSQL -DbName prod_mes -Username postgres -Password secret
-    .\run-server.ps1 MSSQL mes_ai -Username sa -Password MyPass123
-    .\run-server.ps1 Oracle mes_ai -DbServer oracle-host:1521 -Username mes -Password oracle
+    .\.run-server.ps1 PostgreSQL -DbName prod_mes -Username postgres -Password (ConvertTo-SecureString 'secret' -AsPlainText -Force)
+    .\.run-server.ps1 MSSQL mes_ai -Username sa -Password (Read-Host -AsSecureString 'DB Password')
+    .\.run-server.ps1 Oracle mes_ai -DbServer oracle-host:1521 -Username mes -Password (Read-Host -AsSecureString 'DB Password')
     .\run-server.ps1 -Help
 #>
 
@@ -53,7 +55,7 @@ param(
     [string]$Username = "",
 
     [Parameter()]
-    [string]$Password = "",
+    [SecureString]$Password = (New-Object SecureString),
 
     [Parameter()]
     [int]$UvicornPort = 8082,
@@ -146,7 +148,7 @@ if ($DbServer -ne "") {
 if ($Username -eq "") {
     if ($dbType -eq "postgresql") {
         $Username = "postgres"
-        if ($Password -eq "") { $Password = "postgres" }
+        if ($Password.Length -eq 0) { $Password = ConvertTo-SecureString "postgres" -AsPlainText -Force }
         Write-Host "INFO: No credentials supplied — using PostgreSQL defaults (postgres/postgres)."
     } else {
         Write-Error "-Username is required for $Database."
@@ -166,14 +168,12 @@ if ($dbType -eq "mssql") {
         Write-Host "INFO: ODBC Driver 18 for SQL Server detected."
         $odbcDriverName = "ODBC+Driver+18+for+SQL+Server"
     } elseif ($driver17 -eq "Installed") {
-        Write-Host "INFO: ODBC Driver 17 for SQL Server detected (18 preferred)."
+        Write-Host "INFO: ODBC Driver 17 for SQL Server detected. Driver 18 is preferred."
         $odbcDriverName = "ODBC+Driver+17+for+SQL+Server"
     } else {
-        Write-Error @"
-ODBC Driver for SQL Server not found.
-Install 'ODBC Driver 18 for SQL Server' from:
-  https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server
-"@
+        Write-Host "Error: ODBC Driver for SQL Server not found." -ForegroundColor Red
+        Write-Host "Install 'ODBC Driver 18 for SQL Server' from:" -ForegroundColor Red
+        Write-Host "  https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server" -ForegroundColor Red
         exit 1
     }
 }
@@ -181,11 +181,18 @@ Install 'ODBC Driver 18 for SQL Server' from:
 # ---------------------------------------------------------------------------
 # Build connection string
 # ---------------------------------------------------------------------------
+# Decrypt SecureString to plain text only at the moment the URL is assembled.
+# The plain-text variable is local and never written to output or logs.
+$bstr        = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
+$plainPwd    = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+
 $connStr = switch ($dbType) {
-    "postgresql" { "postgresql+asyncpg://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
-    "mssql"      { "mssql+pyodbc://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}?driver=${odbcDriverName}" }
-    "oracle"     { "oracle+oracledb://${Username}:${Password}@${dbHost}:${dbPort}/${DbName}" }
+    "postgresql" { "postgresql+asyncpg://${Username}:${plainPwd}@${dbHost}:${dbPort}/${DbName}" }
+    "mssql"      { "mssql+pyodbc://${Username}:${plainPwd}@${dbHost}:${dbPort}/${DbName}?driver=${odbcDriverName}" }
+    "oracle"     { "oracle+oracledb://${Username}:${plainPwd}@${dbHost}:${dbPort}/${DbName}" }
 }
+Remove-Variable plainPwd
 
 # ---------------------------------------------------------------------------
 # Summary
@@ -197,7 +204,8 @@ Write-Host "  Database  : $Database"
 Write-Host "  DB Name   : $DbName"
 Write-Host "  DB Server : ${dbHost}:${dbPort}"
 Write-Host "  Username  : $Username"
-Write-Host "  URL       : $connStr"
+$maskedUrl = $connStr -replace '(?<=://[^:]+:)[^@]+(?=@)', '****'
+Write-Host "  URL       : $maskedUrl"
 Write-Host "  API Port  : $UvicornPort"
 Write-Host ""
 
