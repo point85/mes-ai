@@ -295,3 +295,8 @@ RT-CLIENT	5176	5186
 
 # Interactive prompt (recommended):
 .\run-server.ps1 MSSQL -Username sa -Password (Read-Host -AsSecureString 'DB Password')
+
+.\run-client.ps1 dt-client              # Design-Time on port 5173
+.\run-client.ps1 rt-client -Port 3000  # Run-Time on custom port
+.\run-client.ps1 erp-sim               # ERP Simulator on port 5174
+.\run-client.ps1 equipment-sim         # Equipment Simulator on port 5175

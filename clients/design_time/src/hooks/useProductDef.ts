@@ -230,6 +230,73 @@ export function useValidateRoute() {
   });
 }
 
+// ─── Standalone Routes ────────────────────────────────────────────────
+
+export function useAllRoutes() {
+  return useQuery({ queryKey: KEYS.allRoutes, queryFn: fetchAllRoutes });
+}
+
+export function useCreateStandaloneRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RouteCreate) => createStandaloneRoute(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.allRoutes }),
+  });
+}
+
+export function useUpdateStandaloneRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: RouteUpdate & { id: string }) =>
+      updateStandaloneRoute(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.allRoutes }),
+  });
+}
+
+export function useDeleteRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteRoute(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.allRoutes }),
+  });
+}
+
+export function useDeleteStep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteStep(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["steps"] }),
+  });
+}
+
+// ─── Route–Product Assignments ────────────────────────────────────────
+
+export function useRouteProducts(routeId: string) {
+  return useQuery({
+    queryKey: KEYS.routeProducts(routeId),
+    queryFn: () => fetchRouteProducts(routeId),
+    enabled: !!routeId,
+  });
+}
+
+export function useAssignProductToRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routeId, ...body }: RouteProductAssignmentCreate & { routeId: string }) =>
+      assignProductToRoute(routeId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["routeProducts"] }),
+  });
+}
+
+export function useUnassignProductFromRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routeId, productId }: { routeId: string; productId: string }) =>
+      unassignProductFromRoute(routeId, productId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["routeProducts"] }),
+  });
+}
+
 // ─── Route Steps ──────────────────────────────────────────────────────
 
 export function useRouteSteps(routeId: string) {
