@@ -40,6 +40,7 @@ export default defineConfig({
     __MES_RELEASE_DATE__: JSON.stringify(mesConfig.releaseDate),
   },
   server: {
+    host: '0.0.0.0',
     port: 5174,
     proxy: {
       '/api': {
