@@ -46,6 +46,9 @@
 #>
 
 [CmdletBinding()]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSAvoidUsingPlainTextForPassword', 'Password',
+    Justification = 'Parameter is typed as [SecureString]; plain text is never stored or logged.')]
 param(
     [Parameter(Position = 0)]
     [string]$Database,

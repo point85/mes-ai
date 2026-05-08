@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
-import { fetchOrderProgress, fetchShiftSummary } from "../api/runtime";
+import { fetchOrderProgress } from "../api/runtime";
 import type { MESEvent } from "../types";
 
 interface WipCounts {
@@ -24,15 +24,8 @@ export default function DashboardPage({ events }: Props) {
     refetchInterval: 10_000,
   });
 
-  const { data: shift } = useQuery({
-    queryKey: ["shift-summary"],
-    queryFn: () => fetchShiftSummary(8),
-    refetchInterval: 30_000,
-  });
-
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["order-progress"] });
-    queryClient.invalidateQueries({ queryKey: ["shift-summary"] });
   };
 
   const recentEvents = events.slice(-20).reverse();
@@ -45,14 +38,6 @@ export default function DashboardPage({ events }: Props) {
           <ArrowPathIcon className="h-4 w-4" /> Refresh
         </button>
       </div>
-
-      {/* Shift Summary */}
-      {shift && (
-        <div className="bg-white rounded-lg shadow p-5">
-          <h3 className="text-lg font-semibold mb-3 text-gray-700">Shift Summary (Last 8 Hours)</h3>
-          <pre className="text-sm text-gray-600 overflow-auto">{JSON.stringify(shift, null, 2)}</pre>
-        </div>
-      )}
 
       {/* Order Progress */}
       <div className="bg-white rounded-lg shadow p-5">
