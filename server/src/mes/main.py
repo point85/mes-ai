@@ -104,6 +104,9 @@ async def lifespan(app: FastAPI):
     _register_demo_order_processor()
     inbound_task = asyncio.create_task(_inbound_queue_loop())
 
+    # ── Outbound ERP queue: drain pending reports to the active ERP adapter ──
+    outbound_task = asyncio.create_task(_outbound_queue_loop())
+
     # ── WIP generator: create lots/units for released orders ──
     from mes.core.operations.wip_generator import wip_generator_loop
     wip_task = asyncio.create_task(wip_generator_loop())
@@ -114,9 +117,14 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("MES AI server shutting down")
     inbound_task.cancel()
+    outbound_task.cancel()
     wip_task.cancel()
     try:
         await inbound_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await outbound_task
     except asyncio.CancelledError:
         pass
     try:
@@ -193,7 +201,8 @@ def _register_demo_order_processor() -> None:
         ERPInboundQueueService.set_processor(CPGLotProcessor())
 
 
-INBOUND_QUEUE_INTERVAL_SEC = 5  # How often to check for new inbound orders
+INBOUND_QUEUE_INTERVAL_SEC = 5   # How often to check for new inbound orders
+OUTBOUND_QUEUE_INTERVAL_SEC = 10  # How often to drain the outbound ERP queue
 
 
 async def _inbound_queue_loop() -> None:
@@ -223,6 +232,40 @@ async def _inbound_queue_loop() -> None:
             raise
         except Exception:
             logger.exception("Inbound queue processing error")
+
+
+async def _outbound_queue_loop() -> None:
+    """
+    Background task that periodically drains the ERP outbound queue.
+
+    Runs every ``OUTBOUND_QUEUE_INTERVAL_SEC`` seconds.  Each iteration
+    retrieves the active ERP outbound adapter from the plugin manager,
+    opens a fresh DB session, calls ``process_queue()``, and commits.
+    Silently skips iterations when no outbound adapter is installed.
+    Errors are logged but never crash the loop.
+    """
+    from mes.framework.db import async_session_factory
+    from mes.adapters.erp.queue import ERPOutboundQueueService
+
+    logger.info(
+        "Outbound ERP queue processor started (interval=%ds)",
+        OUTBOUND_QUEUE_INTERVAL_SEC,
+    )
+    while True:
+        await asyncio.sleep(OUTBOUND_QUEUE_INTERVAL_SEC)
+        try:
+            adapter = plugin_manager.get_adapter_by_type("erp_outbound")
+            if adapter is None:
+                continue  # No ERP outbound plugin active — skip silently
+            async with async_session_factory() as session:
+                processed = await ERPOutboundQueueService.process_queue(session, adapter)
+                await session.commit()
+                if processed > 0:
+                    logger.info("Outbound ERP queue: dispatched %d report(s)", processed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Outbound ERP queue processing error")
 
 
 def create_app() -> FastAPI:
