@@ -77,11 +77,22 @@ export default function ActiveWipPage() {
       {/* Filters */}
       <div className="flex gap-4 items-end">
         <div>
-          <label className="block text-sm text-gray-600 mb-1">View</label>
-          <select value={view} onChange={(e) => setView(e.target.value as "units" | "lots")} className="input-field">
-            <option value="units">Units</option>
-            <option value="lots">Lots</option>
-          </select>
+          <label className="block text-sm text-gray-600 mb-2">View</label>
+          <div className="flex gap-4">
+            {(["units", "lots"] as const).map((t) => (
+              <label key={t} className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-700">
+                <input
+                  type="radio"
+                  name="wipView"
+                  value={t}
+                  checked={view === t}
+                  onChange={() => setView(t)}
+                  className="accent-indigo-600"
+                />
+                {t === "units" ? "Units" : "Lots"}
+              </label>
+            ))}
+          </div>
         </div>
         <div>
           <label className="block text-sm text-gray-600 mb-1">Status</label>

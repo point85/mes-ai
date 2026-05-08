@@ -62,15 +62,22 @@ export default function ScanPage() {
       <div className="bg-white rounded-lg shadow p-5">
         <div className="flex items-end gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">Type</label>
-            <select
-              value={scanType}
-              onChange={(e) => setScanType(e.target.value as "unit" | "lot")}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="unit">Unit (Serial #)</option>
-              <option value="lot">Lot (Lot #)</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-600 mb-2">Type</label>
+            <div className="flex gap-4">
+              {(["unit", "lot"] as const).map((t) => (
+                <label key={t} className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    name="scanType"
+                    value={t}
+                    checked={scanType === t}
+                    onChange={() => setScanType(t)}
+                    className="accent-indigo-600"
+                  />
+                  {t === "unit" ? "Unit (Serial #)" : "Lot (Lot #)"}
+                </label>
+              ))}
+            </div>
           </div>
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-600 mb-1">
