@@ -302,7 +302,7 @@ export interface DBRouteStep {
 }
 
 export async function readProductRoutes(productId: string): Promise<DBRoute[]> {
-  return unwrapData(await api.get(`/products/${encodeURIComponent(productId)}/routes`, { params: { limit: 200 } }));
+  return unwrapData(await api.get(`/products/${encodeURIComponent(productId)}/operations-definitions`, { params: { limit: 200 } }));
 }
 
 export async function readRouteSteps(routeId: string): Promise<DBRouteStep[]> {
