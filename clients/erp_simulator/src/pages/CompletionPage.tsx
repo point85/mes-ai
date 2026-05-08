@@ -13,8 +13,8 @@ export default function CompletionPage() {
   const [orderId, setOrderId] = useState("");
   const [steps, setSteps] = useState<DBRouteStep[]>([]);
   const [stepId, setStepId] = useState("");
-  const [qtyGood, setQtyGood] = useState(0);
-  const [qtyReject, setQtyReject] = useState(0);
+  const [qtyGood, setQtyGood] = useState("");
+  const [qtyReject, setQtyReject] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ERPConfirmation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +49,8 @@ export default function CompletionPage() {
     try {
       const r = await reportCompletion({
         order_id: orderId,
-        qty_good: qtyGood,
-        qty_reject: qtyReject,
+        qty_good: parseInt(qtyGood, 10) || 0,
+        qty_reject: parseInt(qtyReject, 10) || 0,
         step_id: stepId || undefined,
       });
       setResult(r);
@@ -89,7 +89,7 @@ export default function CompletionPage() {
             <input
               type="number"
               value={qtyGood}
-              onChange={(e) => setQtyGood(Number(e.target.value))}
+              onChange={(e) => setQtyGood(e.target.value)}
               min={0}
               className="mt-1 w-full border rounded px-3 py-2 text-sm"
               required
@@ -100,7 +100,7 @@ export default function CompletionPage() {
             <input
               type="number"
               value={qtyReject}
-              onChange={(e) => setQtyReject(Number(e.target.value))}
+              onChange={(e) => setQtyReject(e.target.value)}
               min={0}
               className="mt-1 w-full border rounded px-3 py-2 text-sm"
             />

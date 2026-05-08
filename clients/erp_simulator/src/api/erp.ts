@@ -306,7 +306,7 @@ export async function readProductRoutes(productId: string): Promise<DBRoute[]> {
 }
 
 export async function readRouteSteps(routeId: string): Promise<DBRouteStep[]> {
-  return unwrapData(await api.get(`/operations-definitions/${encodeURIComponent(routeId)}/steps`, { params: { limit: 200 } }));
+  return unwrapData(await api.get(`/operations-definitions/${encodeURIComponent(routeId)}/process-segments`, { params: { limit: 200 } }));
 }
 
 export async function syncBoms(productId: string): Promise<BillOfMaterial[]> {

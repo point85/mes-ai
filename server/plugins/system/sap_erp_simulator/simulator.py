@@ -303,12 +303,20 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
             o["ManufacturingOrder"] for o in SAP_PRODUCTION_ORDERS
         }
 
-        # Stored confirmations for test inspection
+        # Stored confirmations for test inspection (capped at _MAX_CONFIRMATIONS)
         self._confirmations: list[dict[str, Any]] = []
+
+    _MAX_CONFIRMATIONS = 100
+
+    def _record_confirmation(self, record: dict[str, Any]) -> None:
+        """Append a confirmation, keeping only the last _MAX_CONFIRMATIONS entries."""
+        self._confirmations.append(record)
+        if len(self._confirmations) > self._MAX_CONFIRMATIONS:
+            self._confirmations = self._confirmations[-self._MAX_CONFIRMATIONS:]
 
     @property
     def confirmations(self) -> list[dict[str, Any]]:
-        """All confirmations recorded by the simulator (for test assertions)."""
+        """Most recent confirmations recorded by the simulator (up to _MAX_CONFIRMATIONS)."""
         return list(self._confirmations)
 
     # ── Lifecycle ─────────────────────────────────────────────────
@@ -367,7 +375,7 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "SAP confirmation %s posted for order %s (yield=%d, scrap=%d)",
@@ -407,7 +415,7 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "SAP material document %s posted for order %s (%d line items)",
@@ -444,7 +452,7 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "SAP scrap document %s posted for order %s (qty=%d, reason=%s)",
@@ -481,7 +489,7 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "SAP time confirmation %s posted for order %s (operator=%s, %s min)",
@@ -521,7 +529,7 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
             "equipment_id": equipment_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "SAP PM notification %s posted for equipment %s (%s min, reason=%s)",
@@ -559,7 +567,7 @@ class SAPSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "SAP QM result %s posted for order %s (test=%s, result=%s)",

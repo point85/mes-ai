@@ -297,12 +297,20 @@ class OracleSimulatorOutboundAdapter(ERPOutboundAdapter):
             o["WorkOrderNumber"] for o in ORACLE_WORK_ORDERS
         }
 
-        # Stored confirmations for inspection
+        # Stored confirmations for inspection (capped at _MAX_CONFIRMATIONS)
         self._confirmations: list[dict[str, Any]] = []
+
+    _MAX_CONFIRMATIONS = 100
+
+    def _record_confirmation(self, record: dict[str, Any]) -> None:
+        """Append a confirmation, keeping only the last _MAX_CONFIRMATIONS entries."""
+        self._confirmations.append(record)
+        if len(self._confirmations) > self._MAX_CONFIRMATIONS:
+            self._confirmations = self._confirmations[-self._MAX_CONFIRMATIONS:]
 
     @property
     def confirmations(self) -> list[dict[str, Any]]:
-        """All confirmations recorded by the simulator (for test assertions)."""
+        """Most recent confirmations recorded by the simulator (up to _MAX_CONFIRMATIONS)."""
         return list(self._confirmations)
 
     # ── Lifecycle ─────────────────────────────────────────────────
@@ -355,7 +363,7 @@ class OracleSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "Oracle completion txn %s posted for work order %s (yield=%d, reject=%d)",
@@ -390,7 +398,7 @@ class OracleSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "Oracle material txn %s posted for work order %s (%d line items)",
@@ -427,7 +435,7 @@ class OracleSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "Oracle scrap txn %s posted for work order %s (qty=%d, reason=%s)",
@@ -465,7 +473,7 @@ class OracleSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "Oracle resource txn %s posted for work order %s (resource=%s, %s min)",
@@ -505,7 +513,7 @@ class OracleSimulatorOutboundAdapter(ERPOutboundAdapter):
             "equipment_id": equipment_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "Oracle maintenance event %s posted for asset %s (%s min, reason=%s)",
@@ -544,7 +552,7 @@ class OracleSimulatorOutboundAdapter(ERPOutboundAdapter):
             "order_id": order_id,
             "posted_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._confirmations.append(record)
+        self._record_confirmation(record)
 
         logger.info(
             "Oracle quality result %s posted for work order %s (test=%s, result=%s)",
