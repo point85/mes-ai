@@ -6,10 +6,13 @@ import {
   readBomItems,
   readProductRoutes,
   readRouteSteps,
+  readMaterialsDB,
+  readLotsForMaterial,
   type ERPConfirmation,
   type DBProductionOrder,
   type DBBomItem,
   type DBRouteStep,
+  type DBMaterialLot,
 } from "../api/erp";
 
 interface ConsumptionLine {
@@ -26,6 +29,10 @@ export default function ConsumptionPage() {
   const [steps, setSteps] = useState<DBRouteStep[]>([]);
   const [selectedBomItemId, setSelectedBomItemId] = useState("");
   const [lines, setLines] = useState<ConsumptionLine[]>([]);
+  // materialId keyed by material_code
+  const [materialCodeToId, setMaterialCodeToId] = useState<Record<string, string>>({});
+  // lots keyed by material_code
+  const [lotsMap, setLotsMap] = useState<Record<string, DBMaterialLot[]>>({});
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ERPConfirmation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +42,14 @@ export default function ConsumptionPage() {
     readProductionOrders()
       .then(setOrders)
       .catch(() => setOrders([]));
+    // Build material code → id map once
+    readMaterialsDB()
+      .then((mats) => {
+        const map: Record<string, string> = {};
+        for (const m of mats) map[m.code] = m.id;
+        setMaterialCodeToId(map);
+      })
+      .catch(() => {});
   }, []);
 
   // When order changes, load its BOM items and route steps
@@ -85,10 +100,17 @@ export default function ConsumptionPage() {
       {
         material_code: item.material_code,
         quantity: item.quantity,
-        uom: item.uom,
+        uom: item.uom_symbol,
         lot_number: "",
       },
     ]);
+    // Fetch lots for this material if not already loaded
+    const matId = materialCodeToId[item.material_code];
+    if (matId && !(item.material_code in lotsMap)) {
+      readLotsForMaterial(matId)
+        .then((lots) => setLotsMap((prev) => ({ ...prev, [item.material_code]: lots })))
+        .catch(() => setLotsMap((prev) => ({ ...prev, [item.material_code]: [] })));
+    }
     setSelectedBomItemId("");
   };
 
@@ -162,7 +184,7 @@ export default function ConsumptionPage() {
                   const step = item.process_segment_id ? stepMap.get(item.process_segment_id) : null;
                   return (
                     <option key={item.id} value={item.id}>
-                      {item.material_code} — {item.quantity} {item.uom}
+                      {item.material_code} — {item.quantity} {item.uom_symbol}
                       {step
                         ? ` [Step ${step.sequence}: ${step.name}]`
                         : ""}
@@ -214,19 +236,35 @@ export default function ConsumptionPage() {
                   <input
                     type="text"
                     value={line.uom}
-                    readOnly
-                    className="w-full border rounded px-2 py-1.5 text-sm bg-gray-50"
+                    onChange={(e) => updateLine(idx, "uom", e.target.value)}
+                    className="w-full border rounded px-2 py-1.5 text-sm"
+                    required
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500">Lot #</label>
-                  <input
-                    type="text"
-                    value={line.lot_number}
-                    onChange={(e) => updateLine(idx, "lot_number", e.target.value)}
-                    placeholder="optional"
-                    className="w-full border rounded px-2 py-1.5 text-sm"
-                  />
+                  {lotsMap[line.material_code] && lotsMap[line.material_code].length > 0 ? (
+                    <select
+                      value={line.lot_number}
+                      onChange={(e) => updateLine(idx, "lot_number", e.target.value)}
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                    >
+                      <option value="">— none —</option>
+                      {lotsMap[line.material_code].map((lot) => (
+                        <option key={lot.id} value={lot.lot_number}>
+                          {lot.lot_number} ({lot.quantity_on_hand} {line.uom})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={line.lot_number}
+                      onChange={(e) => updateLine(idx, "lot_number", e.target.value)}
+                      placeholder="optional"
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                    />
+                  )}
                 </div>
                 <button
                   type="button"

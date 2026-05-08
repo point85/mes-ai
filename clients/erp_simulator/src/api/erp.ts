@@ -263,7 +263,8 @@ export interface DBBomItem {
   bom_id: string;
   material_code: string;
   quantity: number;
-  uom: string;
+  uom_id: string;
+  uom_symbol: string;
   position: number;
   process_segment_id: string | null;
   is_active: boolean;
@@ -275,6 +276,34 @@ export async function readProductBoms(productId: string): Promise<DBBom[]> {
 
 export async function readBomItems(bomId: string): Promise<DBBomItem[]> {
   return unwrapData(await api.get(`/boms/${encodeURIComponent(bomId)}/items`, { params: { limit: 200 } }));
+}
+
+export interface DBMaterial {
+  id: string;
+  code: string;
+  name: string;
+  uom_symbol: string;
+  material_type: string;
+  is_active: boolean;
+}
+
+export async function readMaterialsDB(): Promise<DBMaterial[]> {
+  return unwrapData(await api.get("/materials", { params: { limit: 500 } }));
+}
+
+export interface DBMaterialLot {
+  id: string;
+  material_id: string;
+  lot_number: string;
+  quantity_on_hand: number;
+  quantity_reserved: number;
+  status: string;
+  supplier: string | null;
+  is_active: boolean;
+}
+
+export async function readLotsForMaterial(materialId: string): Promise<DBMaterialLot[]> {
+  return unwrapData(await api.get("/material-lots", { params: { material_id: materialId, limit: 200 } }));
 }
 
 export interface DBRoute {
