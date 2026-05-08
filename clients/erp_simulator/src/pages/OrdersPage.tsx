@@ -5,6 +5,7 @@ import {
   updateProductionOrder,
   deleteProductionOrder,
   readProducts,
+  readProductRoutes,
   type DBProductionOrder,
   type DBProduct,
 } from "../api/erp";
@@ -94,6 +95,11 @@ export default function OrdersPage() {
     const ts = Date.now().toString(36).toUpperCase();
 
     try {
+      // Resolve the product's default (or first) route once for all orders
+      const routes = await readProductRoutes(form.product_id).catch(() => []);
+      const route = routes.find((r) => r.is_default) ?? routes[0] ?? null;
+      const routeId = route ? route.id : null;
+
       const created: DBProductionOrder[] = [];
       const refBase = form.erp_reference.trim();
       for (let i = 1; i <= form.count; i++) {
@@ -106,7 +112,7 @@ export default function OrdersPage() {
         const order = await createProductionOrder({
           order_number: `${prefix}-${ts}-${suffix}`,
           product_id: form.product_id,
-          route_id: null,
+          route_id: routeId,
           quantity_ordered: form.quantity_ordered,
           priority: form.priority,
           erp_reference: erpRef,
