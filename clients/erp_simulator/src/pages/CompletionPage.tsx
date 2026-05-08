@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   reportCompletion,
   readProductionOrders,
+  readProductRoutes,
   readRouteSteps,
   type ERPConfirmation,
   type DBProductionOrder,
@@ -31,11 +32,22 @@ export default function CompletionPage() {
     setSteps([]);
     setStepId("");
     const order = orders.find((o) => o.id === orderId);
-    if (order?.route_id) {
-      readRouteSteps(order.route_id)
-        .then((s) => {
-          setSteps(s);
-          if (s.length > 0) setStepId(s[0].id);
+    if (!order) return;
+
+    const loadSteps = async (routeId: string) => {
+      const s = await readRouteSteps(routeId);
+      setSteps(s);
+      if (s.length > 0) setStepId(s[0].id);
+    };
+
+    if (order.route_id) {
+      loadSteps(order.route_id).catch(() => setSteps([]));
+    } else {
+      // Fallback: look up the product's routes (order may have been created before route assignment)
+      readProductRoutes(order.product_id)
+        .then((routes) => {
+          const route = routes.find((r) => r.is_default) ?? routes[0];
+          if (route) return loadSteps(route.id);
         })
         .catch(() => setSteps([]));
     }

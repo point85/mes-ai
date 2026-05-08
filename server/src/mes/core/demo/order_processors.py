@@ -74,7 +74,7 @@ async def _resolve_product(
 async def _resolve_route(
     session: AsyncSession, product_id: UUID,
 ) -> OperationsDefinition | None:
-    """Return the first active route for a product, or None."""
+    """Return the default (or first active) route for a product, or None."""
     result = await session.execute(
         select(OperationsDefinition)
         .join(
@@ -86,6 +86,8 @@ async def _resolve_route(
             OperationsDefinitionProductAssignment.is_active.is_(True),
             OperationsDefinition.is_active.is_(True),
         )
+        .order_by(OperationsDefinition.is_default.desc())
+        .limit(1)
     )
     return result.scalar_one_or_none()
 
@@ -137,6 +139,17 @@ class CPGLotProcessor(OrderProcessor):
         # 1. Idempotency — skip if order already exists for this ERP ref
         existing = await _find_existing_order(session, erp_ref)
         if existing is not None:
+            # Backfill route_id if it was not set when the order was first created
+            if existing.route_id is None:
+                product = await _resolve_product(session, product_code)
+                route = await _resolve_route(session, product.id)
+                if route is not None:
+                    existing.route_id = route.id
+                    await session.flush()
+                    logger.info(
+                        "Backfilled route_id=%s on existing order %s",
+                        route.id, existing.id,
+                    )
             logger.info(
                 "Order for ERP ref %s already exists (id=%s), skipping",
                 erp_ref, existing.id,
@@ -217,6 +230,17 @@ class ElectronicsUnitProcessor(OrderProcessor):
         # 1. Idempotency — skip if order already exists for this ERP ref
         existing = await _find_existing_order(session, erp_ref)
         if existing is not None:
+            # Backfill route_id if it was not set when the order was first created
+            if existing.route_id is None:
+                product = await _resolve_product(session, product_code)
+                route = await _resolve_route(session, product.id)
+                if route is not None:
+                    existing.route_id = route.id
+                    await session.flush()
+                    logger.info(
+                        "Backfilled route_id=%s on existing order %s",
+                        route.id, existing.id,
+                    )
             logger.info(
                 "Order for ERP ref %s already exists (id=%s), skipping",
                 erp_ref, existing.id,
