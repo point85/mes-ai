@@ -29,7 +29,6 @@ import { UserListPage } from "./pages/admin/users";
 import { RoleListPage } from "./pages/admin/roles";
 import { DispositionListPage } from "./pages/dispositions";
 import { StorageLocationListPage } from "./pages/storage-locations";
-import { InventoryBalancesPage, InventoryTransactionsPage } from "./pages/inventory";
 import { WorkScheduleListPage, WorkScheduleDetailPage } from "./pages/work-schedules";
 import SettingsPage from "./pages/SettingsPage";
 import DemoCpgPage from "./pages/DemoCpgPage";
@@ -82,8 +81,6 @@ export default function App() {
             <Route path="/genealogy" element={<GenealogyViewerPage />} />
             <Route path="/dispatch" element={<DispatchPage />} />
             <Route path="/storage-locations" element={<StorageLocationListPage />} />
-            <Route path="/inventory/balances" element={<InventoryBalancesPage />} />
-            <Route path="/inventory/transactions" element={<InventoryTransactionsPage />} />
             {/* Work Schedules */}
             <Route path="/work-schedules" element={<WorkScheduleListPage />} />
             <Route path="/work-schedules/:scheduleId" element={<WorkScheduleDetailPage />} />

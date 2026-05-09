@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import {
   fetchInventoryTransactions,
   fetchInventoryBalances,
@@ -94,12 +94,6 @@ export default function InventoryPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Inventory</h2>
-        <button
-          onClick={loadRefData}
-          className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800"
-        >
-          <ArrowPathIcon className="h-4 w-4" /> Refresh Data
-        </button>
       </div>
 
       {/* Page tabs */}
@@ -449,7 +443,7 @@ function BalancesPanel({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-700">Current Inventory Balances</h3>
-        <button onClick={load} disabled={loading} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
+        <button onClick={load} disabled={loading} className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
           <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>
@@ -472,6 +466,12 @@ function BalancesPanel({
             <option key={loc.id} value={loc.id}>{loc.code} — {loc.name}</option>
           ))}
         </select>
+        <button
+          onClick={() => { setSearch(""); setLocationFilter(""); }}
+          className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 shadow-sm border border-gray-300"
+        >
+          <XMarkIcon className="h-4 w-4" /> Clear
+        </button>
         <span className="text-xs text-gray-400">{filtered.length} balance{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
@@ -534,7 +534,9 @@ function TransactionLog({
   lotLabel: (id: string) => string;
 }) {
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
+  const [lotSearch, setLotSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -542,7 +544,7 @@ function TransactionLog({
     setLoading(true);
     setError(null);
     try {
-      setTransactions(await fetchInventoryTransactions(typeFilter ? { transaction_type: typeFilter } : undefined));
+      setTransactions(await fetchInventoryTransactions());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load transactions");
     } finally {
@@ -550,32 +552,67 @@ function TransactionLog({
     }
   };
 
-  useEffect(() => { load(); }, [typeFilter]);
+  useEffect(() => { load(); }, []);
+
+  const locations = Array.from(locationMap.values()).sort((a, b) => a.code.localeCompare(b.code));
+
+  const filtered = transactions.filter((txn) => {
+    if (lotSearch && !lotLabel(txn.material_lot_id).toLowerCase().includes(lotSearch.toLowerCase())) return false;
+    if (typeFilter && txn.transaction_type !== typeFilter) return false;
+    if (locationFilter && txn.from_location_id !== locationFilter && txn.to_location_id !== locationFilter) return false;
+    return true;
+  });
+
+  const handleClear = () => {
+    setLotSearch("");
+    setTypeFilter("");
+    setLocationFilter("");
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-700">Transaction Log</h3>
-        <button onClick={load} disabled={loading} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
+        <button onClick={load} disabled={loading} className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
           <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>
 
-      {/* Type filter */}
-      <div className="flex gap-2 flex-wrap">
-        {TXN_TYPES.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => setTypeFilter(t.value)}
-            className={`px-3 py-1 text-sm rounded-full font-medium transition-colors ${
-              typeFilter === t.value
-                ? "bg-indigo-600 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <input
+          type="text"
+          placeholder="Search by lot number…"
+          value={lotSearch}
+          onChange={(e) => setLotSearch(e.target.value)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-48"
+        />
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+        >
+          {TXN_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
+        <select
+          value={locationFilter}
+          onChange={(e) => setLocationFilter(e.target.value)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+        >
+          <option value="">All Locations</option>
+          {locations.map((loc) => (
+            <option key={loc.id} value={loc.id}>{loc.code} — {loc.name}</option>
+          ))}
+        </select>
+        <button
+          onClick={handleClear}
+          className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 shadow-sm border border-gray-300"
+        >
+          <XMarkIcon className="h-4 w-4" /> Clear
+        </button>
+        <span className="text-xs text-gray-400">{filtered.length} transaction{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
       {error && <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -597,10 +634,10 @@ function TransactionLog({
             <tbody className="divide-y divide-gray-100 bg-white">
               {loading && transactions.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">Loading…</td></tr>
-              ) : transactions.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">No inventory transactions found.</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">{lotSearch || typeFilter || locationFilter ? "No matches found." : "No inventory transactions found."}</td></tr>
               ) : (
-                transactions
+                filtered
                   .slice()
                   .sort((a, b) => new Date(b.performed_at).getTime() - new Date(a.performed_at).getTime())
                   .map((txn) => (
@@ -625,10 +662,6 @@ function TransactionLog({
           </table>
         </div>
       </div>
-      <p className="text-xs text-gray-400">
-        Showing {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
-        {typeFilter && ` (filtered: ${typeFilter})`}
-      </p>
     </div>
   );
 }
