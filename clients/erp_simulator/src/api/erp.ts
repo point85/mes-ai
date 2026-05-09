@@ -356,6 +356,23 @@ export async function syncWorkCenters(): Promise<WorkCenter[]> {
   return unwrapData(await api.post("/erp/sync/work-centers"));
 }
 
+// ── Dispositions ──────────────────────────────────────────────────────────
+
+export interface DBDisposition {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  category: string;
+  is_active: boolean;
+}
+
+export async function readDispositions(category?: string): Promise<DBDisposition[]> {
+  return unwrapData(await api.get("/dispositions", {
+    params: { ...(category ? { category } : {}), limit: 200 },
+  }));
+}
+
 // ── Outbound Reports ──────────────────────────────────────────────────────
 
 export async function reportCompletion(data: {

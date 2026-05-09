@@ -11,8 +11,6 @@ const tabs = [
   { id: "completion", label: "Report Completion" },
   { id: "consumption", label: "Report Consumption" },
   { id: "scrap", label: "Report Scrap" },
-  { id: "labor", label: "Report Labor" },
-  { id: "downtime", label: "Report Downtime" },
   { id: "quality", label: "Report Quality" },
   { id: "confirmations", label: "Confirmations" },
 ] as const;
@@ -36,7 +34,7 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
     ["dashboard", "orders", "materials", "products"].includes(t.id)
   );
   const outboundTabs = tabs.filter((t) =>
-    ["completion", "consumption", "scrap", "labor", "downtime", "quality", "confirmations"].includes(t.id)
+    ["completion", "consumption", "scrap", "quality", "confirmations"].includes(t.id)
   );
 
   return (

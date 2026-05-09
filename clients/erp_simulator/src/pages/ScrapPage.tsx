@@ -1,13 +1,31 @@
-import { useState } from "react";
-import { reportScrap, type ERPConfirmation } from "../api/erp";
+import { useState, useEffect } from "react";
+import {
+  reportScrap,
+  readProductionOrders,
+  readDispositions,
+  type ERPConfirmation,
+  type DBProductionOrder,
+  type DBDisposition,
+} from "../api/erp";
 
 export default function ScrapPage() {
-  const [orderId, setOrderId] = useState("000001000100");
-  const [qtyScrapped, setQtyScrapped] = useState(3);
-  const [reasonCode, setReasonCode] = useState("DEFECTIVE_PCB");
+  const [orders, setOrders] = useState<DBProductionOrder[]>([]);
+  const [dispositions, setDispositions] = useState<DBDisposition[]>([]);
+  const [orderId, setOrderId] = useState("");
+  const [qtyScrapped, setQtyScrapped] = useState(1);
+  const [reasonCode, setReasonCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ERPConfirmation | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    readProductionOrders()
+      .then((all) => setOrders(all.filter((o) => o.is_active && o.status !== "completed")))
+      .catch(() => setOrders([]));
+    readDispositions("scrap")
+      .then(setDispositions)
+      .catch(() => setDispositions([]));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,8 +48,15 @@ export default function ScrapPage() {
       <p className="text-sm text-gray-600">Post a goods movement 531 (scrap posting) to SAP.</p>
       <form onSubmit={handleSubmit} className="bg-white rounded-lg border p-4 space-y-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Manufacturing Order</label>
-          <input type="text" value={orderId} onChange={(e) => setOrderId(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" required />
+          <label className="block text-sm font-medium text-gray-700">Production Order</label>
+          <select value={orderId} onChange={(e) => setOrderId(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" required>
+            <option value="">— select order —</option>
+            {orders.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.order_number} ({o.status})
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Qty Scrapped</label>
@@ -39,7 +64,16 @@ export default function ScrapPage() {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Reason Code</label>
-          <input type="text" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" required />
+          {dispositions.length > 0 ? (
+            <select value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" required>
+              <option value="">— select reason —</option>
+              {dispositions.map((d) => (
+                <option key={d.id} value={d.code}>{d.name} ({d.code})</option>
+              ))}
+            </select>
+          ) : (
+            <input type="text" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" required placeholder="e.g. DEFECTIVE" />
+          )}
         </div>
         <button type="submit" disabled={loading} className="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50">
           {loading ? "Posting…" : "Post Scrap (531)"}
@@ -56,3 +90,4 @@ export default function ScrapPage() {
     </div>
   );
 }
+
