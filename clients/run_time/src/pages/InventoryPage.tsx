@@ -417,6 +417,8 @@ function BalancesPanel({
   const [balances, setBalances] = useState<InventoryBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -435,6 +437,14 @@ function BalancesPanel({
   const locName = (id: string) => locationMap.get(id)?.code ?? id.slice(0, 8);
   const lotLabel = (id: string) => lotMap.get(id)?.lot_number ?? id.slice(0, 8);
 
+  const locations = Array.from(locationMap.values()).sort((a, b) => a.code.localeCompare(b.code));
+
+  const filtered = balances.filter((b) => {
+    if (search && !lotLabel(b.material_lot_id).toLowerCase().includes(search.toLowerCase())) return false;
+    if (locationFilter && b.location_id !== locationFilter) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -442,6 +452,27 @@ function BalancesPanel({
         <button onClick={load} disabled={loading} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
           <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <input
+          type="text"
+          placeholder="Search by lot number…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-56"
+        />
+        <select
+          value={locationFilter}
+          onChange={(e) => setLocationFilter(e.target.value)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+        >
+          <option value="">All Locations</option>
+          {locations.map((loc) => (
+            <option key={loc.id} value={loc.id}>{loc.code} — {loc.name}</option>
+          ))}
+        </select>
+        <span className="text-xs text-gray-400">{filtered.length} balance{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
       {error && <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -461,10 +492,10 @@ function BalancesPanel({
             <tbody className="divide-y divide-gray-100 bg-white">
               {loading ? (
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">Loading…</td></tr>
-              ) : balances.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">No inventory balances found.</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">{search || locationFilter ? "No matches found." : "No inventory balances found."}</td></tr>
               ) : (
-                balances.map((b) => {
+                filtered.map((b) => {
                   const available = b.quantity_on_hand - b.quantity_reserved;
                   return (
                     <tr key={b.id} className="hover:bg-gray-50">
@@ -483,7 +514,6 @@ function BalancesPanel({
           </table>
         </div>
       </div>
-      <p className="text-xs text-gray-400">Showing {balances.length} balance record{balances.length !== 1 ? "s" : ""}</p>
     </div>
   );
 }
