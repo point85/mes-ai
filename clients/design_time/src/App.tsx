@@ -20,7 +20,6 @@ import { ProductListPage, ProductDetailPage, BOMEditorPage } from "./pages/produ
 import { RouteEditorPage } from "./pages/routes";
 import { MaterialListPage, MaterialLotListPage } from "./pages/materials";
 import { DataDefListPage } from "./pages/data-collection";
-import { GenealogyViewerPage } from "./pages/genealogy";
 import { DispatchPage } from "./pages/dispatch";
 import { PluginListPage, PluginDetailPage } from "./pages/plugins";
 import { ReasonListPage } from "./pages/reasons";
@@ -76,7 +75,6 @@ export default function App() {
             <Route path="/data-definitions" element={<DataDefListPage />} />
             <Route path="/reasons" element={<ReasonListPage />} />
             <Route path="/dispositions" element={<DispositionListPage />} />
-            <Route path="/genealogy" element={<GenealogyViewerPage />} />
             <Route path="/dispatch" element={<DispatchPage />} />
             <Route path="/storage-locations" element={<StorageLocationListPage />} />
             {/* Work Schedules */}
