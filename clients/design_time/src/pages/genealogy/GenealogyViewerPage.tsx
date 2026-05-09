@@ -75,13 +75,13 @@ export default function GenealogyViewerPage() {
         </div>
         <div className="flex-1">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {mode === "unit" ? "Unit ID" : "Lot ID"}
+            {mode === "unit" ? "Serial Number" : "Lot Number"}
           </label>
           <input
             value={inputId}
             onChange={(e) => setInputId(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            placeholder={`Enter ${mode} identifier…`}
+            placeholder={mode === "unit" ? "Enter serial number…" : "Enter lot number…"}
             className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
           />
         </div>

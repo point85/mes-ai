@@ -15,7 +15,6 @@ import {
   BeakerIcon,
   ClipboardDocumentListIcon,
   ShieldCheckIcon,
-  ChartBarIcon,
   LinkIcon,
   ArrowsRightLeftIcon,
   PuzzlePieceIcon,
@@ -77,7 +76,6 @@ const sections: NavSection[] = [
   {
     title: "Operations",
     items: [
-      { label: "Performance", to: "/performance", icon: ChartBarIcon },
       { label: "Genealogy", to: "/genealogy", icon: LinkIcon },
       { label: "Dispatch", to: "/dispatch", icon: ArrowsRightLeftIcon },
       { label: "Storage Locations", to: "/storage-locations", icon: ArchiveBoxIcon },

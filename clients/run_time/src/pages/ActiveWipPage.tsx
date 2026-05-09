@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { fetchUnits, fetchLots, fetchUnitStepContext, fetchLotStepContext } from "../api/runtime";
 import { useState } from "react";
 import type { StepContext } from "../types";
 import StepProcessingPanel from "../components/StepProcessingPanel";
+import { printUnitHistoryReport, printLotHistoryReport } from "../components/WipHistoryReport";
 
 export default function ActiveWipPage() {
   const queryClient = useQueryClient();
@@ -134,10 +135,11 @@ export default function ActiveWipPage() {
                     <td className="py-2 px-3 text-sm">{u.current_step_name ?? "—"}</td>
                     <td className="py-2 px-3">{u.order_number ?? u.order_id.slice(0, 8)}</td>
                     <td className="py-2 px-3 text-xs text-gray-400">{new Date(u.created_at).toLocaleString()}</td>
-                    <td className="py-2 px-3">
+                    <td className="py-2 px-3 flex items-center gap-2">
                       <button onClick={() => openContext("unit", u.id)} className="text-indigo-600 text-xs hover:underline">
                         Open
                       </button>
+                      <UnitReportButton id={u.id} serialNumber={u.serial_number} />
                     </td>
                   </tr>
                 ))}
@@ -171,10 +173,11 @@ export default function ActiveWipPage() {
                     <td className="py-2 px-3 text-sm">{l.current_step_name ?? "—"}</td>
                     <td className="py-2 px-3">{l.order_number ?? l.order_id.slice(0, 8)}</td>
                     <td className="py-2 px-3 text-xs text-gray-400">{new Date(l.created_at).toLocaleString()}</td>
-                    <td className="py-2 px-3">
+                    <td className="py-2 px-3 flex items-center gap-2">
                       <button onClick={() => openContext("lot", l.id)} className="text-indigo-600 text-xs hover:underline">
                         Open
                       </button>
+                      <LotReportButton id={l.id} lotNumber={l.lot_number} />
                     </td>
                   </tr>
                 ))}
@@ -184,6 +187,50 @@ export default function ActiveWipPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function UnitReportButton({ id, serialNumber }: { id: string; serialNumber: string }) {
+  const [busy, setBusy] = useState(false);
+  const handleReport = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
+    try {
+      await printUnitHistoryReport(id, serialNumber);
+    } catch {
+      alert("Failed to load unit history. Check server connection.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button onClick={handleReport} disabled={busy} title="Print unit history report"
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-indigo-600 hover:bg-indigo-50 disabled:opacity-40">
+      <DocumentTextIcon className="h-3.5 w-3.5" />
+      {busy ? "Loading…" : "Report"}
+    </button>
+  );
+}
+
+function LotReportButton({ id, lotNumber }: { id: string; lotNumber: string }) {
+  const [busy, setBusy] = useState(false);
+  const handleReport = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
+    try {
+      await printLotHistoryReport(id, lotNumber);
+    } catch {
+      alert("Failed to load lot history. Check server connection.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button onClick={handleReport} disabled={busy} title="Print lot history report"
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-indigo-600 hover:bg-indigo-50 disabled:opacity-40">
+      <DocumentTextIcon className="h-3.5 w-3.5" />
+      {busy ? "Loading…" : "Report"}
+    </button>
   );
 }
 
