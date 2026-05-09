@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { PlusIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { fetchEquipmentStates, fetchCounters, fetchAllEquipment } from "../../api/runtime";
 import type { EquipmentStateLog, ProductionCounter, Equipment } from "../../types";
-import StateChangeFormDialog from "./StateChangeFormDialog";
-import CounterFormDialog from "./CounterFormDialog";
 
 const catColors: Record<string, string> = {
   available: "bg-green-50 text-green-700",
@@ -28,9 +26,6 @@ export default function PerformancePage() {
   const [countersEquipId, setCountersEquipId] = useState("");
   const [countersLoading, setCountersLoading] = useState(true);
   const [countersError, setCountersError] = useState<string | null>(null);
-
-  const [showStateForm, setShowStateForm] = useState(false);
-  const [showCounterForm, setShowCounterForm] = useState(false);
 
   // Load equipment list once
   useEffect(() => {
@@ -105,10 +100,6 @@ export default function PerformancePage() {
               className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
               <ArrowPathIcon className={`h-4 w-4 ${statesLoading ? "animate-spin" : ""}`} /> Refresh
             </button>
-            <button onClick={() => setShowStateForm(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500">
-              <PlusIcon className="h-4 w-4" /> Record State
-            </button>
           </div>
         </div>
 
@@ -176,10 +167,6 @@ export default function PerformancePage() {
               className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
               <ArrowPathIcon className={`h-4 w-4 ${countersLoading ? "animate-spin" : ""}`} /> Refresh
             </button>
-            <button onClick={() => setShowCounterForm(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500">
-              <PlusIcon className="h-4 w-4" /> Record Counter
-            </button>
           </div>
         </div>
 
@@ -221,12 +208,6 @@ export default function PerformancePage() {
         )}
       </section>
 
-      {showStateForm && (
-        <StateChangeFormDialog onClose={() => setShowStateForm(false)} onSaved={() => loadStates(statesEquipId || undefined)} />
-      )}
-      {showCounterForm && (
-        <CounterFormDialog onClose={() => setShowCounterForm(false)} onSaved={() => loadCounters(countersEquipId || undefined)} />
-      )}
     </div>
   );
 }
