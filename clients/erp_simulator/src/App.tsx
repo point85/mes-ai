@@ -8,7 +8,6 @@ import ProductsPage from "./pages/ProductsPage";
 import CompletionPage from "./pages/CompletionPage";
 import ConsumptionPage from "./pages/ConsumptionPage";
 import ScrapPage from "./pages/ScrapPage";
-import QualityPage from "./pages/QualityPage";
 import ConfirmationsPage from "./pages/ConfirmationsPage";
 
 const pages: Record<TabId, React.FC> = {
@@ -19,7 +18,6 @@ const pages: Record<TabId, React.FC> = {
   completion: CompletionPage,
   consumption: ConsumptionPage,
   scrap: ScrapPage,
-  quality: QualityPage,
   confirmations: ConfirmationsPage,
 };
 
