@@ -3,8 +3,7 @@ import Layout, { type TabId } from "./components/Layout";
 import { useWebSocket } from "./hooks/useWebSocket";
 import type { MESEvent } from "./types";
 import DashboardPage from "./pages/DashboardPage";
-import ScanPage from "./pages/ScanPage";
-import ActiveWipPage from "./pages/ActiveWipPage";
+import WipPage from "./pages/WipPage";
 import OrdersPage from "./pages/OrdersPage";
 import EventsPage from "./pages/EventsPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -25,8 +24,7 @@ export default function App() {
   return (
     <Layout activeTab={activeTab} onTabChange={setActiveTab} wsConnected={connected}>
       <div className={activeTab === "dashboard"  ? undefined : "hidden"}><DashboardPage events={events} /></div>
-      <div className={activeTab === "scan"        ? undefined : "hidden"}><ScanPage /></div>
-      <div className={activeTab === "active-wip"  ? undefined : "hidden"}><ActiveWipPage /></div>
+      <div className={activeTab === "wip"         ? undefined : "hidden"}><WipPage /></div>
       <div className={activeTab === "orders"      ? undefined : "hidden"}><OrdersPage /></div>
       <div className={activeTab === "inventory"   ? undefined : "hidden"}><InventoryPage /></div>
       <div className={activeTab === "equipment"   ? undefined : "hidden"}><EquipmentStatusPage /></div>

@@ -1,6 +1,5 @@
 import {
   QueueListIcon,
-  MagnifyingGlassIcon,
   WrenchScrewdriverIcon,
   ChartBarIcon,
   BellAlertIcon,
@@ -12,12 +11,11 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import AboutDialog from "./AboutDialog";
 
-export type TabId = "dashboard" | "scan" | "active-wip" | "orders" | "inventory" | "equipment" | "events";
+export type TabId = "dashboard" | "wip" | "orders" | "inventory" | "equipment" | "events";
 
 const tabs: { id: TabId; label: string; icon: typeof QueueListIcon }[] = [
   { id: "dashboard", label: "Dashboard", icon: ChartBarIcon },
-  { id: "scan", label: "Scan WIP", icon: MagnifyingGlassIcon },
-  { id: "active-wip", label: "Active WIP", icon: WrenchScrewdriverIcon },
+  { id: "wip", label: "WIP", icon: WrenchScrewdriverIcon },
   { id: "orders", label: "Orders", icon: QueueListIcon },
   { id: "inventory", label: "Inventory", icon: ArchiveBoxIcon },
   { id: "equipment", label: "Equipment", icon: CpuChipIcon },
