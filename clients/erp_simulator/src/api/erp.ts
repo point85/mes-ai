@@ -302,8 +302,8 @@ export interface DBMaterialLot {
   is_active: boolean;
 }
 
-export async function readLotsForMaterial(materialId: string): Promise<DBMaterialLot[]> {
-  return unwrapData(await api.get("/material-lots", { params: { material_id: materialId, limit: 200 } }));
+export async function readLotsForMaterial(materialCode: string): Promise<DBMaterialLot[]> {
+  return unwrapData(await api.get("/material-lots", { params: { material_code: materialCode, limit: 200 } }));
 }
 
 export interface DBRoute {

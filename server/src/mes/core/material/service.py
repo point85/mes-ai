@@ -144,12 +144,17 @@ class MaterialLotService:
         session: AsyncSession,
         params: PaginationParams,
         material_id: UUID | None = None,
+        material_code: str | None = None,
         status: str | None = None,
     ) -> tuple[Sequence[MaterialLot], str | None, bool]:
         """List active material lots with optional filters."""
         stmt = select(MaterialLot).where(MaterialLot.is_active.is_(True))
         if material_id is not None:
             stmt = stmt.where(MaterialLot.material_id == material_id)
+        if material_code is not None:
+            stmt = stmt.join(MaterialLot.material).where(
+                MaterialDefinition.code == material_code
+            )
         if status is not None:
             stmt = stmt.where(MaterialLot.status == status)
         return await paginate_query(session, stmt, MaterialLot, params)

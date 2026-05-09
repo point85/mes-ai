@@ -127,6 +127,7 @@ async def delete_material(
 @router.get("/material-lots")
 async def list_material_lots(
     material_id: UUID | None = Query(None, description="Filter by material ID"),
+    material_code: str | None = Query(None, description="Filter by material code"),
     status: str | None = Query(None, description="Filter by status"),
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
@@ -134,7 +135,7 @@ async def list_material_lots(
 ):
     """List active material lots with optional filters."""
     items, cursor, has_more = await lot_svc.list_lots(
-        session, params, material_id=material_id, status=status,
+        session, params, material_id=material_id, material_code=material_code, status=status,
     )
     return list_response(
         [MaterialLotRead.model_validate(lot).model_dump() for lot in items],

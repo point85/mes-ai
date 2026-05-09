@@ -125,3 +125,70 @@ DT-CLIENT + RT-CLIENT frontend fixed (broken since S042 routing model refactor).
 - Regression test: graph-routed terminal-step lot completion.
 
 ---
+
+## Session S046 — 2026-05-07
+
+### Summary
+ERP Simulator seeding and order-queue plumbing verification.
+
+*(Session ended before a full log entry was written. Work covered ERP inbound queue setup and demo seeding confirmation. Details recoverable from git history.)*
+
+---
+
+## Session S047 — 2026-05-08
+
+### Summary
+`order_processors.py` multi-route crash fix — session ended mid-implementation.
+
+### Work completed (partial)
+
+**`_resolve_route` crash with multiple routes**
+- `server/src/mes/core/demo/order_processors.py`: `_resolve_route` used `scalar_one_or_none()` which raised `MultipleResultsFound` when a product had more than one `OperationsDefinition` row.
+- Fix: added `.order_by(OperationsDefinition.is_default.desc()).limit(1)` so the query always returns at most one row, preferring the default route.
+
+### Incomplete at session end
+- Idempotency backfill for existing orders with `route_id = None` not yet applied — continued in S048.
+
+---
+
+## Session S048 — 2026-05-08
+
+### Summary
+Completed `order_processors.py` route fix; full ERP Simulator UI bug sweep (route_id null on created orders, wrong API endpoint, UoM field blank, lot number dropdown).
+
+### Work completed
+
+**`order_processors.py` idempotency backfill (completing S047 work)**
+- Both `CPGLotProcessor.process_order` and `ElectronicsUnitProcessor.process_order` idempotency blocks now check `existing.route_id is None` and call `_resolve_route` to backfill if a route is found, followed by `session.flush()`.
+
+**ERP Simulator: `route_id` always null on UI-created orders**
+- `clients/erp_simulator/src/pages/OrdersPage.tsx`: was hardcoding `route_id: null` in every `createProductionOrder` call.
+- Fix: call `readProductRoutes(product_id)` before creating the order, pick the default route (or first), pass its id.
+
+**`readProductRoutes` calling wrong endpoint (404 silent)**
+- `clients/erp_simulator/src/api/erp.ts`: was calling `/products/{id}/routes` → 404.
+- Fix: corrected to `/products/{id}/operations-definitions`.
+
+**ConsumptionPage UoM field blank**
+- `DBBomItem` interface had `uom: string` but the server returns `uom_symbol`.
+- Fix: renamed to `uom_symbol` and updated all usages. Made the UoM field editable.
+
+**ConsumptionPage lot number dropdown**
+- Added `DBMaterialLot`, `readLotsForMaterial` to `erp.ts`.
+- `ConsumptionPage.tsx`: dropdown populated from `/material-lots?material_code=…` when a BOM line is added.
+- Initially used a `materialCodeToId` map (built from a separate `readMaterialsDB()` call on mount) as an indirect lookup — had a race-condition bug where the map was empty when the user clicked Add.
+- **Final fix (S048 end)**: Added `material_code` as a first-class filter on the `/material-lots` server endpoint (join through `material_definitions`). `readLotsForMaterial` now passes `material_code` directly — no indirect lookup needed. Removed `materialCodeToId` state and `readMaterialsDB` from `ConsumptionPage`.
+
+**Patched existing null-route orders via PATCH API**
+- 6 OJ orders + 1 ECB order patched to correct `route_id` values via direct API calls.
+
+### Files changed
+- `server/src/mes/core/demo/order_processors.py`
+- `server/src/mes/core/material/service.py` — `list_lots` accepts `material_code` filter
+- `server/src/mes/core/material/routes.py` — `GET /material-lots` exposes `material_code` query param
+- `clients/erp_simulator/src/api/erp.ts` — endpoint fixes, new types, `readLotsForMaterial` by code
+- `clients/erp_simulator/src/pages/OrdersPage.tsx` — route_id resolved before order creation
+- `clients/erp_simulator/src/pages/ConsumptionPage.tsx` — lot dropdown, UoM fix, removed materialCodeToId
+
+### Next session
+- Manual smoke-test: ERP Sim → create order → report consumption → verify lot dropdown shows available lots.

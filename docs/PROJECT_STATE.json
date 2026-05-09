@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-05-07",
-  "lastSessionId": "S045",
+  "lastUpdated": "2026-05-08",
+  "lastSessionId": "S048",
 
   "phases": [
     {
@@ -266,7 +266,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "S045 (2026-05-07): DT-CLIENT + RT-CLIENT frontend fixed (broken since S042). Removed StepTransition types/API/hooks. Deleted TransitionFormDialog.tsx. ProductDetailPage right panel now shows step input/output dispositions + routing hint instead of legacy transitions list. StepFormDialog already had dispositions + is_initial_step (was done). RouteFlowDiagram already used disposition-based edges (was done). RT-CLIENT StepProcessingPanel already used new model (was done). Both clients pass tsc --noEmit with zero errors.",
+  "currentTask": "S048 (2026-05-08): order_processors.py multi-route crash + idempotency backfill; ERP Simulator UI bugs fixed: route_id null on created orders, readProductRoutes wrong endpoint, UoM blank field, lot number dropdown. Server: material-lots endpoint now supports material_code query filter (join through material_definitions). All TypeScript compiles clean.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",

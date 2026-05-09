@@ -6,7 +6,6 @@ import {
   readBomItems,
   readProductRoutes,
   readRouteSteps,
-  readMaterialsDB,
   readLotsForMaterial,
   type ERPConfirmation,
   type DBProductionOrder,
@@ -29,8 +28,6 @@ export default function ConsumptionPage() {
   const [steps, setSteps] = useState<DBRouteStep[]>([]);
   const [selectedBomItemId, setSelectedBomItemId] = useState("");
   const [lines, setLines] = useState<ConsumptionLine[]>([]);
-  // materialId keyed by material_code
-  const [materialCodeToId, setMaterialCodeToId] = useState<Record<string, string>>({});
   // lots keyed by material_code
   const [lotsMap, setLotsMap] = useState<Record<string, DBMaterialLot[]>>({});
   const [loading, setLoading] = useState(false);
@@ -42,14 +39,6 @@ export default function ConsumptionPage() {
     readProductionOrders()
       .then(setOrders)
       .catch(() => setOrders([]));
-    // Build material code → id map once
-    readMaterialsDB()
-      .then((mats) => {
-        const map: Record<string, string> = {};
-        for (const m of mats) map[m.code] = m.id;
-        setMaterialCodeToId(map);
-      })
-      .catch(() => {});
   }, []);
 
   // When order changes, load its BOM items and route steps
@@ -104,10 +93,9 @@ export default function ConsumptionPage() {
         lot_number: "",
       },
     ]);
-    // Fetch lots for this material if not already loaded
-    const matId = materialCodeToId[item.material_code];
-    if (matId && !(item.material_code in lotsMap)) {
-      readLotsForMaterial(matId)
+    // Fetch lots for this material if not already in map
+    if (!(item.material_code in lotsMap)) {
+      readLotsForMaterial(item.material_code)
         .then((lots) => setLotsMap((prev) => ({ ...prev, [item.material_code]: lots })))
         .catch(() => setLotsMap((prev) => ({ ...prev, [item.material_code]: [] })));
     }
