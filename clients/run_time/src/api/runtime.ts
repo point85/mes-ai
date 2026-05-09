@@ -6,6 +6,7 @@ import type {
   InventoryTransaction, InventoryBalance, StorageLocation,
   Site, Area, ProductionLine, WorkCell, Equipment, EquipmentCurrentState,
   GenealogyRecord,
+  EquipmentStateLog, ProductionCounter, StateChangeRequest, CounterCreateUpdate,
 } from "../types";
 
 const api = axios.create({ baseURL: "/api/v1" });
@@ -266,6 +267,31 @@ export const pickInventory = (payload: {
   reference_type?: string;
 }) => api.post("/inventory/pick", payload).then(unwrap<InventoryTransaction>);
 
+// ── Performance ─────────────────────────────────────────────────
+
+export const fetchEquipmentStates = (equipmentId?: string) => {
+  const params: Record<string, string> = { limit: "200" };
+  if (equipmentId) params.equipment_id = equipmentId;
+  return api.get("/performance/equipment-states", { params }).then(
+    (r) => r.data.data as EquipmentStateLog[]
+  );
+};
+
+export const recordStateChange = (body: StateChangeRequest) =>
+  api.post("/performance/equipment-states", body).then(unwrap<EquipmentStateLog>);
+
+export const fetchCounters = (equipmentId?: string, shiftDate?: string) => {
+  const params: Record<string, string> = { limit: "200" };
+  if (equipmentId) params.equipment_id = equipmentId;
+  if (shiftDate) params.shift_date = shiftDate;
+  return api.get("/performance/counters", { params }).then(
+    (r) => r.data.data as ProductionCounter[]
+  );
+};
+
+export const createOrUpdateCounter = (body: CounterCreateUpdate) =>
+  api.post("/performance/counters", body).then(unwrap<ProductionCounter>);
+
 export const moveInventory = (payload: {
   material_lot_id: string;
   from_location_id: string;
@@ -339,6 +365,13 @@ export async function fetchAllEquipmentInArea(areaId: string): Promise<Equipment
 export async function fetchAllEquipmentInSite(siteId: string): Promise<Equipment[]> {
   const areas = await fetchAreas(siteId);
   const nested = await Promise.all(areas.map((a) => fetchAllEquipmentInArea(a.id)));
+  return nested.flat();
+}
+
+/** Fetch every Equipment across all sites. */
+export async function fetchAllEquipment(): Promise<Equipment[]> {
+  const sites = await fetchSites();
+  const nested = await Promise.all(sites.map((s) => fetchAllEquipmentInSite(s.id)));
   return nested.flat();
 }
 

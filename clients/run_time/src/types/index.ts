@@ -444,3 +444,53 @@ export interface StorageLocation {
   created_at: string;
   updated_at: string;
 }
+// ── Performance ──────────────────────────────────────────────────
+
+export interface EquipmentStateLog {
+  id: string;
+  equipment_id: string;
+  state_model: string;
+  state: string;
+  sub_state: string | null;
+  dispatch_category: string;
+  oee_bucket: string;
+  started_at: string;
+  ended_at: string | null;
+  reason_code: string | null;
+  notes: string | null;
+}
+
+export interface ProductionCounter {
+  id: string;
+  equipment_id: string;
+  order_id: string | null;
+  shift_date: string;
+  good_count: number;
+  reject_count: number;
+  rework_count: number;
+  ideal_cycle_time_sec: number | null;
+  actual_run_time_sec: number | null;
+}
+
+export interface StateChangeRequest {
+  equipment_id: string;
+  state_model: string;
+  state: string;
+  sub_state?: string;
+  dispatch_category: string;
+  oee_bucket: string;
+  started_at: string;
+  reason_code?: string;
+  notes?: string;
+}
+
+export interface CounterCreateUpdate {
+  equipment_id: string;
+  order_id?: string;
+  shift_date: string;
+  good_count: number;
+  reject_count: number;
+  rework_count: number;
+  ideal_cycle_time_sec?: number;
+  actual_run_time_sec?: number;
+}

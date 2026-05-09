@@ -7,7 +7,7 @@ import WipPage from "./pages/WipPage";
 import OrdersPage from "./pages/OrdersPage";
 import EventsPage from "./pages/EventsPage";
 import InventoryPage from "./pages/InventoryPage";
-import EquipmentStatusPage from "./pages/EquipmentStatusPage";
+import EquipmentPage from "./pages/EquipmentPage";
 
 const WS_TOPICS = ["wip.*", "operations.request.*", "dispatch.*", "data.*", "equipment.state.*"];
 
@@ -27,7 +27,7 @@ export default function App() {
       <div className={activeTab === "wip"         ? undefined : "hidden"}><WipPage /></div>
       <div className={activeTab === "orders"      ? undefined : "hidden"}><OrdersPage /></div>
       <div className={activeTab === "inventory"   ? undefined : "hidden"}><InventoryPage /></div>
-      <div className={activeTab === "equipment"   ? undefined : "hidden"}><EquipmentStatusPage /></div>
+      <div className={activeTab === "equipment"   ? undefined : "hidden"}><EquipmentPage /></div>
       <div className={activeTab === "events"      ? undefined : "hidden"}><EventsPage events={events} onClear={() => setEvents([])} /></div>
     </Layout>
   );
