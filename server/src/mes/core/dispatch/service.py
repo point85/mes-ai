@@ -65,6 +65,7 @@ STRATEGY_DESCRIPTIONS: dict[str, str] = {
     "shortest_queue": "Route to equipment with the shortest queue of WIP",
     "round_robin": "Distribute evenly across available equipment",
     "capability_match": "Route based on equipment capability and product requirements",
+    "custom": "AI-driven strategy governed by the natural language prompt stored on the Work Cell",
 }
 
 
@@ -275,7 +276,14 @@ class DispatchService:
             )
 
         # ── Apply strategy ──────────────────────────────────────────
-        ranked = _apply_strategy(options, strategy)
+        if strategy == "custom":
+            custom_prompt = next(
+                (wc.custom_strategy_prompt for _, wc in equip_rows if wc.custom_strategy_prompt),
+                "",
+            )
+            ranked = _apply_custom_strategy(options, custom_prompt)
+        else:
+            ranked = _apply_strategy(options, strategy)
 
         recommended = ranked[0] if ranked else None
 
@@ -782,3 +790,95 @@ def _apply_strategy(
 
     else:
         return options
+
+
+def _apply_custom_strategy(
+    options: list[DispatchOption],
+    prompt: str,
+) -> list[DispatchOption]:
+    """
+    AI-driven custom dispatch strategy.
+
+    ``prompt`` is the natural language instruction stored in
+    ``WorkCell.custom_strategy_prompt``.  The template below uses keyword
+    matching so the strategy is immediately functional.  Replace the body
+    with a real LLM call when ready.
+
+    ── HOW TO WIRE IN AN LLM (example: OpenAI) ───────────────────────────
+
+        import openai, json
+
+        client = openai.OpenAI()          # reads OPENAI_API_KEY from env
+
+        payload = [
+            {
+                "equipment": o.equipment_code,
+                "queue_depth": o.queue_depth,
+                "max_queue_depth": o.max_queue_depth,
+            }
+            for o in options
+        ]
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a manufacturing dispatch assistant. "
+                        "Score each equipment option 0–100 (higher = preferred). "
+                        "Return JSON: "
+                        "{\"scores\": [{\"equipment\": str, \"score\": int, \"reason\": str}]}"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Dispatch instruction: {prompt}\\n\\n"
+                        f"Equipment options:\\n{json.dumps(payload, indent=2)}"
+                    ),
+                },
+            ],
+        )
+        scores = json.loads(response.choices[0].message.content)["scores"]
+        score_map = {s["equipment"]: s for s in scores}
+        for opt in options:
+            entry = score_map.get(opt.equipment_code, {})
+            opt.score = float(entry.get("score", 0))
+            opt.reason = entry.get("reason", "custom")
+        return sorted(options, key=lambda o: o.score, reverse=True)
+
+    ── END LLM EXAMPLE ────────────────────────────────────────────────────
+
+    Template implementation: keyword-based scoring that demonstrates the
+    expected input/output contract without requiring an external API.
+    """
+    if not prompt:
+        # No instructions — fall back to first_available
+        return _apply_strategy(options, "first_available")
+
+    p = prompt.lower()
+
+    if any(kw in p for kw in ("shortest", "least", "empty", "fewest", "idle")):
+        ranked = _apply_strategy(options, "shortest_queue")
+        for opt in ranked:
+            opt.reason = f"custom → shortest_queue (matched prompt)"
+        return ranked
+
+    if any(kw in p for kw in ("round", "spread", "distribute", "balance", "even")):
+        ranked = _apply_strategy(options, "round_robin")
+        for opt in ranked:
+            opt.reason = f"custom → round_robin (matched prompt)"
+        return ranked
+
+    if any(kw in p for kw in ("capabilit", "match", "suited", "speciali")):
+        ranked = _apply_strategy(options, "capability_match")
+        for opt in ranked:
+            opt.reason = f"custom → capability_match (matched prompt)"
+        return ranked
+
+    # No keyword matched — return natural order with the prompt embedded
+    for i, opt in enumerate(options):
+        opt.score = float(len(options) - i)
+        opt.reason = f"custom: {prompt[:80]}"
+    return options

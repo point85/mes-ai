@@ -170,6 +170,10 @@ class WorkCell(BaseModel):
         String(50), nullable=True,
         comment="Default dispatch strategy for this work cell (e.g. 'first_available', 'shortest_queue'). Used when no strategy is specified at dispatch time.",
     )
+    custom_strategy_prompt: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Natural language instruction for the 'custom' dispatch strategy. Describes how the AI should rank equipment candidates.",
+    )
     # Relationships
     production_line: Mapped["ProductionLine"] = relationship(
         "ProductionLine", back_populates="work_cells",

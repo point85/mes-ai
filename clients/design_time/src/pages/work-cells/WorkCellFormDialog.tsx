@@ -3,7 +3,7 @@
  */
 
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
@@ -31,6 +31,7 @@ const wcSchema = z.object({
   description: z.string().nullable().optional(),
   work_schedule_id: z.string().uuid().nullable().optional(),
   default_dispatch_strategy: z.string().nullable().optional(),
+  custom_strategy_prompt: z.string().nullable().optional(),
 });
 
 type WCFormData = z.infer<typeof wcSchema>;
@@ -51,11 +52,14 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<WCFormData>({
     resolver: zodResolver(wcSchema),
-    defaultValues: { name: "", code: "", description: "", work_schedule_id: null, default_dispatch_strategy: null },
+    defaultValues: { name: "", code: "", description: "", work_schedule_id: null, default_dispatch_strategy: null, custom_strategy_prompt: null },
   });
+
+  const watchedStrategy = useWatch({ control, name: "default_dispatch_strategy" });
 
   useEffect(() => {
     if (workCell) {
@@ -65,6 +69,7 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
         description: workCell.description ?? "",
         work_schedule_id: workCell.work_schedule_id ?? null,
         default_dispatch_strategy: workCell.default_dispatch_strategy ?? null,
+        custom_strategy_prompt: workCell.custom_strategy_prompt ?? null,
       });
     }
   }, [workCell, reset]);
@@ -175,6 +180,24 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
                 Used automatically when dispatch is evaluated without an explicit strategy.
               </p>
             </div>
+
+            {watchedStrategy === "custom" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Custom Strategy Prompt
+                </label>
+                <textarea
+                  {...register("custom_strategy_prompt")}
+                  rows={4}
+                  placeholder="Describe in plain language how equipment should be selected. Example: \"Prefer equipment with the shortest queue. If queues are equal, prefer the machine closest to the start of the line.\""
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  This text is passed to the AI dispatch engine as its instruction. Replace the template
+                  implementation in <code className="font-mono">dispatch/service.py → _apply_custom_strategy()</code> to wire in a real LLM.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <button

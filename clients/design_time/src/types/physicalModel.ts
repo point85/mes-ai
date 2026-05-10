@@ -104,6 +104,7 @@ export interface WorkCell {
   site_id: string;
   work_schedule_id: string | null;
   default_dispatch_strategy: string | null;
+  custom_strategy_prompt: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -115,6 +116,7 @@ export interface WorkCellCreate {
   description?: string | null;
   work_schedule_id?: string | null;
   default_dispatch_strategy?: string | null;
+  custom_strategy_prompt?: string | null;
 }
 
 export interface WorkCellUpdate {
@@ -123,6 +125,7 @@ export interface WorkCellUpdate {
   description?: string | null;
   work_schedule_id?: string | null;
   default_dispatch_strategy?: string | null;
+  custom_strategy_prompt?: string | null;
 }
 
 // ─── Equipment ────────────────────────────────────────────────────────

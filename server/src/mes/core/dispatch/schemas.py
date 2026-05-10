@@ -20,6 +20,7 @@ DISPATCH_STRATEGIES = {
     "shortest_queue",
     "round_robin",
     "capability_match",
+    "custom",
 }
 
 
