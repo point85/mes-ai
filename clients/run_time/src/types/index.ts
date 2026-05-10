@@ -94,6 +94,7 @@ export interface WorkCell {
   code: string;
   line_id: string;
   description?: string | null;
+  default_dispatch_strategy: string | null;
   is_active: boolean;
 }
 
@@ -326,6 +327,41 @@ export interface MESEvent {
   payload: Record<string, unknown>;
   timestamp: string;
   event_id: string;
+}
+
+export interface DispatchStrategyInfo {
+  name: string;
+  description: string;
+  strategy_type: string;
+}
+
+export interface DispatchOption {
+  equipment_id: string;
+  equipment_code: string;
+  equipment_name: string;
+  work_cell_id: string;
+  work_cell_code: string;
+  work_cell_name: string | null;
+  step_id: string;
+  step_name: string | null;
+  dispatch_category: string | null;
+  material_setup: boolean;
+  queue_depth: number;
+  max_queue_depth: number | null;
+  score: number;
+  reason: string | null;
+  eligible: boolean;
+}
+
+export interface DispatchEvaluateResponse {
+  unit_id: string | null;
+  lot_id: string | null;
+  strategy: string;
+  options: DispatchOption[];
+  excluded_options: DispatchOption[];
+  recommended: DispatchOption | null;
+  blocked: boolean;
+  blocked_reason: string | null;
 }
 
 export interface StepEquipmentStatus {

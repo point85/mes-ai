@@ -209,48 +209,53 @@ class DispatchService:
 
         # ── Filter by availability, capability, capacity ────────────
         options: list[DispatchOption] = []
+        excluded_options: list[DispatchOption] = []
         blocked_reasons: list[str] = []
 
         for equip, wc in equip_rows:
-            # 1. AVAILABILITY: check dispatch_category
-            dispatch_cat = await _get_dispatch_category(session, equip.id)
-            if dispatch_cat != "available":
-                blocked_reasons.append(
-                    f"{equip.code}: unavailable ({dispatch_cat})"
-                )
-                continue
-
-            # 2. CAPABILITY: check EquipmentMaterial for the lot's material
-            if material_id is not None:
-                has_setup = await _has_material_setup(
-                    session, equip.id, material_id,
-                )
-                if not has_setup:
-                    blocked_reasons.append(
-                        f"{equip.code}: not set up for material"
-                    )
-                    continue
-
-            # 3. CAPACITY: check queue depth vs max_queue_depth
             queue_depth = await _get_queue_depth(session, equip.id)
+            dispatch_cat = await _get_dispatch_category(session, equip.id)
 
-            if equip.max_queue_depth is not None and queue_depth >= equip.max_queue_depth:
-                blocked_reasons.append(
-                    f"{equip.code}: queue full ({queue_depth}/{equip.max_queue_depth})"
-                )
-                continue
-
-            options.append(DispatchOption(
+            # Build base option (used for both eligible and excluded paths)
+            base = dict(
                 equipment_id=equip.id,
                 equipment_code=equip.code,
                 equipment_name=equip.name,
                 work_cell_id=wc.id,
                 work_cell_code=wc.code,
+                work_cell_name=wc.name,
                 step_id=target_step.id,
                 step_name=target_step.name,
+                dispatch_category=dispatch_cat,
                 queue_depth=queue_depth,
                 max_queue_depth=equip.max_queue_depth,
-            ))
+            )
+
+            # 1. AVAILABILITY: check dispatch_category
+            if dispatch_cat != "available":
+                reason = f"unavailable (state: {dispatch_cat})"
+                blocked_reasons.append(f"{equip.code}: {reason}")
+                excluded_options.append(DispatchOption(**base, material_setup=True, eligible=False, reason=reason))
+                continue
+
+            # 2. CAPABILITY: check EquipmentMaterial for the lot's material
+            has_setup = True
+            if material_id is not None:
+                has_setup = await _has_material_setup(session, equip.id, material_id)
+                if not has_setup:
+                    reason = "not set up for material"
+                    blocked_reasons.append(f"{equip.code}: {reason}")
+                    excluded_options.append(DispatchOption(**base, material_setup=False, eligible=False, reason=reason))
+                    continue
+
+            # 3. CAPACITY: check queue depth vs max_queue_depth
+            if equip.max_queue_depth is not None and queue_depth >= equip.max_queue_depth:
+                reason = f"queue full ({queue_depth}/{equip.max_queue_depth})"
+                blocked_reasons.append(f"{equip.code}: {reason}")
+                excluded_options.append(DispatchOption(**base, material_setup=has_setup, eligible=False, reason=reason))
+                continue
+
+            options.append(DispatchOption(**base, material_setup=has_setup, eligible=True))
 
         if not options:
             # BLOCKED — no eligible equipment
@@ -271,6 +276,7 @@ class DispatchService:
                 lot_id=lot_id,
                 strategy=strategy,
                 options=[],
+                excluded_options=excluded_options,
                 blocked=True,
                 blocked_reason=reason,
             )
@@ -299,6 +305,7 @@ class DispatchService:
             lot_id=lot_id,
             strategy=strategy,
             options=ranked,
+            excluded_options=excluded_options,
             recommended=recommended,
         )
 

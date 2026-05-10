@@ -55,12 +55,16 @@ class DispatchOption(BaseModel):
     equipment_name: str
     work_cell_id: UUID
     work_cell_code: str
+    work_cell_name: str | None = None
     step_id: UUID
     step_name: str | None = None
+    dispatch_category: str | None = None  # current equipment state category
+    material_setup: bool = True           # False when equipment lacks material setup
     queue_depth: int = 0
     max_queue_depth: int | None = None
     score: float = 0.0
     reason: str | None = None
+    eligible: bool = True                 # False for excluded equipment
 
 
 class DispatchEvaluateResponse(BaseModel):
@@ -69,7 +73,8 @@ class DispatchEvaluateResponse(BaseModel):
     unit_id: UUID | None = None
     lot_id: UUID | None = None
     strategy: str
-    options: list[DispatchOption] = []
+    options: list[DispatchOption] = []             # eligible, ranked
+    excluded_options: list[DispatchOption] = []   # ineligible with reason
     recommended: DispatchOption | None = None
     blocked: bool = False
     blocked_reason: str | None = None

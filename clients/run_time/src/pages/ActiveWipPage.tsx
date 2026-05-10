@@ -1,16 +1,24 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowPathIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, DocumentTextIcon, TruckIcon } from "@heroicons/react/24/outline";
 import { fetchUnits, fetchLots, fetchUnitStepContext, fetchLotStepContext } from "../api/runtime";
 import { useState } from "react";
 import type { StepContext } from "../types";
 import StepProcessingPanel from "../components/StepProcessingPanel";
 import { printUnitHistoryReport, printLotHistoryReport } from "../components/WipHistoryReport";
+import DispatchDialog from "../components/DispatchDialog";
+
+interface DispatchTarget {
+  wipType: "unit" | "lot";
+  wipId: string;
+  wipLabel: string;
+}
 
 export default function ActiveWipPage() {
   const queryClient = useQueryClient();
   const [view, setView] = useState<"units" | "lots">("units");
   const [statusFilter, setStatusFilter] = useState<string>("in_process");
   const [context, setContext] = useState<StepContext | null>(null);
+  const [dispatchTarget, setDispatchTarget] = useState<DispatchTarget | null>(null);
 
   const { data: units, isLoading: unitsLoading } = useQuery({
     queryKey: ["units", statusFilter],
@@ -67,6 +75,7 @@ export default function ActiveWipPage() {
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Active WIP</h2>
@@ -139,6 +148,16 @@ export default function ActiveWipPage() {
                       <button onClick={() => openContext("unit", u.id)} className="text-indigo-600 text-xs hover:underline">
                         Open
                       </button>
+                      {u.status === "queued" && (
+                        <button
+                          onClick={() => setDispatchTarget({ wipType: "unit", wipId: u.id, wipLabel: u.serial_number })}
+                          title="Evaluate dispatch"
+                          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-emerald-600 hover:bg-emerald-50"
+                        >
+                          <TruckIcon className="h-3.5 w-3.5" />
+                          Dispatch
+                        </button>
+                      )}
                       <UnitReportButton id={u.id} serialNumber={u.serial_number} />
                     </td>
                   </tr>
@@ -177,6 +196,16 @@ export default function ActiveWipPage() {
                       <button onClick={() => openContext("lot", l.id)} className="text-indigo-600 text-xs hover:underline">
                         Open
                       </button>
+                      {l.status === "queued" && (
+                        <button
+                          onClick={() => setDispatchTarget({ wipType: "lot", wipId: l.id, wipLabel: l.lot_number })}
+                          title="Evaluate dispatch"
+                          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-emerald-600 hover:bg-emerald-50"
+                        >
+                          <TruckIcon className="h-3.5 w-3.5" />
+                          Dispatch
+                        </button>
+                      )}
                       <LotReportButton id={l.id} lotNumber={l.lot_number} />
                     </td>
                   </tr>
@@ -187,6 +216,17 @@ export default function ActiveWipPage() {
         )}
       </div>
     </div>
+
+    {/* Dispatch dialog — rendered outside table to avoid z-index issues */}
+    {dispatchTarget && (
+      <DispatchDialog
+        wipType={dispatchTarget.wipType}
+        wipId={dispatchTarget.wipId}
+        wipLabel={dispatchTarget.wipLabel}
+        onClose={() => setDispatchTarget(null)}
+      />
+    )}
+  </>
   );
 }
 

@@ -7,6 +7,7 @@ import type {
   Site, Area, ProductionLine, WorkCell, Equipment, EquipmentCurrentState,
   GenealogyRecord,
   EquipmentStateLog, ProductionCounter, StateChangeRequest, CounterCreateUpdate,
+  DispatchStrategyInfo, DispatchEvaluateResponse,
 } from "../types";
 
 const api = axios.create({ baseURL: "/api/v1" });
@@ -113,6 +114,15 @@ export const fetchStepEquipment = (
       ...(assignedEquipmentId ? { assigned_equipment_id: assignedEquipmentId } : {}),
     },
   }).then(unwrapList<StepEquipmentStatus>);
+
+export const fetchDispatchStrategies = () =>
+  api.get("/dispatch/strategies").then(unwrapList<DispatchStrategyInfo>);
+
+export const evaluateDispatch = (body: {
+  unit_id?: string | null;
+  lot_id?: string | null;
+  strategy?: string | null;
+}) => api.post("/dispatch/evaluate", body).then(unwrap<DispatchEvaluateResponse>);
 
 // ── Data Collection ──────────────────────────────────────────────
 
