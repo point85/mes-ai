@@ -1765,7 +1765,7 @@ assumption).
   Filter: equipment.dispatch_category == AVAILABLE     ← CORE enforced
        │
        ▼
-  Apply dispatch strategy (first_available, shortest_queue, etc.)
+  Apply dispatch strategy (manual | first_available | shortest_queue | round_robin | capability_match | custom)
        │
        ▼
   Assign unit/lot → equipment state transitions to BUSY
@@ -5202,12 +5202,45 @@ The WIP is logically **queued at a specific equipment within the next route step
 
 | Strategy | Type | Description |
 |---|---|---|
-| **manual** | Built-in | Operator selects destination from valid options |
-| **first_available** | Built-in | Route to first available equipment at next step |
-| **shortest_queue** | Built-in | Route to equipment with shortest queue (default for auto-dispatch) |
-| **round_robin** | Built-in | Distribute evenly across available equipment |
+| **manual** | Built-in | Operator selects destination from valid options; no automatic ranking |
+| **first_available** | Built-in | Route to the first available equipment at the next step (natural order) |
+| **shortest_queue** | Built-in | Route to equipment with the shortest WIP input queue; default for auto-dispatch |
+| **round_robin** | Built-in | Distribute work evenly across available equipment (uses queue depth as proxy) |
 | **capability_match** | Built-in | Route based on equipment capability and product requirements |
-| **custom** | Plugin | User-defined strategy via plugin extension point |
+| **custom** | Built-in (AI-driven) | Natural language prompt stored on the Work Cell governs ranking; template implementation in `dispatch/service.py → _apply_custom_strategy()`; replace body with a real LLM call to enable full AI-driven dispatch |
+
+#### Strategy Selection Precedence
+
+1. **Explicit** — `strategy` field in the `POST /api/v1/dispatch/evaluate` request body.
+2. **Work Cell default** — `WorkCell.default_dispatch_strategy` (configured in the ISA-95 editor → Work Cells form).
+3. **System fallback** — `first_available`.
+
+#### Custom Strategy Detail
+
+When `strategy = "custom"` the engine calls `_apply_custom_strategy(options, prompt)` where
+`prompt` is `WorkCell.custom_strategy_prompt` — a free-text field edited in the Work Cells form.
+
+The **template implementation** uses keyword matching to delegate to a built-in strategy:
+
+| Keyword in prompt | Delegates to |
+|---|---|
+| "shortest", "least", "idle", "empty", "fewest" | `shortest_queue` |
+| "round", "spread", "distribute", "balance", "even" | `round_robin` |
+| "capabilit", "match", "suited", "speciali" | `capability_match` |
+| *(no keyword matched)* | natural order, reason = first 80 chars of prompt |
+
+To replace the template with a real LLM, substitute the body of `_apply_custom_strategy()`
+in `server/src/mes/core/dispatch/service.py`. A fully-wired OpenAI example is included in
+the function's docstring.
+
+#### Work Cell Configuration (ISA-95 Editor)
+
+The Work Cell form (DT-CLIENT → ISA-95 Editor → Work Cells) exposes two new fields:
+
+| Field | Column | Purpose |
+|---|---|---|
+| Default Dispatch Strategy | `work_cells.default_dispatch_strategy` | Strategy used when none is specified at dispatch time |
+| Custom Strategy Prompt | `work_cells.custom_strategy_prompt` | Visible only when strategy = "Custom"; plain-language instruction for the AI |
 
 ### 10.3 Equipment Resolution & Three-Stage Filtering
 
