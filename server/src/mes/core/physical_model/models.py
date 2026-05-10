@@ -166,6 +166,10 @@ class WorkCell(BaseModel):
         Uuid, ForeignKey("work_schedules.id"), nullable=True, index=True,
         comment="Optional work schedule assigned at the Work Cell level.",
     )
+    default_dispatch_strategy: Mapped[str | None] = mapped_column(
+        String(50), nullable=True,
+        comment="Default dispatch strategy for this work cell (e.g. 'first_available', 'shortest_queue'). Used when no strategy is specified at dispatch time.",
+    )
     # Relationships
     production_line: Mapped["ProductionLine"] = relationship(
         "ProductionLine", back_populates="work_cells",

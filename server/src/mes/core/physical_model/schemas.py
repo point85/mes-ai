@@ -140,6 +140,7 @@ class WorkCellCreate(BaseModel):
     code: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
     work_schedule_id: UUID | None = Field(None, description="Optional work schedule ID assigned at the Work Cell level.")
+    default_dispatch_strategy: str | None = Field(None, max_length=50, description="Default dispatch strategy (e.g. 'first_available', 'shortest_queue'). Used when strategy is not explicitly specified at dispatch time.")
 
 
 class WorkCellRead(BaseModel):
@@ -153,6 +154,7 @@ class WorkCellRead(BaseModel):
     area_id: UUID
     site_id: UUID
     work_schedule_id: UUID | None = None
+    default_dispatch_strategy: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -167,6 +169,7 @@ class WorkCellUpdate(BaseModel):
     code: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
     work_schedule_id: UUID | None = None
+    default_dispatch_strategy: str | None = Field(None, max_length=50, description="Default dispatch strategy for this work cell.")
 
 
 # ─── Equipment ────────────────────────────────────────────────────────

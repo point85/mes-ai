@@ -12,6 +12,15 @@ import { useCreateWorkCell, useUpdateWorkCell } from "../../hooks/usePhysicalMod
 import { useWorkSchedules } from "../../hooks/useWorkSchedule";
 import type { WorkCell } from "../../types";
 
+const DISPATCH_STRATEGIES = [
+  { value: "", label: "— None (inherit from caller) —" },
+  { value: "first_available", label: "First Available" },
+  { value: "shortest_queue", label: "Shortest Queue" },
+  { value: "round_robin", label: "Round Robin" },
+  { value: "capability_match", label: "Capability Match" },
+  { value: "manual", label: "Manual" },
+];
+
 const wcSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   code: z
@@ -21,6 +30,7 @@ const wcSchema = z.object({
     .refine((s) => !s.includes(" "), "Code must not contain spaces"),
   description: z.string().nullable().optional(),
   work_schedule_id: z.string().uuid().nullable().optional(),
+  default_dispatch_strategy: z.string().nullable().optional(),
 });
 
 type WCFormData = z.infer<typeof wcSchema>;
@@ -44,7 +54,7 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
     formState: { errors, isSubmitting },
   } = useForm<WCFormData>({
     resolver: zodResolver(wcSchema),
-    defaultValues: { name: "", code: "", description: "", work_schedule_id: null },
+    defaultValues: { name: "", code: "", description: "", work_schedule_id: null, default_dispatch_strategy: null },
   });
 
   useEffect(() => {
@@ -54,6 +64,7 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
         code: workCell.code,
         description: workCell.description ?? "",
         work_schedule_id: workCell.work_schedule_id ?? null,
+        default_dispatch_strategy: workCell.default_dispatch_strategy ?? null,
       });
     }
   }, [workCell, reset]);
@@ -146,6 +157,23 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Default Dispatch Strategy <span className="text-gray-400">(optional)</span>
+              </label>
+              <select
+                {...register("default_dispatch_strategy")}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                {DISPATCH_STRATEGIES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">
+                Used automatically when dispatch is evaluated without an explicit strategy.
+              </p>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

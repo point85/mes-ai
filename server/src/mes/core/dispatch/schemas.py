@@ -33,12 +33,15 @@ class DispatchEvaluateRequest(BaseModel):
 
     unit_id: UUID | None = None
     lot_id: UUID | None = None
-    strategy: str = Field("first_available", description="Dispatch strategy to use")
+    strategy: str | None = Field(
+        None,
+        description="Dispatch strategy to use. When omitted the work cell's default_dispatch_strategy is used; falls back to 'first_available'.",
+    )
 
     @field_validator("strategy")
     @classmethod
-    def validate_strategy(cls, v: str) -> str:
-        if v not in DISPATCH_STRATEGIES:
+    def validate_strategy(cls, v: str | None) -> str | None:
+        if v is not None and v not in DISPATCH_STRATEGIES:
             raise ValueError(f"strategy must be one of {DISPATCH_STRATEGIES}")
         return v
 

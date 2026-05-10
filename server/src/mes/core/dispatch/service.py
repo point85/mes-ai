@@ -88,7 +88,7 @@ class DispatchService:
         session: AsyncSession,
         unit_id: UUID | None = None,
         lot_id: UUID | None = None,
-        strategy: str = "first_available",
+        strategy: str | None = None,
     ) -> DispatchEvaluateResponse:
         """
         Evaluate dispatch options for a unit or lot.
@@ -193,9 +193,18 @@ class DispatchService:
             return DispatchEvaluateResponse(
                 unit_id=unit_id,
                 lot_id=lot_id,
-                strategy=strategy,
+                strategy=strategy or "first_available",
                 options=[],
             )
+
+        # ── Resolve strategy from work cell default if not specified ─
+        if strategy is None:
+            wc_strategy: str | None = None
+            for _, wc in equip_rows:
+                if wc.default_dispatch_strategy:
+                    wc_strategy = wc.default_dispatch_strategy
+                    break
+            strategy = wc_strategy or "first_available"
 
         # ── Filter by availability, capability, capacity ────────────
         options: list[DispatchOption] = []
