@@ -189,7 +189,7 @@ export default function WorkCellFormDialog({ workCell, lineId, onClose }: Props)
                 <textarea
                   {...register("custom_strategy_prompt")}
                   rows={4}
-                  placeholder="Describe in plain language how equipment should be selected. Example: \"Prefer equipment with the shortest queue. If queues are equal, prefer the machine closest to the start of the line.\""
+                  placeholder={`Describe in plain language how equipment should be selected. Example: "Prefer equipment with the shortest queue. If queues are equal, prefer the machine closest to the start of the line."`}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
                 <p className="mt-1 text-xs text-gray-400">

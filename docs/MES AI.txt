@@ -300,3 +300,10 @@ RT-CLIENT	5176	5186
 .\run-client.ps1 rt-client -Port 3000  # Run-Time on custom port
 .\run-client.ps1 erp-sim               # ERP Simulator on port 5174
 .\run-client.ps1 equipment-sim         # Equipment Simulator on port 5175
+
+The server runs on port 8082 (default). Three auto-generated API docs are available once the server is running:
+
+UI	URL
+Swagger UI	http://localhost:8082/api/v1/docs
+ReDoc	http://localhost:8082/api/v1/redoc
+OpenAPI JSON	http://localhost:8082/api/v1/openapi.json
