@@ -15,7 +15,6 @@ import {
   BeakerIcon,
   ClipboardDocumentListIcon,
   ShieldCheckIcon,
-  ArrowsRightLeftIcon,
   PuzzlePieceIcon,
   QueueListIcon,
   ArchiveBoxIcon,
@@ -60,6 +59,7 @@ const sections: NavSection[] = [
     items: [
       { label: "Sites", to: "/sites", icon: BuildingOffice2Icon },
       { label: "Equipment Classes", to: "/equipment-classes", icon: WrenchScrewdriverIcon },
+      { label: "Storage Locations", to: "/storage-locations", icon: ArchiveBoxIcon },
     ],
   },
   {
@@ -72,13 +72,7 @@ const sections: NavSection[] = [
       { label: "Material Lots", to: "/material-lots", icon: BeakerIcon },
     ],
   },
-  {
-    title: "Operations",
-    items: [
-      { label: "Dispatch", to: "/dispatch", icon: ArrowsRightLeftIcon },
-      { label: "Storage Locations", to: "/storage-locations", icon: ArchiveBoxIcon },
-    ],
-  },
+
   {
     title: "Admin",
     items: [
