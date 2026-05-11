@@ -66,10 +66,14 @@ def upgrade() -> None:
     # ── 4. Rename 'count' → 'other' ──────────────────────────────────
     op.execute("UPDATE units_of_measure SET uom_type = 'other' WHERE uom_type = 'count'")
 
-    # ── 5. Delete composite records that reference about-to-be-deleted units ─
-    #        (e.g. old L/h which has left_uom_id pointing to L (volume))
+    # ── 5. Null out nullable FK columns pointing to composite UoMs that will
+    #        be reclassified (safety step before touching composite records).
+    #        No deletes — dependent tables may hold NOT NULL references.
+    #        For composite records referencing unsupported scalar types, just
+    #        update their uom_type to 'other' so they remain valid.
     op.execute("""
-        DELETE FROM units_of_measure
+        UPDATE units_of_measure AS parent
+        SET uom_type = 'other'
         WHERE uom_class != 'scalar'
           AND (
               left_uom_id IN (
@@ -83,9 +87,13 @@ def upgrade() -> None:
           )
     """)
 
-    # ── 6. Delete scalar units with unsupported types ─────────────────
+    # ── 6. Convert remaining unsupported scalar types to 'other' ─────────────
+    #        Deleting is unsafe: other tables (bom_items, material_definitions,
+    #        equipment_materials, etc.) may hold NOT NULL FK references.
+    #        Reclassifying to 'other' keeps referential integrity intact.
     op.execute("""
-        DELETE FROM units_of_measure
+        UPDATE units_of_measure
+        SET uom_type = 'other'
         WHERE uom_type NOT IN ('mass', 'length', 'time', 'temperature', 'other')
     """)
 
