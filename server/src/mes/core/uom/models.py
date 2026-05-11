@@ -109,11 +109,25 @@ class UnitOfMeasure(BaseModel):
         return self.numerator_uom.symbol if self.numerator_uom else None
 
     @property
+    def numerator_uom_type(self) -> str | None:
+        """Convenience: uom_type of the numerator unit, if this is a rate."""
+        if self.numerator_uom_id is None:
+            return None
+        return self.numerator_uom.uom_type if self.numerator_uom else None
+
+    @property
     def denominator_uom_symbol(self) -> str | None:
         """Convenience: symbol of the denominator unit, if this is a rate."""
         if self.denominator_uom_id is None:
             return None
         return self.denominator_uom.symbol if self.denominator_uom else None
+
+    @property
+    def denominator_uom_type(self) -> str | None:
+        """Convenience: uom_type of the denominator unit, if this is a rate."""
+        if self.denominator_uom_id is None:
+            return None
+        return self.denominator_uom.uom_type if self.denominator_uom else None
 
     def __repr__(self) -> str:
         return f"<UnitOfMeasure symbol={self.symbol} type={self.uom_type}>"

@@ -68,6 +68,8 @@ class UoMRead(BaseModel):
     denominator_uom_id: UUID | None = None
     numerator_uom_symbol: str | None = None
     denominator_uom_symbol: str | None = None
+    numerator_uom_type: str | None = None
+    denominator_uom_type: str | None = None
     created_at: datetime
     updated_at: datetime
 

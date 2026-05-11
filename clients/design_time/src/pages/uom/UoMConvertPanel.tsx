@@ -26,10 +26,9 @@ export default function UoMConvertPanel({ uoms }: Props) {
   const filteredUoms = typeFilter ? uoms.filter((u) => u.uom_type === typeFilter) : uoms;
 
   const isRate = (u: UoM) => u.numerator_uom_symbol != null;
-  const numType = (u: UoM) =>
-    u.numerator_uom_symbol ? (symbolMap.get(u.numerator_uom_symbol)?.uom_type ?? null) : null;
-  const denType = (u: UoM) =>
-    u.denominator_uom_symbol ? (symbolMap.get(u.denominator_uom_symbol)?.uom_type ?? null) : null;
+  // Use the pre-resolved type fields from the API — no secondary symbolMap lookup needed.
+  const numType = (u: UoM) => u.numerator_uom_type ?? null;
+  const denType = (u: UoM) => u.denominator_uom_type ?? null;
 
   const fromUom = fromSymbol ? symbolMap.get(fromSymbol) : undefined;
   const toUom = toSymbol ? symbolMap.get(toSymbol) : undefined;

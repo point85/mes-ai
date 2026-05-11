@@ -16,6 +16,8 @@ export interface UoM {
   denominator_uom_id: string | null;
   numerator_uom_symbol: string | null;
   denominator_uom_symbol: string | null;
+  numerator_uom_type: string | null;
+  denominator_uom_type: string | null;
   created_at: string;
   updated_at: string;
 }
