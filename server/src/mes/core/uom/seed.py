@@ -55,6 +55,11 @@ BUILTIN_SCALARS: list[tuple[str, str, str, float, float]] = [
     ("ft",     "foot",                "length",      0.3048,                       0.0),
     ("yd",     "yard",                "length",      0.9144,                       0.0),
 
+    # ── VOLUME (treated as length type: multiplier = m³ equivalent) ──
+    ("L",      "liter",               "length",      0.001,                        0.0),
+    ("mL",     "milliliter",          "length",      1.0e-6,                       0.0),
+    ("fl oz",  "fluid ounce",         "length",      2.957352965e-5,               0.0),
+
     # ── TEMPERATURE ──────────────────────────────────────────────────
     ("°C",     "degree Celsius",      "temperature", 1.0,                          273.15),
     ("°F",     "degree Fahrenheit",   "temperature", 5.0 / 9.0,                   273.15 - 32.0 * 5.0 / 9.0),
@@ -81,6 +86,10 @@ BUILTIN_QUOTIENTS: list[tuple[str, str, str, str]] = [
     ("ft/s",   "feet per second",       "ft", "s"),
     ("ft/min", "feet per minute",       "ft", "min"),
     ("ft/h",   "feet per hour",         "ft", "h"),
+    # Volume flow rate
+    ("L/h",    "liters per hour",        "L",  "h"),
+    ("L/min",  "liters per minute",      "L",  "min"),
+    ("mL/h",   "milliliters per hour",   "mL", "h"),
     # Production rate
     ("EA/s",   "each per second",       "EA", "s"),
     ("EA/min", "each per minute",       "EA", "min"),

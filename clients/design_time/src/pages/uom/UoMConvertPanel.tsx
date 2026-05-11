@@ -255,8 +255,3 @@ export default function UoMConvertPanel({ uoms }: Props) {
     </div>
   );
 }
-
-
-    </div>
-  );
-}
