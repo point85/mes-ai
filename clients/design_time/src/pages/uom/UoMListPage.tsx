@@ -7,8 +7,34 @@ import { useState, useMemo } from "react";
 import { PlusIcon, TrashIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 import { useUoMs, useDeleteUoM } from "../../hooks/useUoM";
 import type { UoM } from "../../types";
+import { UOM_TYPES } from "../../types";
 import UoMFormDialog from "./UoMFormDialog";
 import UoMConvertPanel from "./UoMConvertPanel";
+
+const TYPE_LABELS: Record<string, string> = {
+  mass: "Mass",
+  length: "Length",
+  time: "Time",
+  temperature: "Temperature",
+  other: "Other",
+};
+
+const CLASS_BADGE: Record<string, string> = {
+  scalar: "bg-blue-100 text-blue-700",
+  quotient: "bg-purple-100 text-purple-700",
+  product: "bg-amber-100 text-amber-700",
+  power: "bg-green-100 text-green-700",
+};
+
+function uomFormula(uom: UoM): string {
+  if (uom.uom_class === "quotient" && uom.left_uom_symbol && uom.right_uom_symbol)
+    return `${uom.left_uom_symbol} ÷ ${uom.right_uom_symbol}`;
+  if (uom.uom_class === "product" && uom.left_uom_symbol && uom.right_uom_symbol)
+    return `${uom.left_uom_symbol} × ${uom.right_uom_symbol}`;
+  if (uom.uom_class === "power" && uom.left_uom_symbol && uom.exponent)
+    return `${uom.left_uom_symbol}^${uom.exponent}`;
+  return "—";
+}
 
 export default function UoMListPage() {
   const [typeFilter, setTypeFilter] = useState<string>("");
@@ -20,16 +46,11 @@ export default function UoMListPage() {
 
   const uoms = data?.data ?? [];
 
-  // Derive unique types for the filter dropdown
-  const types = useMemo(() => {
-    const set = new Set(uoms.map((u) => u.uom_type));
-    return Array.from(set).sort();
-  }, [uoms]);
-
   // Apply client-side type filter
-  const filtered = typeFilter
-    ? uoms.filter((u) => u.uom_type === typeFilter)
-    : uoms;
+  const filtered = useMemo(
+    () => (typeFilter ? uoms.filter((u) => u.uom_type === typeFilter) : uoms),
+    [uoms, typeFilter],
+  );
 
   const handleDelete = (uom: UoM) => {
     if (uom.is_builtin) return;
@@ -44,7 +65,7 @@ export default function UoMListPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Units of Measure</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Define units, conversion factors, and custom packaging units.
+            Define units, conversion factors, and composite units.
           </p>
         </div>
         <button
@@ -56,7 +77,7 @@ export default function UoMListPage() {
         </button>
       </div>
 
-      {/* Type filter */}
+      {/* Type filter — fixed 5 types */}
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-gray-700">Filter by type:</label>
         <select
@@ -65,10 +86,8 @@ export default function UoMListPage() {
           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
         >
           <option value="">All types</option>
-          {types.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
+          {UOM_TYPES.map((t) => (
+            <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>
           ))}
         </select>
         <span className="text-xs text-gray-400">
@@ -114,7 +133,10 @@ export default function UoMListPage() {
                   Type
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Rate
+                  Class
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Formula
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Multiplier
@@ -144,19 +166,22 @@ export default function UoMListPage() {
                   </td>
                   <td className="px-4 py-2.5">
                     <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                      {uom.uom_type}
+                      {TYPE_LABELS[uom.uom_type] ?? uom.uom_type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CLASS_BADGE[uom.uom_class] ?? "bg-gray-100 text-gray-600"}`}>
+                      {uom.uom_class}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-sm font-mono text-gray-700">
-                    {uom.numerator_uom_symbol && uom.denominator_uom_symbol
-                      ? `${uom.numerator_uom_symbol} / ${uom.denominator_uom_symbol}`
-                      : <span className="text-gray-300">—</span>}
+                    {uomFormula(uom)}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-right font-mono text-gray-700">
-                    {uom.multiplier}
+                    {uom.uom_class === "scalar" ? uom.multiplier : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-2.5 text-sm text-right font-mono text-gray-700">
-                    {uom.offset}
+                    {uom.uom_class === "scalar" ? uom.offset : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     {uom.is_builtin ? (
@@ -188,7 +213,7 @@ export default function UoMListPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">
                     No units found.
                   </td>
                 </tr>
@@ -214,3 +239,4 @@ export default function UoMListPage() {
     </div>
   );
 }
+

@@ -1,15 +1,37 @@
 /**
  * UoM Create / Edit dialog — modal form with Zod validation.
+ *
+ * Supports four UoM classes:
+ *   scalar   — type + multiplier + offset
+ *   quotient — left (numerator) type+unit / right (denominator) type+unit
+ *   product  — left type+unit × right type+unit
+ *   power    — base type+unit ^ exponent
  */
 
 import { useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useCreateUoM, useUpdateUoM, useUoMs } from "../../hooks/useUoM";
-import type { UoM } from "../../types";
+import type { UoM, UoMClass } from "../../types";
+import { UOM_TYPES, UOM_CLASSES } from "../../types";
+
+const CLASS_LABELS: Record<UoMClass, string> = {
+  scalar: "Scalar",
+  quotient: "Quotient (÷)",
+  product: "Product (×)",
+  power: "Power (^)",
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  mass: "Mass",
+  length: "Length",
+  time: "Time",
+  temperature: "Temperature",
+  other: "Other",
+};
 
 const uomSchema = z
   .object({
@@ -20,28 +42,27 @@ const uomSchema = z
       .refine((s) => !s.includes(" "), "Symbol must not contain spaces"),
     name: z.string().min(1, "Name is required").max(100),
     description: z.string().nullable().optional(),
-    uom_type: z.string().min(1, "Type is required").max(50),
+    uom_type: z.string().min(1, "Type is required"),
+    uom_class: z.enum(["scalar", "quotient", "product", "power"]),
     multiplier: z.coerce.number().positive("Must be > 0"),
     offset: z.coerce.number(),
-    numerator_uom_symbol: z.string().nullable().optional(),
-    denominator_uom_symbol: z.string().nullable().optional(),
+    left_uom_symbol: z.string().nullable().optional(),
+    right_uom_symbol: z.string().nullable().optional(),
+    exponent: z.coerce.number().int().min(2).nullable().optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.uom_type === "rate") {
-      if (!data.numerator_uom_symbol) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Required for rate UoMs",
-          path: ["numerator_uom_symbol"],
-        });
-      }
-      if (!data.denominator_uom_symbol) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Required for rate UoMs",
-          path: ["denominator_uom_symbol"],
-        });
-      }
+    const cls = data.uom_class;
+    if (cls === "quotient" || cls === "product") {
+      if (!data.left_uom_symbol)
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["left_uom_symbol"] });
+      if (!data.right_uom_symbol)
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["right_uom_symbol"] });
+    }
+    if (cls === "power") {
+      if (!data.left_uom_symbol)
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["left_uom_symbol"] });
+      if (!data.exponent)
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required (≥ 2)", path: ["exponent"] });
     }
   });
 
@@ -52,15 +73,77 @@ interface Props {
   onClose: () => void;
 }
 
+// A type+unit pair selector used for composite classes
+function ComponentSelector({
+  label,
+  typeName,
+  symbolName,
+  scalarUoms,
+  register,
+  watch,
+  errors,
+}: {
+  label: string;
+  typeName: "left_uom_type_filter" | "right_uom_type_filter";
+  symbolName: "left_uom_symbol" | "right_uom_symbol";
+  scalarUoms: UoM[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  register: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  watch: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  errors: any;
+}) {
+  const selectedType = watch(typeName) as string;
+  const filteredUoms = selectedType
+    ? scalarUoms.filter((u) => u.uom_type === selectedType)
+    : scalarUoms;
+
+  return (
+    <div className="space-y-2 rounded-md border border-gray-200 p-3 bg-gray-50">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+        <select
+          {...register(typeName)}
+          className="block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+        >
+          <option value="">Any type</option>
+          {UOM_TYPES.map((t) => (
+            <option key={t} value={t}>{TYPE_LABELS[t]}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Unit</label>
+        <select
+          {...register(symbolName)}
+          className="block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+        >
+          <option value="">Select unit…</option>
+          {filteredUoms.map((u) => (
+            <option key={u.symbol} value={u.symbol}>
+              {u.symbol} — {u.name}
+            </option>
+          ))}
+        </select>
+        {errors[symbolName] && (
+          <p className="mt-1 text-xs text-red-600">{errors[symbolName].message}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function UoMFormDialog({ uom, onClose }: Props) {
   const isEdit = !!uom;
   const createMut = useCreateUoM();
   const updateMut = useUpdateUoM();
   const { data: allUoMs } = useUoMs();
 
-  // Non-rate UoMs available for numerator/denominator selection
-  const baseUoMs = useMemo(
-    () => (allUoMs?.data ?? []).filter((u) => u.uom_type !== "rate"),
+  // Only scalar UoMs can be components of composite ones
+  const scalarUoms = useMemo(
+    () => (allUoMs?.data ?? []).filter((u) => u.uom_class === "scalar"),
     [allUoMs],
   );
 
@@ -69,8 +152,9 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
     handleSubmit,
     reset,
     watch,
+    control,
     formState: { errors, isSubmitting },
-  } = useForm<UoMFormData>({
+  } = useForm<UoMFormData & { left_uom_type_filter: string; right_uom_type_filter: string }>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(uomSchema) as any,
     defaultValues: {
@@ -78,15 +162,20 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
       name: "",
       description: "",
       uom_type: "",
+      uom_class: "scalar",
       multiplier: 1,
       offset: 0,
-      numerator_uom_symbol: null,
-      denominator_uom_symbol: null,
+      left_uom_symbol: null,
+      right_uom_symbol: null,
+      exponent: null,
+      left_uom_type_filter: "",
+      right_uom_type_filter: "",
     },
   });
 
-  const watchedType = watch("uom_type");
-  const isRate = watchedType === "rate";
+  const watchedClass = watch("uom_class") as UoMClass;
+  const isScalar = watchedClass === "scalar";
+  const isComposite = !isScalar;
 
   useEffect(() => {
     if (uom) {
@@ -95,20 +184,26 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
         name: uom.name,
         description: uom.description ?? "",
         uom_type: uom.uom_type,
+        uom_class: uom.uom_class,
         multiplier: uom.multiplier,
         offset: uom.offset,
-        numerator_uom_symbol: uom.numerator_uom_symbol ?? null,
-        denominator_uom_symbol: uom.denominator_uom_symbol ?? null,
+        left_uom_symbol: uom.left_uom_symbol ?? null,
+        right_uom_symbol: uom.right_uom_symbol ?? null,
+        exponent: uom.exponent ?? null,
+        left_uom_type_filter: uom.left_uom_type ?? "",
+        right_uom_type_filter: uom.right_uom_type ?? "",
       });
     }
   }, [uom, reset]);
 
-  const onSubmit = async (data: UoMFormData) => {
+  const onSubmit = async (data: UoMFormData & { left_uom_type_filter: string; right_uom_type_filter: string }) => {
     try {
+      const { left_uom_type_filter: _l, right_uom_type_filter: _r, ...rest } = data;
       const payload = {
-        ...data,
-        numerator_uom_symbol: isRate ? data.numerator_uom_symbol : null,
-        denominator_uom_symbol: isRate ? data.denominator_uom_symbol : null,
+        ...rest,
+        left_uom_symbol: isComposite ? rest.left_uom_symbol : null,
+        right_uom_symbol: (watchedClass === "quotient" || watchedClass === "product") ? rest.right_uom_symbol : null,
+        exponent: watchedClass === "power" ? rest.exponent : null,
       };
       if (isEdit) {
         await updateMut.mutateAsync({ id: uom!.id, ...payload });
@@ -117,7 +212,7 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
       }
       onClose();
     } catch {
-      // Error is shown by TanStack Query / mutation state
+      // Error shown by mutation state
     }
   };
 
@@ -129,8 +224,8 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
       {/* Panel */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <DialogPanel className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+      <div className="fixed inset-0 flex items-center justify-center p-4 overflow-y-auto">
+        <DialogPanel className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl my-4">
           <div className="flex items-center justify-between mb-4">
             <DialogTitle className="text-lg font-semibold text-gray-900">
               {isEdit ? "Edit Unit" : "New Unit of Measure"}
@@ -153,13 +248,11 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Symbol */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Symbol
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Symbol</label>
               <input
                 {...register("symbol")}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                placeholder="kg, lb, case, …"
+                placeholder="kg, lb, m/s, m³ …"
               />
               {errors.symbol && (
                 <p className="mt-1 text-xs text-red-600">{errors.symbol.message}</p>
@@ -168,119 +261,186 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
 
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Name
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Name</label>
               <input
                 {...register("name")}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                placeholder="kilogram, pound, case, …"
+                placeholder="kilogram, meters per second, cubic meter …"
               />
               {errors.name && (
                 <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>
               )}
             </div>
 
-            {/* Type */}
+            {/* Class radio buttons */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Type
-              </label>
-              <select
-                {...register("uom_type")}
-                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              >
-                <option value="">Select type…</option>
-                <option value="mass">Mass</option>
-                <option value="time">Time</option>
-                <option value="length">Length</option>
-                <option value="volume">Volume</option>
-                <option value="temperature">Temperature</option>
-                <option value="count">Count</option>
-                <option value="rate">Rate</option>
-                <option value="custom">Custom</option>
-              </select>
-              {errors.uom_type && (
-                <p className="mt-1 text-xs text-red-600">{errors.uom_type.message}</p>
-              )}
+              <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
+              <Controller
+                name="uom_class"
+                control={control}
+                render={({ field }) => (
+                  <div className="flex flex-wrap gap-3">
+                    {UOM_CLASSES.map((cls) => (
+                      <label key={cls} className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          value={cls}
+                          checked={field.value === cls}
+                          onChange={() => field.onChange(cls)}
+                          className="accent-indigo-600"
+                        />
+                        <span className="text-sm text-gray-700">{CLASS_LABELS[cls]}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              />
             </div>
 
-            {/* Multiplier + Offset side-by-side */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Multiplier
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  {...register("multiplier")}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-                {errors.multiplier && (
-                  <p className="mt-1 text-xs text-red-600">{errors.multiplier.message}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Offset
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  {...register("offset")}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-                {errors.offset && (
-                  <p className="mt-1 text-xs text-red-600">{errors.offset.message}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Rate UoM: Numerator / Denominator */}
-            {isRate && (
-              <div className="grid grid-cols-2 gap-4">
+            {/* Scalar fields: type + multiplier + offset */}
+            {isScalar && (
+              <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Numerator
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700">Type</label>
                   <select
-                    {...register("numerator_uom_symbol")}
+                    {...register("uom_type")}
                     className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   >
-                    <option value="">Select unit…</option>
-                    {baseUoMs.map((u) => (
-                      <option key={u.symbol} value={u.symbol}>
-                        {u.symbol} — {u.name}
-                      </option>
+                    <option value="">Select type…</option>
+                    {UOM_TYPES.map((t) => (
+                      <option key={t} value={t}>{TYPE_LABELS[t]}</option>
                     ))}
                   </select>
-                  {errors.numerator_uom_symbol && (
-                    <p className="mt-1 text-xs text-red-600">
-                      {errors.numerator_uom_symbol.message}
-                    </p>
+                  {errors.uom_type && (
+                    <p className="mt-1 text-xs text-red-600">{errors.uom_type.message}</p>
                   )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Denominator
-                  </label>
-                  <select
-                    {...register("denominator_uom_symbol")}
-                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="">Select unit…</option>
-                    {baseUoMs.map((u) => (
-                      <option key={u.symbol} value={u.symbol}>
-                        {u.symbol} — {u.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.denominator_uom_symbol && (
-                    <p className="mt-1 text-xs text-red-600">
-                      {errors.denominator_uom_symbol.message}
-                    </p>
-                  )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Multiplier <span className="text-gray-400 text-xs">(a)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      {...register("multiplier")}
+                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <p className="mt-0.5 text-xs text-gray-400">base = value × a + b</p>
+                    {errors.multiplier && (
+                      <p className="mt-1 text-xs text-red-600">{errors.multiplier.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Offset <span className="text-gray-400 text-xs">(b)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      {...register("offset")}
+                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    />
+                    {errors.offset && (
+                      <p className="mt-1 text-xs text-red-600">{errors.offset.message}</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Quotient fields: left / right */}
+            {watchedClass === "quotient" && (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500 font-medium">
+                  Result = <em>left</em> ÷ <em>right</em> (e.g. kg ÷ s = kg/s)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <ComponentSelector
+                    label="Numerator (left)"
+                    typeName="left_uom_type_filter"
+                    symbolName="left_uom_symbol"
+                    scalarUoms={scalarUoms}
+                    register={register}
+                    watch={watch}
+                    errors={errors}
+                  />
+                  <ComponentSelector
+                    label="Denominator (right)"
+                    typeName="right_uom_type_filter"
+                    symbolName="right_uom_symbol"
+                    scalarUoms={scalarUoms}
+                    register={register}
+                    watch={watch}
+                    errors={errors}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Product fields: left × right */}
+            {watchedClass === "product" && (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500 font-medium">
+                  Result = <em>left</em> × <em>right</em> (e.g. kg × m)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <ComponentSelector
+                    label="First factor (left)"
+                    typeName="left_uom_type_filter"
+                    symbolName="left_uom_symbol"
+                    scalarUoms={scalarUoms}
+                    register={register}
+                    watch={watch}
+                    errors={errors}
+                  />
+                  <ComponentSelector
+                    label="Second factor (right)"
+                    typeName="right_uom_type_filter"
+                    symbolName="right_uom_symbol"
+                    scalarUoms={scalarUoms}
+                    register={register}
+                    watch={watch}
+                    errors={errors}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Power fields: base ^ exponent */}
+            {watchedClass === "power" && (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500 font-medium">
+                  Result = <em>base</em> ^ <em>exponent</em> (e.g. m ^ 3 = m³)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <ComponentSelector
+                    label="Base unit"
+                    typeName="left_uom_type_filter"
+                    symbolName="left_uom_symbol"
+                    scalarUoms={scalarUoms}
+                    register={register}
+                    watch={watch}
+                    errors={errors}
+                  />
+                  <div className="space-y-2 rounded-md border border-gray-200 p-3 bg-gray-50">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Exponent</p>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Integer ≥ 2</label>
+                      <input
+                        type="number"
+                        min={2}
+                        step={1}
+                        {...register("exponent")}
+                        className="block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        placeholder="2, 3, …"
+                      />
+                      {errors.exponent && (
+                        <p className="mt-1 text-xs text-red-600">{errors.exponent.message}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

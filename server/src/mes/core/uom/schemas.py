@@ -1,16 +1,24 @@
 """
 UOM: Pydantic schemas for the Unit of Measure REST API.
 
-Create / Read / Update schemas for UnitOfMeasure, plus a ConversionRequest/Result pair.
-Rate UoMs (uom_type="rate") reference a numerator and denominator UoM by symbol.
+Five types: mass, length, time, temperature, other
+Four classes:
+    scalar   — affine conversion (y = a·x + b)
+    quotient — left / right   (e.g. kg/s)
+    product  — left × right   (e.g. kg·m)
+    power    — left ^ exponent (e.g. m³)
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+UOM_TYPES = {"mass", "length", "time", "temperature", "other"}
+UOM_CLASSES = {"scalar", "quotient", "product", "power"}
 
 
 # ─── UnitOfMeasure CRUD ──────────────────────────────────────────────
@@ -22,15 +30,20 @@ class UoMCreate(BaseModel):
     symbol: str = Field(..., min_length=1, max_length=20)
     name: str = Field(..., min_length=1, max_length=100)
     description: str | None = None
-    uom_type: str = Field(..., min_length=1, max_length=50)
-    multiplier: float = Field(1.0, gt=0, description="Must be > 0")
-    offset: float = Field(0.0)
-    numerator_uom_symbol: str | None = Field(
-        None, description="For rate UoMs: numerator unit symbol (e.g. EA in EA/h)",
+    uom_type: str = Field(..., min_length=1, max_length=50,
+                          description="Primary dimension type: mass, length, time, temperature, other")
+    uom_class: Literal["scalar", "quotient", "product", "power"] = "scalar"
+    # Scalar fields
+    multiplier: float = Field(1.0, gt=0, description="Affine multiplier (scalar class)")
+    offset: float = Field(0.0, description="Affine offset (scalar class)")
+    # Composite component fields
+    left_uom_symbol: str | None = Field(
+        None, description="Left component: numerator (quotient), first factor (product), base (power)",
     )
-    denominator_uom_symbol: str | None = Field(
-        None, description="For rate UoMs: denominator unit symbol (e.g. h in EA/h)",
+    right_uom_symbol: str | None = Field(
+        None, description="Right component: denominator (quotient), second factor (product)",
     )
+    exponent: int | None = Field(None, ge=2, description="Integer exponent (power class only)")
 
     @field_validator("symbol")
     @classmethod
@@ -39,16 +52,39 @@ class UoMCreate(BaseModel):
             raise ValueError("symbol must not contain spaces")
         return v
 
+    @field_validator("uom_type")
+    @classmethod
+    def valid_uom_type(cls, v: str) -> str:
+        if v not in UOM_TYPES:
+            raise ValueError(f"uom_type must be one of {sorted(UOM_TYPES)}")
+        return v
+
     @model_validator(mode="after")
-    def rate_requires_both_components(self) -> UoMCreate:
-        num = self.numerator_uom_symbol
-        den = self.denominator_uom_symbol
-        if self.uom_type == "rate":
-            if not num or not den:
-                raise ValueError("Rate UoMs require both numerator_uom_symbol and denominator_uom_symbol")
-        else:
-            if num or den:
-                raise ValueError("numerator_uom_symbol and denominator_uom_symbol are only valid for rate UoMs (uom_type='rate')")
+    def validate_class_fields(self) -> UoMCreate:
+        cls_ = self.uom_class
+        left = self.left_uom_symbol
+        right = self.right_uom_symbol
+        exp = self.exponent
+        if cls_ == "scalar":
+            if left or right or exp is not None:
+                raise ValueError("scalar UoMs must not set left/right/exponent")
+        elif cls_ == "quotient":
+            if not left or not right:
+                raise ValueError("quotient UoMs require both left_uom_symbol and right_uom_symbol")
+            if exp is not None:
+                raise ValueError("exponent is only valid for power UoMs")
+        elif cls_ == "product":
+            if not left or not right:
+                raise ValueError("product UoMs require both left_uom_symbol and right_uom_symbol")
+            if exp is not None:
+                raise ValueError("exponent is only valid for power UoMs")
+        elif cls_ == "power":
+            if not left:
+                raise ValueError("power UoMs require left_uom_symbol (the base unit)")
+            if right:
+                raise ValueError("power UoMs must not set right_uom_symbol")
+            if exp is None:
+                raise ValueError("power UoMs require an exponent (>= 2)")
         return self
 
 
@@ -60,16 +96,18 @@ class UoMRead(BaseModel):
     name: str
     description: str | None = None
     uom_type: str
+    uom_class: str
     multiplier: float
     offset: float
     is_builtin: bool
     is_active: bool
-    numerator_uom_id: UUID | None = None
-    denominator_uom_id: UUID | None = None
-    numerator_uom_symbol: str | None = None
-    denominator_uom_symbol: str | None = None
-    numerator_uom_type: str | None = None
-    denominator_uom_type: str | None = None
+    left_uom_id: UUID | None = None
+    right_uom_id: UUID | None = None
+    left_uom_symbol: str | None = None
+    right_uom_symbol: str | None = None
+    left_uom_type: str | None = None
+    right_uom_type: str | None = None
+    exponent: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -83,20 +121,25 @@ class UoMUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = None
     uom_type: str | None = Field(None, min_length=1, max_length=50)
+    uom_class: Literal["scalar", "quotient", "product", "power"] | None = None
     multiplier: float | None = Field(None, gt=0)
     offset: float | None = None
-    numerator_uom_symbol: str | None = Field(
-        None, description="For rate UoMs: numerator unit symbol",
-    )
-    denominator_uom_symbol: str | None = Field(
-        None, description="For rate UoMs: denominator unit symbol",
-    )
+    left_uom_symbol: str | None = None
+    right_uom_symbol: str | None = None
+    exponent: int | None = Field(None, ge=2)
 
     @field_validator("symbol")
     @classmethod
     def symbol_no_whitespace(cls, v: str | None) -> str | None:
         if v is not None and " " in v:
             raise ValueError("symbol must not contain spaces")
+        return v
+
+    @field_validator("uom_type")
+    @classmethod
+    def valid_uom_type(cls, v: str | None) -> str | None:
+        if v is not None and v not in UOM_TYPES:
+            raise ValueError(f"uom_type must be one of {sorted(UOM_TYPES)}")
         return v
 
 

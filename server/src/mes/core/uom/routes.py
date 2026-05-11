@@ -91,8 +91,8 @@ async def create_uom(
     """Create a new unit of measure."""
     uom = await svc.create_uom(session, **body.model_dump())
     await session.commit()
-    if uom.numerator_uom_id is not None:
-        await session.refresh(uom, attribute_names=["numerator_uom", "denominator_uom"])
+    if uom.left_uom_id is not None:
+        await session.refresh(uom, attribute_names=["left_uom", "right_uom"])
     return success_response(UoMRead.model_validate(uom).model_dump())
 
 
@@ -106,8 +106,8 @@ async def update_uom(
     """Update a unit of measure."""
     uom = await svc.update_uom(session, uom_id, **body.model_dump(exclude_unset=True))
     await session.commit()
-    if uom.numerator_uom_id is not None:
-        await session.refresh(uom, attribute_names=["numerator_uom", "denominator_uom"])
+    if uom.left_uom_id is not None:
+        await session.refresh(uom, attribute_names=["left_uom", "right_uom"])
     return success_response(UoMRead.model_validate(uom).model_dump())
 
 

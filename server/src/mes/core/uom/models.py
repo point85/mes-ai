@@ -1,43 +1,52 @@
 """
 UOM: SQLAlchemy model for units of measure.
 
-Each unit belongs to a uom_type (mass, time, length, temperature, volume, count, …).
-Conversion to/from the type's base unit uses an affine formula:
+Five physical types (the four SI fundamentals plus 'other' for discrete counts):
+    mass, length, time, temperature, other
+
+Four classes:
+    scalar   — single unit with affine conversion  (y = a·x + b)
+    quotient — two scalar units divided            (e.g. kg/s)
+    product  — two scalar units multiplied         (e.g. kg·m)
+    power    — scalar unit raised to an exponent   (e.g. m³ = m^3)
+
+Affine formula (scalar / left/right components):
     base_value = value * multiplier + offset
 
-Rate UoMs (uom_type="rate") are composite: they reference a numerator UoM and
-a denominator UoM.  For example "EA/h" (each per hour) references EA (count)
-as numerator and h (time) as denominator.  Conversion between rate UoMs is
-done by independently converting the numerator and denominator parts.
+Composite UoMs store their components via left_uom_id (numerator/first/base)
+and right_uom_id (denominator/second — not used for power).
 """
 
 from __future__ import annotations
 
 import uuid as _uuid
 
-from sqlalchemy import Float, ForeignKey, String, Text, Boolean, Uuid
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, Boolean, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
 
+# Valid UoM types and classes
+UOM_TYPES = {"mass", "length", "time", "temperature", "other"}
+UOM_CLASSES = {"scalar", "quotient", "product", "power"}
+
 
 class UnitOfMeasure(BaseModel):
     """
-    A unit of measure with conversion parameters relative to its type's base unit.
+    A unit of measure.
 
-    The base unit for each type has multiplier=1.0 and offset=0.0.
-    For the four SI fundamental types the base units are:
-        mass → kg, time → s, length → m, temperature → K.
-    For derived or custom types the user designates one unit as the base.
+    The base unit for each scalar type has multiplier=1.0 and offset=0.0:
+        mass → kg, time → s, length → m, temperature → K, other → EA
 
-    Rate UoMs (uom_type="rate") are composite: numerator_uom / denominator_uom.
+    Composite UoMs reference component units via left_uom_id / right_uom_id.
+    Power UoMs also store an integer exponent.
     """
 
     __tablename__ = "units_of_measure"
 
     symbol: Mapped[str] = mapped_column(
         String(20), unique=True, nullable=False, index=True,
-        comment="Short symbol, e.g. 'kg', 'lb', 'case'",
+        comment="Short symbol, e.g. 'kg', 'lb', 'm³'",
     )
     name: Mapped[str] = mapped_column(
         String(100), nullable=False,
@@ -49,43 +58,53 @@ class UnitOfMeasure(BaseModel):
     )
     uom_type: Mapped[str] = mapped_column(
         String(50), nullable=False, index=True,
-        comment="Dimension type: mass, time, length, temperature, volume, count, rate, …",
+        comment="Dimension type of the primary component: mass, length, time, temperature, other",
+    )
+    uom_class: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="scalar",
+        comment="UoM class: scalar, quotient, product, power",
     )
 
-    # ── Affine conversion parameters ────────────────────────────────
+    # ── Affine conversion parameters (scalar class) ──────────────────
     # base_value = value * multiplier + offset
     multiplier: Mapped[float] = mapped_column(
         Float, nullable=False, default=1.0,
-        comment="Multiplier relative to the type's base unit",
+        comment="Multiplier relative to the type's base unit (scalar class)",
     )
     offset: Mapped[float] = mapped_column(
         Float, nullable=False, default=0.0,
-        comment="Offset for affine conversions (used by temperature)",
+        comment="Offset for affine conversions, e.g. temperature (scalar class)",
     )
 
-    # ── Rate UoM composition (self-referential) ─────────────────────
-    numerator_uom_id: Mapped[_uuid.UUID | None] = mapped_column(
+    # ── Composite UoM components (self-referential) ──────────────────
+    # left_uom_id  = numerator (quotient) / first factor (product) / base (power)
+    # right_uom_id = denominator (quotient) / second factor (product) / unused (power)
+    left_uom_id: Mapped[_uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("units_of_measure.id"),
         nullable=True,
-        comment="For rate UoMs: the numerator unit (e.g. EA in EA/h)",
+        comment="Left component: numerator (quotient), first factor (product), base (power)",
     )
-    denominator_uom_id: Mapped[_uuid.UUID | None] = mapped_column(
+    right_uom_id: Mapped[_uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("units_of_measure.id"),
         nullable=True,
-        comment="For rate UoMs: the denominator unit (e.g. h in EA/h)",
+        comment="Right component: denominator (quotient), second factor (product)",
+    )
+    exponent: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+        comment="Integer exponent for power-class UoMs (e.g. 3 for cubic meters)",
     )
 
-    numerator_uom: Mapped[UnitOfMeasure | None] = relationship(
+    left_uom: Mapped[UnitOfMeasure | None] = relationship(
         "UnitOfMeasure",
-        foreign_keys=[numerator_uom_id],
+        foreign_keys=[left_uom_id],
         remote_side="UnitOfMeasure.id",
         lazy="selectin",
     )
-    denominator_uom: Mapped[UnitOfMeasure | None] = relationship(
+    right_uom: Mapped[UnitOfMeasure | None] = relationship(
         "UnitOfMeasure",
-        foreign_keys=[denominator_uom_id],
+        foreign_keys=[right_uom_id],
         remote_side="UnitOfMeasure.id",
         lazy="selectin",
     )
@@ -96,38 +115,36 @@ class UnitOfMeasure(BaseModel):
         comment="True for seed/out-of-the-box units — prevents deletion",
     )
 
-    @property
-    def is_rate(self) -> bool:
-        """True when this UoM is a composed rate (numerator / denominator)."""
-        return self.numerator_uom_id is not None and self.denominator_uom_id is not None
+    # ── Convenience properties ───────────────────────────────────────
 
     @property
-    def numerator_uom_symbol(self) -> str | None:
-        """Convenience: symbol of the numerator unit, if this is a rate."""
-        if self.numerator_uom_id is None:
-            return None
-        return self.numerator_uom.symbol if self.numerator_uom else None
+    def is_composite(self) -> bool:
+        """True for quotient, product, or power classes."""
+        return self.uom_class in ("quotient", "product", "power")
 
     @property
-    def numerator_uom_type(self) -> str | None:
-        """Convenience: uom_type of the numerator unit, if this is a rate."""
-        if self.numerator_uom_id is None:
+    def left_uom_symbol(self) -> str | None:
+        if self.left_uom_id is None:
             return None
-        return self.numerator_uom.uom_type if self.numerator_uom else None
+        return self.left_uom.symbol if self.left_uom else None
 
     @property
-    def denominator_uom_symbol(self) -> str | None:
-        """Convenience: symbol of the denominator unit, if this is a rate."""
-        if self.denominator_uom_id is None:
+    def left_uom_type(self) -> str | None:
+        if self.left_uom_id is None:
             return None
-        return self.denominator_uom.symbol if self.denominator_uom else None
+        return self.left_uom.uom_type if self.left_uom else None
 
     @property
-    def denominator_uom_type(self) -> str | None:
-        """Convenience: uom_type of the denominator unit, if this is a rate."""
-        if self.denominator_uom_id is None:
+    def right_uom_symbol(self) -> str | None:
+        if self.right_uom_id is None:
             return None
-        return self.denominator_uom.uom_type if self.denominator_uom else None
+        return self.right_uom.symbol if self.right_uom else None
+
+    @property
+    def right_uom_type(self) -> str | None:
+        if self.right_uom_id is None:
+            return None
+        return self.right_uom.uom_type if self.right_uom else None
 
     def __repr__(self) -> str:
-        return f"<UnitOfMeasure symbol={self.symbol} type={self.uom_type}>"
+        return f"<UnitOfMeasure symbol={self.symbol} type={self.uom_type} class={self.uom_class}>"

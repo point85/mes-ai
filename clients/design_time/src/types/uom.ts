@@ -1,6 +1,15 @@
 /**
  * UOM: TypeScript types mirroring server Pydantic schemas.
+ *
+ * Five types: mass, length, time, temperature, other
+ * Four classes: scalar, quotient, product, power
  */
+
+export type UoMClass = "scalar" | "quotient" | "product" | "power";
+export type UoMType = "mass" | "length" | "time" | "temperature" | "other";
+
+export const UOM_TYPES: UoMType[] = ["mass", "length", "time", "temperature", "other"];
+export const UOM_CLASSES: UoMClass[] = ["scalar", "quotient", "product", "power"];
 
 export interface UoM {
   id: string;
@@ -8,16 +17,20 @@ export interface UoM {
   name: string;
   description: string | null;
   uom_type: string;
+  uom_class: UoMClass;
   multiplier: number;
   offset: number;
   is_builtin: boolean;
   is_active: boolean;
-  numerator_uom_id: string | null;
-  denominator_uom_id: string | null;
-  numerator_uom_symbol: string | null;
-  denominator_uom_symbol: string | null;
-  numerator_uom_type: string | null;
-  denominator_uom_type: string | null;
+  // Composite component IDs
+  left_uom_id: string | null;
+  right_uom_id: string | null;
+  // Convenience read-only fields (resolved by server)
+  left_uom_symbol: string | null;
+  right_uom_symbol: string | null;
+  left_uom_type: string | null;
+  right_uom_type: string | null;
+  exponent: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,10 +40,12 @@ export interface UoMCreate {
   name: string;
   description?: string | null;
   uom_type: string;
+  uom_class: UoMClass;
   multiplier: number;
   offset: number;
-  numerator_uom_symbol?: string | null;
-  denominator_uom_symbol?: string | null;
+  left_uom_symbol?: string | null;
+  right_uom_symbol?: string | null;
+  exponent?: number | null;
 }
 
 export interface UoMUpdate {
@@ -38,10 +53,12 @@ export interface UoMUpdate {
   name?: string;
   description?: string | null;
   uom_type?: string;
+  uom_class?: UoMClass;
   multiplier?: number;
   offset?: number;
-  numerator_uom_symbol?: string | null;
-  denominator_uom_symbol?: string | null;
+  left_uom_symbol?: string | null;
+  right_uom_symbol?: string | null;
+  exponent?: number | null;
 }
 
 export interface ConversionRequest {

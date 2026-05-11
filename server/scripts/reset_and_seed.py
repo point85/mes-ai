@@ -77,7 +77,7 @@ async def seed_all() -> None:
     from mes.framework.db import async_session_factory
 
     from mes.core.uom.models import UnitOfMeasure
-    from mes.core.uom.seed import get_builtin_rate_unit_dicts, get_builtin_unit_dicts
+    from mes.core.uom.seed import get_builtin_scalar_dicts, get_builtin_composite_dicts_typed
 
     from mes.core.demo.service import (
         seed_electronics_erp_data,
@@ -89,12 +89,12 @@ async def seed_all() -> None:
 
     async with async_session_factory() as session:
         log.info("Seeding built-in UoMs ...")
-        base_units = [UnitOfMeasure(**d) for d in get_builtin_unit_dicts()]
+        base_units = [UnitOfMeasure(**d) for d in get_builtin_scalar_dicts()]
         session.add_all(base_units)
         await session.flush()
-        symbol_to_id = {u.symbol: u.id for u in base_units}
-        rate_units = [UnitOfMeasure(**d) for d in get_builtin_rate_unit_dicts(symbol_to_id)]
-        session.add_all(rate_units)
+        symbol_to_uom = {u.symbol: (u.id, u.uom_type) for u in base_units}
+        composite_units = [UnitOfMeasure(**d) for d in get_builtin_composite_dicts_typed(symbol_to_uom)]
+        session.add_all(composite_units)
         await session.commit()
 
     async with async_session_factory() as session:

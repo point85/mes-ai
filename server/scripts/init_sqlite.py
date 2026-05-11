@@ -38,7 +38,7 @@ import mes.core.work_schedule.models  # noqa: F401
 from mes.framework.db.base import Base
 from mes.framework.db.session import engine, async_session_factory
 from mes.core.uom.models import UnitOfMeasure
-from mes.core.uom.seed import get_builtin_unit_dicts, get_builtin_rate_unit_dicts
+from mes.core.uom.seed import get_builtin_scalar_dicts, get_builtin_composite_dicts_typed
 from sqlalchemy import select
 
 
@@ -55,16 +55,16 @@ async def init() -> None:
             print("UoM table already has data — skipping seed.")
             return
 
-        base_units = [UnitOfMeasure(**d) for d in get_builtin_unit_dicts()]
+        base_units = [UnitOfMeasure(**d) for d in get_builtin_scalar_dicts()]
         session.add_all(base_units)
         await session.flush()
 
-        symbol_to_id = {u.symbol: u.id for u in base_units}
-        rate_units = [UnitOfMeasure(**d) for d in get_builtin_rate_unit_dicts(symbol_to_id)]
-        session.add_all(rate_units)
+        symbol_to_uom = {u.symbol: (u.id, u.uom_type) for u in base_units}
+        composite_units = [UnitOfMeasure(**d) for d in get_builtin_composite_dicts_typed(symbol_to_uom)]
+        session.add_all(composite_units)
 
         await session.commit()
-        print(f"Seeded {len(base_units)} base + {len(rate_units)} rate built-in units of measure.")
+        print(f"Seeded {len(base_units)} scalar + {len(composite_units)} composite built-in units of measure.")
 
 
 if __name__ == "__main__":

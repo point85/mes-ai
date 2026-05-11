@@ -1,110 +1,200 @@
 """
 UOM: Built-in seed data for out-of-the-box units of measure.
 
-SI fundamentals:  kg, s, m, K
-Additional SI:    g; min, h, d; km; °C; L, m³
-US imperial:      lb, oz; ft; °F; fl_oz
-Rate:             EA/h, EA/min, kg/h, L/h, PC/h
+Five types (four SI fundamentals + other):
+    mass        — base: kg
+    length      — base: m
+    time        — base: s
+    temperature — base: K
+    other       — base: EA (each)
 
-The conversion model uses an affine formula relative to each type's base unit:
-    base_value = value * multiplier + offset
+Four classes:
+    scalar    — single unit with affine conversion
+    quotient  — left / right   (e.g. kg/s)
+    product   — left × right   (e.g. m² via product … see power)
+    power     — left ^ exponent (e.g. m³)
 
-Temperature examples:
+Affine formula:   base_value = value * multiplier + offset
+Temperature:
     °C → K : K = C * 1.0 + 273.15
-    °F → K : K = F * (5/9) + 255.372222…
-
-Rate UoMs are composite: numerator UoM / denominator UoM.
-Conversion between rate UoMs independently converts each component.
+    °F → K : K = F * (5/9) + 255.3722…
 """
 
 from __future__ import annotations
 
 from uuid import UUID
 
-# Each entry: (symbol, name, uom_type, multiplier, offset)
-BUILTIN_UNITS: list[tuple[str, str, str, float, float]] = [
-    # ── SI FUNDAMENTAL ──────────────────────────────────────────────
-    ("kg",  "kilogram",          "mass",        1.0,             0.0),
-    ("s",   "second",            "time",        1.0,             0.0),
-    ("m",   "meter",             "length",      1.0,             0.0),
-    ("K",   "kelvin",            "temperature", 1.0,             0.0),
+# ── Scalar units ────────────────────────────────────────────────────
+# (symbol, name, uom_type, multiplier, offset)
+BUILTIN_SCALARS: list[tuple[str, str, str, float, float]] = [
+    # ── SI FUNDAMENTALS (base units, multiplier=1, offset=0) ────────
+    ("kg",     "kilogram",            "mass",        1.0,                          0.0),
+    ("s",      "second",              "time",        1.0,                          0.0),
+    ("m",      "meter",               "length",      1.0,                          0.0),
+    ("K",      "kelvin",              "temperature", 1.0,                          0.0),
+    ("EA",     "each",                "other",       1.0,                          0.0),
 
-    # ── SI DERIVED / ADDITIONAL ─────────────────────────────────────
-    # Mass
-    ("g",   "gram",              "mass",        0.001,           0.0),
-    # Time
-    ("min", "minute",            "time",        60.0,            0.0),
-    ("h",   "hour",              "time",        3600.0,          0.0),
-    ("d",   "day",               "time",        86400.0,         0.0),
-    # Length
-    ("km",  "kilometer",         "length",      1000.0,          0.0),
-    # Temperature
-    ("°C",  "degree Celsius",    "temperature", 1.0,             273.15),
-    # Volume  (base unit = m³)
-    ("m³",  "cubic meter",       "volume",      1.0,             0.0),
-    ("L",   "liter",             "volume",      0.001,           0.0),
+    # ── MASS ─────────────────────────────────────────────────────────
+    ("mg",     "milligram",           "mass",        1.0e-6,                       0.0),
+    ("g",      "gram",                "mass",        0.001,                        0.0),
+    ("t",      "metric ton",          "mass",        1000.0,                       0.0),
+    ("lb",     "pound",               "mass",        0.45359237,                   0.0),
+    ("oz",     "ounce",               "mass",        0.028349523125,               0.0),
 
-    # ── US IMPERIAL ─────────────────────────────────────────────────
-    # Mass
-    ("lb",  "pound",             "mass",        0.45359237,      0.0),
-    ("oz",  "ounce",             "mass",        0.028349523125,  0.0),
-    # Length
-    ("ft",  "foot",              "length",      0.3048,          0.0),
-    # Temperature  ( K = F × 5/9 + 255.3722… )
-    ("°F",  "degree Fahrenheit", "temperature", 5.0 / 9.0,      273.15 - 32.0 * 5.0 / 9.0),
-    # Volume
-    ("fl_oz", "fluid ounce",    "volume",      2.95735295625e-5, 0.0),
+    # ── TIME ─────────────────────────────────────────────────────────
+    ("min",    "minute",              "time",        60.0,                         0.0),
+    ("h",      "hour",                "time",        3600.0,                       0.0),
+    ("d",      "day",                 "time",        86400.0,                      0.0),
+    ("wk",     "week",                "time",        604800.0,                     0.0),
 
-    # ── COUNT / DISCRETE ────────────────────────────────────────────
-    ("EA",  "each",              "count",       1.0,             0.0),
-    ("PC",  "piece",             "count",       1.0,             0.0),
+    # ── LENGTH ───────────────────────────────────────────────────────
+    ("mm",     "millimeter",          "length",      0.001,                        0.0),
+    ("cm",     "centimeter",          "length",      0.01,                         0.0),
+    ("km",     "kilometer",           "length",      1000.0,                       0.0),
+    ("in",     "inch",                "length",      0.0254,                       0.0),
+    ("ft",     "foot",                "length",      0.3048,                       0.0),
+    ("yd",     "yard",                "length",      0.9144,                       0.0),
+
+    # ── TEMPERATURE ──────────────────────────────────────────────────
+    ("°C",     "degree Celsius",      "temperature", 1.0,                          273.15),
+    ("°F",     "degree Fahrenheit",   "temperature", 5.0 / 9.0,                   273.15 - 32.0 * 5.0 / 9.0),
+
+    # ── OTHER (discrete / count) ─────────────────────────────────────
+    ("PC",     "piece",               "other",       1.0,                          0.0),
+    ("can",    "can",                 "other",       1.0,                          0.0),
+    ("bottle", "bottle",              "other",       1.0,                          0.0),
+    ("case",   "case",                "other",       12.0,                         0.0),
 ]
 
-# Each entry: (symbol, name, numerator_symbol, denominator_symbol)
-BUILTIN_RATE_UNITS: list[tuple[str, str, str, str]] = [
-    ("EA/h",   "each per hour",      "EA", "h"),
-    ("EA/min", "each per minute",    "EA", "min"),
-    ("kg/h",   "kilograms per hour", "kg", "h"),
-    ("L/h",    "liters per hour",    "L",  "h"),
-    ("PC/h",   "pieces per hour",    "PC", "h"),
+# ── Quotient units (left / right) ───────────────────────────────────
+# (symbol, name, left_symbol, right_symbol)
+BUILTIN_QUOTIENTS: list[tuple[str, str, str, str]] = [
+    # Mass flow
+    ("kg/s",   "kilograms per second",  "kg", "s"),
+    ("kg/h",   "kilograms per hour",    "kg", "h"),
+    ("g/s",    "grams per second",      "g",  "s"),
+    # Speed / velocity
+    ("m/s",    "meters per second",     "m",  "s"),
+    ("m/min",  "meters per minute",     "m",  "min"),
+    ("m/h",    "meters per hour",       "m",  "h"),
+    ("mm/s",   "millimeters per second","mm", "s"),
+    ("ft/s",   "feet per second",       "ft", "s"),
+    ("ft/min", "feet per minute",       "ft", "min"),
+    ("ft/h",   "feet per hour",         "ft", "h"),
+    # Production rate
+    ("EA/s",   "each per second",       "EA", "s"),
+    ("EA/min", "each per minute",       "EA", "min"),
+    ("EA/h",   "each per hour",         "EA", "h"),
+    ("PC/h",   "pieces per hour",       "PC", "h"),
+]
+
+# ── Power units (base ^ exponent) ───────────────────────────────────
+# (symbol, name, base_symbol, exponent)
+BUILTIN_POWERS: list[tuple[str, str, str, int]] = [
+    ("m²",   "square meter",         "m",  2),
+    ("m³",   "cubic meter",          "m",  3),
+    ("cm²",  "square centimeter",    "cm", 2),
+    ("cm³",  "cubic centimeter",     "cm", 3),
+    ("mm²",  "square millimeter",    "mm", 2),
+    ("mm³",  "cubic millimeter",     "mm", 3),
+    ("ft²",  "square foot",          "ft", 2),
+    ("ft³",  "cubic foot",           "ft", 3),
+    ("in²",  "square inch",          "in", 2),
+    ("in³",  "cubic inch",           "in", 3),
 ]
 
 
-def get_builtin_unit_dicts() -> list[dict]:
-    """
-    Return the built-in units as a list of dicts ready for
-    ``UnitOfMeasure(**d)`` construction.
-    """
+def get_builtin_scalar_dicts() -> list[dict]:
+    """Return scalar built-in units as dicts ready for ``UnitOfMeasure(**d)``."""
     return [
         {
             "symbol": symbol,
             "name": name,
             "uom_type": uom_type,
+            "uom_class": "scalar",
             "multiplier": multiplier,
             "offset": offset,
             "is_builtin": True,
         }
-        for symbol, name, uom_type, multiplier, offset in BUILTIN_UNITS
+        for symbol, name, uom_type, multiplier, offset in BUILTIN_SCALARS
     ]
 
 
-def get_builtin_rate_unit_dicts(symbol_to_id: dict[str, UUID]) -> list[dict]:
-    """
-    Return the built-in rate units as a list of dicts.
+def get_builtin_composite_dicts(symbol_to_id: dict[str, UUID]) -> list[dict]:
+    """Return quotient and power built-in units as dicts.
 
-    *symbol_to_id* must map base-unit symbols to their database UUIDs
-    (populated after base units are flushed).
+    *symbol_to_id* must map scalar-unit symbols to their database UUIDs
+    (populated after scalars are flushed).
     """
-    return [
-        {
+    result: list[dict] = []
+
+    for symbol, name, left_sym, right_sym in BUILTIN_QUOTIENTS:
+        left_uom = symbol_to_id[left_sym]
+        result.append({
             "symbol": symbol,
             "name": name,
-            "uom_type": "rate",
+            "uom_type": symbol_to_id.get(f"__type__{left_sym}", "other"),  # resolved below
+            "uom_class": "quotient",
             "multiplier": 1.0,
             "offset": 0.0,
-            "numerator_uom_id": symbol_to_id[num_sym],
-            "denominator_uom_id": symbol_to_id[den_sym],
+            "left_uom_id": left_uom,
+            "right_uom_id": symbol_to_id[right_sym],
             "is_builtin": True,
-        }
-        for symbol, name, num_sym, den_sym in BUILTIN_RATE_UNITS
-    ]
+        })
+
+    for symbol, name, base_sym, exp in BUILTIN_POWERS:
+        result.append({
+            "symbol": symbol,
+            "name": name,
+            "uom_type": symbol_to_id.get(f"__type__{base_sym}", "length"),  # resolved below
+            "uom_class": "power",
+            "multiplier": 1.0,
+            "offset": 0.0,
+            "left_uom_id": symbol_to_id[base_sym],
+            "exponent": exp,
+            "is_builtin": True,
+        })
+
+    return result
+
+
+def get_builtin_composite_dicts_typed(
+    symbol_to_uom: dict[str, tuple[UUID, str]],
+) -> list[dict]:
+    """Return quotient and power built-in units with correct uom_type.
+
+    *symbol_to_uom* maps symbol → (uuid, uom_type).
+    """
+    result: list[dict] = []
+
+    for symbol, name, left_sym, right_sym in BUILTIN_QUOTIENTS:
+        left_id, left_type = symbol_to_uom[left_sym]
+        right_id, _ = symbol_to_uom[right_sym]
+        result.append({
+            "symbol": symbol,
+            "name": name,
+            "uom_type": left_type,
+            "uom_class": "quotient",
+            "multiplier": 1.0,
+            "offset": 0.0,
+            "left_uom_id": left_id,
+            "right_uom_id": right_id,
+            "is_builtin": True,
+        })
+
+    for symbol, name, base_sym, exp in BUILTIN_POWERS:
+        base_id, base_type = symbol_to_uom[base_sym]
+        result.append({
+            "symbol": symbol,
+            "name": name,
+            "uom_type": base_type,
+            "uom_class": "power",
+            "multiplier": 1.0,
+            "offset": 0.0,
+            "left_uom_id": base_id,
+            "exponent": exp,
+            "is_builtin": True,
+        })
+
+    return result
+

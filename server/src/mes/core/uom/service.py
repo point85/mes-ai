@@ -3,12 +3,18 @@ UOM: Business logic service for units of measure.
 
 Provides CRUD operations and unit conversion.
 
-Conversion formula (affine):
-    base_value  = value * from_unit.multiplier + from_unit.offset
-    result      = (base_value - to_unit.offset) / to_unit.multiplier
+Conversion formulas:
+  scalar:   base_value  = value * from.multiplier + from.offset
+            result      = (base_value - to.offset) / to.multiplier
+  quotient: result = value × (left_factor / right_factor)
+  product:  result = value × left_factor × right_factor
+  power:    result = value × (scalar_factor ^ exponent)
 
-Rate UoMs (uom_type="rate") convert by independently converting the
-numerator and denominator components.
+Two units are compatible when:
+  scalar   — same uom_type
+  quotient — left types match AND right types match
+  product  — left types match AND right types match
+  power    — base (left) types match AND exponents match
 """
 
 from __future__ import annotations
@@ -52,8 +58,8 @@ class UoMService:
             select(UnitOfMeasure)
             .where(UnitOfMeasure.is_active.is_(True))
             .options(
-                selectinload(UnitOfMeasure.numerator_uom),
-                selectinload(UnitOfMeasure.denominator_uom),
+                selectinload(UnitOfMeasure.left_uom),
+                selectinload(UnitOfMeasure.right_uom),
             )
         )
         if uom_type is not None:
@@ -70,8 +76,8 @@ class UoMService:
                 UnitOfMeasure.is_active.is_(True),
             )
             .options(
-                selectinload(UnitOfMeasure.numerator_uom),
-                selectinload(UnitOfMeasure.denominator_uom),
+                selectinload(UnitOfMeasure.left_uom),
+                selectinload(UnitOfMeasure.right_uom),
             )
         )
         result = await session.execute(stmt)
@@ -90,8 +96,8 @@ class UoMService:
                 UnitOfMeasure.is_active.is_(True),
             )
             .options(
-                selectinload(UnitOfMeasure.numerator_uom),
-                selectinload(UnitOfMeasure.denominator_uom),
+                selectinload(UnitOfMeasure.left_uom),
+                selectinload(UnitOfMeasure.right_uom),
             )
         )
         result = await session.execute(stmt)
@@ -100,22 +106,28 @@ class UoMService:
             raise NotFoundException(resource="UnitOfMeasure", resource_id=symbol)
         return uom
 
-    # ─── Rate UoM helpers ────────────────────────────────────────────
+    # ─── Composite UoM helpers ───────────────────────────────────────
 
     @staticmethod
-    async def _resolve_rate_components(
+    async def _resolve_composite_components(
         session: AsyncSession,
         kwargs: dict[str, Any],
     ) -> None:
-        """Pop numerator/denominator symbol keys and set corresponding ID keys."""
-        numerator_symbol = kwargs.pop("numerator_uom_symbol", None)
-        denominator_symbol = kwargs.pop("denominator_uom_symbol", None)
-        if numerator_symbol:
-            num_uom = await UoMService.get_by_symbol(session, numerator_symbol)
-            kwargs["numerator_uom_id"] = num_uom.id
-        if denominator_symbol:
-            den_uom = await UoMService.get_by_symbol(session, denominator_symbol)
-            kwargs["denominator_uom_id"] = den_uom.id
+        """Pop left/right symbol keys and set corresponding ID keys.
+
+        Handles quotient, product, and power classes.
+        """
+        left_symbol = kwargs.pop("left_uom_symbol", None)
+        right_symbol = kwargs.pop("right_uom_symbol", None)
+        if left_symbol:
+            left_uom = await UoMService.get_by_symbol(session, left_symbol)
+            kwargs["left_uom_id"] = left_uom.id
+            # Set uom_type from the left component's type
+            if "uom_type" not in kwargs or not kwargs["uom_type"]:
+                kwargs["uom_type"] = left_uom.uom_type
+        if right_symbol:
+            right_uom = await UoMService.get_by_symbol(session, right_symbol)
+            kwargs["right_uom_id"] = right_uom.id
 
     # ─── Mutations ───────────────────────────────────────────────────
 
@@ -128,20 +140,20 @@ class UoMService:
         if existing.scalar_one_or_none() is not None:
             raise DuplicateSymbolException(kwargs["symbol"])
 
-        await UoMService._resolve_rate_components(session, kwargs)
+        await UoMService._resolve_composite_components(session, kwargs)
 
         uom = UnitOfMeasure(**kwargs)
         session.add(uom)
         await session.flush()
 
-        # Eagerly load rate relationships so Pydantic can read them synchronously
-        if uom.numerator_uom_id is not None:
-            await session.refresh(uom, attribute_names=["numerator_uom", "denominator_uom"])
+        # Eagerly load composite relationships so Pydantic can read them synchronously
+        if uom.left_uom_id is not None:
+            await session.refresh(uom, attribute_names=["left_uom", "right_uom"])
 
         await event_bus.publish(
             uom_created(str(uom.id), uom.symbol, uom.uom_type)
         )
-        logger.info("Created UoM %s (%s, type=%s)", uom.id, uom.symbol, uom.uom_type)
+        logger.info("Created UoM %s (%s, type=%s, class=%s)", uom.id, uom.symbol, uom.uom_type, uom.uom_class)
         return uom
 
     @staticmethod
@@ -163,16 +175,16 @@ class UoMService:
             if existing.scalar_one_or_none() is not None:
                 raise DuplicateSymbolException(new_symbol)
 
-        await UoMService._resolve_rate_components(session, kwargs)
+        await UoMService._resolve_composite_components(session, kwargs)
 
         for key, value in kwargs.items():
             if value is not None:
                 setattr(uom, key, value)
         await session.flush()
 
-        # Eagerly load rate relationships so Pydantic can read them synchronously
-        if uom.numerator_uom_id is not None:
-            await session.refresh(uom, attribute_names=["numerator_uom", "denominator_uom"])
+        # Eagerly load composite relationships so Pydantic can read them synchronously
+        if uom.left_uom_id is not None:
+            await session.refresh(uom, attribute_names=["left_uom", "right_uom"])
 
         await event_bus.publish(uom_updated(str(uom.id), uom.symbol))
         logger.info("Updated UoM %s (%s)", uom.id, uom.symbol)
@@ -199,7 +211,7 @@ class UoMService:
         from_uom: UnitOfMeasure,
         to_uom: UnitOfMeasure,
     ) -> float:
-        """Simple affine conversion between two non-rate units of the same type."""
+        """Affine conversion between two scalar units of the same type."""
         base_value = value * from_uom.multiplier + from_uom.offset
         return (base_value - to_uom.offset) / to_uom.multiplier
 
@@ -210,51 +222,98 @@ class UoMService:
         to_uom: UnitOfMeasure,
     ) -> float:
         """
-        Convert *value* from one unit to another (must share the same uom_type).
+        Convert *value* from one unit to another.
 
-        For rate UoMs the numerator and denominator are converted independently:
-            result = value * (num_factor / den_factor)
-        where each factor is an affine conversion of the respective component.
+        Both units must share the same uom_class and compatible component types.
+
+        scalar:   standard affine formula
+        quotient: result = value × (left_factor / right_factor)
+        product:  result = value × left_factor × right_factor
+        power:    result = value × (scalar_factor ^ exponent)
         """
-        if from_uom.uom_type != to_uom.uom_type:
+        if from_uom.uom_class != to_uom.uom_class:
             raise IncompatibleUoMTypeException(
                 from_symbol=from_uom.symbol,
-                from_type=from_uom.uom_type,
+                from_type=f"{from_uom.uom_class}",
                 to_symbol=to_uom.symbol,
-                to_type=to_uom.uom_type,
+                to_type=f"{to_uom.uom_class}",
             )
 
         if from_uom.symbol == to_uom.symbol:
             return value
 
-        # Rate-to-rate: convert numerator and denominator independently
-        if from_uom.is_rate and to_uom.is_rate:
-            num_from = from_uom.numerator_uom
-            num_to = to_uom.numerator_uom
-            den_from = from_uom.denominator_uom
-            den_to = to_uom.denominator_uom
+        cls = from_uom.uom_class
 
-            if num_from.uom_type != num_to.uom_type:
+        if cls == "scalar":
+            if from_uom.uom_type != to_uom.uom_type:
                 raise IncompatibleUoMTypeException(
-                    from_symbol=num_from.symbol,
-                    from_type=num_from.uom_type,
-                    to_symbol=num_to.symbol,
-                    to_type=num_to.uom_type,
+                    from_symbol=from_uom.symbol,
+                    from_type=from_uom.uom_type,
+                    to_symbol=to_uom.symbol,
+                    to_type=to_uom.uom_type,
                 )
-            if den_from.uom_type != den_to.uom_type:
+            return UoMService._convert_affine(value, from_uom, to_uom)
+
+        if cls in ("quotient", "product"):
+            left_from = from_uom.left_uom
+            left_to = to_uom.left_uom
+            right_from = from_uom.right_uom
+            right_to = to_uom.right_uom
+
+            if left_from.uom_type != left_to.uom_type:
                 raise IncompatibleUoMTypeException(
-                    from_symbol=den_from.symbol,
-                    from_type=den_from.uom_type,
-                    to_symbol=den_to.symbol,
-                    to_type=den_to.uom_type,
+                    from_symbol=left_from.symbol,
+                    from_type=left_from.uom_type,
+                    to_symbol=left_to.symbol,
+                    to_type=left_to.uom_type,
+                )
+            if right_from.uom_type != right_to.uom_type:
+                raise IncompatibleUoMTypeException(
+                    from_symbol=right_from.symbol,
+                    from_type=right_from.uom_type,
+                    to_symbol=right_to.symbol,
+                    to_type=right_to.uom_type,
                 )
 
-            num_factor = UoMService._convert_affine(1.0, num_from, num_to)
-            den_factor = UoMService._convert_affine(1.0, den_from, den_to)
-            return value * num_factor / den_factor
+            left_factor = UoMService._convert_affine(1.0, left_from, left_to)
+            right_factor = UoMService._convert_affine(1.0, right_from, right_to)
 
-        # Standard affine conversion
-        return UoMService._convert_affine(value, from_uom, to_uom)
+            if cls == "quotient":
+                return value * left_factor / right_factor
+            else:  # product
+                return value * left_factor * right_factor
+
+        if cls == "power":
+            base_from = from_uom.left_uom
+            base_to = to_uom.left_uom
+            exp_from = from_uom.exponent
+            exp_to = to_uom.exponent
+
+            if base_from.uom_type != base_to.uom_type:
+                raise IncompatibleUoMTypeException(
+                    from_symbol=base_from.symbol,
+                    from_type=base_from.uom_type,
+                    to_symbol=base_to.symbol,
+                    to_type=base_to.uom_type,
+                )
+            if exp_from != exp_to:
+                raise IncompatibleUoMTypeException(
+                    from_symbol=from_uom.symbol,
+                    from_type=f"power^{exp_from}",
+                    to_symbol=to_uom.symbol,
+                    to_type=f"power^{exp_to}",
+                )
+
+            scalar_factor = UoMService._convert_affine(1.0, base_from, base_to)
+            return value * (scalar_factor ** exp_from)
+
+        # Should not reach here
+        raise IncompatibleUoMTypeException(
+            from_symbol=from_uom.symbol,
+            from_type=from_uom.uom_class,
+            to_symbol=to_uom.symbol,
+            to_type=to_uom.uom_class,
+        )
 
     @staticmethod
     async def convert_by_symbol(
