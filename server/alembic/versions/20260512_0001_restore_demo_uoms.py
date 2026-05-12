@@ -47,10 +47,10 @@ _UOMS: list[tuple[str, str, str, str, float, float, bool]] = [
     ("mA",          "milliampere",                 "electrical",  "scalar", 0.001,      0.0, True),
     ("V",           "volt",                        "electrical",  "scalar", 1.0,        0.0, True),
     # Force / pressure / torque
-    ("N",           "newton",                      "other",  "scalar", 1.0,        0.0, True),
-    ("Pa",          "pascal",                      "other",  "scalar", 1.0,        0.0, True),
-    ("kPa",         "kilopascal",                  "other",  "scalar", 1000.0,     0.0, True),
-    ("Nm",          "newton-meter",                "other",  "scalar", 1.0,        0.0, True),
+    ("N",           "newton",                      "force",  "scalar", 1.0,        0.0, True),
+    ("Pa",          "pascal",                      "force",  "scalar", 1.0,        0.0, True),
+    ("kPa",         "kilopascal",                  "force",  "scalar", 1000.0,     0.0, True),
+    ("Nm",          "newton-meter",                "force",  "scalar", 1.0,        0.0, True),
     # Process / biological
     ("\u00b0Bx",    "degrees Brix",                "mass",  "scalar", 1.0,        0.0, True),
     ("pH",          "pH",                          "other",  "scalar", 1.0,        0.0, True),

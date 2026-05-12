@@ -17,7 +17,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-UOM_TYPES = {"mass", "length", "time", "temperature", "electrical", "amount_of_substance", "luminous_intensity", "other"}
+UOM_TYPES = {"mass", "length", "time", "temperature", "electrical", "force", "amount_of_substance", "luminous_intensity", "other"}
 UOM_CLASSES = {"scalar", "quotient", "product", "power"}
 
 

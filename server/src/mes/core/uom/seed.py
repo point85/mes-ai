@@ -75,10 +75,10 @@ BUILTIN_SCALARS: list[tuple[str, str, str, float, float]] = [
     ("V",      "volt",                "electrical",  1.0,                          0.0),
 
     # ── FORCE / PRESSURE / TORQUE ────────────────────────────────────
-    ("N",      "newton",              "other",       1.0,                          0.0),
-    ("Pa",     "pascal",              "other",       1.0,                          0.0),
-    ("kPa",    "kilopascal",          "other",       1000.0,                       0.0),
-    ("Nm",     "newton-meter",        "other",       1.0,                          0.0),
+    ("N",      "newton",              "force",       1.0,                          0.0),
+    ("Pa",     "pascal",              "force",       1.0,                          0.0),
+    ("kPa",    "kilopascal",          "force",       1000.0,                       0.0),
+    ("Nm",     "newton-meter",        "force",       1.0,                          0.0),
 
     # ── PROCESS / BIOLOGICAL ─────────────────────────────────────────
     ("°Bx",    "degrees Brix",        "mass",        1.0,                          0.0),

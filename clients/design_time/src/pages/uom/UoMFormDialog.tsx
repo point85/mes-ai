@@ -31,6 +31,7 @@ const TYPE_LABELS: Record<string, string> = {
   time: "Time",
   temperature: "Temperature",
   electrical: "Electrical",
+  force: "Force",
   amount_of_substance: "Amount of Substance",
   luminous_intensity: "Luminous Intensity",
   other: "Other",
