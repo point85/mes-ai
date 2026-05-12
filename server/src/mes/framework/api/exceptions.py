@@ -7,12 +7,16 @@ error code for consistent API error responses.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .responses import error_response
+
+logger = logging.getLogger(__name__)
 
 
 class MESException(Exception):
@@ -88,6 +92,19 @@ def register_exception_handlers(app: FastAPI) -> None:
     Converts MESException subclasses into standard error envelope responses.
     """
 
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+        errors = exc.errors()
+        logger.warning("Request validation failed: %s", errors)
+        return JSONResponse(
+            status_code=422,
+            content=error_response(
+                code="VALIDATION_ERROR",
+                message="Request validation failed",
+                details={"errors": errors},
+            ),
+        )
+
     @app.exception_handler(MESException)
     async def mes_exception_handler(_request: Request, exc: MESException) -> JSONResponse:
         return JSONResponse(
@@ -101,11 +118,12 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
+        logger.error("Unhandled exception: %s", exc, exc_info=True)
         return JSONResponse(
             status_code=500,
             content=error_response(
                 code="INTERNAL_ERROR",
                 message="An unexpected error occurred",
-                details={"type": type(exc).__name__},
+                details={"type": type(exc).__name__, "detail": str(exc)},
             ),
         )

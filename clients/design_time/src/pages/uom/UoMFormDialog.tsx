@@ -45,7 +45,7 @@ const uomSchema = z
       .refine((s) => !s.includes(" "), "Symbol must not contain spaces"),
     name: z.string().min(1, "Name is required").max(100),
     description: z.string().nullable().optional(),
-    uom_type: z.string().min(1, "Type is required"),
+    uom_type: z.string().max(50).optional().nullable(),
     uom_class: z.enum(["scalar", "quotient", "product", "power"]),
     multiplier: z.coerce.number().positive("Must be > 0"),
     offset: z.coerce.number(),
@@ -55,6 +55,9 @@ const uomSchema = z
   })
   .superRefine((data, ctx) => {
     const cls = data.uom_class;
+    if (cls === "scalar" && !data.uom_type) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Type is required", path: ["uom_type"] });
+    }
     if (cls === "quotient" || cls === "product") {
       if (!data.left_uom_symbol)
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["left_uom_symbol"] });
@@ -202,8 +205,15 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
   const onSubmit = async (data: UoMFormData & { left_uom_type_filter: string; right_uom_type_filter: string }) => {
     try {
       const { left_uom_type_filter: _l, right_uom_type_filter: _r, ...rest } = data;
+      // For composite classes, derive uom_type from the left component unit
+      let uom_type = rest.uom_type ?? "";
+      if (isComposite && !uom_type && rest.left_uom_symbol) {
+        const leftUnit = scalarUoms.find((u) => u.symbol === rest.left_uom_symbol);
+        uom_type = leftUnit?.uom_type ?? "other";
+      }
       const payload = {
         ...rest,
+        uom_type,
         left_uom_symbol: isComposite ? rest.left_uom_symbol : null,
         right_uom_symbol: (watchedClass === "quotient" || watchedClass === "product") ? rest.right_uom_symbol : null,
         exponent: watchedClass === "power" ? rest.exponent : null,
@@ -243,8 +253,18 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
 
           {mutError && (
             <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
-              {(mutError as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-                "An error occurred"}
+              {(() => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const d = (mutError as any)?.response?.data;
+                // MES exception format: { error: { message, code, details } }
+                if (d?.error?.message) return d.error.message;
+                // Pydantic 422 array format: { errors: [...] }
+                if (Array.isArray(d?.error?.details?.errors))
+                  return d.error.details.errors.map((e: { msg: string; loc: string[] }) =>
+                    `${e.loc?.slice(1).join(" → ")}: ${e.msg}`).join("; ");
+                // Fallback
+                return "An error occurred";
+              })()}
             </div>
           )}
 
