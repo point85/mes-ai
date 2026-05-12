@@ -156,7 +156,7 @@ This is the only mode that truly certifies "release-quality" — it eliminates w
 
 ### 4.3 Database isolation
 
-Both modes use a dedicated database name (`mes_ai_s95` for dev, `mes_ai_rc` for RC) and never touch the developer's primary database without a `reset_and_seed.py` step the user can audit.
+Both modes use a dedicated database name (`mes_ai_s95` for dev, `mes_ai_sqa` for SQA) and never touch the developer's primary database without a `reset_and_seed.py` step the user can audit.
 
 ---
 
