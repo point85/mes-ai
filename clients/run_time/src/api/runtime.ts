@@ -221,6 +221,24 @@ export const fetchMaterial = (id: string) =>
 export const fetchMaterialLots = (materialId?: string, status?: string) =>
   api.get("/material-lots", { params: { ...(materialId ? { material_id: materialId } : {}), ...(status ? { status } : {}) } }).then(unwrapList<MaterialLot>);
 
+export const createMaterialLot = (payload: {
+  material_id: string;
+  lot_number: string;
+  quantity_on_hand: number;
+  received_date?: string | null;
+  expiry_date?: string | null;
+  supplier?: string | null;
+}) => api.post("/material-lots", payload).then(unwrap<MaterialLot>);
+
+export const updateMaterialLot = (id: string, payload: {
+  lot_number?: string;
+  quantity_on_hand?: number;
+  received_date?: string | null;
+  expiry_date?: string | null;
+  supplier?: string | null;
+  status?: string;
+}) => api.patch(`/material-lots/${id}`, payload).then(unwrap<MaterialLot>);
+
 export const consumeMaterial = (materialLotId: string, payload: {
   unit_id?: string;
   lot_id?: string;
