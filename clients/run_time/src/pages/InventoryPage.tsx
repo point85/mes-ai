@@ -73,13 +73,15 @@ export default function InventoryPage() {
   const [lots, setLots] = useState<MaterialLot[]>([]);
   const [locationMap, setLocationMap] = useState<Map<string, StorageLocation>>(new Map());
   const [lotMap, setLotMap] = useState<Map<string, MaterialLot>>(new Map());
+  const [materialMap, setMaterialMap] = useState<Map<string, Material>>(new Map());
 
   const loadRefData = useCallback(async () => {
-    const [locs, mLots] = await Promise.all([fetchStorageLocations(), fetchMaterialLots()]);
+    const [locs, mLots, mats] = await Promise.all([fetchStorageLocations(), fetchMaterialLots(), fetchMaterials()]);
     setLocations(locs);
     setLots(mLots);
     setLocationMap(new Map(locs.map((l) => [l.id, l])));
     setLotMap(new Map(mLots.map((l) => [l.id, l])));
+    setMaterialMap(new Map(mats.map((m) => [m.id, m])));
   }, []);
 
   useEffect(() => { loadRefData(); }, [loadRefData]);
@@ -102,7 +104,7 @@ export default function InventoryPage() {
 
       {/* Page tabs */}
       <div className="flex gap-1 border-b">
-        {(["operations", "balances", "log", "lots"] as PageTab[]).map((t) => (
+        {(["operations", "balances", "lots", "log"] as PageTab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -121,7 +123,7 @@ export default function InventoryPage() {
         <OperationsPanel locations={locations} lots={lots} onSuccess={loadRefData} />
       )}
       {tab === "balances" && (
-        <BalancesPanel locationMap={locationMap} lotMap={lotMap} />
+        <BalancesPanel locationMap={locationMap} lotMap={lotMap} materialMap={materialMap} />
       )}
       {tab === "log" && (
         <TransactionLog locationMap={locationMap} lotMap={lotMap} locName={locName} lotLabel={lotLabel} />
@@ -411,9 +413,11 @@ function OperationsPanel({
 function BalancesPanel({
   locationMap,
   lotMap,
+  materialMap,
 }: {
   locationMap: Map<string, StorageLocation>;
   lotMap: Map<string, MaterialLot>;
+  materialMap: Map<string, Material>;
 }) {
   const [balances, setBalances] = useState<InventoryBalance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -436,12 +440,26 @@ function BalancesPanel({
   useEffect(() => { load(); }, []);
 
   const locName = (id: string) => locationMap.get(id)?.code ?? id.slice(0, 8);
-  const lotLabel = (id: string) => lotMap.get(id)?.lot_number ?? id.slice(0, 8);
+  const getLot = (id: string) => lotMap.get(id);
+  const getMaterial = (lotId: string) => {
+    const lot = lotMap.get(lotId);
+    return lot ? materialMap.get(lot.material_id) : undefined;
+  };
 
   const locations = Array.from(locationMap.values()).sort((a, b) => a.code.localeCompare(b.code));
 
   const filtered = balances.filter((b) => {
-    if (search && !lotLabel(b.material_lot_id).toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const lot = getLot(b.material_lot_id);
+      const mat = getMaterial(b.material_lot_id);
+      const haystack = [
+        lot?.lot_number ?? "",
+        mat?.name ?? "",
+        mat?.code ?? "",
+        mat?.description ?? "",
+      ].join(" ").toLowerCase();
+      if (!haystack.includes(search.toLowerCase())) return false;
+    }
     if (locationFilter && b.location_id !== locationFilter) return false;
     return true;
   });
@@ -489,7 +507,8 @@ function BalancesPanel({
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Material Lot</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Lot #</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Material</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Location</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">On Hand</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Reserved</th>
@@ -498,15 +517,25 @@ function BalancesPanel({
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
               {loading ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">Loading…</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">Loading…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">{search || locationFilter ? "No matches found." : "No inventory balances found."}</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">{search || locationFilter ? "No matches found." : "No inventory balances found."}</td></tr>
               ) : (
                 filtered.map((b) => {
                   const available = b.quantity_on_hand - b.quantity_reserved;
+                  const lot = getLot(b.material_lot_id);
+                  const mat = getMaterial(b.material_lot_id);
                   return (
                     <tr key={b.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm font-medium text-gray-900">{lotLabel(b.material_lot_id)}</td>
+                      <td className="px-4 py-2 text-sm font-mono font-medium text-gray-900">{lot?.lot_number ?? b.material_lot_id.slice(0, 8)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        {mat ? (
+                          <div>
+                            <span className="font-medium">{mat.code}</span> — {mat.name}
+                            {mat.description && <div className="text-xs text-gray-400 mt-0.5">{mat.description}</div>}
+                          </div>
+                        ) : "—"}
+                      </td>
                       <td className="px-4 py-2 text-sm text-gray-600">{locName(b.location_id)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 text-right font-mono">{b.quantity_on_hand}</td>
                       <td className="px-4 py-2 text-sm text-gray-600 text-right font-mono">{b.quantity_reserved}</td>
