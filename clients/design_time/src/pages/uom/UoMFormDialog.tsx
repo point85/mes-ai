@@ -83,7 +83,7 @@ function ComponentSelector({
   label,
   typeName,
   symbolName,
-  scalarUoms,
+  componentUoms,
   register,
   watch,
   errors,
@@ -91,7 +91,7 @@ function ComponentSelector({
   label: string;
   typeName: "left_uom_type_filter" | "right_uom_type_filter";
   symbolName: "left_uom_symbol" | "right_uom_symbol";
-  scalarUoms: UoM[];
+  componentUoms: UoM[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   register: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,9 +100,12 @@ function ComponentSelector({
   errors: any;
 }) {
   const selectedType = watch(typeName) as string;
-  const filteredUoms = selectedType
-    ? scalarUoms.filter((u) => u.uom_type === selectedType)
-    : scalarUoms;
+  const typeFilteredUoms = selectedType
+    ? componentUoms.filter((u) => u.uom_type === selectedType)
+    : componentUoms;
+  // Fall back to all scalar UoMs when the selected type has no units yet
+  const filteredUoms = typeFilteredUoms.length > 0 ? typeFilteredUoms : componentUoms;
+  const noUnitsForType = selectedType && typeFilteredUoms.length === 0;
 
   return (
     <div className="space-y-2 rounded-md border border-gray-200 p-3 bg-gray-50">
@@ -118,6 +121,9 @@ function ComponentSelector({
             <option key={t} value={t}>{TYPE_LABELS[t]}</option>
           ))}
         </select>
+        {noUnitsForType && (
+          <p className="mt-1 text-xs text-amber-600">No units of this type — showing all units.</p>
+        )}
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">Unit</label>
@@ -146,9 +152,9 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
   const updateMut = useUpdateUoM();
   const { data: allUoMs } = useUoMs();
 
-  // Only scalar UoMs can be components of composite ones
-  const scalarUoms = useMemo(
-    () => (allUoMs?.data ?? []).filter((u) => u.uom_class === "scalar"),
+  // All active UoMs are valid components of composite UoMs
+  const componentUoms = useMemo(
+    () => allUoMs?.data ?? [],
     [allUoMs],
   );
 
@@ -376,7 +382,7 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
                     label="Numerator (left)"
                     typeName="left_uom_type_filter"
                     symbolName="left_uom_symbol"
-                    scalarUoms={scalarUoms}
+                    componentUoms={componentUoms}
                     register={register}
                     watch={watch}
                     errors={errors}
@@ -385,7 +391,7 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
                     label="Denominator (right)"
                     typeName="right_uom_type_filter"
                     symbolName="right_uom_symbol"
-                    scalarUoms={scalarUoms}
+                    componentUoms={componentUoms}
                     register={register}
                     watch={watch}
                     errors={errors}
@@ -405,7 +411,7 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
                     label="First factor (left)"
                     typeName="left_uom_type_filter"
                     symbolName="left_uom_symbol"
-                    scalarUoms={scalarUoms}
+                    componentUoms={componentUoms}
                     register={register}
                     watch={watch}
                     errors={errors}
@@ -414,7 +420,7 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
                     label="Second factor (right)"
                     typeName="right_uom_type_filter"
                     symbolName="right_uom_symbol"
-                    scalarUoms={scalarUoms}
+                    componentUoms={componentUoms}
                     register={register}
                     watch={watch}
                     errors={errors}
@@ -434,7 +440,7 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
                     label="Base unit"
                     typeName="left_uom_type_filter"
                     symbolName="left_uom_symbol"
-                    scalarUoms={scalarUoms}
+                    componentUoms={componentUoms}
                     register={register}
                     watch={watch}
                     errors={errors}
