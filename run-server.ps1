@@ -243,6 +243,7 @@ if (-not (Test-Path $serverDir)) {
 # ---------------------------------------------------------------------------
 $env:MES_DATABASE_URL = $connStr
 if (-not $env:MES_AUTH_MODE) { $env:MES_AUTH_MODE = "none" }
+$env:MES_LOG_FILE      = "mes_server_${UvicornPort}.log"
 
 # ---------------------------------------------------------------------------
 # Activate virtual environment

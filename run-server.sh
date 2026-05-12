@@ -273,6 +273,7 @@ fi
 # ---------------------------------------------------------------------------
 export MES_DATABASE_URL="$CONN_STR"
 export MES_AUTH_MODE="${MES_AUTH_MODE:-none}"
+export MES_LOG_FILE="mes_server_${UVICORN_PORT}.log"
 
 # ---------------------------------------------------------------------------
 # Activate virtual environment
