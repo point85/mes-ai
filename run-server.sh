@@ -318,6 +318,18 @@ fi
 # ---------------------------------------------------------------------------
 echo "Running Alembic migrations..."
 cd "$SERVER_DIR"
+
+# Auto-detect empty database: if alembic_version does not exist, stamp first
+# so upgrade head runs from a clean baseline rather than failing on a missing revision.
+if [[ "$STAMP" != true && "$DB_TYPE_LOWER" == "postgresql" ]] && command -v psql &>/dev/null; then
+    av_exists=$(PGPASSWORD="$PASSWORD" psql -U "$USERNAME" -h "$DB_HOST" -p "$DB_PORT" -d "$DB_NAME" \
+        -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version'" 2>/dev/null || true)
+    if [[ "$(echo "$av_exists" | tr -d '[:space:]')" != "1" ]]; then
+        echo "  Empty database detected — stamping to current head before upgrade."
+        STAMP=true
+    fi
+fi
+
 if [[ "$STAMP" == true ]]; then
     echo "  Stamping database to current head (purging stale revision)..."
     alembic stamp head --purge

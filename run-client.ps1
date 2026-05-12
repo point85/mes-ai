@@ -17,12 +17,18 @@
 .PARAMETER Port
     Optional. Override the Vite dev server port.
 
+.PARAMETER ServerUrl
+    Optional. URL of the MES server to proxy API calls to.
+    Defaults to http://localhost:8082.
+    Sets the MES_SERVER_URL environment variable read by vite.config.ts.
+
 .PARAMETER Help
     Show this help message.
 
 .EXAMPLE
     .\run-client.ps1 dt-client
     .\run-client.ps1 rt-client -Port 3000
+    .\run-client.ps1 rt-client -ServerUrl http://localhost:8083
     .\run-client.ps1 erp-sim
     .\run-client.ps1 equipment-sim -Port 5200
     .\run-client.ps1 -Help
@@ -35,6 +41,9 @@ param(
 
     [Parameter()]
     [int]$Port = 0,
+
+    [Parameter()]
+    [string]$ServerUrl = "",
 
     [Parameter()]
     [switch]$Help
@@ -60,12 +69,15 @@ ARGUMENTS
                                      equipment-sim   Equipment Simulator    (port 5175)
 
 OPTIONS
-  -Port  NUM    Override the Vite dev server port.
-  -Help         Show this help message.
+  -Port       NUM   Override the Vite dev server port.
+  -ServerUrl  URL   MES server to proxy API calls to (default: http://localhost:8082).
+                    Sets MES_SERVER_URL env var read by vite.config.ts.
+  -Help             Show this help message.
 
 EXAMPLES
   .\run-client.ps1 dt-client
   .\run-client.ps1 rt-client -Port 3000
+  .\run-client.ps1 rt-client -ServerUrl http://localhost:8083
   .\run-client.ps1 erp-sim
   .\run-client.ps1 equipment-sim -Port 5200
 
@@ -109,9 +121,11 @@ if (-not (Test-Path $clientDir)) {
 Write-Host ""
 Write-Host "MES AI Client Startup"
 Write-Host "====================="
-Write-Host "  Client  : $($info.Label)"
-Write-Host "  Dir     : $clientDir"
-Write-Host "  URL     : http://localhost:${effectivePort}"
+$effectiveServerUrl = if ($ServerUrl -ne "") { $ServerUrl } else { "http://localhost:8082" }
+Write-Host "  Client     : $($info.Label)"
+Write-Host "  Dir        : $clientDir"
+Write-Host "  URL        : http://localhost:${effectivePort}"
+Write-Host "  MES Server : $effectiveServerUrl"
 Write-Host ""
 
 # ---------------------------------------------------------------------------
@@ -139,6 +153,7 @@ Write-Host "Starting $($info.Label)..."
 Write-Host "Press Ctrl+C to stop."
 Write-Host ""
 
+$env:MES_SERVER_URL = $effectiveServerUrl
 Push-Location $clientDir
 try {
     if ($Port -gt 0) {

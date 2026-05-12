@@ -288,6 +288,22 @@ if ($dbType -eq "postgresql") {
 # Alembic migrations
 # ---------------------------------------------------------------------------
 Write-Host "Running Alembic migrations..."
+
+# Auto-detect empty database: if alembic_version does not exist, stamp first
+# so upgrade head runs from a clean baseline rather than failing on a missing revision.
+if (-not $Stamp -and $dbType -eq "postgresql" -and (Get-Command psql -ErrorAction SilentlyContinue)) {
+    $bstrChk        = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
+    $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstrChk)
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstrChk)
+    $avExists = & psql -U $Username -h $dbHost -p $dbPort -d $DbName -tAc `
+        "SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version'" 2>&1
+    $env:PGPASSWORD = ""
+    if (($avExists -join "").Trim() -ne "1") {
+        Write-Host "  Empty database detected - stamping to current head before upgrade."
+        $Stamp = $true
+    }
+}
+
 Push-Location $serverDir
 try {
     if ($Stamp) {

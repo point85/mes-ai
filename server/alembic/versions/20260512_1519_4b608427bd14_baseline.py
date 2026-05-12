@@ -1,8 +1,8 @@
 """baseline
 
-Revision ID: 3dcc0683513d
+Revision ID: 4b608427bd14
 Revises: 
-Create Date: 2026-05-07 13:49:00.165276
+Create Date: 2026-05-12 15:19:07.947082
 
 """
 from typing import Sequence, Union
@@ -12,10 +12,19 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '3dcc0683513d'
+revision: str = '4b608427bd14'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _dialect() -> str:
+    """Return the active database dialect name: 'postgresql', 'mssql', 'oracle'."""
+    return op.get_context().dialect.name
 
 
 def upgrade() -> None:
@@ -196,14 +205,16 @@ def upgrade() -> None:
     op.create_index(op.f('ix_roles_id'), 'roles', ['id'], unique=False)
     op.create_index(op.f('ix_roles_name'), 'roles', ['name'], unique=True)
     op.create_table('units_of_measure',
-    sa.Column('symbol', sa.String(length=20), nullable=False, comment="Short symbol, e.g. 'kg', 'lb', 'case'"),
+    sa.Column('symbol', sa.String(length=20), nullable=False, comment="Short symbol, e.g. 'kg', 'lb', 'm³'"),
     sa.Column('name', sa.String(length=100), nullable=False, comment="Human-friendly name, e.g. 'kilogram'"),
     sa.Column('description', sa.Text(), nullable=True, comment='Optional longer description'),
-    sa.Column('uom_type', sa.String(length=50), nullable=False, comment='Dimension type: mass, time, length, temperature, volume, count, rate, …'),
-    sa.Column('multiplier', sa.Float(), nullable=False, comment="Multiplier relative to the type's base unit"),
-    sa.Column('offset', sa.Float(), nullable=False, comment='Offset for affine conversions (used by temperature)'),
-    sa.Column('numerator_uom_id', sa.Uuid(), nullable=True, comment='For rate UoMs: the numerator unit (e.g. EA in EA/h)'),
-    sa.Column('denominator_uom_id', sa.Uuid(), nullable=True, comment='For rate UoMs: the denominator unit (e.g. h in EA/h)'),
+    sa.Column('uom_type', sa.String(length=50), nullable=False, comment='Dimension type of the primary component: mass, length, time, temperature, electrical, amount_of_substance, luminous_intensity, other'),
+    sa.Column('uom_class', sa.String(length=20), nullable=False, comment='UoM class: scalar, quotient, product, power'),
+    sa.Column('multiplier', sa.Float(), nullable=False, comment="Multiplier relative to the type's base unit (scalar class)"),
+    sa.Column('offset', sa.Float(), nullable=False, comment='Offset for affine conversions, e.g. temperature (scalar class)'),
+    sa.Column('left_uom_id', sa.Uuid(), nullable=True, comment='Left component: numerator (quotient), first factor (product), base (power)'),
+    sa.Column('right_uom_id', sa.Uuid(), nullable=True, comment='Right component: denominator (quotient), second factor (product)'),
+    sa.Column('exponent', sa.Integer(), nullable=True, comment='Integer exponent for power-class UoMs (e.g. 3 for cubic meters)'),
     sa.Column('is_builtin', sa.Boolean(), nullable=False, comment='True for seed/out-of-the-box units — prevents deletion'),
     sa.Column('id', sa.Uuid(), nullable=False, comment='Unique identifier for the entity'),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
@@ -211,8 +222,8 @@ def upgrade() -> None:
     sa.Column('created_at_utc', sa.DateTime(), nullable=True, comment='Timestamp when the entity was created (UTC)'),
     sa.Column('updated_at_utc', sa.DateTime(), nullable=True, comment='Timestamp when the entity was last updated (UTC)'),
     sa.Column('is_active', sa.Boolean(), nullable=False, comment='Soft delete flag. False means the entity is logically deleted.'),
-    sa.ForeignKeyConstraint(['denominator_uom_id'], ['units_of_measure.id'], ),
-    sa.ForeignKeyConstraint(['numerator_uom_id'], ['units_of_measure.id'], ),
+    sa.ForeignKeyConstraint(['left_uom_id'], ['units_of_measure.id'], ),
+    sa.ForeignKeyConstraint(['right_uom_id'], ['units_of_measure.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_units_of_measure_id'), 'units_of_measure', ['id'], unique=False)
@@ -906,6 +917,8 @@ def upgrade() -> None:
     sa.Column('area_id', sa.Uuid(), nullable=False, comment='Denormalized reference to the parent Area (avoids join through ProductionLine).'),
     sa.Column('site_id', sa.Uuid(), nullable=False, comment='Denormalized reference to the parent Site (avoids two-level join).'),
     sa.Column('work_schedule_id', sa.Uuid(), nullable=True, comment='Optional work schedule assigned at the Work Cell level.'),
+    sa.Column('default_dispatch_strategy', sa.String(length=50), nullable=True, comment="Default dispatch strategy for this work cell (e.g. 'first_available', 'shortest_queue'). Used when no strategy is specified at dispatch time."),
+    sa.Column('custom_strategy_prompt', sa.Text(), nullable=True, comment="Natural language instruction for the 'custom' dispatch strategy. Describes how the AI should rank equipment candidates."),
     sa.Column('id', sa.Uuid(), nullable=False, comment='Unique identifier for the entity'),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),

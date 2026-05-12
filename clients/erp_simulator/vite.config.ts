@@ -5,7 +5,7 @@ import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
 const mesConfig = require('../mes.config.json')
-const MES_SERVER = 'http://localhost:8082'
+const MES_SERVER = process.env.MES_SERVER_URL ?? 'http://localhost:8082'
 
 function erpDetectPlugin(): Plugin {
   return {

@@ -5,6 +5,7 @@ import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
 const mesConfig = require('../mes.config.json')
+const MES_SERVER = process.env.MES_SERVER_URL ?? 'http://localhost:8082'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -18,7 +19,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8082',
+        target: MES_SERVER,
         changeOrigin: true,
       },
     },
