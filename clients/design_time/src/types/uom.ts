@@ -6,9 +6,9 @@
  */
 
 export type UoMClass = "scalar" | "quotient" | "product" | "power";
-export type UoMType = "mass" | "length" | "time" | "temperature" | "electrical" | "force" | "amount_of_substance" | "luminous_intensity" | "other";
+export type UoMType = "mass" | "length" | "time" | "temperature" | "electrical" | "force" | "amount_of_substance" | "luminous_intensity" | "count" | "custom";
 
-export const UOM_TYPES: UoMType[] = ["mass", "length", "time", "temperature", "electrical", "force", "amount_of_substance", "luminous_intensity", "other"];
+export const UOM_TYPES: UoMType[] = ["mass", "length", "time", "temperature", "electrical", "force", "amount_of_substance", "luminous_intensity", "count", "custom"];
 export const UOM_CLASSES: UoMClass[] = ["scalar", "quotient", "product", "power"];
 
 export interface UoM {

@@ -53,14 +53,14 @@ _UOMS: list[tuple[str, str, str, str, float, float, bool]] = [
     ("Nm",          "newton-meter",                "force",  "scalar", 1.0,        0.0, True),
     # Process / biological
     ("\u00b0Bx",    "degrees Brix",                "mass",  "scalar", 1.0,        0.0, True),
-    ("pH",          "pH",                          "other",  "scalar", 1.0,        0.0, True),
-    ("CFU/mL",      "colony-forming units per mL", "other",  "scalar", 1.0,        0.0, True),
+    ("pH",          "pH",                          "amount_of_substance", "scalar", 1.0, 0.0, True),
+    ("CFU/mL",      "colony-forming units per mL", "count",  "scalar", 1.0,        0.0, True),
     # Discrete / rates
-    ("count",       "count",                       "other",  "scalar", 1.0,        0.0, True),
-    ("cph",         "components per hour",         "other",  "scalar", 1.0,        0.0, False),
-    ("RPM",         "revolutions per minute",      "other",  "scalar", 1.0/60.0,   0.0, False),
-    ("bottle/min",  "bottles per minute",          "other",  "scalar", 1.0,        0.0, False),
-    ("label/min",   "labels per minute",           "other",  "scalar", 1.0,        0.0, False),
+    ("count",       "count",                       "count",  "scalar", 1.0,        0.0, True),
+    ("cph",         "components per hour",         "count",  "scalar", 1.0,        0.0, False),
+    ("RPM",         "revolutions per minute",      "count",  "scalar", 1.0/60.0,   0.0, False),
+    ("bottle/min",  "bottles per minute",          "count",  "scalar", 1.0,        0.0, False),
+    ("label/min",   "labels per minute",           "count",  "scalar", 1.0,        0.0, False),
     # Length (fine scale)
     ("\u00b5m",     "micrometer",                  "length", "scalar", 1.0e-6,     0.0, True),
     # Compound speed (scalar approximation; proper quotient built by seed on fresh install)

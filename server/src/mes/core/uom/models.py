@@ -1,8 +1,8 @@
 """
 UOM: SQLAlchemy model for units of measure.
 
-Seven physical types (the seven SI base quantities plus 'other' for discrete counts):
-    mass, length, time, temperature, electrical, amount_of_substance, luminous_intensity, other
+Seven physical types (the seven SI base quantities plus 'count' for discrete counts):
+    mass, length, time, temperature, electrical, force, amount_of_substance, luminous_intensity, count
 
 Four classes:
     scalar   — single unit with affine conversion  (y = a·x + b)
@@ -27,7 +27,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from mes.framework.db import BaseModel
 
 # Valid UoM types and classes
-UOM_TYPES = {"mass", "length", "time", "temperature", "electrical", "force", "amount_of_substance", "luminous_intensity", "other"}
+UOM_TYPES = {"mass", "length", "time", "temperature", "electrical", "force", "amount_of_substance", "luminous_intensity", "count", "custom"}
 UOM_CLASSES = {"scalar", "quotient", "product", "power"}
 
 

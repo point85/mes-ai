@@ -133,12 +133,30 @@ class UoMService:
 
     @staticmethod
     async def create_uom(session: AsyncSession, **kwargs: Any) -> UnitOfMeasure:
-        """Create a new unit. Raises DuplicateSymbolException if symbol exists."""
-        existing = await session.execute(
+        """Create a new unit. Raises DuplicateSymbolException if an active unit with
+        the same symbol already exists.  If a soft-deleted unit with that symbol exists,
+        it is reactivated and updated with the supplied values instead."""
+        existing_row = await session.execute(
             select(UnitOfMeasure).where(UnitOfMeasure.symbol == kwargs["symbol"])
         )
-        if existing.scalar_one_or_none() is not None:
-            raise DuplicateSymbolException(kwargs["symbol"])
+        existing = existing_row.scalar_one_or_none()
+        if existing is not None:
+            if existing.is_active:
+                raise DuplicateSymbolException(kwargs["symbol"])
+            # Reactivate the soft-deleted row with the new field values
+            await UoMService._resolve_composite_components(session, kwargs)
+            for key, value in kwargs.items():
+                setattr(existing, key, value)
+            existing.is_active = True
+            await session.flush()
+            await event_bus.publish(
+                uom_created(str(existing.id), existing.symbol, existing.uom_type)
+            )
+            logger.info(
+                "Reactivated soft-deleted UoM %s (%s, type=%s, class=%s)",
+                existing.id, existing.symbol, existing.uom_type, existing.uom_class,
+            )
+            return existing
 
         await UoMService._resolve_composite_components(session, kwargs)
 

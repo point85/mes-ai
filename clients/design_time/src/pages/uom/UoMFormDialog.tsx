@@ -34,7 +34,8 @@ const TYPE_LABELS: Record<string, string> = {
   force: "Force",
   amount_of_substance: "Amount of Substance",
   luminous_intensity: "Luminous Intensity",
-  other: "Other",
+  count: "Count",
+  custom: "Custom",
 };
 
 const uomSchema = z

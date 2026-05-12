@@ -1,12 +1,16 @@
 """
 UOM: Built-in seed data for out-of-the-box units of measure.
 
-Five types (four SI fundamentals + other):
-    mass        — base: kg
-    length      — base: m
-    time        — base: s
-    temperature — base: K
-    other       — base: EA (each)
+Nine types (eight SI base quantities + count):
+    mass                — base: kg
+    length              — base: m
+    time                — base: s
+    temperature         — base: K
+    electrical          — base: A
+    force               — base: N
+    amount_of_substance — base: mol
+    luminous_intensity  — base: cd
+    count               — base: EA (each)
 
 Four classes:
     scalar    — single unit with affine conversion
@@ -35,7 +39,7 @@ BUILTIN_SCALARS: list[tuple[str, str, str, float, float]] = [
     ("A",      "ampere",              "electrical",            1.0,                0.0),
     ("mol",    "mole",                "amount_of_substance",   1.0,                0.0),
     ("cd",     "candela",             "luminous_intensity",    1.0,                0.0),
-    ("EA",     "each",                "other",                 1.0,                0.0),
+    ("EA",     "each",                "count",                 1.0,                0.0),
 
     # ── MASS ─────────────────────────────────────────────────────────
     ("mg",     "milligram",           "mass",        1.0e-6,                       0.0),
@@ -82,19 +86,19 @@ BUILTIN_SCALARS: list[tuple[str, str, str, float, float]] = [
 
     # ── PROCESS / BIOLOGICAL ─────────────────────────────────────────
     ("°Bx",    "degrees Brix",        "mass",        1.0,                          0.0),
-    ("pH",     "pH",                  "other",       1.0,                          0.0),
-    ("CFU/mL", "colony-forming units per mL", "other", 1.0,                       0.0),
+    ("pH",     "pH",                  "amount_of_substance", 1.0,                 0.0),
+    ("CFU/mL", "colony-forming units per mL", "count", 1.0,                       0.0),
 
-    # ── OTHER (discrete / count / rates) ─────────────────────────────
-    ("PC",     "piece",               "other",       1.0,                          0.0),
-    ("can",    "can",                 "other",       1.0,                          0.0),
-    ("bottle", "bottle",              "other",       1.0,                          0.0),
-    ("case",   "case",                "other",       12.0,                         0.0),
-    ("count",  "count",               "other",       1.0,                          0.0),
-    ("cph",    "components per hour", "other",       1.0,                          0.0),
-    ("RPM",    "revolutions per minute", "other",    1.0 / 60.0,                   0.0),
-    ("bottle/min", "bottles per minute", "other",   1.0,                          0.0),
-    ("label/min",  "labels per minute",  "other",   1.0,                          0.0),
+    # ── COUNT (discrete / count / rates) ─────────────────────────────
+    ("PC",     "piece",               "count",       1.0,                          0.0),
+    ("can",    "can",                 "count",       1.0,                          0.0),
+    ("bottle", "bottle",              "count",       1.0,                          0.0),
+    ("case",   "case",                "count",       12.0,                         0.0),
+    ("count",  "count",               "count",       1.0,                          0.0),
+    ("cph",    "components per hour", "count",       1.0,                          0.0),
+    ("RPM",    "revolutions per minute", "count",    1.0 / 60.0,                   0.0),
+    ("bottle/min", "bottles per minute", "count",   1.0,                          0.0),
+    ("label/min",  "labels per minute",  "count",   1.0,                          0.0),
 ]
 
 # ── Quotient units (left / right) ───────────────────────────────────

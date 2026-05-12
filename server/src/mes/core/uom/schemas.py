@@ -1,7 +1,7 @@
 """
 UOM: Pydantic schemas for the Unit of Measure REST API.
 
-Five types: mass, length, time, temperature, other
+Nine types: mass, length, time, temperature, electrical, force, amount_of_substance, luminous_intensity, count
 Four classes:
     scalar   — affine conversion (y = a·x + b)
     quotient — left / right   (e.g. kg/s)
@@ -17,7 +17,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-UOM_TYPES = {"mass", "length", "time", "temperature", "electrical", "force", "amount_of_substance", "luminous_intensity", "other"}
+UOM_TYPES = {"mass", "length", "time", "temperature", "electrical", "force", "amount_of_substance", "luminous_intensity", "count", "custom"}
 UOM_CLASSES = {"scalar", "quotient", "product", "power"}
 
 
@@ -31,7 +31,7 @@ class UoMCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str | None = None
     uom_type: str = Field(..., min_length=1, max_length=50,
-                          description="Primary dimension type: mass, length, time, temperature, other")
+                          description="Primary dimension type: mass, length, time, temperature, electrical, force, amount_of_substance, luminous_intensity, count")
     uom_class: Literal["scalar", "quotient", "product", "power"] = "scalar"
     # Scalar fields
     multiplier: float = Field(1.0, gt=0, description="Affine multiplier (scalar class)")
