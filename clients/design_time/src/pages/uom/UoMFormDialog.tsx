@@ -45,7 +45,7 @@ const uomSchema = z
       .refine((s) => !s.includes(" "), "Symbol must not contain spaces"),
     name: z.string().min(1, "Name is required").max(100),
     description: z.string().nullable().optional(),
-    uom_type: z.string().max(50).optional().nullable(),
+    uom_type: z.string().min(1, "Type is required").max(50),
     uom_class: z.enum(["scalar", "quotient", "product", "power"]),
     multiplier: z.coerce.number().positive("Must be > 0"),
     offset: z.coerce.number(),
@@ -55,9 +55,6 @@ const uomSchema = z
   })
   .superRefine((data, ctx) => {
     const cls = data.uom_class;
-    if (cls === "scalar" && !data.uom_type) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Type is required", path: ["uom_type"] });
-    }
     if (cls === "quotient" || cls === "product") {
       if (!data.left_uom_symbol)
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["left_uom_symbol"] });
@@ -205,15 +202,9 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
   const onSubmit = async (data: UoMFormData & { left_uom_type_filter: string; right_uom_type_filter: string }) => {
     try {
       const { left_uom_type_filter: _l, right_uom_type_filter: _r, ...rest } = data;
-      // For composite classes, derive uom_type from the left component unit
-      let uom_type = rest.uom_type ?? "";
-      if (isComposite && !uom_type && rest.left_uom_symbol) {
-        const leftUnit = scalarUoms.find((u) => u.symbol === rest.left_uom_symbol);
-        uom_type = leftUnit?.uom_type ?? "other";
-      }
       const payload = {
         ...rest,
-        uom_type,
+        uom_type: rest.uom_type,
         left_uom_symbol: isComposite ? rest.left_uom_symbol : null,
         right_uom_symbol: (watchedClass === "quotient" || watchedClass === "product") ? rest.right_uom_symbol : null,
         exponent: watchedClass === "power" ? rest.exponent : null,
@@ -320,57 +311,56 @@ export default function UoMFormDialog({ uom, onClose }: Props) {
               />
             </div>
 
-            {/* Scalar fields: type + multiplier + offset */}
+            {/* Type — shown for all classes */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Type</label>
+              <select
+                {...register("uom_type")}
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">Select type…</option>
+                {UOM_TYPES.map((t) => (
+                  <option key={t} value={t}>{TYPE_LABELS[t]}</option>
+                ))}
+              </select>
+              {errors.uom_type && (
+                <p className="mt-1 text-xs text-red-600">{errors.uom_type.message}</p>
+              )}
+            </div>
+
+            {/* Scalar fields: multiplier + offset */}
             {isScalar && (
-              <>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Type</label>
-                  <select
-                    {...register("uom_type")}
-                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="">Select type…</option>
-                    {UOM_TYPES.map((t) => (
-                      <option key={t} value={t}>{TYPE_LABELS[t]}</option>
-                    ))}
-                  </select>
-                  {errors.uom_type && (
-                    <p className="mt-1 text-xs text-red-600">{errors.uom_type.message}</p>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Multiplier <span className="text-gray-400 text-xs">(a)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    {...register("multiplier")}
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <p className="mt-0.5 text-xs text-gray-400">base = value × a + b</p>
+                  {errors.multiplier && (
+                    <p className="mt-1 text-xs text-red-600">{errors.multiplier.message}</p>
                   )}
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Multiplier <span className="text-gray-400 text-xs">(a)</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      {...register("multiplier")}
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    />
-                    <p className="mt-0.5 text-xs text-gray-400">base = value × a + b</p>
-                    {errors.multiplier && (
-                      <p className="mt-1 text-xs text-red-600">{errors.multiplier.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Offset <span className="text-gray-400 text-xs">(b)</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      {...register("offset")}
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    />
-                    {errors.offset && (
-                      <p className="mt-1 text-xs text-red-600">{errors.offset.message}</p>
-                    )}
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Offset <span className="text-gray-400 text-xs">(b)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    {...register("offset")}
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                  {errors.offset && (
+                    <p className="mt-1 text-xs text-red-600">{errors.offset.message}</p>
+                  )}
                 </div>
-              </>
+              </div>
             )}
 
             {/* Quotient fields: left / right */}
