@@ -46,15 +46,6 @@ interface NavSection {
 
 const sections: NavSection[] = [
   {
-    title: "Definitions",
-    items: [
-      { label: "Units of Measure", to: "/uom", icon: ScaleIcon },
-      { label: "Work Schedules", to: "/work-schedules", icon: CalendarDaysIcon },
-      { label: "Data Definitions", to: "/data-definitions", icon: ClipboardDocumentListIcon },
-      { label: "Reason Codes", to: "/reasons", icon: ExclamationTriangleIcon },
-    ],
-  },
-  {
     title: "Plant Model",
     items: [
       { label: "Sites", to: "/sites", icon: BuildingOffice2Icon },
@@ -69,7 +60,15 @@ const sections: NavSection[] = [
       { label: "Routes", to: "/routes", icon: QueueListIcon },
       { label: "Dispositions", to: "/dispositions", icon: TagIcon },
       { label: "Materials", to: "/materials", icon: BeakerIcon, helpTopic: "materials" as HelpTopic },
-      { label: "Material Lots", to: "/material-lots", icon: BeakerIcon },
+    ],
+  },
+  {
+    title: "Definitions",
+    items: [
+      { label: "Units of Measure", to: "/uom", icon: ScaleIcon },
+      { label: "Work Schedules", to: "/work-schedules", icon: CalendarDaysIcon },
+      { label: "Data Definitions", to: "/data-definitions", icon: ClipboardDocumentListIcon },
+      { label: "Reason Codes", to: "/reasons", icon: ExclamationTriangleIcon },
     ],
   },
 

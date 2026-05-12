@@ -192,3 +192,87 @@ Completed `order_processors.py` route fix; full ERP Simulator UI bug sweep (rout
 
 ### Next session
 - Manual smoke-test: ERP Sim → create order → report consumption → verify lot dropdown shows available lots.
+
+---
+
+## Session S049 — 2026-05-12
+
+### Summary
+UoM type system expansion and UoMFormDialog bug fixes.
+
+### Work completed
+
+**New UoM types added**
+
+| Type | Value | New UoMs seeded |
+|------|-------|-----------------|
+| `electrical` | A (ampere), mA, V | reclassified from `other` |
+| `force` | N, Nm, Pa, kPa | reclassified from `other` |
+| `amount_of_substance` | mol, pH | mol added; pH reclassified from `other` |
+| `luminous_intensity` | cd | added |
+| `count` | (renamed from `other`) EA, PC, can, bottle, case, count, cph, RPM, bottle/min, label/min, CFU/mL | bulk rename |
+| `custom` | (none seeded — user-defined) | n/a |
+
+- `server/src/mes/core/uom/models.py`: `UOM_TYPES` set updated to 10 types.
+- `server/src/mes/core/uom/schemas.py`: same; docstring updated.
+- `server/src/mes/core/uom/seed.py`: all `uom_type` values updated; `# ── OTHER` comment renamed `# ── COUNT`; docstring rewritten to list all 9 SI + count types.
+- `server/src/mes/core/demo/service.py`: all `_DEMO_UOMS` tuples updated to new types.
+- `server/alembic/versions/20260512_0001_restore_demo_uoms.py`: same rows updated for clean installs.
+
+**Alembic migrations applied (DB head: `f8a9b0c1d2e3` → see chain below)**
+
+| File | Rev | Description |
+|------|-----|-------------|
+| `20260512_0002_electrical_uom_type.py` | `f2a3b4c5d6e7` | A, mA → `electrical` |
+| `20260512_0003_add_mol_cd_uoms.py` | `a3b4c5d6e7f8` | insert mol, cd |
+| `20260512_0004_reclassify_brix_volt.py` | `b4c5d6e7f8a9` | °Bx → `mass`, V → `electrical` |
+| `20260512_0005_add_force_type.py` | `c5d6e7f8a9b0` | N, Nm, Pa, kPa → `force` |
+| `20260512_0006_reclassify_ph_to_amount_of_substance.py` | `d6e7f8a9b0c1` | pH → `amount_of_substance` |
+| `20260512_0007_rename_other_to_count.py` | `e7f8a9b0c1d2` | all `other` → `count` |
+
+**Current DB head: `e7f8a9b0c1d2`**
+
+**Frontend type/label updates**
+- `clients/design_time/src/types/uom.ts`: `UoMType` union and `UOM_TYPES` array updated (10 types).
+- `clients/design_time/src/pages/uom/UoMListPage.tsx`: `TYPE_LABELS` updated.
+- `clients/design_time/src/pages/uom/UoMConvertPanel.tsx`: `TYPE_LABELS` updated.
+- `clients/design_time/src/pages/uom/UoMFormDialog.tsx`: `TYPE_LABELS` updated; multiple bug fixes (see below).
+
+**UoMFormDialog bug fixes**
+
+1. **Type dropdown hidden for composite UoMs** — The Type `<select>` was inside `{isScalar && ...}` block, so quotient/product/power UoMs had no way to set `uom_type`, causing silent Zod validation failure on submit. Fixed by moving the Type dropdown outside the scalar guard so it renders for all classes.
+
+2. **`MissingGreenlet` on create/update response** — After `session.commit()`, SQLAlchemy expires all attributes. `session.refresh(uom, attribute_names=["left_uom", "right_uom"])` attempted a lazy load outside async context. Fixed in `routes.py`: now calls `await svc.get_uom(session, uom.id)` after commit (uses `selectinload`).
+
+3. **"An error occurred" generic error message** — Frontend read `response.data.detail` (FastAPI default format) but MES uses `response.data.error.message`. Fixed error display to check `d?.error?.message` first.
+
+4. **ComponentSelector shows empty unit list for types with no UoMs** — When user selected a type (e.g. "Custom") in the component picker, `filteredUoms` returned `[]` and the unit dropdown went blank with no explanation. Fixed: falls back to showing all UoMs when type filter yields zero results; shows amber hint "No units of this type — showing all units."
+
+5. **ComponentSelector excluded non-scalar UoMs as components** — `scalarUoms` was filtered to `uom_class === "scalar"` before being passed to `ComponentSelector`, so composite UoMs (e.g. a custom product-class "kgm") were invisible even when their type matched. Fixed: renamed to `componentUoms`, removed the class filter — all active UoMs are now eligible components.
+
+**Soft-delete recreation bug fix**
+- `server/src/mes/core/uom/service.py` `create_uom`: duplicate-symbol check queried without `is_active` filter, so soft-deleted rows blocked recreation with the same symbol. Fixed: if the existing row is inactive, reactivate it with the new field values instead of raising `DuplicateSymbolException`.
+
+### Files changed
+- `server/src/mes/core/uom/models.py`
+- `server/src/mes/core/uom/schemas.py`
+- `server/src/mes/core/uom/seed.py`
+- `server/src/mes/core/uom/service.py`
+- `server/src/mes/core/uom/routes.py`
+- `server/src/mes/core/demo/service.py`
+- `server/alembic/versions/20260512_0001_restore_demo_uoms.py`
+- `server/alembic/versions/20260512_0002_electrical_uom_type.py` *(new)*
+- `server/alembic/versions/20260512_0003_add_mol_cd_uoms.py` *(new)*
+- `server/alembic/versions/20260512_0004_reclassify_brix_volt.py` *(new)*
+- `server/alembic/versions/20260512_0005_add_force_type.py` *(new)*
+- `server/alembic/versions/20260512_0006_reclassify_ph_to_amount_of_substance.py` *(new)*
+- `server/alembic/versions/20260512_0007_rename_other_to_count.py` *(new)*
+- `clients/design_time/src/types/uom.ts`
+- `clients/design_time/src/pages/uom/UoMListPage.tsx`
+- `clients/design_time/src/pages/uom/UoMConvertPanel.tsx`
+- `clients/design_time/src/pages/uom/UoMFormDialog.tsx`
+
+### Next session
+- Verify UoM create/edit/delete round-trip in browser (all classes, all types).
+- Smoke-test ERP Sim → create order → consumption lot dropdown.
+
