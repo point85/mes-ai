@@ -1187,24 +1187,25 @@ def _inject_uom_id(d: dict, uom_ids: dict[str, UUID]) -> dict:
 
 # Demo-specific UOMs not in the standard seed data.
 # Each entry: (symbol, name, uom_type, multiplier, offset)
+# These are fallback entries; standard UOMs are seeded via seed.py BUILTIN_*.
 _DEMO_UOMS: list[tuple[str, str, str, float, float]] = [
-    ("°Bx",    "degrees Brix",         "concentration", 1.0, 0.0),
-    ("pH",     "pH",                   "concentration", 1.0, 0.0),
-    ("CFU/mL", "colony-forming units per mL", "concentration", 1.0, 0.0),
-    ("mL",     "millilitre",           "volume",        0.001, 0.0),
-    ("mm",     "millimetre",           "length",        0.001, 0.0),
-    ("Nm",     "newton-metre",         "torque",        1.0, 0.0),
-    ("count",  "count",                "count",         1.0, 0.0),
-    ("V",      "volt",                 "electrical",    1.0, 0.0),
-    ("mA",     "milliampere",          "electrical",    0.001, 0.0),
-    ("kPa",    "kilopascal",           "pressure",      1000.0, 0.0),
-    ("µm",     "micrometre",           "length",        1e-6, 0.0),
-    ("cph",    "components per hour",  "rate",          1.0, 0.0),
-    ("mm/s",   "millimetres per second", "rate",        0.001, 0.0),
-    ("mm/min", "millimetres per minute", "rate",        0.001 / 60, 0.0),
-    ("RPM",    "revolutions per minute", "rate",        1.0 / 60, 0.0),
-    ("bottle/min", "bottles per minute", "rate",        1.0, 0.0),
-    ("label/min",  "labels per minute",  "rate",        1.0, 0.0),
+    ("°Bx",    "degrees Brix",               "other",  1.0,        0.0),
+    ("pH",     "pH",                          "other",  1.0,        0.0),
+    ("CFU/mL", "colony-forming units per mL", "other",  1.0,        0.0),
+    ("N",      "newton",                      "other",  1.0,        0.0),
+    ("A",      "ampere",                      "electrical",  1.0,        0.0),
+    ("mA",     "milliampere",                 "electrical",  0.001,      0.0),
+    ("V",      "volt",                        "other",  1.0,        0.0),
+    ("kPa",    "kilopascal",                  "other",  1000.0,     0.0),
+    ("Pa",     "pascal",                      "other",  1.0,        0.0),
+    ("Nm",     "newton-meter",                "other",  1.0,        0.0),
+    ("count",  "count",                       "other",  1.0,        0.0),
+    ("µm",     "micrometer",                  "length", 1.0e-6,     0.0),
+    ("cph",    "components per hour",         "other",  1.0,        0.0),
+    ("mm/min", "millimeters per minute",      "length", 1.0/60000,  0.0),
+    ("RPM",    "revolutions per minute",      "other",  1.0 / 60.0, 0.0),
+    ("bottle/min", "bottles per minute",      "other",  1.0,        0.0),
+    ("label/min",  "labels per minute",       "other",  1.0,        0.0),
 ]
 
 

@@ -64,11 +64,35 @@ BUILTIN_SCALARS: list[tuple[str, str, str, float, float]] = [
     ("°C",     "degree Celsius",      "temperature", 1.0,                          273.15),
     ("°F",     "degree Fahrenheit",   "temperature", 5.0 / 9.0,                   273.15 - 32.0 * 5.0 / 9.0),
 
-    # ── OTHER (discrete / count) ─────────────────────────────────────
+    # ── LENGTH (misc) ────────────────────────────────────────────────
+    ("µm",     "micrometer",          "length",      1.0e-6,                       0.0),
+
+    # ── ELECTRICAL ───────────────────────────────────────────────────
+    ("A",      "ampere",              "electrical",  1.0,                          0.0),
+    ("mA",     "milliampere",         "electrical",  0.001,                        0.0),
+    ("V",      "volt",                "other",       1.0,                          0.0),
+
+    # ── FORCE / PRESSURE / TORQUE ────────────────────────────────────
+    ("N",      "newton",              "other",       1.0,                          0.0),
+    ("Pa",     "pascal",              "other",       1.0,                          0.0),
+    ("kPa",    "kilopascal",          "other",       1000.0,                       0.0),
+    ("Nm",     "newton-meter",        "other",       1.0,                          0.0),
+
+    # ── PROCESS / BIOLOGICAL ─────────────────────────────────────────
+    ("°Bx",    "degrees Brix",        "other",       1.0,                          0.0),
+    ("pH",     "pH",                  "other",       1.0,                          0.0),
+    ("CFU/mL", "colony-forming units per mL", "other", 1.0,                       0.0),
+
+    # ── OTHER (discrete / count / rates) ─────────────────────────────
     ("PC",     "piece",               "other",       1.0,                          0.0),
     ("can",    "can",                 "other",       1.0,                          0.0),
     ("bottle", "bottle",              "other",       1.0,                          0.0),
     ("case",   "case",                "other",       12.0,                         0.0),
+    ("count",  "count",               "other",       1.0,                          0.0),
+    ("cph",    "components per hour", "other",       1.0,                          0.0),
+    ("RPM",    "revolutions per minute", "other",    1.0 / 60.0,                   0.0),
+    ("bottle/min", "bottles per minute", "other",   1.0,                          0.0),
+    ("label/min",  "labels per minute",  "other",   1.0,                          0.0),
 ]
 
 # ── Quotient units (left / right) ───────────────────────────────────
@@ -83,6 +107,7 @@ BUILTIN_QUOTIENTS: list[tuple[str, str, str, str]] = [
     ("m/min",  "meters per minute",     "m",  "min"),
     ("m/h",    "meters per hour",       "m",  "h"),
     ("mm/s",   "millimeters per second","mm", "s"),
+    ("mm/min", "millimeters per minute","mm", "min"),
     ("ft/s",   "feet per second",       "ft", "s"),
     ("ft/min", "feet per minute",       "ft", "min"),
     ("ft/h",   "feet per hour",         "ft", "h"),

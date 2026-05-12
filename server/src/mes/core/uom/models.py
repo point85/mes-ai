@@ -27,7 +27,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from mes.framework.db import BaseModel
 
 # Valid UoM types and classes
-UOM_TYPES = {"mass", "length", "time", "temperature", "other"}
+UOM_TYPES = {"mass", "length", "time", "temperature", "electrical", "other"}
 UOM_CLASSES = {"scalar", "quotient", "product", "power"}
 
 
@@ -58,7 +58,7 @@ class UnitOfMeasure(BaseModel):
     )
     uom_type: Mapped[str] = mapped_column(
         String(50), nullable=False, index=True,
-        comment="Dimension type of the primary component: mass, length, time, temperature, other",
+        comment="Dimension type of the primary component: mass, length, time, temperature, electrical, other",
     )
     uom_class: Mapped[str] = mapped_column(
         String(20), nullable=False, default="scalar",
