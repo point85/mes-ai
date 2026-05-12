@@ -16,6 +16,9 @@ const TYPE_LABELS: Record<string, string> = {
   length: "Length",
   time: "Time",
   temperature: "Temperature",
+  electrical: "Electrical",
+  amount_of_substance: "Amount of Substance",
+  luminous_intensity: "Luminous Intensity",
   other: "Other",
 };
 

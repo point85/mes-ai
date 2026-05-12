@@ -28,11 +28,14 @@ from uuid import UUID
 # (symbol, name, uom_type, multiplier, offset)
 BUILTIN_SCALARS: list[tuple[str, str, str, float, float]] = [
     # ── SI FUNDAMENTALS (base units, multiplier=1, offset=0) ────────
-    ("kg",     "kilogram",            "mass",        1.0,                          0.0),
-    ("s",      "second",              "time",        1.0,                          0.0),
-    ("m",      "meter",               "length",      1.0,                          0.0),
-    ("K",      "kelvin",              "temperature", 1.0,                          0.0),
-    ("EA",     "each",                "other",       1.0,                          0.0),
+    ("kg",     "kilogram",            "mass",                  1.0,                0.0),
+    ("s",      "second",              "time",                  1.0,                0.0),
+    ("m",      "meter",               "length",                1.0,                0.0),
+    ("K",      "kelvin",              "temperature",           1.0,                0.0),
+    ("A",      "ampere",              "electrical",            1.0,                0.0),
+    ("mol",    "mole",                "amount_of_substance",   1.0,                0.0),
+    ("cd",     "candela",             "luminous_intensity",    1.0,                0.0),
+    ("EA",     "each",                "other",                 1.0,                0.0),
 
     # ── MASS ─────────────────────────────────────────────────────────
     ("mg",     "milligram",           "mass",        1.0e-6,                       0.0),
@@ -68,9 +71,8 @@ BUILTIN_SCALARS: list[tuple[str, str, str, float, float]] = [
     ("µm",     "micrometer",          "length",      1.0e-6,                       0.0),
 
     # ── ELECTRICAL ───────────────────────────────────────────────────
-    ("A",      "ampere",              "electrical",  1.0,                          0.0),
     ("mA",     "milliampere",         "electrical",  0.001,                        0.0),
-    ("V",      "volt",                "other",       1.0,                          0.0),
+    ("V",      "volt",                "electrical",  1.0,                          0.0),
 
     # ── FORCE / PRESSURE / TORQUE ────────────────────────────────────
     ("N",      "newton",              "other",       1.0,                          0.0),
@@ -79,7 +81,7 @@ BUILTIN_SCALARS: list[tuple[str, str, str, float, float]] = [
     ("Nm",     "newton-meter",        "other",       1.0,                          0.0),
 
     # ── PROCESS / BIOLOGICAL ─────────────────────────────────────────
-    ("°Bx",    "degrees Brix",        "other",       1.0,                          0.0),
+    ("°Bx",    "degrees Brix",        "mass",        1.0,                          0.0),
     ("pH",     "pH",                  "other",       1.0,                          0.0),
     ("CFU/mL", "colony-forming units per mL", "other", 1.0,                       0.0),
 

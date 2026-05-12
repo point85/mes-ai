@@ -1189,13 +1189,13 @@ def _inject_uom_id(d: dict, uom_ids: dict[str, UUID]) -> dict:
 # Each entry: (symbol, name, uom_type, multiplier, offset)
 # These are fallback entries; standard UOMs are seeded via seed.py BUILTIN_*.
 _DEMO_UOMS: list[tuple[str, str, str, float, float]] = [
-    ("°Bx",    "degrees Brix",               "other",  1.0,        0.0),
+    ("°Bx",    "degrees Brix",               "mass",  1.0,        0.0),
     ("pH",     "pH",                          "other",  1.0,        0.0),
     ("CFU/mL", "colony-forming units per mL", "other",  1.0,        0.0),
     ("N",      "newton",                      "other",  1.0,        0.0),
     ("A",      "ampere",                      "electrical",  1.0,        0.0),
     ("mA",     "milliampere",                 "electrical",  0.001,      0.0),
-    ("V",      "volt",                        "other",  1.0,        0.0),
+    ("V",      "volt",                        "electrical",  1.0,        0.0),
     ("kPa",    "kilopascal",                  "other",  1000.0,     0.0),
     ("Pa",     "pascal",                      "other",  1.0,        0.0),
     ("Nm",     "newton-meter",                "other",  1.0,        0.0),
