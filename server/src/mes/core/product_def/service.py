@@ -53,15 +53,23 @@ class ProductDefService:
         params: PaginationParams,
     ) -> tuple[Sequence[ProductDefinition], str | None, bool]:
         """List active products with pagination."""
-        stmt = select(ProductDefinition).where(ProductDefinition.is_active.is_(True))
+        stmt = (
+            select(ProductDefinition)
+            .options(selectinload(ProductDefinition.uom_rel))
+            .where(ProductDefinition.is_active.is_(True))
+        )
         return await paginate_query(session, stmt, ProductDefinition, params)
 
     @staticmethod
     async def get_product(session: AsyncSession, product_id: UUID) -> ProductDefinition:
         """Get a product by ID."""
-        stmt = select(ProductDefinition).where(
-            ProductDefinition.id == product_id,
-            ProductDefinition.is_active.is_(True),
+        stmt = (
+            select(ProductDefinition)
+            .options(selectinload(ProductDefinition.uom_rel))
+            .where(
+                ProductDefinition.id == product_id,
+                ProductDefinition.is_active.is_(True),
+            )
         )
         result = await session.execute(stmt)
         product = result.scalar_one_or_none()
@@ -84,6 +92,7 @@ class ProductDefService:
         product = ProductDefinition(**kwargs)
         session.add(product)
         await session.flush()
+        await session.refresh(product, attribute_names=["uom_rel"])
 
         await event_bus.publish(
             product_created(str(product.id), product.code, product.version)
@@ -115,6 +124,7 @@ class ProductDefService:
             if value is not None:
                 setattr(product, key, value)
         await session.flush()
+        await session.refresh(product, attribute_names=["uom_rel"])
         return product
 
     @staticmethod
@@ -379,9 +389,13 @@ class ProductDefService:
     ) -> tuple[Sequence[BOMItem], str | None, bool]:
         """List items within a BOM."""
         await ProductDefService.get_bom(session, bom_id)
-        stmt = select(BOMItem).where(
-            BOMItem.bom_id == bom_id,
-            BOMItem.is_active.is_(True),
+        stmt = (
+            select(BOMItem)
+            .options(selectinload(BOMItem.uom_rel))
+            .where(
+                BOMItem.bom_id == bom_id,
+                BOMItem.is_active.is_(True),
+            )
         )
         return await paginate_query(session, stmt, BOMItem, params)
 
@@ -408,15 +422,20 @@ class ProductDefService:
         item = BOMItem(bom_id=bom_id, **kwargs)
         session.add(item)
         await session.flush()
+        await session.refresh(item, attribute_names=["uom_rel"])
         logger.info("Created BOM item %s in BOM %s", item.id, bom_id)
         return item
 
     @staticmethod
     async def get_bom_item(session: AsyncSession, item_id: UUID) -> BOMItem:
         """Get a BOM item by ID."""
-        stmt = select(BOMItem).where(
-            BOMItem.id == item_id,
-            BOMItem.is_active.is_(True),
+        stmt = (
+            select(BOMItem)
+            .options(selectinload(BOMItem.uom_rel))
+            .where(
+                BOMItem.id == item_id,
+                BOMItem.is_active.is_(True),
+            )
         )
         result = await session.execute(stmt)
         item = result.scalar_one_or_none()
@@ -437,6 +456,7 @@ class ProductDefService:
                 continue
             setattr(item, key, value)
         await session.flush()
+        await session.refresh(item, attribute_names=["uom_rel"])
         return item
 
     @staticmethod

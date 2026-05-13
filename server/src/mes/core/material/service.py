@@ -14,6 +14,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mes.framework.api.exceptions import NotFoundException
 from mes.framework.api.pagination import PaginationParams, paginate_query
@@ -43,8 +44,10 @@ class MaterialService:
         material_type: str | None = None,
     ) -> tuple[Sequence[MaterialDefinition], str | None, bool]:
         """List active material definitions with optional type filter."""
-        stmt = select(MaterialDefinition).where(
-            MaterialDefinition.is_active.is_(True),
+        stmt = (
+            select(MaterialDefinition)
+            .options(selectinload(MaterialDefinition.uom_rel))
+            .where(MaterialDefinition.is_active.is_(True))
         )
         if material_type is not None:
             stmt = stmt.where(MaterialDefinition.material_type == material_type)
@@ -55,9 +58,13 @@ class MaterialService:
         session: AsyncSession, material_id: UUID,
     ) -> MaterialDefinition:
         """Get a material definition by ID. Raises NotFoundException if missing."""
-        stmt = select(MaterialDefinition).where(
-            MaterialDefinition.id == material_id,
-            MaterialDefinition.is_active.is_(True),
+        stmt = (
+            select(MaterialDefinition)
+            .options(selectinload(MaterialDefinition.uom_rel))
+            .where(
+                MaterialDefinition.id == material_id,
+                MaterialDefinition.is_active.is_(True),
+            )
         )
         result = await session.execute(stmt)
         material = result.scalar_one_or_none()
@@ -85,6 +92,7 @@ class MaterialService:
         material = MaterialDefinition(**kwargs)
         session.add(material)
         await session.flush()
+        await session.refresh(material, attribute_names=["uom_rel"])
 
         logger.info(
             "Created material definition %s (%s)",
@@ -115,6 +123,7 @@ class MaterialService:
             if value is not None:
                 setattr(material, key, value)
         await session.flush()
+        await session.refresh(material, attribute_names=["uom_rel"])
 
         logger.info(
             "Updated material definition %s (%s)", material.id, material.code,

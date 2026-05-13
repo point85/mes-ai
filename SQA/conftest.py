@@ -121,3 +121,45 @@ def data_definition_cleanup(api):
     _delete_sqa_data_definitions()
     yield
     _delete_sqa_data_definitions()
+
+
+# ---------------------------------------------------------------------------
+# product_cleanup -- delete all SQA_PROD_* test products
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=False)
+def product_cleanup(api):
+    """Delete any products whose code starts with 'SQA_PROD_' before and after the test."""
+
+    def _delete_sqa_products():
+        resp = api.get("/products", params={"limit": "200"})
+        if resp.status_code != 200:
+            return
+        items = resp.json().get("data", [])
+        for product in items:
+            if product.get("code", "").startswith("SQA_PROD_"):
+                api.delete(f"/products/{product['id']}")
+
+    _delete_sqa_products()
+    yield
+    _delete_sqa_products()
+
+
+# ---------------------------------------------------------------------------
+# material_cleanup -- delete all SQA_MAT_* test materials
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=False)
+def material_cleanup(api):
+    """Delete any materials whose code starts with 'SQA_MAT_' before and after the test."""
+
+    def _delete_sqa_materials():
+        resp = api.get("/materials", params={"limit": "200"})
+        if resp.status_code != 200:
+            return
+        items = resp.json().get("data", [])
+        for material in items:
+            if material.get("code", "").startswith("SQA_MAT_"):
+                api.delete(f"/materials/{material['id']}")
+
+    _delete_sqa_materials()
+    yield
+    _delete_sqa_materials()

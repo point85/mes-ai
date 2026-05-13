@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MES AI - DT SQA Audit runner
-# Usage: ./run-dt-audit.sh --scope uom|data-definitions|work-schedule|all [--headed] [--server URL] [--dt URL]
+# Usage: ./run-dt-audit.sh --scope uom|data-definitions|products|work-schedule|all [--headed] [--server URL] [--dt URL]
 
 set -euo pipefail
 
@@ -11,17 +11,19 @@ DT_URL="http://localhost:5177"
 
 show_usage() {
   echo "Usage:"
-  echo "  ./run-dt-audit.sh --scope <uom|data-definitions|work-schedule|all> [--headed] [--server URL] [--dt URL]"
+  echo "  ./run-dt-audit.sh --scope <uom|data-definitions|products|work-schedule|all> [--headed] [--server URL] [--dt URL]"
   echo
   echo "Scopes:"
   echo "  uom            Run Units of Measure DT tests only"
   echo "  data-definitions Run Data Definitions DT tests only"
+  echo "  products       Run Products and BOM DT tests only"
   echo "  work-schedule  Run Work Schedule DT tests only"
   echo "  all            Run the full DT SQA suite"
   echo
   echo "Examples:"
   echo "  ./run-dt-audit.sh --scope uom"
   echo "  ./run-dt-audit.sh --scope data-definitions"
+  echo "  ./run-dt-audit.sh --scope products"
   echo "  ./run-dt-audit.sh --scope work-schedule --headed"
   echo "  ./run-dt-audit.sh --scope all --server http://localhost:8082 --dt http://localhost:5173"
 }
@@ -54,6 +56,12 @@ case "$SCOPE" in
   data-definitions)
     TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT/test_data_definition_crud.py")
     ;;
+  products)
+    TEST_TARGETS=(
+      "$(dirname "$0")/modules/SQA-DT/test_product_crud.py"
+      "$(dirname "$0")/modules/SQA-DT/test_product_bom_crud.py"
+    )
+    ;;
   work-schedule)
     TEST_TARGETS=(
       "$(dirname "$0")/modules/SQA-DT/test_work_schedule_crud.py"
@@ -69,7 +77,7 @@ case "$SCOPE" in
     ;;
   *)
     echo "Invalid scope: $SCOPE"
-    echo "Expected one of: uom, data-definitions, work-schedule, all"
+    echo "Expected one of: uom, data-definitions, products, work-schedule, all"
     exit 2
     ;;
 esac
