@@ -266,7 +266,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "S050 (2026-05-13): SQA-DT UoM audit 7/7 green. Fixed run-audit.ps1 health probe URL. OpenClaw browser navigation blocked by policy — Playwright UI tests must run via direct pytest invocation (pytest --headed). Next: expand SQA-DT coverage to remaining DT-CLIENT pages; implement SQA-API and SQA-SMOKE modules.",
+  "currentTask": "S050 (2026-05-13): SQA-DT suite expanded to UoM + full Work Schedule coverage. Audit runner renamed to run-dt-audit.ps1/sh with explicit scope selection: uom, work-schedule, all. OpenClaw removed from the test execution path. Next: expand SQA-DT to another editor surface and implement SQA-API and SQA-SMOKE modules.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",

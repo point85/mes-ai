@@ -12,7 +12,7 @@
 
 ### Work done
 - Fixed proxy ECONNREFUSED: identified root cause as DT-CLIENT Vite proxy defaulting to port 8082 while server was started on port 8081. Resolution: pass `MES_SERVER_URL=http://localhost:8081` (or use `-ServerUrl` flag on `run-client.ps1`).
-- Fixed `run-audit.ps1` health check: OpenClaw agent was probing bare root `/` (returns 404 by design); changed task prompt to probe `/health`.
+- Fixed `run-dt-audit.ps1` health check: audit runner probes `/health` instead of the bare root `/`, which returns 404 by design.
 - **SQA-DT UoM audit PASSED**: `pytest SQA/modules/SQA-DT/test_uom_crud.py` — 7/7 tests green (21.99 s). Green entry appended to `SQA/HEARTBEAT.md`.
 
 ### Pending / next

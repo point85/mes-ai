@@ -225,8 +225,8 @@ MES AI runs on any desktop operating system — **Windows**, **macOS**, and **Li
 |---|---|---|
 | `server/scripts/dev-setup.sh` | Linux / macOS | Dev bootstrap & service launcher (detects Windows venv paths as fallback) |
 | `server/scripts/pg-service.ps1` | Windows | Manage PostgreSQL as a Windows service; no Unix equivalent (uses Docker instead) |
-| `SQA/run-audit.sh` | Linux / macOS | Run SQA UI audit |
-| `SQA/run-audit.ps1` | Windows | Run SQA UI audit (paired with `.sh`) |
+| `SQA/run-dt-audit.sh` | Linux / macOS | Run DT-CLIENT SQA UI audit |
+| `SQA/run-dt-audit.ps1` | Windows | Run DT-CLIENT SQA UI audit (paired with `.sh`) |
 
 These scripts are developer tooling only and are not required at runtime. The server and all clients start with standard cross-platform commands (`uvicorn`, `npm run dev`).
 

@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# MES AI - DT SQA Audit runner
+# Usage: ./run-dt-audit.sh --scope uom|work-schedule|all [--headed] [--server URL] [--dt URL]
+
+set -euo pipefail
+
+SCOPE=""
+HEADED="0"
+SERVER_URL="http://localhost:8081"
+DT_URL="http://localhost:5177"
+
+show_usage() {
+  echo "Usage:"
+  echo "  ./run-dt-audit.sh --scope <uom|work-schedule|all> [--headed] [--server URL] [--dt URL]"
+  echo
+  echo "Scopes:"
+  echo "  uom            Run Units of Measure DT tests only"
+  echo "  work-schedule  Run Work Schedule DT tests only"
+  echo "  all            Run the full DT SQA suite"
+  echo
+  echo "Examples:"
+  echo "  ./run-dt-audit.sh --scope uom"
+  echo "  ./run-dt-audit.sh --scope work-schedule --headed"
+  echo "  ./run-dt-audit.sh --scope all --server http://localhost:8082 --dt http://localhost:5173"
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --scope)            SCOPE="$2";         shift 2 ;;
+    -h|--help)          show_usage;          exit 0 ;;
+    --headed)           HEADED="1";         shift ;;
+    --server)           SERVER_URL="$2";    shift 2 ;;
+    --dt)               DT_URL="$2";        shift 2 ;;
+    *)                  echo "Unknown argument: $1"; echo; show_usage; exit 2 ;;
+  esac
+done
+
+if [[ -z "$SCOPE" ]]; then
+  show_usage
+  exit 2
+fi
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PYTHON="$REPO_ROOT/.venv/bin/python"
+TIMESTAMP="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+HEARTBEAT="$(dirname "$0")/HEARTBEAT.md"
+
+case "$SCOPE" in
+  uom)
+    TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT/test_uom_crud.py")
+    ;;
+  work-schedule)
+    TEST_TARGETS=(
+      "$(dirname "$0")/modules/SQA-DT/test_work_schedule_crud.py"
+      "$(dirname "$0")/modules/SQA-DT/test_work_schedule_shift_crud.py"
+      "$(dirname "$0")/modules/SQA-DT/test_work_schedule_rotation_crud.py"
+      "$(dirname "$0")/modules/SQA-DT/test_work_schedule_team_crud.py"
+      "$(dirname "$0")/modules/SQA-DT/test_work_schedule_non_working_period_crud.py"
+      "$(dirname "$0")/modules/SQA-DT/test_work_schedule_queries.py"
+    )
+    ;;
+  all)
+    TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT")
+    ;;
+  *)
+    echo "Invalid scope: $SCOPE"
+    echo "Expected one of: uom, work-schedule, all"
+    exit 2
+    ;;
+esac
+
+echo ""
+echo "MES AI - DT SQA Audit"
+echo "  Scope     : $SCOPE"
+echo "  Targets   :"
+for target in "${TEST_TARGETS[@]}"; do
+  echo "    - $target"
+done
+echo "  Server    : $SERVER_URL"
+echo "  DT-CLIENT : $DT_URL"
+echo "  Headed    : $HEADED"
+echo ""
+
+echo "[1/3] Health checks..."
+
+check_url() {
+  local url="$1" label="$2"
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$url" || echo "000")
+  if [[ "$code" == "200" ]]; then
+    echo "  [OK]   $label ($url) -> $code"
+  else
+    echo "  [FAIL] $label ($url) -> $code"
+    return 1
+  fi
+}
+
+check_url "$SERVER_URL/health" "MES server"
+check_url "$DT_URL" "DT-CLIENT"
+
+echo ""
+echo "[2/3] Running pytest ($SCOPE)..."
+
+export SQA_SERVER_URL="$SERVER_URL"
+export SQA_DT_URL="$DT_URL"
+export SQA_HEADED="$HEADED"
+
+cd "$REPO_ROOT"
+set +e
+"$PYTHON" -m pytest "${TEST_TARGETS[@]}" -v --tb=short
+EXIT_CODE=$?
+set -e
+
+echo ""
+echo "[3/3] Updating HEARTBEAT.md..."
+
+if [[ $EXIT_CODE -eq 0 ]]; then
+  ICON="PASS"
+  RESULT="all tests passed"
+else
+  ICON="FAIL"
+  RESULT="FAILURES - see SQA/reports/latest/report.html"
+fi
+
+cat >> "$HEARTBEAT" <<EOF
+
+## $TIMESTAMP - DT-AUDIT [$ICON]
+- Scope  : $SCOPE
+- Server : $SERVER_URL  DT-CLIENT : $DT_URL
+- pytest : $RESULT
+- Report : SQA/reports/latest/report.html
+EOF
+
+echo "  HEARTBEAT.md updated."
+echo ""
+echo "Audit complete - [$ICON]"
+exit $EXIT_CODE

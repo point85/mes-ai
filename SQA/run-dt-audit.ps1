@@ -1,10 +1,12 @@
 <#
 .SYNOPSIS
-    Run the SQA audit: health checks + pytest + Playwright, no external agent required.
+    Run the DT-CLIENT SQA audit: health checks + pytest + Playwright.
 
-.PARAMETER Module
-    SQA module folder under SQA/modules/ or a specific pytest file path under SQA/modules.
-    Default: SQA-DT
+.PARAMETER Scope
+    Portion of the DT suite to run.
+    - uom            : Units of Measure tests only
+    - work-schedule  : Work Schedule tests only
+    - all            : All DT-CLIENT SQA tests
 
 .PARAMETER Headed
     Launch Playwright browser in headed mode (visible window). Default: headless.
@@ -16,14 +18,16 @@
     DT-CLIENT base URL. Default: http://localhost:5177
 
 .EXAMPLE
-    .\run-audit.ps1
-    .\run-audit.ps1 -Module SQA-DT -Headed
-    .\run-audit.ps1 -Module SQA\modules\SQA-DT\test_work_schedule_team_crud.py
-    .\run-audit.ps1 -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173
+    .\run-dt-audit.ps1 -Scope all
+    .\run-dt-audit.ps1 -Scope uom
+    .\run-dt-audit.ps1 -Scope work-schedule -Headed
+    .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173
 #>
 param(
-    [string]$Module    = "SQA-DT",
+    [ValidateSet("uom", "work-schedule", "all")]
+    [string]$Scope,
     [switch]$Headed,
+    [switch]$Help,
     [string]$ServerUrl = "http://localhost:8081",
     [string]$DtUrl     = "http://localhost:5177"
 )
@@ -36,30 +40,67 @@ $Python    = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 $Timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
 $Heartbeat = Join-Path $PSScriptRoot "HEARTBEAT.md"
 
-function Resolve-TestTarget {
-    param([string]$ModuleArg)
-
-    $candidatePaths = @(
-        $ModuleArg,
-        (Join-Path $RepoRoot $ModuleArg),
-        (Join-Path $PSScriptRoot ("modules\" + $ModuleArg))
-    )
-
-    foreach ($candidate in $candidatePaths) {
-        if (Test-Path $candidate) {
-            return (Resolve-Path $candidate).Path
-        }
-    }
-
-    return (Join-Path $PSScriptRoot ("modules\" + $ModuleArg))
+function Show-Usage {
+    Write-Host "Usage:" -ForegroundColor Yellow
+    Write-Host "  .\run-dt-audit.ps1 -Scope <uom|work-schedule|all> [-Headed] [-ServerUrl <url>] [-DtUrl <url>]"
+    Write-Host ""
+    Write-Host "Scopes:" -ForegroundColor Yellow
+    Write-Host "  uom            Run Units of Measure DT tests only"
+    Write-Host "  work-schedule  Run Work Schedule DT tests only"
+    Write-Host "  all            Run the full DT SQA suite"
+    Write-Host ""
+    Write-Host "Examples:" -ForegroundColor Yellow
+    Write-Host "  .\run-dt-audit.ps1 -Scope uom"
+    Write-Host "  .\run-dt-audit.ps1 -Scope work-schedule -Headed"
+    Write-Host "  .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173"
 }
 
-$TestTarget = Resolve-TestTarget -ModuleArg $Module
+if ($Help) {
+    Show-Usage
+    exit 0
+}
+
+if ([string]::IsNullOrWhiteSpace($Scope)) {
+    Show-Usage
+    exit 2
+}
+
+function Resolve-TestTargets {
+    param([string]$SelectedScope)
+
+    switch ($SelectedScope) {
+        "uom" {
+            return @(
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_uom_crud.py")
+            )
+        }
+        "work-schedule" {
+            return @(
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_work_schedule_crud.py"),
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_work_schedule_shift_crud.py"),
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_work_schedule_rotation_crud.py"),
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_work_schedule_team_crud.py"),
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_work_schedule_non_working_period_crud.py"),
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_work_schedule_queries.py")
+            )
+        }
+        default {
+            return @(
+                (Join-Path $PSScriptRoot "modules\SQA-DT")
+            )
+        }
+    }
+}
+
+$TestTargets = Resolve-TestTargets -SelectedScope $Scope
 
 Write-Host ""
-Write-Host "MES AI - SQA Audit" -ForegroundColor Cyan
-Write-Host "  Module    : $Module"
-Write-Host "  Target    : $TestTarget"
+Write-Host "MES AI - DT SQA Audit" -ForegroundColor Cyan
+Write-Host "  Scope     : $Scope"
+Write-Host "  Targets   :"
+foreach ($target in $TestTargets) {
+    Write-Host "    - $target"
+}
 Write-Host "  Server    : $ServerUrl"
 Write-Host "  DT-CLIENT : $DtUrl"
 Write-Host "  Headed    : $($Headed.IsPresent)"
@@ -98,7 +139,7 @@ if (-not $serverOk -or -not $dtOk) {
 
 # --- 2. Run pytest + Playwright ----------------------------------------------
 Write-Host ""
-Write-Host "[2/3] Running pytest ($Module)..." -ForegroundColor Yellow
+Write-Host "[2/3] Running pytest ($Scope)..." -ForegroundColor Yellow
 
 $env:SQA_SERVER_URL = $ServerUrl
 $env:SQA_DT_URL     = $DtUrl
@@ -106,7 +147,7 @@ $env:SQA_HEADED     = if ($Headed) { "1" } else { "0" }
 
 Push-Location $RepoRoot
 try {
-    & $Python -m pytest $TestTarget -v --tb=short
+    & $Python -m pytest $TestTargets -v --tb=short
     $ExitCode = $LASTEXITCODE
 }
 finally {
@@ -130,7 +171,8 @@ else {
 
 $entry = @"
 
-## $Timestamp - $Module [$icon]
+## $Timestamp - DT-AUDIT [$icon]
+- Scope  : $Scope
 - Server : $ServerUrl  DT-CLIENT : $DtUrl
 - pytest : $detail
 - Report : SQA/reports/latest/report.html

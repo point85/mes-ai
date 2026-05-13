@@ -10,7 +10,7 @@ Read [](file:///c%3A/dev/mes_ai/SQA/config.yaml)
 
 Read [](file:///c%3A/dev/mes_ai/SQA/.openclaw/souls/qa_tester.md)
 
-Read [](file:///c%3A/dev/mes_ai/SQA/run-audit.ps1)
+Read [](file:///c%3A/dev/mes_ai/SQA/run-dt-audit.ps1)
 
 Read [](file:///c%3A/dev/mes_ai/SQA/SKILL_QA_ENGINEER.md)
 
@@ -37,14 +37,14 @@ Create `SQA/modules/SQA-DT/test_uom_crud.py` covering the Create → Edit → De
 - API oracle after each UI action (confirm the DB actually changed)
 - Setup and teardown via the REST API (not the UI)
 
-**Step 5 — Update run-audit.ps1 with the UoM task prompt**
-Replace the "Time Traveler" task string with the MES AI UoM audit task so run-audit.ps1 drives the agent at the right target.
+**Step 5 — Update run-dt-audit.ps1 for DT-CLIENT scope selection**
+Use the DT-CLIENT audit runner scopes (`uom`, `work-schedule`, `all`) to drive the desired pytest slice.
 
 **Step 6 — Start the stack**
 Verify the server (`http://localhost:8082/health`) and DT-CLIENT (`http://localhost:5173`) are running before the test executes — the script will check and print a warning if they are not.
 
 **Step 7 — Run the test**
-Execute run-audit.ps1, which launches the OpenClaw agent. The agent will:
+Execute run-dt-audit.ps1, which launches the DT-CLIENT pytest + Playwright audit. The runner will:
 1. Read `SQA/plans/SQA-DT.md` and ARCHITECTURE.md
 2. Run `pytest SQA/modules/SQA-DT/test_uom_crud.py -v` via its terminal tool
 3. On failure, take a screenshot and create a GitHub issue; on pass, update HEARTBEAT.md

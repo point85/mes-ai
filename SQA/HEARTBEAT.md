@@ -15,3 +15,56 @@ TASK: Use SKILL_QA_ENGINEER to test the first feature listed in architecture.md.
 - Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
 - pytest : all tests passed
 - Report : SQA/reports/latest/report.html
+
+## 2026-05-13T11:11:54Z - SQA-DT [PASS]
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-13T11:15:11Z - DT-AUDIT [FAIL]
+- Scope  : uom
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-13T11:15:22Z - DT-AUDIT [PASS]
+- Scope  : work-schedule
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-13T11:16:35Z - DT-AUDIT [FAIL]
+- Scope  : uom
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-13T11:16:43Z - DT-AUDIT [FAIL]
+- Scope  : all
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-13T11:16:56Z - DT-AUDIT [PASS]
+- Scope  : uom
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-13T11:17:26Z - DT-AUDIT [PASS]
+- Scope  : all
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-13T11:20:59Z - DT-AUDIT [PASS]
+- Scope  : uom
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-13T11:22:06Z - DT-AUDIT [PASS]
+- Scope  : uom
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html
