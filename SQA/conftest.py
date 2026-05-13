@@ -8,7 +8,11 @@ Environment variables (with defaults):
 """
 from __future__ import annotations
 
+import json
 import os
+from datetime import datetime, timezone
+from pathlib import Path
+
 import pytest
 import httpx
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
@@ -21,6 +25,166 @@ DT_URL     = os.environ.get("SQA_DT_URL",     "http://localhost:5177")
 HEADED     = os.environ.get("SQA_HEADED", "0") == "1"
 
 API_BASE   = f"{SERVER_URL}/api/v1"
+SQA_ROOT   = Path(__file__).resolve().parent
+REPO_ROOT  = SQA_ROOT.parent
+DEFECT_LOG_PATH = REPO_ROOT / "docs" / "DEFECT_LOG.md"
+DEFECT_STATE_PATH = SQA_ROOT / ".defect_state.json"
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _read_defect_state() -> dict:
+    if not DEFECT_STATE_PATH.exists():
+        return {"open_defects": {}}
+
+    try:
+        return json.loads(DEFECT_STATE_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"open_defects": {}}
+
+
+def _write_defect_state(state: dict) -> None:
+    DEFECT_STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _ensure_defect_log() -> None:
+    if DEFECT_LOG_PATH.exists():
+        return
+
+    DEFECT_LOG_PATH.write_text(
+        "# Defect Log\n\n"
+        "> Running log of defects discovered by SQA tests and later confirmed fixed.\n\n"
+        "Entries are appended automatically by the shared pytest harness in SQA/conftest.py.\n",
+        encoding="utf-8",
+    )
+
+
+def _append_defect_log(entry: str) -> None:
+    _ensure_defect_log()
+    with DEFECT_LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(f"\n{entry}\n")
+
+
+def _normalize_longrepr(longrepr) -> str:
+    if longrepr is None:
+        return ""
+    text = str(longrepr).strip()
+    if not text:
+        return ""
+    return "\n".join(line.rstrip() for line in text.splitlines()[:25])
+
+
+def _summarize_failure(longrepr_text: str) -> str:
+    if not longrepr_text:
+        return "Test failed without a captured traceback."
+
+    lines = [line.strip() for line in longrepr_text.splitlines() if line.strip()]
+    if not lines:
+        return "Test failed without a captured traceback."
+
+    for line in reversed(lines):
+        if any(token in line for token in ("AssertionError", "Error", "Exception", "Failed")):
+            return line[:300]
+    return lines[-1][:300]
+
+
+def _make_failure_signature(nodeid: str, summary: str) -> str:
+    normalized = " ".join(summary.split())
+    return f"{nodeid}::{normalized}"
+
+
+def _record_new_defect(nodeid: str, summary: str, traceback_text: str) -> None:
+    state = _read_defect_state()
+    open_defects = state.setdefault("open_defects", {})
+    signature = _make_failure_signature(nodeid, summary)
+    timestamp = _utc_now()
+
+    existing = open_defects.get(nodeid)
+    if existing and existing.get("signature") == signature:
+        existing["last_seen"] = timestamp
+        existing["occurrences"] = int(existing.get("occurrences", 1)) + 1
+        _write_defect_state(state)
+        return
+
+    open_defects[nodeid] = {
+        "signature": signature,
+        "summary": summary,
+        "first_seen": timestamp,
+        "last_seen": timestamp,
+        "occurrences": 1,
+        "traceback": traceback_text,
+    }
+    _write_defect_state(state)
+
+    _append_defect_log(
+        "## [OPEN] {timestamp} - {nodeid}\n"
+        "- Summary: {summary}\n"
+        "- First seen: {timestamp}\n"
+        "- Last seen: {timestamp}\n"
+        "- Occurrences: 1\n"
+        "- Status: open\n"
+        "- Traceback excerpt:\n"
+        "```text\n{traceback}\n```".format(
+            timestamp=timestamp,
+            nodeid=nodeid,
+            summary=summary,
+            traceback=traceback_text or "No traceback captured.",
+        )
+    )
+
+
+def _resolve_defect(nodeid: str) -> None:
+    state = _read_defect_state()
+    open_defects = state.setdefault("open_defects", {})
+    existing = open_defects.pop(nodeid, None)
+    if not existing:
+        return
+
+    resolved_at = _utc_now()
+    _write_defect_state(state)
+
+    _append_defect_log(
+        "## [RESOLVED] {resolved_at} - {nodeid}\n"
+        "- Summary: {summary}\n"
+        "- First seen: {first_seen}\n"
+        "- Last seen failing run: {last_seen}\n"
+        "- Occurrences before fix: {occurrences}\n"
+        "- Status: resolved\n"
+        "- Resolved at: {resolved_at}".format(
+            resolved_at=resolved_at,
+            nodeid=nodeid,
+            summary=existing.get("summary", "Unknown failure"),
+            first_seen=existing.get("first_seen", "unknown"),
+            last_seen=existing.get("last_seen", "unknown"),
+            occurrences=existing.get("occurrences", 1),
+        )
+    )
+
+
+def pytest_sessionstart(session) -> None:
+    _ensure_defect_log()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    setattr(item, f"_report_{report.when}", report)
+
+
+def pytest_runtest_teardown(item, nextitem) -> None:
+    call_report = getattr(item, "_report_call", None)
+    if call_report is None:
+        return
+
+    if call_report.failed:
+        traceback_text = _normalize_longrepr(call_report.longrepr)
+        summary = _summarize_failure(traceback_text)
+        _record_new_defect(item.nodeid, summary, traceback_text)
+    elif call_report.passed:
+        _resolve_defect(item.nodeid)
 
 
 # ---------------------------------------------------------------------------
