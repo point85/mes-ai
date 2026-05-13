@@ -5,6 +5,7 @@
 .PARAMETER Scope
     Portion of the DT suite to run.
     - uom            : Units of Measure tests only
+    - data-definitions : Data Definitions tests only
     - work-schedule  : Work Schedule tests only
     - all            : All DT-CLIENT SQA tests
 
@@ -20,11 +21,12 @@
 .EXAMPLE
     .\run-dt-audit.ps1 -Scope all
     .\run-dt-audit.ps1 -Scope uom
+    .\run-dt-audit.ps1 -Scope data-definitions
     .\run-dt-audit.ps1 -Scope work-schedule -Headed
     .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173
 #>
 param(
-    [ValidateSet("uom", "work-schedule", "all")]
+    [ValidateSet("uom", "data-definitions", "work-schedule", "all")]
     [string]$Scope,
     [switch]$Headed,
     [switch]$Help,
@@ -42,15 +44,17 @@ $Heartbeat = Join-Path $PSScriptRoot "HEARTBEAT.md"
 
 function Show-Usage {
     Write-Host "Usage:" -ForegroundColor Yellow
-    Write-Host "  .\run-dt-audit.ps1 -Scope <uom|work-schedule|all> [-Headed] [-ServerUrl <url>] [-DtUrl <url>]"
+    Write-Host "  .\run-dt-audit.ps1 -Scope <uom|data-definitions|work-schedule|all> [-Headed] [-ServerUrl <url>] [-DtUrl <url>]"
     Write-Host ""
     Write-Host "Scopes:" -ForegroundColor Yellow
     Write-Host "  uom            Run Units of Measure DT tests only"
+    Write-Host "  data-definitions Run Data Definitions DT tests only"
     Write-Host "  work-schedule  Run Work Schedule DT tests only"
     Write-Host "  all            Run the full DT SQA suite"
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Yellow
     Write-Host "  .\run-dt-audit.ps1 -Scope uom"
+    Write-Host "  .\run-dt-audit.ps1 -Scope data-definitions"
     Write-Host "  .\run-dt-audit.ps1 -Scope work-schedule -Headed"
     Write-Host "  .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173"
 }
@@ -72,6 +76,11 @@ function Resolve-TestTargets {
         "uom" {
             return @(
                 (Join-Path $PSScriptRoot "modules\SQA-DT\test_uom_crud.py")
+            )
+        }
+        "data-definitions" {
+            return @(
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_data_definition_crud.py")
             )
         }
         "work-schedule" {

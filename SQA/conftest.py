@@ -100,3 +100,24 @@ def uom_cleanup(api):
     _delete_sqa_uoms()   # pre-test cleanup (idempotent)
     yield
     _delete_sqa_uoms()   # post-test cleanup
+
+
+# ---------------------------------------------------------------------------
+# data_definition_cleanup -- delete all SQA_DD_* test definitions
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=False)
+def data_definition_cleanup(api):
+    """Delete any data definitions whose code starts with 'SQA_DD_' before and after the test."""
+
+    def _delete_sqa_data_definitions():
+        resp = api.get("/data/definitions", params={"limit": "200"})
+        if resp.status_code != 200:
+            return
+        items = resp.json().get("data", [])
+        for definition in items:
+            if definition.get("code", "").startswith("SQA_DD_"):
+                api.delete(f"/data/definitions/{definition['id']}")
+
+    _delete_sqa_data_definitions()
+    yield
+    _delete_sqa_data_definitions()
