@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MES AI - DT SQA Audit runner
-# Usage: ./run-dt-audit.sh --scope uom|data-definitions|equipment|products|work-schedule|all [--headed] [--server URL] [--dt URL]
+# Usage: ./run-dt-audit.sh --scope uom|data-definitions|storage-locations|equipment|products|work-schedule|all [--headed] [--server URL] [--dt URL]
 
 set -euo pipefail
 
@@ -11,11 +11,12 @@ DT_URL="http://localhost:5177"
 
 show_usage() {
   echo "Usage:"
-  echo "  ./run-dt-audit.sh --scope <uom|data-definitions|equipment|products|work-schedule|all> [--headed] [--server URL] [--dt URL]"
+  echo "  ./run-dt-audit.sh --scope <uom|data-definitions|storage-locations|equipment|products|work-schedule|all> [--headed] [--server URL] [--dt URL]"
   echo
   echo "Scopes:"
   echo "  uom            Run Units of Measure DT tests only"
   echo "  data-definitions Run Data Definitions DT tests only"
+  echo "  storage-locations Run Storage Locations DT tests only"
   echo "  equipment      Run Equipment DT tests only"
   echo "  products       Run Products and BOM DT tests only"
   echo "  work-schedule  Run Work Schedule DT tests only"
@@ -24,6 +25,7 @@ show_usage() {
   echo "Examples:"
   echo "  ./run-dt-audit.sh --scope uom"
   echo "  ./run-dt-audit.sh --scope data-definitions"
+  echo "  ./run-dt-audit.sh --scope storage-locations"
   echo "  ./run-dt-audit.sh --scope equipment"
   echo "  ./run-dt-audit.sh --scope products"
   echo "  ./run-dt-audit.sh --scope work-schedule --headed"
@@ -58,6 +60,9 @@ case "$SCOPE" in
   data-definitions)
     TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT/test_data_definition_crud.py")
     ;;
+  storage-locations)
+    TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT/test_storage_location_crud.py")
+    ;;
   equipment)
     TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT/test_equipment_crud.py")
     ;;
@@ -83,7 +88,7 @@ case "$SCOPE" in
     ;;
   *)
     echo "Invalid scope: $SCOPE"
-    echo "Expected one of: uom, data-definitions, equipment, products, work-schedule, all"
+    echo "Expected one of: uom, data-definitions, storage-locations, equipment, products, work-schedule, all"
     exit 2
     ;;
 esac

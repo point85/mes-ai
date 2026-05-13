@@ -266,7 +266,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "S050 (2026-05-13): SQA-DT suite expanded to uom, data-definitions, equipment, products, and work-schedule coverage. Audit runner renamed to run-dt-audit.ps1/sh with explicit scope selection: uom, data-definitions, equipment, products, work-schedule, all. OpenClaw removed from the test execution path. Next: expand SQA-DT to another editor surface and implement SQA-API and SQA-SMOKE modules.",
+  "currentTask": "S050 (2026-05-13): SQA-DT suite expanded to uom, data-definitions, storage-locations, equipment, products, and work-schedule coverage. Audit runner renamed to run-dt-audit.ps1/sh with explicit scope selection: uom, data-definitions, storage-locations, equipment, products, work-schedule, all. OpenClaw removed from the test execution path. Next: expand SQA-DT to another editor surface and implement SQA-API and SQA-SMOKE modules.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
