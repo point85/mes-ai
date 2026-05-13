@@ -50,7 +50,7 @@ export default function EquipmentMaterialFormDialog({
   );
 
   const rateUoMs = useMemo(
-    () => (uomData?.data ?? []).filter((u) => u.uom_type === "rate"),
+    () => (uomData?.data ?? []).filter((u) => u.uom_class === "quotient" && u.right_uom_type === "time"),
     [uomData],
   );
   const nonRateUoMs = useMemo(

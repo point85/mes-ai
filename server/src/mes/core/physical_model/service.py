@@ -530,7 +530,11 @@ class PhysicalModelService:
         await PhysicalModelService.get_equipment(session, equip_id)
         stmt = (
             select(EquipmentMaterial)
-            .options(selectinload(EquipmentMaterial.material))
+            .options(
+                selectinload(EquipmentMaterial.material),
+                selectinload(EquipmentMaterial.design_speed_unit),
+                selectinload(EquipmentMaterial.reject_unit),
+            )
             .where(
                 EquipmentMaterial.equipment_id == equip_id,
                 EquipmentMaterial.is_active.is_(True),
@@ -545,7 +549,11 @@ class PhysicalModelService:
         """Get an equipment-material setup by ID."""
         stmt = (
             select(EquipmentMaterial)
-            .options(selectinload(EquipmentMaterial.material))
+            .options(
+                selectinload(EquipmentMaterial.material),
+                selectinload(EquipmentMaterial.design_speed_unit),
+                selectinload(EquipmentMaterial.reject_unit),
+            )
             .where(
                 EquipmentMaterial.id == em_id, EquipmentMaterial.is_active.is_(True),
             )
@@ -582,6 +590,10 @@ class PhysicalModelService:
         em = EquipmentMaterial(equipment_id=equip_id, **kwargs)
         session.add(em)
         await session.flush()
+        await session.refresh(
+            em,
+            attribute_names=["material", "design_speed_unit", "reject_unit"],
+        )
         logger.info(
             "Created equipment-material setup %s (equip=%s, mat=%s)",
             em.id, equip_id, kwargs["material_id"],
@@ -598,6 +610,10 @@ class PhysicalModelService:
             if value is not None:
                 setattr(em, key, value)
         await session.flush()
+        await session.refresh(
+            em,
+            attribute_names=["material", "design_speed_unit", "reject_unit"],
+        )
         return em
 
     @staticmethod

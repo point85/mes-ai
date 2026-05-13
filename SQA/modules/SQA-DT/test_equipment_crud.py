@@ -17,10 +17,68 @@ import pytest
 from playwright.async_api import Page, expect
 
 API_SITES = "/sites"
+API_UOM = "/uom"
+API_MATERIALS = "/materials"
 
 
 def _unique_code(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:8]}"
+
+
+def _create_scalar_uom(
+    api,
+    *,
+    symbol: str,
+    name: str,
+    uom_type: str = "count",
+    multiplier: float = 1.0,
+    offset: float = 0.0,
+) -> dict:
+    resp = api.post(
+        API_UOM,
+        json={
+            "symbol": symbol,
+            "name": name,
+            "uom_type": uom_type,
+            "uom_class": "scalar",
+            "multiplier": multiplier,
+            "offset": offset,
+        },
+    )
+    assert resp.status_code in (200, 201), f"UoM setup failed: {resp.text}"
+    return resp.json()["data"]
+
+
+def _create_rate_uom(api, *, symbol: str, name: str, left_uom_symbol: str, right_uom_symbol: str) -> dict:
+    resp = api.post(
+        API_UOM,
+        json={
+            "symbol": symbol,
+            "name": name,
+            "uom_type": "count",
+            "uom_class": "quotient",
+            "multiplier": 1.0,
+            "offset": 0.0,
+            "left_uom_symbol": left_uom_symbol,
+            "right_uom_symbol": right_uom_symbol,
+        },
+    )
+    assert resp.status_code in (200, 201), f"Rate UoM setup failed: {resp.text}"
+    return resp.json()["data"]
+
+
+def _create_material(api, *, uom_id: str, **overrides) -> dict:
+    payload = {
+        "code": _unique_code("SQA_MAT"),
+        "name": "SQA Equipment Material",
+        "description": "SQA material for equipment material setup tests",
+        "material_type": "raw",
+        "uom_id": uom_id,
+    }
+    payload.update(overrides)
+    resp = api.post(API_MATERIALS, json=payload)
+    assert resp.status_code in (200, 201), f"Material setup failed: {resp.text}"
+    return resp.json()["data"]
 
 
 def _create_site(api) -> dict:
@@ -88,6 +146,20 @@ def _create_equipment(api, *, wc_id: str, **overrides) -> dict:
     return resp.json()["data"]
 
 
+def _create_equipment_material(api, *, equip_id: str, material_id: str, design_speed_uom_id: str, reject_uom_id: str, **overrides) -> dict:
+    payload = {
+        "material_id": material_id,
+        "design_speed": 120.0,
+        "design_speed_uom_id": design_speed_uom_id,
+        "reject_uom_id": reject_uom_id,
+        "target_oee": 88.5,
+    }
+    payload.update(overrides)
+    resp = api.post(f"/equipment/{equip_id}/materials", json=payload)
+    assert resp.status_code in (200, 201), f"Equipment material setup failed: {resp.text}"
+    return resp.json()["data"]
+
+
 async def _open_equipment_page(page: Page, *, wc_id: str) -> None:
     await page.goto(f"http://localhost:5177/work-cells/{wc_id}/equipment")
     await expect(page.get_by_role("heading", name="Equipment")).to_be_visible(timeout=10_000)
@@ -99,6 +171,14 @@ async def _open_capability_page(page: Page, *, wc_id: str, equipment_code: str) 
     await expect(row).to_be_visible(timeout=8_000)
     await row.get_by_title("Capabilities").click()
     await expect(page.get_by_role("heading", name="Equipment Capabilities")).to_be_visible(timeout=10_000)
+
+
+async def _open_material_page(page: Page, *, wc_id: str, equipment_code: str) -> None:
+    await _open_equipment_page(page, wc_id=wc_id)
+    row = page.locator("tr").filter(has_text=equipment_code)
+    await expect(row).to_be_visible(timeout=8_000)
+    await row.get_by_title("Material Setups").click()
+    await expect(page.get_by_role("heading", name="Material Setups")).to_be_visible(timeout=10_000)
 
 
 def _create_hierarchy(api) -> dict:
@@ -275,3 +355,146 @@ async def test_equipment_capability_crud(page: Page, api) -> None:
     delete_resp = api.get(f"/equipment/{equipment['id']}/capabilities")
     assert delete_resp.status_code == 200, delete_resp.text
     assert delete_resp.json()["data"] == []
+
+
+@pytest.mark.ui
+@pytest.mark.usefixtures("physical_model_cleanup", "uom_cleanup", "material_cleanup")
+async def test_equipment_material_setup_create(page: Page, api) -> None:
+    hierarchy = _create_hierarchy(api)
+    wc_id = hierarchy["work_cell"]["id"]
+    equipment = _create_equipment(api, wc_id=wc_id, name="SQA Material Create Equipment")
+    material_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_MU"), name="SQA Material UoM")
+    time_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_HR"), name="SQA Hour", uom_type="time", multiplier=3600.0)
+    reject_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_RJ"), name="SQA Reject UoM")
+    speed_uom = _create_rate_uom(
+        api,
+        symbol=_unique_code("SQA_RT"),
+        name="SQA Rate UoM",
+        left_uom_symbol=reject_uom["symbol"],
+        right_uom_symbol=time_uom["symbol"],
+    )
+    material = _create_material(api, uom_id=material_uom["id"], name="SQA Material Create")
+
+    await _open_material_page(page, wc_id=wc_id, equipment_code=equipment["code"])
+    await page.get_by_role("button", name="Add Material Setup").click()
+    await expect(page.get_by_role("heading", name="New Material Setup")).to_be_visible(timeout=5_000)
+
+    await page.locator("select[name='material_id']").select_option(material["id"])
+    await page.locator("input[name='design_speed']").fill("144.5")
+    await page.locator("select[name='design_speed_uom_id']").select_option(speed_uom["id"])
+    await page.locator("select[name='reject_uom_id']").select_option(reject_uom["id"])
+    await page.locator("input[name='target_oee']").fill("92.5")
+    await page.get_by_role("button", name="Create").click()
+
+    row = page.locator("tr").filter(has_text=material["code"])
+    await expect(row).to_be_visible(timeout=8_000)
+    await expect(row.locator("td", has_text="144.5")).to_be_visible()
+    await expect(row.locator("td", has_text="92.5%")).to_be_visible()
+
+    resp = api.get(f"/equipment/{equipment['id']}/materials", params={"limit": "200"})
+    assert resp.status_code == 200, resp.text
+    created = next((item for item in resp.json()["data"] if item["material_id"] == material["id"]), None)
+    assert created is not None
+    assert created["design_speed"] == 144.5
+    assert created["design_speed_uom_id"] == speed_uom["id"]
+    assert created["reject_uom_id"] == reject_uom["id"]
+    assert created["target_oee"] == 92.5
+
+
+@pytest.mark.ui
+@pytest.mark.usefixtures("physical_model_cleanup", "uom_cleanup", "material_cleanup")
+async def test_equipment_material_setup_edit(page: Page, api) -> None:
+    hierarchy = _create_hierarchy(api)
+    wc_id = hierarchy["work_cell"]["id"]
+    equipment = _create_equipment(api, wc_id=wc_id, name="SQA Material Edit Equipment")
+    material_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_MU"), name="SQA Material UoM")
+    time_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_HR"), name="SQA Hour", uom_type="time", multiplier=3600.0)
+    reject_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_RJ"), name="SQA Reject UoM")
+    updated_reject_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_R2J"), name="SQA Updated Reject UoM")
+    speed_uom = _create_rate_uom(
+        api,
+        symbol=_unique_code("SQA_RT"),
+        name="SQA Rate UoM",
+        left_uom_symbol=reject_uom["symbol"],
+        right_uom_symbol=time_uom["symbol"],
+    )
+    updated_speed_uom = _create_rate_uom(
+        api,
+        symbol=_unique_code("SQA_R2"),
+        name="SQA Updated Rate UoM",
+        left_uom_symbol=updated_reject_uom["symbol"],
+        right_uom_symbol=time_uom["symbol"],
+    )
+    material = _create_material(api, uom_id=material_uom["id"], name="SQA Material Edit")
+    material_setup = _create_equipment_material(
+        api,
+        equip_id=equipment["id"],
+        material_id=material["id"],
+        design_speed_uom_id=speed_uom["id"],
+        reject_uom_id=reject_uom["id"],
+        design_speed=120.0,
+        target_oee=81.0,
+    )
+
+    await _open_material_page(page, wc_id=wc_id, equipment_code=equipment["code"])
+    row = page.locator("tr").filter(has_text=material["code"])
+    await expect(row).to_be_visible(timeout=8_000)
+    await row.get_by_title("Edit").click()
+    await expect(page.get_by_role("heading", name="Edit Material Setup")).to_be_visible(timeout=5_000)
+
+    await page.locator("input[name='design_speed']").fill("175")
+    await page.locator("select[name='design_speed_uom_id']").select_option(updated_speed_uom["id"])
+    await page.locator("select[name='reject_uom_id']").select_option(updated_reject_uom["id"])
+    await page.locator("input[name='target_oee']").fill("96.2")
+    await page.get_by_role("button", name="Update").click()
+
+    updated_row = page.locator("tr").filter(has_text=material["code"])
+    await expect(updated_row).to_be_visible(timeout=8_000)
+    await expect(updated_row.locator("td", has_text="175")).to_be_visible()
+    await expect(updated_row.locator("td", has_text="96.2%")).to_be_visible()
+
+    resp = api.get(f"/equipment-materials/{material_setup['id']}")
+    assert resp.status_code == 200, resp.text
+    updated = resp.json()["data"]
+    assert updated["design_speed"] == 175
+    assert updated["design_speed_uom_id"] == updated_speed_uom["id"]
+    assert updated["reject_uom_id"] == updated_reject_uom["id"]
+    assert updated["target_oee"] == 96.2
+
+
+@pytest.mark.ui
+@pytest.mark.usefixtures("physical_model_cleanup", "uom_cleanup", "material_cleanup")
+async def test_equipment_material_setup_delete(page: Page, api) -> None:
+    hierarchy = _create_hierarchy(api)
+    wc_id = hierarchy["work_cell"]["id"]
+    equipment = _create_equipment(api, wc_id=wc_id, name="SQA Material Delete Equipment")
+    material_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_MU"), name="SQA Material UoM")
+    time_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_HR"), name="SQA Hour", uom_type="time", multiplier=3600.0)
+    reject_uom = _create_scalar_uom(api, symbol=_unique_code("SQA_RJ"), name="SQA Reject UoM")
+    speed_uom = _create_rate_uom(
+        api,
+        symbol=_unique_code("SQA_RT"),
+        name="SQA Rate UoM",
+        left_uom_symbol=reject_uom["symbol"],
+        right_uom_symbol=time_uom["symbol"],
+    )
+    material = _create_material(api, uom_id=material_uom["id"], name="SQA Material Delete")
+    material_setup = _create_equipment_material(
+        api,
+        equip_id=equipment["id"],
+        material_id=material["id"],
+        design_speed_uom_id=speed_uom["id"],
+        reject_uom_id=reject_uom["id"],
+    )
+
+    await _open_material_page(page, wc_id=wc_id, equipment_code=equipment["code"])
+    row = page.locator("tr").filter(has_text=material["code"])
+    await expect(row).to_be_visible(timeout=8_000)
+
+    page.on("dialog", lambda dialog: dialog.accept())
+    await row.get_by_title("Delete").click()
+
+    await expect(page.locator("td", has_text=material["code"])).to_be_hidden(timeout=8_000)
+
+    resp = api.get(f"/equipment-materials/{material_setup['id']}")
+    assert resp.status_code == 404, f"Expected 404 after delete, got {resp.status_code}: {resp.text}"
