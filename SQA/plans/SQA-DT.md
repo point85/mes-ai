@@ -282,3 +282,47 @@ The `conftest.py` `uom_cleanup` fixture deletes all `SQA_*` symbols via the API 
   8. Assert via API detail that the team member exists.
   9. Delete the member via the row trash icon.
   10. Assert the member row disappears and the API detail no longer includes it.
+
+### TC-WS-NWP-001 — Create a non-working period
+- **Steps:**
+  1. Seed `SQA NWP Schedule` via API.
+  2. Navigate to the schedule detail page and open `Non-Working Periods`.
+  3. Click `Add Period`.
+  4. Fill Name = `SQA Plant Shutdown`, Description = `SQA planned outage`, Start = `2026-05-20T00:00`, Days = `1`, Hours = `8`.
+  5. Save.
+  6. Assert the row appears with start `2026-05-20 00:00` and duration `1d 8h`.
+  7. Assert via API detail that the period exists with `duration_seconds == 115200`.
+
+### TC-WS-NWP-002 — Edit a non-working period
+- **Steps:**
+  1. Seed `SQA NWP Schedule` and `SQA Plant Shutdown` via API.
+  2. Navigate to `Non-Working Periods`.
+  3. Click Edit.
+  4. Change Name to `SQA Holiday Closure`, Description to `SQA updated outage`, Start to `2026-05-21T06:00`, Days to `0`, Hours to `12`.
+  5. Save.
+  6. Assert the updated row appears and API detail reflects the new values.
+
+### TC-WS-NWP-003 — Delete a non-working period
+- **Steps:**
+  1. Seed `SQA NWP Schedule` and one period via API.
+  2. Navigate to `Non-Working Periods`.
+  3. Click Delete and accept the confirm dialog.
+  4. Assert the row disappears.
+  5. Assert the list API no longer includes the deleted period ID.
+
+### TC-WS-QRY-001 — Query shift instances and working time
+- **Steps:**
+  1. Seed `SQA Query Schedule` with one shift, one rotation, one segment, and one team via API.
+  2. Open `Shift Instances` from the detail page.
+  3. Set From = `2026-05-13T00:00`, To = `2026-05-14T00:00`.
+  4. Click `Show Shifts`.
+  5. Assert the dialog shows a working-time summary matching the API `working-time` endpoint.
+  6. Assert the results table contains `SQA Day Shift` and `SQA Team A`.
+
+### TC-WS-QRY-002 — Query empty shift instance range
+- **Steps:**
+  1. Seed `SQA Query Schedule` with one shift, one rotation, one segment, and one team via API.
+  2. Open `Shift Instances`.
+  3. Set a range with no expected instances.
+  4. Click `Show Shifts`.
+  5. Assert the empty-state message `No shift instances in the selected period.` is shown.
