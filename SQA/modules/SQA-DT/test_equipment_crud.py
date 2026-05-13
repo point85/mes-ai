@@ -19,6 +19,7 @@ from playwright.async_api import Page, expect
 API_SITES = "/sites"
 API_UOM = "/uom"
 API_MATERIALS = "/materials"
+API_EQUIPMENT_CLASSES = "/equipment-classes"
 
 
 def _unique_code(prefix: str) -> str:
@@ -78,6 +79,18 @@ def _create_material(api, *, uom_id: str, **overrides) -> dict:
     payload.update(overrides)
     resp = api.post(API_MATERIALS, json=payload)
     assert resp.status_code in (200, 201), f"Material setup failed: {resp.text}"
+    return resp.json()["data"]
+
+
+def _create_equipment_class(api, **overrides) -> dict:
+    payload = {
+        "name": "SQA Equipment Class",
+        "code": _unique_code("SQA_EC"),
+        "description": "SQA equipment class",
+    }
+    payload.update(overrides)
+    resp = api.post(API_EQUIPMENT_CLASSES, json=payload)
+    assert resp.status_code in (200, 201), f"Equipment class setup failed: {resp.text}"
     return resp.json()["data"]
 
 
@@ -165,6 +178,11 @@ async def _open_equipment_page(page: Page, *, wc_id: str) -> None:
     await expect(page.get_by_role("heading", name="Equipment")).to_be_visible(timeout=10_000)
 
 
+async def _open_equipment_class_page(page: Page) -> None:
+    await page.goto("http://localhost:5177/equipment-classes")
+    await expect(page.get_by_role("heading", name="Equipment Classes")).to_be_visible(timeout=10_000)
+
+
 async def _open_capability_page(page: Page, *, wc_id: str, equipment_code: str) -> None:
     await _open_equipment_page(page, wc_id=wc_id)
     row = page.locator("tr").filter(has_text=equipment_code)
@@ -192,6 +210,74 @@ def _create_hierarchy(api) -> dict:
         "line": line,
         "work_cell": work_cell,
     }
+
+
+@pytest.fixture(autouse=False)
+def equipment_class_cleanup(api):
+    def _delete_sqa_equipment_classes() -> None:
+        resp = api.get(API_EQUIPMENT_CLASSES, params={"limit": "200"})
+        if resp.status_code != 200:
+            return
+        for equipment_class in resp.json().get("data", []):
+            if equipment_class.get("code", "").startswith("SQA_EC_"):
+                api.delete(f"{API_EQUIPMENT_CLASSES}/{equipment_class['id']}")
+
+    _delete_sqa_equipment_classes()
+    yield
+    _delete_sqa_equipment_classes()
+
+
+@pytest.mark.ui
+@pytest.mark.usefixtures("equipment_class_cleanup")
+async def test_equipment_class_crud(page: Page, api) -> None:
+    code = _unique_code("SQA_EC")
+
+    await _open_equipment_class_page(page)
+    await page.get_by_role("button", name="New Class").click()
+    await expect(page.get_by_role("heading", name="New Equipment Class")).to_be_visible(timeout=5_000)
+
+    await page.locator("input").nth(0).fill("SQA Mixer Class")
+    await page.locator("input").nth(1).fill(code)
+    await page.locator("textarea").fill("SQA class create path")
+    await page.get_by_role("button", name="Create").click()
+
+    row = page.locator("tr").filter(has_text=code)
+    await expect(row).to_be_visible(timeout=8_000)
+    await expect(row.locator("td", has_text="SQA Mixer Class")).to_be_visible()
+
+    create_resp = api.get(API_EQUIPMENT_CLASSES, params={"limit": "200"})
+    assert create_resp.status_code == 200, create_resp.text
+    created = next((item for item in create_resp.json()["data"] if item["code"] == code), None)
+    assert created is not None
+    assert created["name"] == "SQA Mixer Class"
+    assert created["description"] == "SQA class create path"
+
+    await row.get_by_title("Edit").click()
+    await expect(page.get_by_role("heading", name="Edit Equipment Class")).to_be_visible(timeout=5_000)
+
+    await page.locator("input").nth(0).fill("SQA Oven Class")
+    await page.locator("textarea").fill("SQA class edit path")
+    await page.get_by_role("button", name="Save").click()
+
+    updated_row = page.locator("tr").filter(has_text=code)
+    await expect(updated_row).to_be_visible(timeout=8_000)
+    await expect(updated_row.locator("td", has_text="SQA Oven Class")).to_be_visible()
+
+    detail_resp = api.get(f"{API_EQUIPMENT_CLASSES}/{created['id']}")
+    assert detail_resp.status_code == 200, detail_resp.text
+    updated = detail_resp.json()["data"]
+    assert updated["name"] == "SQA Oven Class"
+    assert updated["description"] == "SQA class edit path"
+
+    page.on("dialog", lambda dialog: dialog.accept())
+    await updated_row.get_by_title("Delete").click()
+
+    await expect(page.locator("td", has_text=code)).to_be_hidden(timeout=8_000)
+
+    delete_resp = api.get(f"{API_EQUIPMENT_CLASSES}/{created['id']}")
+    assert delete_resp.status_code == 404, (
+        f"Expected 404 after delete, got {delete_resp.status_code}: {delete_resp.text}"
+    )
 
 
 @pytest.mark.ui
