@@ -307,3 +307,7 @@ UI	URL
 Swagger UI	http://localhost:8082/api/v1/docs
 ReDoc	http://localhost:8082/api/v1/redoc
 OpenAPI JSON	http://localhost:8082/api/v1/openapi.json
+
+SQA URLs
+.\run-server.ps1 postgresql -dbname mes_ai_sqa -uvicornport 8081
+./run-client.ps1 dt-client -serverurl http://localhost:8081 -port 5177

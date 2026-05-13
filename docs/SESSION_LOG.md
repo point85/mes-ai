@@ -8,6 +8,21 @@
 
 ---
 
+## S050 — 2026-05-13
+
+### Work done
+- Fixed proxy ECONNREFUSED: identified root cause as DT-CLIENT Vite proxy defaulting to port 8082 while server was started on port 8081. Resolution: pass `MES_SERVER_URL=http://localhost:8081` (or use `-ServerUrl` flag on `run-client.ps1`).
+- Fixed `run-audit.ps1` health check: OpenClaw agent was probing bare root `/` (returns 404 by design); changed task prompt to probe `/health`.
+- **SQA-DT UoM audit PASSED**: `pytest SQA/modules/SQA-DT/test_uom_crud.py` — 7/7 tests green (21.99 s). Green entry appended to `SQA/HEARTBEAT.md`.
+
+### Pending / next
+- Browser navigation in OpenClaw blocked by policy — `[tools] browser failed: browser navigation blocked by policy`. UI-layer Playwright tests cannot run via OpenClaw; must be run via direct `pytest --headed` invocation instead.
+- Expand SQA-DT coverage: remaining DT-CLIENT pages (Sites, Work Centers, Equipment Classes, Products, Routes, Materials, Orders).
+- SQA-API module: OpenAPI contract tests.
+- SQA-SMOKE module.
+
+---
+
 ## Carry-over from previous log
 
 Full history through S049 is archived at [archive/SESSION_LOG_2026-05-12.md](archive/SESSION_LOG_2026-05-12.md).

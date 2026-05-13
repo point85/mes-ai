@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
-  "lastUpdated": "2026-05-12",
-  "lastSessionId": "S049",
+  "lastUpdated": "2026-05-13",
+  "lastSessionId": "S050",
 
   "phases": [
     {
@@ -266,7 +266,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "S048 (2026-05-08): order_processors.py multi-route crash + idempotency backfill; ERP Simulator UI bugs fixed: route_id null on created orders, readProductRoutes wrong endpoint, UoM blank field, lot number dropdown. Server: material-lots endpoint now supports material_code query filter (join through material_definitions). All TypeScript compiles clean.",
+  "currentTask": "S050 (2026-05-13): SQA-DT UoM audit 7/7 green. Fixed run-audit.ps1 health probe URL. OpenClaw browser navigation blocked by policy — Playwright UI tests must run via direct pytest invocation (pytest --headed). Next: expand SQA-DT coverage to remaining DT-CLIENT pages; implement SQA-API and SQA-SMOKE modules.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
