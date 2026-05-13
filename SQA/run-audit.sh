@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MES AI — SQA Audit runner (no external agent required)
-# Usage: ./run-audit.sh [MODULE] [--headed] [--server URL] [--dt URL]
+# Usage: ./run-audit.sh [MODULE_OR_PATH] [--headed] [--server URL] [--dt URL]
 #
 set -euo pipefail
 
@@ -58,6 +58,13 @@ export SQA_DT_URL="$DT_URL"
 export SQA_HEADED="$HEADED"
 
 TEST_PATH="$(dirname "$0")/modules/$MODULE"
+if [[ -e "$MODULE" ]]; then
+  TEST_PATH="$MODULE"
+elif [[ -e "$REPO_ROOT/$MODULE" ]]; then
+  TEST_PATH="$REPO_ROOT/$MODULE"
+elif [[ -e "$(dirname "$0")/modules/$MODULE" ]]; then
+  TEST_PATH="$(dirname "$0")/modules/$MODULE"
+fi
 cd "$REPO_ROOT"
 set +e
 "$PYTHON" -m pytest "$TEST_PATH" -v --tb=short

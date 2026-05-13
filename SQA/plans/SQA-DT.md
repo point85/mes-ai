@@ -14,6 +14,8 @@ deterministically at zero token cost.
 
 ## Surfaces under test
 - DT-CLIENT route `/uom` → `UoMListPage` component
+- DT-CLIENT route `/work-schedules` → `WorkScheduleListPage` component
+- DT-CLIENT route `/work-schedules/:scheduleId` → `WorkScheduleDetailPage` component (`Shifts` tab)
 
 ## Source of truth
 - `docs/ARCHITECTURE.md` §UoM / §Unit of Measure
@@ -119,3 +121,164 @@ deterministically at zero token cost.
 ## Cleanup note
 All test symbols are prefixed `SQA_` to avoid collisions with seeded data.
 The `conftest.py` `uom_cleanup` fixture deletes all `SQA_*` symbols via the API after each test.
+
+---
+
+## Work Schedule test cases
+
+### TC-WS-001 — Create a work schedule
+- **Steps:**
+  1. Navigate to `http://localhost:5177/work-schedules`.
+  2. Click `New Schedule`.
+  3. Fill Name = `SQA Work Schedule Alpha`, Description = `SQA alpha schedule`.
+  4. Save.
+  5. Assert row appears in the list.
+  6. Assert via API: `GET /api/v1/work-schedules` contains the schedule and `GET /api/v1/work-schedules/{id}` returns matching `name` / `description`.
+- **Oracles:**
+  - Schedule appears in DT-CLIENT list.
+  - API detail shows empty `shifts`, `rotations`, `teams`, and `non_working_periods` arrays on creation.
+
+### TC-WS-002 — Edit a work schedule
+- **Steps:**
+  1. Seed `SQA Work Schedule Alpha` via API.
+  2. Navigate to `http://localhost:5177/work-schedules`.
+  3. Click Edit.
+  4. Change Name to `SQA Work Schedule Beta`, Description to `SQA beta schedule`.
+  5. Save.
+  6. Assert updated row appears.
+  7. Assert via API detail that `name` / `description` match the update.
+
+### TC-WS-003 — Delete a work schedule
+- **Steps:**
+  1. Seed `SQA Work Schedule Gamma` via API.
+  2. Navigate to `http://localhost:5177/work-schedules`.
+  3. Click Delete and accept the confirm dialog.
+  4. Assert row disappears.
+  5. Assert via API detail `GET /api/v1/work-schedules/{id}` returns `404`.
+
+### TC-WS-004 — Open work schedule detail page
+- **Steps:**
+  1. Seed `SQA Work Schedule Alpha` via API.
+  2. Navigate to `http://localhost:5177/work-schedules`.
+  3. Click `Open detail`.
+  4. Assert the detail page loads and the `Shifts`, `Rotations`, `Teams`, and `Non-Working Periods` tabs render.
+
+### TC-WS-SHIFT-001 — Create a shift
+- **Steps:**
+  1. Seed `SQA Shift Schedule` via API.
+  2. Navigate to `http://localhost:5177/work-schedules/{id}`.
+  3. In `Shifts`, click `New Shift`.
+  4. Fill Name = `SQA Day Shift`, Description = `SQA primary shift`, Start Time = `06:00`, Hours = `8`, Minutes = `30`.
+  5. Save.
+  6. Assert the shift row shows `06:00` and `8h 30m`.
+  7. Assert via API detail that the shift was created with `start_time == 06:00:00` and `duration_seconds == 30600`.
+
+### TC-WS-SHIFT-002 — Edit a shift
+- **Steps:**
+  1. Seed `SQA Shift Schedule` and `SQA Day Shift` via API.
+  2. Navigate to the schedule detail page.
+  3. Click Edit on the shift row.
+  4. Change Name to `SQA Evening Shift`, Description to `SQA updated shift`, Start Time to `14:15`, Hours to `9`, Minutes to `0`.
+  5. Save.
+  6. Assert the row updates and the API detail reflects the edited values.
+
+### TC-WS-SHIFT-003 — Delete a shift
+- **Steps:**
+  1. Seed `SQA Shift Schedule` and `SQA Day Shift` via API.
+  2. Navigate to the schedule detail page.
+  3. Click Delete on the shift row and accept the confirm dialog.
+  4. Assert the shift row disappears.
+  5. Assert via API detail that the shift is no longer present.
+
+### TC-WS-SHIFT-004 — Add and remove a break
+- **Steps:**
+  1. Seed `SQA Shift Schedule` and `SQA Day Shift` via API.
+  2. Navigate to the schedule detail page.
+  3. Expand the shift card.
+  4. Click `Add Break`.
+  5. Fill Name = `SQA Lunch Break`, Start Time = `10:30`, Duration = `30`.
+  6. Save.
+  7. Assert the break row appears in the expanded shift card.
+  8. Assert via API detail that the break exists with `start_time == 10:30:00` and `duration_seconds == 1800`.
+  9. Click the break delete icon.
+  10. Assert the break row disappears and the API detail no longer includes it.
+
+### TC-WS-ROT-001 — Create a rotation
+- **Steps:**
+  1. Seed `SQA Rotation Schedule` via API.
+  2. Navigate to `http://localhost:5177/work-schedules/{id}` and open `Rotations`.
+  3. Click `New Rotation`.
+  4. Fill Name = `SQA Rotation A`, Description = `SQA first rotation`.
+  5. Save.
+  6. Assert the rotation card appears and initially shows `0 days`.
+  7. Assert via API detail that the rotation exists with no segments.
+
+### TC-WS-ROT-002 — Edit a rotation
+- **Steps:**
+  1. Seed `SQA Rotation Schedule` and `SQA Rotation A` via API.
+  2. Navigate to the `Rotations` tab.
+  3. Click Edit on the rotation card.
+  4. Change Name to `SQA Rotation B`, Description to `SQA updated rotation`.
+  5. Save.
+  6. Assert the rotation card updates and API detail reflects the change.
+
+### TC-WS-ROT-003 — Delete a rotation
+- **Steps:**
+  1. Seed `SQA Rotation Schedule` and `SQA Rotation A` via API.
+  2. Navigate to the `Rotations` tab.
+  3. Click Delete and accept the confirm dialog.
+  4. Assert the rotation card disappears.
+  5. Assert via API detail that the rotation is no longer present.
+
+### TC-WS-ROT-004 — Add and remove a rotation segment
+- **Steps:**
+  1. Seed `SQA Rotation Schedule`, one shift, and `SQA Rotation A` via API.
+  2. Navigate to the `Rotations` tab.
+  3. Expand the rotation card.
+  4. Click `Add Segment`.
+  5. Choose the shift and set `Days On = 5`, `Days Off = 2`, `Sequence = 1`.
+  6. Save.
+  7. Assert the segment row appears with `#1` and `5 on / 2 off`, and the card updates to `7 days`.
+  8. Assert via API detail that the segment exists.
+  9. Delete the segment via the row trash icon.
+  10. Assert the segment row disappears and the API detail no longer includes it.
+
+### TC-WS-TEAM-001 — Create a team
+- **Steps:**
+  1. Seed `SQA Team Schedule`, one shift, one rotation, and one segment via API.
+  2. Navigate to the schedule detail page and open `Teams`.
+  3. Click `New Team`.
+  4. Fill Name = `SQA Team A`, Description = `SQA first team`, select the seeded rotation, set Rotation Start Date = `2026-05-13`.
+  5. Save.
+  6. Assert the team card appears with `starts 2026-05-13` and `0 members`.
+  7. Assert via API detail that the team exists with the expected `rotation_id` and `rotation_start`.
+
+### TC-WS-TEAM-002 — Edit a team
+- **Steps:**
+  1. Seed `SQA Team Schedule`, one shift, one rotation, one segment, and `SQA Team A` via API.
+  2. Navigate to `Teams`.
+  3. Click Edit.
+  4. Change Name to `SQA Team B`, Description to `SQA updated team`, Rotation Start Date to `2026-05-20`.
+  5. Save.
+  6. Assert the team card updates and API detail reflects the new values.
+
+### TC-WS-TEAM-003 — Delete a team
+- **Steps:**
+  1. Seed `SQA Team Schedule`, one shift, one rotation, one segment, and `SQA Team A` via API.
+  2. Navigate to `Teams`.
+  3. Click Delete and accept the confirm dialog.
+  4. Assert the team card disappears.
+  5. Assert via API detail that the team is no longer present.
+
+### TC-WS-TEAM-004 — Add and remove a member
+- **Steps:**
+  1. Seed `SQA Team Schedule`, one shift, one rotation, one segment, and `SQA Team A` via API.
+  2. Create a temporary auth user `sqa-team-user` via API.
+  3. Navigate to `Teams` and expand the team card.
+  4. Click `Add Member`.
+  5. Enter Username = `sqa-team-user`.
+  6. Save.
+  7. Assert the member row appears with the resolved full name and username.
+  8. Assert via API detail that the team member exists.
+  9. Delete the member via the row trash icon.
+  10. Assert the member row disappears and the API detail no longer includes it.

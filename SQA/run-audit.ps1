@@ -3,7 +3,8 @@
     Run the SQA audit: health checks + pytest + Playwright, no external agent required.
 
 .PARAMETER Module
-    SQA module folder under SQA/modules/ to test. Default: SQA-DT
+    SQA module folder under SQA/modules/ or a specific pytest file path under SQA/modules.
+    Default: SQA-DT
 
 .PARAMETER Headed
     Launch Playwright browser in headed mode (visible window). Default: headless.
@@ -17,6 +18,7 @@
 .EXAMPLE
     .\run-audit.ps1
     .\run-audit.ps1 -Module SQA-DT -Headed
+    .\run-audit.ps1 -Module SQA\modules\SQA-DT\test_work_schedule_team_crud.py
     .\run-audit.ps1 -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173
 #>
 param(
@@ -34,9 +36,30 @@ $Python    = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 $Timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
 $Heartbeat = Join-Path $PSScriptRoot "HEARTBEAT.md"
 
+function Resolve-TestTarget {
+    param([string]$ModuleArg)
+
+    $candidatePaths = @(
+        $ModuleArg,
+        (Join-Path $RepoRoot $ModuleArg),
+        (Join-Path $PSScriptRoot ("modules\" + $ModuleArg))
+    )
+
+    foreach ($candidate in $candidatePaths) {
+        if (Test-Path $candidate) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+
+    return (Join-Path $PSScriptRoot ("modules\" + $ModuleArg))
+}
+
+$TestTarget = Resolve-TestTarget -ModuleArg $Module
+
 Write-Host ""
 Write-Host "MES AI - SQA Audit" -ForegroundColor Cyan
 Write-Host "  Module    : $Module"
+Write-Host "  Target    : $TestTarget"
 Write-Host "  Server    : $ServerUrl"
 Write-Host "  DT-CLIENT : $DtUrl"
 Write-Host "  Headed    : $($Headed.IsPresent)"
@@ -81,10 +104,9 @@ $env:SQA_SERVER_URL = $ServerUrl
 $env:SQA_DT_URL     = $DtUrl
 $env:SQA_HEADED     = if ($Headed) { "1" } else { "0" }
 
-$TestPath = Join-Path $PSScriptRoot "modules\$Module"
 Push-Location $RepoRoot
 try {
-    & $Python -m pytest $TestPath -v --tb=short
+    & $Python -m pytest $TestTarget -v --tb=short
     $ExitCode = $LASTEXITCODE
 }
 finally {
