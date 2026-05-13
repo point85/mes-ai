@@ -1,0 +1,54 @@
+Read [](file:///c%3A/dev/mes_ai/SQA)
+
+Read [](file:///c%3A/dev/mes_ai/SQA/tests)
+
+Read [](file:///c%3A/dev/mes_ai/SQA/.openclaw)
+
+Read [](file:///c%3A/dev/mes_ai/SQA/.openclaw/souls)
+
+Read [](file:///c%3A/dev/mes_ai/SQA/config.yaml)
+
+Read [](file:///c%3A/dev/mes_ai/SQA/.openclaw/souls/qa_tester.md)
+
+Read [](file:///c%3A/dev/mes_ai/SQA/run-audit.ps1)
+
+Read [](file:///c%3A/dev/mes_ai/SQA/SKILL_QA_ENGINEER.md)
+
+Here's the full sequence of steps. I'll list them all now so you can see the scope, then we'll execute one step at a time on your approval.
+
+---
+
+**Step 1 — Reconfigure OpenClaw for MES AI**
+Update config.yaml (swap the "Time Traveler" demo model/agent for the MES AI project) and rewrite qa_tester.md to make the agent a MES AI QA engineer that knows about the DT-CLIENT UoM editor, the server API at `:8082`, and the SKILL_QA_ENGINEER protocol.
+
+**Step 2 — Install SQA Python dependencies**
+Add `pytest`, `pytest-asyncio`, `pytest-html`, `playwright` (Python bindings), and `httpx` to the workspace .venv via `pip install`, then run `playwright install chromium` to download the browser binary. These are what the agent's terminal tool will invoke.
+
+**Step 3 — Create the SQA folder structure**
+Create the directories and stub files from the design doc that are needed for this test:
+- `SQA/plans/SQA-DT.md` — machine-readable test plan for UoM CRUD (the source-of-truth the agent reads)
+- `SQA/modules/SQA-DT/` — destination folder for the generated test
+- `SQA/conftest.py` — root fixtures (`mes_urls`, `api` httpx client, `browser_context`)
+- `SQA/pytest.ini` — markers, `testpaths = modules`, html report settings
+
+**Step 4 — Write the pytest/Playwright test file**
+Create `SQA/modules/SQA-DT/test_uom_crud.py` covering the Create → Edit → Delete round-trip for a scalar UoM, with:
+- Role/label-based selectors (no CSS classes)
+- API oracle after each UI action (confirm the DB actually changed)
+- Setup and teardown via the REST API (not the UI)
+
+**Step 5 — Update run-audit.ps1 with the UoM task prompt**
+Replace the "Time Traveler" task string with the MES AI UoM audit task so run-audit.ps1 drives the agent at the right target.
+
+**Step 6 — Start the stack**
+Verify the server (`http://localhost:8082/health`) and DT-CLIENT (`http://localhost:5173`) are running before the test executes — the script will check and print a warning if they are not.
+
+**Step 7 — Run the test**
+Execute run-audit.ps1, which launches the OpenClaw agent. The agent will:
+1. Read `SQA/plans/SQA-DT.md` and ARCHITECTURE.md
+2. Run `pytest SQA/modules/SQA-DT/test_uom_crud.py -v` via its terminal tool
+3. On failure, take a screenshot and create a GitHub issue; on pass, update HEARTBEAT.md
+
+---
+
+Ready to start with **Step 1**?
