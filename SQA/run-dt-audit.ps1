@@ -6,6 +6,7 @@
     Portion of the DT suite to run.
     - uom            : Units of Measure tests only
     - data-definitions : Data Definitions tests only
+    - equipment      : Equipment DT tests only
     - products       : Products and BOM DT tests only
     - work-schedule  : Work Schedule tests only
     - all            : All DT-CLIENT SQA tests
@@ -23,12 +24,13 @@
     .\run-dt-audit.ps1 -Scope all
     .\run-dt-audit.ps1 -Scope uom
     .\run-dt-audit.ps1 -Scope data-definitions
+    .\run-dt-audit.ps1 -Scope equipment
     .\run-dt-audit.ps1 -Scope products
     .\run-dt-audit.ps1 -Scope work-schedule -Headed
     .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173
 #>
 param(
-    [ValidateSet("uom", "data-definitions", "products", "work-schedule", "all")]
+    [ValidateSet("uom", "data-definitions", "equipment", "products", "work-schedule", "all")]
     [string]$Scope,
     [switch]$Headed,
     [switch]$Help,
@@ -46,11 +48,12 @@ $Heartbeat = Join-Path $PSScriptRoot "HEARTBEAT.md"
 
 function Show-Usage {
     Write-Host "Usage:" -ForegroundColor Yellow
-    Write-Host "  .\run-dt-audit.ps1 -Scope <uom|data-definitions|products|work-schedule|all> [-Headed] [-ServerUrl <url>] [-DtUrl <url>]"
+    Write-Host "  .\run-dt-audit.ps1 -Scope <uom|data-definitions|equipment|products|work-schedule|all> [-Headed] [-ServerUrl <url>] [-DtUrl <url>]"
     Write-Host ""
     Write-Host "Scopes:" -ForegroundColor Yellow
     Write-Host "  uom            Run Units of Measure DT tests only"
     Write-Host "  data-definitions Run Data Definitions DT tests only"
+    Write-Host "  equipment      Run Equipment DT tests only"
     Write-Host "  products       Run Products and BOM DT tests only"
     Write-Host "  work-schedule  Run Work Schedule DT tests only"
     Write-Host "  all            Run the full DT SQA suite"
@@ -58,6 +61,7 @@ function Show-Usage {
     Write-Host "Examples:" -ForegroundColor Yellow
     Write-Host "  .\run-dt-audit.ps1 -Scope uom"
     Write-Host "  .\run-dt-audit.ps1 -Scope data-definitions"
+    Write-Host "  .\run-dt-audit.ps1 -Scope equipment"
     Write-Host "  .\run-dt-audit.ps1 -Scope products"
     Write-Host "  .\run-dt-audit.ps1 -Scope work-schedule -Headed"
     Write-Host "  .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173"
@@ -85,6 +89,11 @@ function Resolve-TestTargets {
         "data-definitions" {
             return @(
                 (Join-Path $PSScriptRoot "modules\SQA-DT\test_data_definition_crud.py")
+            )
+        }
+        "equipment" {
+            return @(
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_equipment_crud.py")
             )
         }
         "products" {

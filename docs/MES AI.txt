@@ -313,5 +313,8 @@ SQA URLs
 ./run-client.ps1 dt-client -serverurl http://localhost:8081 -port 5177
 
 .\run-dt-audit.ps1 -Scope uom
+.\run-dt-audit.ps1 -Scope data-definitions
+.\run-dt-audit.ps1 -Scope equipment
+.\run-dt-audit.ps1 -Scope products
 .\run-dt-audit.ps1 -Scope work-schedule
 .\run-dt-audit.ps1 -Scope all

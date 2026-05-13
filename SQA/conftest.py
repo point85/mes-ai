@@ -163,3 +163,46 @@ def material_cleanup(api):
     _delete_sqa_materials()
     yield
     _delete_sqa_materials()
+
+
+# ---------------------------------------------------------------------------
+# physical_model_cleanup -- delete SQA physical-model hierarchy entities
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=False)
+def physical_model_cleanup(api):
+    """Delete SQA physical-model entities in reverse hierarchy order before and after a test."""
+
+    def _delete_sqa_physical_model():
+        equipment_resp = api.get("/equipment", params={"limit": "200"})
+        if equipment_resp.status_code == 200:
+            for equipment in equipment_resp.json().get("data", []):
+                if equipment.get("code", "").startswith("SQA_EQ_"):
+                    api.delete(f"/equipment/{equipment['id']}")
+
+        wc_resp = api.get("/work-cells", params={"limit": "200"})
+        if wc_resp.status_code == 200:
+            for work_cell in wc_resp.json().get("data", []):
+                if work_cell.get("code", "").startswith("SQA_WC_"):
+                    api.delete(f"/work-cells/{work_cell['id']}")
+
+        lines_resp = api.get("/lines", params={"limit": "200"})
+        if lines_resp.status_code == 200:
+            for line in lines_resp.json().get("data", []):
+                if line.get("code", "").startswith("SQA_LN_"):
+                    api.delete(f"/lines/{line['id']}")
+
+        sites_resp = api.get("/sites", params={"limit": "200"})
+        if sites_resp.status_code == 200:
+            sites = sites_resp.json().get("data", [])
+            for site in sites:
+                if site.get("code", "").startswith("SQA_ST_"):
+                    areas_resp = api.get(f"/sites/{site['id']}/areas", params={"limit": "200"})
+                    if areas_resp.status_code == 200:
+                        for area in areas_resp.json().get("data", []):
+                            if area.get("code", "").startswith("SQA_AR_"):
+                                api.delete(f"/areas/{area['id']}")
+                    api.delete(f"/sites/{site['id']}")
+
+    _delete_sqa_physical_model()
+    yield
+    _delete_sqa_physical_model()
