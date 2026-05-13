@@ -92,6 +92,35 @@ def _create_bom(api, *, product_id: str, **overrides) -> dict:
     return resp.json()["data"]
 
 
+def _create_route(api, *, product_id: str, **overrides) -> dict:
+    payload = {
+        "name": "SQA BOM Route",
+        "version": "1.0",
+        "description": "SQA route for BOM step assignment",
+        "is_default": True,
+    }
+    payload.update(overrides)
+    resp = api.post(f"{API_PRODUCTS}/{product_id}/operations-definitions", json=payload)
+    assert resp.status_code in (200, 201), f"Route setup failed: {resp.text}"
+    return resp.json()["data"]
+
+
+def _create_step(api, *, route_id: str, **overrides) -> dict:
+    payload = {
+        "sequence": 10,
+        "name": "SQA Mix",
+        "step_type": "production",
+        "expected_cycle_time_sec": 60,
+        "is_initial_step": True,
+        "input_disposition_ids": [],
+        "output_disposition_ids": [],
+    }
+    payload.update(overrides)
+    resp = api.post(f"/operations-definitions/{route_id}/process-segments", json=payload)
+    assert resp.status_code in (200, 201), f"Step setup failed: {resp.text}"
+    return resp.json()["data"]
+
+
 def _create_bom_item(api, *, bom_id: str, material_code: str, uom_id: str, **overrides) -> dict:
     payload = {
         "material_code": material_code,
@@ -281,3 +310,42 @@ async def test_bom_item_delete(page: Page, api) -> None:
 
     resp = api.get(f"/bom-items/{item['id']}")
     assert resp.status_code == 404, f"Expected 404 after delete, got {resp.status_code}: {resp.text}"
+
+
+@pytest.mark.ui
+@pytest.mark.usefixtures("product_cleanup", "material_cleanup", "uom_cleanup")
+async def test_bom_item_assign_to_real_route_step(page: Page, api) -> None:
+    product_uom = _create_scalar_uom(api, symbol=_unique_uom_symbol("SQA_BP"), name="SQA Product Each")
+    material_uom = _create_scalar_uom(api, symbol=_unique_uom_symbol("SQA_BM"), name="SQA Material Kilogram", uom_type="mass")
+    product = _create_product(api, uom_id=product_uom["id"])
+    route = _create_route(api, product_id=product["id"], name="SQA Assigned Route", is_default=True)
+    step = _create_step(api, route_id=route["id"], sequence=10, name="SQA Blend")
+    bom = _create_bom(api, product_id=product["id"], version="8.0")
+    material = _create_material(api, uom_id=material_uom["id"], name="SQA Catalyst")
+
+    await _open_bom_editor(page, product_id=product["id"])
+    await expect(page.get_by_text("Items for BOM v8.0")).to_be_visible(timeout=8_000)
+
+    await page.get_by_role("button", name="Add Item").click()
+    await expect(page.get_by_role("heading", name="New BOM Item")).to_be_visible(timeout=5_000)
+    await page.locator("select[name='material_code']").select_option(value=material["code"])
+    await page.locator("input[name='quantity']").fill("3")
+    await page.locator("select[name='uom_id']").select_option(value=material_uom["id"])
+    await page.locator("input[name='position']").fill("40")
+    await page.locator("select[name='process_segment_id']").select_option(value=step["id"])
+    await page.locator("button[type='submit']").click()
+
+    row = page.locator("tr").filter(has_text=material["code"])
+    await expect(row).to_be_visible(timeout=8_000)
+    await expect(row.locator("td", has_text="10. SQA Blend")).to_be_visible()
+
+    resp = api.get(f"/boms/{bom['id']}/items", params={"limit": "200"})
+    assert resp.status_code == 200, resp.text
+    created = next((item for item in resp.json()["data"] if item["material_code"] == material["code"]), None)
+    assert created is not None
+    assert created["process_segment_id"] == step["id"]
+
+    step_resp = api.get(f"/process-segments/{step['id']}/bom-items")
+    assert step_resp.status_code == 200, step_resp.text
+    step_items = step_resp.json()["data"]
+    assert any(item["material_code"] == material["code"] for item in step_items)

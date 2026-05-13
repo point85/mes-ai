@@ -8,6 +8,7 @@ import { useParams, Link } from "react-router-dom";
 import {
   PlusIcon,
   PencilSquareIcon,
+  TrashIcon,
   ChevronRightIcon,
   ArrowLeftIcon,
 } from "@heroicons/react/24/outline";
@@ -16,6 +17,7 @@ import {
   useRouteSteps,
   useBOMs,
   useBOMItems,
+  useDeleteRoute,
 } from "../../hooks/useProductDef";
 import { fetchProduct } from "../../api/productDef";
 import { useQuery } from "@tanstack/react-query";
@@ -35,6 +37,7 @@ export default function ProductDetailPage() {
 
   // Dialogs
   const [showRouteForm, setShowRouteForm] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<ProcessRoute | null>(null);
   const [showStepForm, setShowStepForm] = useState(false);
   const [editingStep, setEditingStep] = useState<RouteStep | null>(null);
 
@@ -56,6 +59,7 @@ export default function ProductDetailPage() {
   const defaultBomId = boms.length > 0 ? boms[0].id : "";
   const { data: bomItemsData } = useBOMItems(defaultBomId);
   const bomItems = bomItemsData?.data ?? [];
+  const deleteRouteMut = useDeleteRoute();
 
   // Group BOM items by process_segment_id for quick lookup
   const stepMaterialsMap = new Map<string, BOMItem[]>();
@@ -66,6 +70,18 @@ export default function ProductDetailPage() {
       stepMaterialsMap.set(item.process_segment_id, list);
     }
   }
+
+  const handleDeleteRoute = (route: ProcessRoute) => {
+    if (!confirm(`Delete route "${route.name}" v${route.version}?`)) return;
+    deleteRouteMut.mutate(route.id, {
+      onSuccess: () => {
+        if (selectedRoute?.id === route.id) {
+          setSelectedRoute(null);
+          setSelectedStep(null);
+        }
+      },
+    });
+  };
 
   if (productLoading) {
     return <p className="text-sm text-gray-500 p-6">Loading…</p>;
@@ -145,29 +161,54 @@ export default function ProductDetailPage() {
                 </p>
               )}
               {routes.map((r) => (
-                <button
+                <div
                   key={r.id}
-                  onClick={() => {
-                    setSelectedRoute(r);
-                    setSelectedStep(null);
-                  }}
-                  className={`w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors ${
-                    selectedRoute?.id === r.id ? "bg-indigo-50" : ""
+                  className={`px-4 py-3 transition-colors ${
+                    selectedRoute?.id === r.id ? "bg-indigo-50" : "hover:bg-gray-50"
                   }`}
                 >
-                  <div>
-                    <span className="text-sm font-medium text-gray-900">
-                      {r.name}
-                    </span>
-                    <span className="ml-2 text-xs text-gray-500">v{r.version}</span>
-                    {r.is_default && (
-                      <span className="ml-2 inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
-                        default
-                      </span>
-                    )}
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      onClick={() => {
+                        setSelectedRoute(r);
+                        setSelectedStep(null);
+                      }}
+                      className="flex min-w-0 flex-1 items-center justify-between text-left"
+                    >
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">
+                          {r.name}
+                        </span>
+                        <span className="ml-2 text-xs text-gray-500">v{r.version}</span>
+                        {r.is_default && (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+                            default
+                          </span>
+                        )}
+                      </div>
+                      <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          setEditingRoute(r);
+                          setShowRouteForm(true);
+                        }}
+                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                        title="Edit route"
+                      >
+                        <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRoute(r)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Delete route"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -433,7 +474,11 @@ export default function ProductDetailPage() {
       {showRouteForm && (
         <RouteFormDialog
           productId={productId!}
-          onClose={() => setShowRouteForm(false)}
+          route={editingRoute}
+          onClose={() => {
+            setShowRouteForm(false);
+            setEditingRoute(null);
+          }}
         />
       )}
       {showStepForm && selectedRoute && (

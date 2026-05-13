@@ -257,7 +257,10 @@ export function useDeleteRoute() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteRoute(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.allRoutes }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.allRoutes });
+      qc.invalidateQueries({ queryKey: ["routes"] });
+    },
   });
 }
 

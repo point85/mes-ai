@@ -90,6 +90,7 @@ function Resolve-TestTargets {
         "products" {
             return @(
                 (Join-Path $PSScriptRoot "modules\SQA-DT\test_product_crud.py"),
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_product_route_crud.py"),
                 (Join-Path $PSScriptRoot "modules\SQA-DT\test_product_bom_crud.py")
             )
         }

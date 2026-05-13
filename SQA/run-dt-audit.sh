@@ -59,6 +59,7 @@ case "$SCOPE" in
   products)
     TEST_TARGETS=(
       "$(dirname "$0")/modules/SQA-DT/test_product_crud.py"
+      "$(dirname "$0")/modules/SQA-DT/test_product_route_crud.py"
       "$(dirname "$0")/modules/SQA-DT/test_product_bom_crud.py"
     )
     ;;

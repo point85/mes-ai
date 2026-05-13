@@ -1,13 +1,15 @@
 /**
- * Route Create dialog — creates a new process route for a product.
+ * Route Create / Edit dialog — manages a process route for a product.
  */
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { useCreateRoute } from "../../hooks/useProductDef";
+import { useCreateRoute, useUpdateRoute } from "../../hooks/useProductDef";
+import type { ProcessRoute } from "../../types";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(255),
@@ -20,29 +22,50 @@ type FormData = z.infer<typeof schema>;
 
 interface Props {
   productId: string;
+  route: ProcessRoute | null;
   onClose: () => void;
 }
 
-export default function RouteFormDialog({ productId, onClose }: Props) {
+export default function RouteFormDialog({ productId, route, onClose }: Props) {
+  const isEdit = !!route;
   const createMut = useCreateRoute();
+  const updateMut = useUpdateRoute();
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", version: "1.0", description: "", is_default: false },
   });
 
+  useEffect(() => {
+    if (route) {
+      reset({
+        name: route.name,
+        version: route.version,
+        description: route.description ?? "",
+        is_default: route.is_default,
+      });
+    }
+  }, [route, reset]);
+
   const onSubmit = async (data: FormData) => {
     try {
-      await createMut.mutateAsync({ productId, ...data });
+      if (isEdit) {
+        await updateMut.mutateAsync({ id: route!.id, ...data });
+      } else {
+        await createMut.mutateAsync({ productId, ...data });
+      }
       onClose();
     } catch {
       // error shown via mutation state
     }
   };
+
+  const mutError = createMut.error || updateMut.error;
 
   return (
     <Dialog open onClose={onClose} className="relative z-50">
@@ -51,16 +74,16 @@ export default function RouteFormDialog({ productId, onClose }: Props) {
         <DialogPanel className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <DialogTitle className="text-lg font-semibold text-gray-900">
-              New Process Route
+              {isEdit ? "Edit Process Route" : "New Process Route"}
             </DialogTitle>
             <button onClick={onClose} className="rounded p-1 text-gray-400 hover:text-gray-600">
               <XMarkIcon className="h-5 w-5" />
             </button>
           </div>
 
-          {createMut.error && (
+          {mutError && (
             <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
-              {(createMut.error as { response?: { data?: { detail?: string } } })
+              {(mutError as { response?: { data?: { detail?: string } } })
                 ?.response?.data?.detail ?? "An error occurred"}
             </div>
           )}
@@ -116,7 +139,7 @@ export default function RouteFormDialog({ productId, onClose }: Props) {
                 disabled={isSubmitting}
                 className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
               >
-                {isSubmitting ? "Creating…" : "Create"}
+                {isSubmitting ? "Saving…" : isEdit ? "Update" : "Create"}
               </button>
             </div>
           </form>
