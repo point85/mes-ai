@@ -8,6 +8,21 @@
 
 ---
 
+## S051 — 2026-05-13
+
+### Work done
+- Expanded the standalone DT `routes` audit scope to cover the remaining route editor surfaces on `/routes` and its dependent `/dispositions` editor.
+- Added validated SQA coverage in `SQA/modules/SQA-DT/test_route_editor_crud.py` for:
+	- route material assignment on the right panel
+	- standalone dispositions editor CRUD on `/dispositions`
+	- step input/output disposition wiring assertions that prove `/dispositions` route-category entries appear in the step editor and persist into the route-step API/detail round-trip
+- Added deterministic cleanup for SQA-created route dispositions (`SQA_ROUTE_DISP_*`) to avoid residue between runs.
+- Validated the `routes` scope repeatedly after each slice; final state: `./run-dt-audit.ps1 -Scope routes` passed with 6 tests green.
+
+### Pending / next
+- If needed, isolate the separate route-step disposition rewire-on-edit behavior as its own defect-focused SQA slice; the server-side replace API is confirmed correct, but that broader edit-toggle path was intentionally not expanded further in this session.
+- Continue DT SQA expansion into another editor surface, or begin SQA-API / SQA-SMOKE modules.
+
 ## S050 — 2026-05-13
 
 ### Work done

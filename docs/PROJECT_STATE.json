@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-05-13",
-  "lastSessionId": "S050",
+  "lastSessionId": "S051",
 
   "phases": [
     {
@@ -266,7 +266,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "S050 (2026-05-13): SQA-DT suite expanded to uom, data-definitions, storage-locations, materials, routes, equipment, products, and work-schedule coverage. Audit runner renamed to run-dt-audit.ps1/sh with explicit scope selection: uom, data-definitions, storage-locations, materials, routes, equipment, products, work-schedule, all. OpenClaw removed from the test execution path. Next: expand SQA-DT to another editor surface and implement SQA-API and SQA-SMOKE modules.",
+  "currentTask": "S051 (2026-05-13): DT SQA `routes` scope expanded and validated end-to-end. The standalone route editor scope now covers route CRUD, step CRUD, product assignment, material assignment, standalone dispositions editor CRUD, and step input/output disposition wiring assertions that directly verify the `/dispositions` to step-editor dependency. Final validated state: `./run-dt-audit.ps1 -Scope routes` passed with 6 tests. Next: either isolate the separate route-step disposition rewire-on-edit behavior as a defect-focused slice, or continue expanding SQA-DT to another editor surface / SQA-API / SQA-SMOKE modules.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",
