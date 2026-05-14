@@ -51,7 +51,6 @@ class TestMQTTSettings:
         assert s.EQUIP_MQTT_QOS == 1
         assert s.EQUIP_MQTT_KEEPALIVE == 60
         assert s.EQUIP_MQTT_TOPIC_PREFIX == "mes/equipment"
-        assert s.EQUIP_MQTT_EQUIPMENT_ID == "MQTT-EQUIP-01"
         assert s.EQUIP_MQTT_CLIENT_ID == "mes-mqtt-equip-01"
         assert s.EQUIP_MQTT_TIMEOUT == 10
 
@@ -67,7 +66,6 @@ class TestMQTTSettings:
             EQUIP_MQTT_PASSWORD="secret",
             EQUIP_MQTT_QOS=2,
             EQUIP_MQTT_TOPIC_PREFIX="factory/line1",
-            EQUIP_MQTT_EQUIPMENT_ID="LINE1-EQUIP-01",
             EQUIP_MQTT_STATE_TOPIC="factory/line1/state",
         )
         assert s.EQUIP_MQTT_BROKER_HOST == "mqtt.factory.local"
@@ -76,7 +74,6 @@ class TestMQTTSettings:
         assert s.EQUIP_MQTT_USERNAME == "operator"
         assert s.EQUIP_MQTT_QOS == 2
         assert s.EQUIP_MQTT_TOPIC_PREFIX == "factory/line1"
-        assert s.EQUIP_MQTT_EQUIPMENT_ID == "LINE1-EQUIP-01"
         assert s.EQUIP_MQTT_STATE_TOPIC == "factory/line1/state"
 
 
@@ -305,7 +302,7 @@ class TestMQTTClientLifecycle:
         client._client.__aexit__ = AsyncMock(return_value=None)
         client._tag_cache["temp"] = _CachedValue(
             value=25.0, quality="good", data_type="float",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc), topic="mes/equipment/temp",
         )
         client._callbacks["temp"] = lambda x: None
         client._listener_task = None
@@ -356,7 +353,7 @@ class TestMQTTClientTagOps:
         client = MQTTClient(settings)
         client._tag_cache["temperature"] = _CachedValue(
             value=25.5, quality="good", data_type="float",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc), topic="mes/equipment/temperature",
         )
 
         value, quality, data_type = await client.read_tag("temperature")
@@ -530,9 +527,11 @@ class TestMQTTClientBrowse:
         now = datetime.now(timezone.utc)
         client._tag_cache["temperature"] = _CachedValue(
             value=25.0, quality="good", data_type="float", timestamp=now,
+            topic="mes/equip/temperature",
         )
         client._tag_cache["running"] = _CachedValue(
             value=True, quality="good", data_type="bool", timestamp=now,
+            topic="mes/equip/running",
         )
 
         result = await client.browse()
@@ -557,7 +556,7 @@ class TestMQTTClientReadStateTopic:
         client = MQTTClient(settings)
 
         result = await client.read_state_topic()
-        assert result is None
+        assert result == (None, None)
 
     @pytest.mark.asyncio
     async def test_state_topic_returns_cached(self):
@@ -572,11 +571,11 @@ class TestMQTTClientReadStateTopic:
         client = MQTTClient(settings)
         client._tag_cache["state"] = _CachedValue(
             value="running", quality="good", data_type="string",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc), topic="mes/equip/state",
         )
 
         result = await client.read_state_topic()
-        assert result == "running"
+        assert result == ("running", None)
 
     @pytest.mark.asyncio
     async def test_state_topic_no_value(self):
@@ -592,7 +591,7 @@ class TestMQTTClientReadStateTopic:
         # No cached value
 
         result = await client.read_state_topic()
-        assert result is None
+        assert result == (None, None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -627,7 +626,7 @@ class TestListenerLoop:
         data_type = _infer_python_type(value)
         client._tag_cache[tag_name] = _CachedValue(
             value=value, quality="good", data_type=data_type,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc), topic=topic_str,
         )
 
         assert "temperature" in client._tag_cache
@@ -651,7 +650,7 @@ class TestListenerLoop:
         data_type = _infer_python_type(value)
         client._tag_cache[tag_name] = _CachedValue(
             value=value, quality="good", data_type=data_type,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc), topic=topic_str,
         )
 
         callback = client._callbacks.get(tag_name)
@@ -678,14 +677,10 @@ class TestMQTTEquipmentAdapter:
         from mes.adapters.equipment.mqtt.adapter import MQTTEquipmentAdapter
         from mes.adapters.equipment.mqtt.config import MQTTSettings
 
-        settings = MQTTSettings(_env_file=None, EQUIP_MQTT_EQUIPMENT_ID="TEST-MQTT-01")
+        settings = MQTTSettings(_env_file=None)
         adapter = MQTTEquipmentAdapter(settings)
         adapter._client = AsyncMock()
         return adapter
-
-    def test_equipment_id(self):
-        adapter = self._make_adapter()
-        assert adapter.equipment_id == "TEST-MQTT-01"
 
     @pytest.mark.asyncio
     async def test_connect_delegates(self):
@@ -767,7 +762,7 @@ class TestMQTTEquipmentAdapter:
     @pytest.mark.asyncio
     async def test_get_equipment_state(self):
         adapter = self._make_adapter()
-        adapter._client.read_state_topic.return_value = "running"
+        adapter._client.read_state_topic.return_value = ("running", "TEST-MQTT-01")
 
         state = await adapter.get_equipment_state()
 
@@ -776,6 +771,15 @@ class TestMQTTEquipmentAdapter:
         assert state.dispatch_category == "busy"
         assert state.oee_bucket == "uptime_value_add"
         assert state.equipment_id == "TEST-MQTT-01"
+
+    @pytest.mark.asyncio
+    async def test_get_equipment_state_without_topic_equipment_id(self):
+        adapter = self._make_adapter()
+        adapter._client.read_state_topic.return_value = ("running", None)
+
+        state = await adapter.get_equipment_state()
+
+        assert state.equipment_id == ""
 
 
 # ═══════════════════════════════════════════════════════════════════════════

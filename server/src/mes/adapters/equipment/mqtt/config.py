@@ -13,7 +13,6 @@ Env vars:
     MES_EQUIP_MQTT_USERNAME           Username for broker auth
     MES_EQUIP_MQTT_PASSWORD           Password for broker auth
     MES_EQUIP_MQTT_CLIENT_ID          MQTT client ID
-    MES_EQUIP_MQTT_EQUIPMENT_ID       Optional fallback equipment identifier for state reporting
     MES_EQUIP_MQTT_TOPIC_PREFIX       Base topic prefix (default mes/equipment)
     MES_EQUIP_MQTT_STATE_TOPIC        Topic for equipment state
     MES_EQUIP_MQTT_QOS                Quality of Service (0, 1, or 2)
@@ -45,9 +44,6 @@ class MQTTSettings(BaseSettings):
 
     # Client identity
     EQUIP_MQTT_CLIENT_ID: str = "mes-mqtt-equip-01"
-
-    # Equipment identity (optional fallback for single-equipment deployments)
-    EQUIP_MQTT_EQUIPMENT_ID: str = "MQTT-EQUIP-01"
 
     # Topics
     EQUIP_MQTT_TOPIC_PREFIX: str = "mes/equipment"

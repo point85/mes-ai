@@ -75,10 +75,6 @@ class MQTTEquipmentAdapter(EquipmentAdapter):
         self._client = MQTTClient(self._settings)
         self._subscriptions: dict[str, SubscriptionHandle] = {}
 
-    @property
-    def equipment_id(self) -> str:
-        return self._settings.EQUIP_MQTT_EQUIPMENT_ID
-
     # ── BaseAdapter lifecycle ──
 
     async def connect(self) -> None:
@@ -124,7 +120,7 @@ class MQTTEquipmentAdapter(EquipmentAdapter):
         dispatch_category = _STATE_DISPATCH_MAP.get(state, "available")
         oee_bucket = _STATE_OEE_MAP.get(state, "uptime_non_value")
         return EquipmentState(
-            equipment_id=topic_equipment_id or self.equipment_id,
+            equipment_id=topic_equipment_id or "",
             state=state,
             dispatch_category=dispatch_category,
             oee_bucket=oee_bucket,

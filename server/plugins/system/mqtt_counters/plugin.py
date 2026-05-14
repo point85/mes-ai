@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import Any
 from uuid import UUID
 
@@ -180,21 +181,35 @@ class MQTTCountersPlugin(MESPlugin):
             equipment_id, good_delta, reject_delta, rework_delta,
         )
 
-    @staticmethod
-    def _extract_equipment_id(topic: str) -> UUID | None:
+    def _extract_equipment_id(self, topic: str) -> UUID | None:
         """
-        Extract equipment_id from topic like ``mes/equipment/{uuid}/counters``.
+        Extract equipment_id from the configured topic pattern.
 
-        Returns None if the topic structure doesn't match or the UUID is invalid.
+        Supports either a named ``{equipment_id}`` placeholder or a single ``+``
+        wildcard in the configured topic pattern. Returns None if the topic
+        structure doesn't match or the extracted UUID is invalid.
         """
-        parts = topic.split("/")
-        # Expected: ["mes", "equipment", "<uuid>", "counters"]
-        if len(parts) >= 4 and parts[-1] == "counters":
-            try:
-                return UUID(parts[-2])
-            except ValueError:
-                return None
-        return None
+        topic_pattern = str(self._config.get("topic_pattern", "mes/equipment/+/counters"))
+        regex = self._compile_topic_pattern(topic_pattern)
+        match = regex.fullmatch(topic)
+        if not match:
+            return None
+        equipment_id_str = match.group("equipment_id")
+        try:
+            return UUID(equipment_id_str)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _compile_topic_pattern(topic_pattern: str) -> re.Pattern[str]:
+        escaped = re.escape(topic_pattern)
+        if "{equipment_id}" in topic_pattern:
+            escaped = escaped.replace(re.escape("{equipment_id}"), r"(?P<equipment_id>[^/]+)")
+        else:
+            escaped = escaped.replace(r"\+", r"(?P<equipment_id>[^/]+)", 1)
+            escaped = escaped.replace(r"\+", r"[^/]+")
+        escaped = escaped.replace(r"\#", r".*")
+        return re.compile(escaped)
 
     @staticmethod
     def _parse_payload(raw: bytes | bytearray | str) -> dict[str, Any] | None:

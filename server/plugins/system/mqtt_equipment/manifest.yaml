@@ -30,10 +30,6 @@ parameters:
     description: Topic prefix for equipment tags (e.g. mes/equipment)
     required: false
     default: mes/equipment
-  - name: equipment_id
-    type: string
-    description: Optional fallback equipment identifier for single-equipment state tracking
-    required: false
   - name: state_topic
     type: string
     description: Topic or topic pattern for equipment state updates, e.g. mes/equipment/{equipment_id}/state
