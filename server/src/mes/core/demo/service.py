@@ -35,6 +35,8 @@ from mes.core.operations.models import OperationsRequest
 from mes.core.operations.service import OperationsRequestService
 from mes.core.data_collection.models import DataDefinition
 from mes.core.data_collection.service import DataDefinitionService
+from mes.core.performance.models import Reason
+from mes.core.performance.service import ReasonService
 from mes.core.physical_model.service import PhysicalModelService
 from mes.core.physical_model.models import (
     Site, Area, ProductionLine, WorkCell, Equipment, EquipmentMaterial,
@@ -56,6 +58,27 @@ from . import cpg_data as D
 from . import electronics_data as E
 
 logger = logging.getLogger("mes.demo")
+
+_DEMO_REASON_ROWS: list[dict[str, str | None]] = [
+    {"code": "0000", "name": "Running", "description": "Running normally", "oee_bucket": "Value Add", "parent_code": None},
+    {"code": "1000", "name": "Mechanical", "description": "Mechanical reasons", "oee_bucket": "excluded", "parent_code": None},
+    {"code": "1010", "name": "EStop", "description": "Emergency stop", "oee_bucket": "Downtime -- Unplanned", "parent_code": "1000"},
+    {"code": "1020", "name": "Motor Overload", "description": "Motor above temp", "oee_bucket": "Downtime -- Unplanned", "parent_code": "1000"},
+    {"code": "2000", "name": "Electrical", "description": "Electrical reasons", "oee_bucket": "excluded", "parent_code": None},
+    {"code": "2010", "name": "GFI", "description": "GFI trip", "oee_bucket": "Downtime -- Unplanned", "parent_code": "2000"},
+    {"code": "3000", "name": "Maintenance", "description": "Maintenance reasons", "oee_bucket": "excluded", "parent_code": None},
+    {"code": "3010", "name": "PM", "description": "Preventive maintenance", "oee_bucket": "Downtimne -- Planned", "parent_code": "3000"},
+    {"code": "3020", "name": "Meeting", "description": "Team meeting", "oee_bucket": "Downtime -- Non-Value Add", "parent_code": "3000"},
+]
+
+_REASON_OEE_BUCKET_MAP = {
+    "value add": "uptime_value_add",
+    "excluded": "excluded",
+    "downtime -- unplanned": "downtime_unplanned",
+    "downtime -- planned": "downtime_planned",
+    "downtimne -- planned": "downtime_planned",
+    "downtime -- non-value add": "uptime_non_value",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +140,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                                 "input_disposition_links": 0,
                                 "output_disposition_links": 0,
                                 "segment_parameters": 0, "data_definitions": 0,
+                                "reasons": 0,
                                 "material_lots": 0,
                                 "dispositions": 0,
                                 "segment_material_requirements": 0,
@@ -237,6 +261,9 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
             dd["step_id"] = step.id
             if await _get_or_create_data_def(session, **dd):
                 summary["data_definitions"] += 1
+
+    # ── 9. Reason Hierarchy ─────────────────────────────────────────────
+    summary["reasons"] += await _seed_demo_reason_hierarchy(session)
 
     # ── 10. Segment Material Requirements (ISA-95 Part 2) ─────────────
     if hasattr(D, "SEGMENT_MATERIAL_REQUIREMENTS"):
@@ -562,6 +589,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
                                 "input_disposition_links": 0,
                                 "output_disposition_links": 0,
                                 "segment_parameters": 0, "data_definitions": 0,
+                                "reasons": 0,
                                 "dispositions": 0,
                                 "material_lots": 0,
                                 "segment_material_requirements": 0,
@@ -683,6 +711,9 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             dd["step_id"] = step.id
             if await _get_or_create_data_def(session, **dd):
                 summary["data_definitions"] += 1
+
+    # ── 9. Reason Hierarchy ─────────────────────────────────────────────
+    summary["reasons"] += await _seed_demo_reason_hierarchy(session)
 
     # ── 10. Segment Material Requirements (ISA-95 Part 2) ─────────────
     for req in E.SEGMENT_MATERIAL_REQUIREMENTS:
@@ -1074,6 +1105,55 @@ async def _get_or_create_data_def(
         return False
     await DataDefinitionService.create_definition(session, code=code, **kwargs)
     return True
+
+
+def _normalize_reason_oee_bucket(label: str) -> str:
+    normalized = " ".join(label.strip().lower().split())
+    bucket = _REASON_OEE_BUCKET_MAP.get(normalized)
+    if bucket is None:
+        raise ValidationException(
+            message=f"Unsupported demo reason OEE bucket '{label}'",
+            details={"oee_bucket": label},
+        )
+    return bucket
+
+
+async def _get_or_create_reason(
+    session: AsyncSession, code: str, **kwargs: Any,
+) -> tuple[Reason, bool]:
+    """Return existing reason by code (reactivating/updating), or create it."""
+    result = await session.execute(select(Reason).where(Reason.code == code))
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        existing.name = kwargs["name"]
+        existing.description = kwargs.get("description")
+        existing.oee_bucket = kwargs["oee_bucket"]
+        existing.parent_id = kwargs.get("parent_id")
+        existing.is_active = True
+        await session.flush()
+        return existing, False
+    reason = await ReasonService.create_reason(session, code=code, **kwargs)
+    return reason, True
+
+
+async def _seed_demo_reason_hierarchy(session: AsyncSession) -> int:
+    """Seed the shared demo reason hierarchy. Returns the number of rows created."""
+    reason_ids_by_code: dict[str, UUID] = {}
+    created = 0
+    for row in _DEMO_REASON_ROWS:
+        parent_code = row["parent_code"]
+        reason, was_created = await _get_or_create_reason(
+            session,
+            code=str(row["code"]),
+            name=str(row["name"]),
+            description=row["description"],
+            oee_bucket=_normalize_reason_oee_bucket(str(row["oee_bucket"])),
+            parent_id=reason_ids_by_code.get(parent_code) if parent_code else None,
+        )
+        reason_ids_by_code[reason.code] = reason.id
+        if was_created:
+            created += 1
+    return created
 
 
 async def _get_or_create_site(session: AsyncSession, **kwargs: Any) -> Any:

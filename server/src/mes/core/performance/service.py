@@ -488,7 +488,7 @@ class OEEService:
             select(EquipmentMaterial)
             .options(
                 selectinload(EquipmentMaterial.design_speed_unit)
-                .selectinload(UnitOfMeasure.denominator_uom)
+                .selectinload(UnitOfMeasure.right_uom)
             )
             .where(EquipmentMaterial.equipment_id == equipment_id)
             .limit(1)
@@ -498,10 +498,11 @@ class OEEService:
 
         if em is not None and em.design_speed > 0:
             rate_uom = em.design_speed_unit
-            if rate_uom and rate_uom.denominator_uom:
-                # denominator_uom.multiplier converts to base time unit (seconds)
+            if rate_uom and rate_uom.right_uom:
+                # right_uom is the denominator for quotient units and its
+                # multiplier converts to the base time unit (seconds).
                 # e.g. "h" has multiplier=3600 → ideal = 3600 / 120 = 30 sec/unit
-                denominator_in_seconds = rate_uom.denominator_uom.multiplier
+                denominator_in_seconds = rate_uom.right_uom.multiplier
                 return denominator_in_seconds / em.design_speed
 
             # Fallback: assume rate is per hour if UoM lookup fails

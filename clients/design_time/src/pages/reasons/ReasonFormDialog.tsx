@@ -81,13 +81,12 @@ export default function ReasonFormDialog({ reason, parentId, onClose }: Props) {
           {/* Code (only on create) */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Code (4 characters)
+              Code (up to 4 characters)
             </label>
             <input
               {...register("code", {
                 required: "Code is required",
-                minLength: { value: 4, message: "Code must be 4 characters" },
-                maxLength: { value: 4, message: "Code must be 4 characters" },
+                maxLength: { value: 4, message: "Code must be 4 characters or fewer" },
               })}
               disabled={!!reason}
               maxLength={4}
