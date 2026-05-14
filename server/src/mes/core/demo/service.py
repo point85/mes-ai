@@ -47,6 +47,7 @@ from mes.core.inventory.service import (
 from datetime import date, time, timedelta
 
 from mes.core.uom.models import UnitOfMeasure
+from mes.core.uom.seed import get_builtin_composite_dicts_typed, get_builtin_scalar_dicts
 from mes.core.work_schedule.models import WorkSchedule as _WorkScheduleModel
 from mes.core.work_schedule.service import WorkScheduleService as _WorkScheduleSvc
 from mes.framework.api.exceptions import MESException, ValidationException
@@ -124,7 +125,7 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
     # ── 0. Ensure demo-specific UOMs exist (°Bx, pH, CFU/mL, ...) ───
     # Must run BEFORE materials — MaterialDefinition.uom_id has an FK to
     # units_of_measure.id.
-    await _ensure_demo_uoms(session)
+    await _ensure_seed_uoms(session)
     uom_ids = await _uom_id_map(session)
 
     # ── 1. Materials ──────────────────────────────────────────────────
@@ -569,7 +570,7 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
     # ── 0. Ensure demo-specific UOMs exist (mL, g, mm, °C, ...) ─────
     # Must run BEFORE materials — MaterialDefinition.uom_id has an FK to
     # units_of_measure.id.
-    await _ensure_demo_uoms(session)
+    await _ensure_seed_uoms(session)
     uom_ids = await _uom_id_map(session)
 
     # ── 1. Materials ──────────────────────────────────────────────────
@@ -738,6 +739,7 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
                                 "storage_locations": 0,
                                 "inventory_received": 0}
 
+    await _ensure_seed_uoms(session)
     uom_ids = await _uom_id_map(session)
 
     # ── 1. Site → Area → Line ─────────────────────────────────────────
@@ -773,6 +775,7 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
 
     # ── 4. Equipment–Material assignments ─────────────────────────────
     mat_ids = await _material_id_map(session)
+    await _ensure_seed_uoms(session)
     uom_ids = await _uom_id_map(session)
 
     for em in E.EQUIPMENT_MATERIALS:
@@ -1183,6 +1186,44 @@ def _inject_uom_id(d: dict, uom_ids: dict[str, UUID]) -> dict:
         sym = out.pop("uom")
         out["uom_id"] = uom_ids[sym] if sym is not None else None
     return out
+
+
+async def _ensure_seed_uoms(session: AsyncSession) -> None:
+    """Ensure built-in and demo-specific UoMs exist for demo seeding."""
+    result = await session.execute(select(UnitOfMeasure.symbol))
+    existing_symbols = {row[0] for row in result.all()}
+
+    missing_scalars = [
+        UnitOfMeasure(**uom_data)
+        for uom_data in get_builtin_scalar_dicts()
+        if uom_data["symbol"] not in existing_symbols
+    ]
+    if missing_scalars:
+        session.add_all(missing_scalars)
+        await session.flush()
+        existing_symbols.update(uom.symbol for uom in missing_scalars)
+
+    scalar_rows = await session.execute(
+        select(UnitOfMeasure.symbol, UnitOfMeasure.id, UnitOfMeasure.uom_type).where(
+            UnitOfMeasure.uom_class == "scalar"
+        )
+    )
+    symbol_to_uom: dict[str, tuple[UUID, str]] = {
+        symbol: (uom_id, uom_type)
+        for symbol, uom_id, uom_type in scalar_rows.all()
+    }
+
+    missing_composites = [
+        UnitOfMeasure(**uom_data)
+        for uom_data in get_builtin_composite_dicts_typed(symbol_to_uom)
+        if uom_data["symbol"] not in existing_symbols
+    ]
+    if missing_composites:
+        session.add_all(missing_composites)
+        await session.flush()
+        existing_symbols.update(uom.symbol for uom in missing_composites)
+
+    await _ensure_demo_uoms(session)
 
 
 # Demo-specific UOMs not in the standard seed data.

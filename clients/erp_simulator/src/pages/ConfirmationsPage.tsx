@@ -1,7 +1,15 @@
 import { useState } from "react";
-import { getConfirmations, type ConfirmationRecord } from "../api/erp";
+import {
+  getConfirmations,
+  readProductionOrders,
+  type ConfirmationRecord,
+} from "../api/erp";
 import DataTable, { type Column } from "../components/DataTable";
 import { useERPType } from "../hooks/useERPType";
+
+type ConfirmationTableRecord = ConfirmationRecord & {
+  order_label: string;
+};
 
 function docNumber(r: ConfirmationRecord): string {
   return r.sap_document ?? r.erp_document ?? "—";
@@ -11,10 +19,10 @@ function payload(r: ConfirmationRecord): Record<string, unknown> | undefined {
   return r.sap_payload ?? r.erp_payload;
 }
 
-const columns: Column<ConfirmationRecord>[] = [
+const columns: Column<ConfirmationTableRecord>[] = [
   { key: "type", header: "Type", render: (r) => <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{r.type}</span> },
   { key: "erp_document", header: "Doc #", render: (r) => docNumber(r) },
-  { key: "order_id", header: "Order" },
+  { key: "order_label", header: "Order" },
   {
     key: "posted_at",
     header: "Posted At",
@@ -32,7 +40,7 @@ const columns: Column<ConfirmationRecord>[] = [
 ];
 
 export default function ConfirmationsPage() {
-  const [records, setRecords] = useState<ConfirmationRecord[]>([]);
+  const [records, setRecords] = useState<ConfirmationTableRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -42,8 +50,19 @@ export default function ConfirmationsPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getConfirmations();
-      setRecords(data);
+      const [data, orders] = await Promise.all([
+        getConfirmations(),
+        readProductionOrders(),
+      ]);
+      const orderNumberById = new Map(
+        orders.map((order) => [order.id, order.order_number]),
+      );
+      setRecords(
+        data.map((record) => ({
+          ...record,
+          order_label: orderNumberById.get(record.order_id) ?? record.order_id,
+        })),
+      );
       setLoaded(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Fetch failed");
