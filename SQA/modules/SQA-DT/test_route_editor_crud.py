@@ -13,14 +13,21 @@ Pattern:
 from __future__ import annotations
 
 import pytest
-from playwright.async_api import Page, expect
+from playwright.async_api import Locator, Page, expect
 from uuid import uuid4
 
+DT_DISPOSITIONS_URL = "http://localhost:5177/dispositions"
 DT_ROUTES_URL = "http://localhost:5177/routes"
+API_DISPOSITIONS = "/dispositions"
 API_ROUTES = "/operations-definitions"
 API_PRODUCTS = "/products"
 API_MATERIALS = "/materials"
 API_UOM = "/uom"
+
+
+async def _open_dispositions_page(page: Page) -> None:
+    await page.goto(DT_DISPOSITIONS_URL)
+    await expect(page.get_by_role("heading", name="Dispositions")).to_be_visible(timeout=10_000)
 
 
 async def _open_routes_page(page: Page) -> None:
@@ -87,6 +94,19 @@ def _create_material(api, *, uom_id: str, **overrides) -> dict:
     return resp.json()["data"]
 
 
+def _create_disposition(api, **overrides) -> dict:
+    payload = {
+        "code": f"SQA_ROUTE_DISP_{uuid4().hex[:8]}",
+        "name": "SQA Route Disposition",
+        "description": "SQA disposition for route-step wiring tests",
+        "category": "route",
+    }
+    payload.update(overrides)
+    resp = api.post(API_DISPOSITIONS, json=payload)
+    assert resp.status_code in (200, 201), f"Disposition setup failed: {resp.text}"
+    return resp.json()["data"]
+
+
 def _find_route_by_name(api, name: str):
     resp = api.get(API_ROUTES, params={"limit": "200"})
     assert resp.status_code == 200, f"List routes failed: {resp.text}"
@@ -96,11 +116,43 @@ def _find_route_by_name(api, name: str):
     return None
 
 
+def _find_disposition_by_code(api, code: str):
+    resp = api.get(API_DISPOSITIONS, params={"limit": "200"})
+    assert resp.status_code == 200, f"List dispositions failed: {resp.text}"
+    for item in resp.json().get("data", []):
+        if item.get("code") == code:
+            return item
+    return None
+
+
+@pytest.fixture
+def disposition_cleanup(api):
+    yield
+
+    resp = api.get(API_DISPOSITIONS, params={"limit": "200"})
+    assert resp.status_code == 200, f"Disposition cleanup list failed: {resp.text}"
+    for item in resp.json().get("data", []):
+        code = item.get("code") or ""
+        if not code.startswith("SQA_ROUTE_DISP_"):
+            continue
+        delete_resp = api.delete(f"{API_DISPOSITIONS}/{item['id']}")
+        assert delete_resp.status_code in (200, 204, 404), (
+            f"Disposition cleanup delete failed for {code}: {delete_resp.status_code} {delete_resp.text}"
+        )
+
+
 async def _select_route(page: Page, *, route_name: str, route_version: str) -> None:
     select_button = page.locator("button").filter(has_text=route_name).filter(has_text=f"v{route_version}").first
     await expect(select_button).to_be_visible(timeout=8_000)
     await select_button.click()
     await expect(page.get_by_text(f"Steps — {route_name}")).to_be_visible(timeout=8_000)
+
+
+def _step_disposition_checkbox(dialog: Locator, *, section_title: str, code: str) -> Locator:
+    disposition_list = dialog.locator(
+        f"xpath=.//p[normalize-space()='{section_title}']/following-sibling::ul[1]"
+    )
+    return disposition_list.locator("li").filter(has_text=code).get_by_role("checkbox")
 
 
 @pytest.mark.ui
@@ -216,6 +268,131 @@ async def test_route_step_crud(page: Page, api) -> None:
     await expect(page.get_by_text("SQA Reinspect")).to_be_hidden(timeout=8_000)
 
     delete_resp = api.get(f"/process-segments/{created['id']}")
+    assert delete_resp.status_code == 404, (
+        f"Expected 404 after delete, got {delete_resp.status_code}: {delete_resp.text}"
+    )
+
+
+@pytest.mark.ui
+@pytest.mark.usefixtures("route_cleanup", "disposition_cleanup")
+async def test_route_step_disposition_wiring(page: Page, api) -> None:
+    route = _create_route(api, name="SQA Disposition Wiring Route", version="6.0")
+    input_a = _create_disposition(
+        api,
+        code=f"SQA_ROUTE_DISP_IN_{uuid4().hex[:6]}",
+        name="SQA Input A",
+    )
+    output_a = _create_disposition(
+        api,
+        code=f"SQA_ROUTE_DISP_OUT_{uuid4().hex[:6]}",
+        name="SQA Output A",
+    )
+    hold_disposition = _create_disposition(
+        api,
+        code=f"SQA_ROUTE_DISP_HOLD_{uuid4().hex[:6]}",
+        name="SQA Hold",
+        category="hold",
+    )
+
+    await _open_routes_page(page)
+    await _select_route(page, route_name=route["name"], route_version=route["version"])
+
+    await page.get_by_role("button", name="New Step").click()
+    dialog = page.get_by_role("dialog")
+    await expect(dialog.get_by_role("heading", name="New Step")).to_be_visible(timeout=5_000)
+
+    await dialog.locator("input[name='sequence']").fill("40")
+    await dialog.locator("select[name='step_type']").select_option("production")
+    await dialog.locator("input[name='name']").fill("SQA Wired Step")
+    await dialog.locator("input[name='expected_cycle_time_sec']").fill("60")
+    await dialog.locator("input[name='erp_operation_number']").fill("0040")
+
+    await expect(dialog.locator("li").filter(has_text=hold_disposition["code"])).to_have_count(0)
+
+    await _step_disposition_checkbox(dialog, section_title="Input Dispositions", code=input_a["code"]).check()
+    await _step_disposition_checkbox(dialog, section_title="Output Dispositions", code=output_a["code"]).check()
+    await dialog.get_by_role("button", name="Create").click()
+    await expect(dialog).to_be_hidden(timeout=8_000)
+
+    step_row = page.locator("tr").filter(has_text="SQA Wired Step")
+    await expect(step_row).to_be_visible(timeout=8_000)
+
+    list_resp = api.get(f"{API_ROUTES}/{route['id']}/process-segments", params={"limit": "200"})
+    assert list_resp.status_code == 200, list_resp.text
+    created = next((item for item in list_resp.json()["data"] if item["name"] == "SQA Wired Step"), None)
+    assert created is not None
+
+    detail_resp = api.get(f"/process-segments/{created['id']}")
+    assert detail_resp.status_code == 200, detail_resp.text
+    created_detail = detail_resp.json()["data"]
+    assert [item["code"] for item in created_detail["input_dispositions"]] == [input_a["code"]]
+    assert [item["code"] for item in created_detail["output_dispositions"]] == [output_a["code"]]
+
+    await step_row.get_by_title("Edit step").click()
+    dialog = page.get_by_role("dialog")
+    await expect(dialog.get_by_role("heading", name="Edit Step")).to_be_visible(timeout=5_000)
+    await expect(
+        _step_disposition_checkbox(dialog, section_title="Input Dispositions", code=input_a["code"])
+    ).to_be_checked()
+    await expect(
+        _step_disposition_checkbox(dialog, section_title="Output Dispositions", code=output_a["code"])
+    ).to_be_checked()
+    await expect(dialog.locator("li").filter(has_text=hold_disposition["code"])).to_have_count(0)
+
+
+@pytest.mark.ui
+@pytest.mark.usefixtures("disposition_cleanup")
+async def test_route_disposition_editor_crud(page: Page, api) -> None:
+    disposition_code = f"SQA_ROUTE_DISP_{uuid4().hex[:8]}"
+
+    await _open_dispositions_page(page)
+    await page.get_by_role("button", name="New Disposition").click()
+    await expect(page.get_by_role("heading", name="New Disposition")).to_be_visible(timeout=5_000)
+
+    await page.locator("input[name='code']").fill(disposition_code)
+    await page.locator("input[name='name']").fill("SQA Route Disposition")
+    await page.locator("textarea[name='description']").fill("SQA route disposition create path")
+    await page.locator("select[name='category']").select_option("route")
+    await page.get_by_role("button", name="Create").click()
+
+    disposition_row = page.locator("tr").filter(has_text=disposition_code)
+    await expect(disposition_row).to_be_visible(timeout=8_000)
+    await expect(disposition_row).to_contain_text("SQA Route Disposition")
+    await expect(disposition_row.locator("span", has_text="route")).to_be_visible()
+
+    created = _find_disposition_by_code(api, disposition_code)
+    assert created is not None
+    assert created["name"] == "SQA Route Disposition"
+    assert created["description"] == "SQA route disposition create path"
+    assert created["category"] == "route"
+
+    await disposition_row.get_by_title("Edit").click()
+    await expect(page.get_by_role("heading", name="Edit Disposition")).to_be_visible(timeout=5_000)
+
+    await page.locator("input[name='name']").fill("SQA Route Disposition Updated")
+    await page.locator("textarea[name='description']").fill("SQA route disposition edit path")
+    await page.locator("select[name='category']").select_option("hold")
+    await page.get_by_role("button", name="Save").click()
+
+    updated_row = page.locator("tr").filter(has_text=disposition_code)
+    await expect(updated_row).to_be_visible(timeout=8_000)
+    await expect(updated_row).to_contain_text("SQA Route Disposition Updated")
+    await expect(updated_row.locator("span", has_text="hold")).to_be_visible()
+
+    detail_resp = api.get(f"{API_DISPOSITIONS}/{created['id']}")
+    assert detail_resp.status_code == 200, detail_resp.text
+    updated = detail_resp.json()["data"]
+    assert updated["code"] == disposition_code
+    assert updated["name"] == "SQA Route Disposition Updated"
+    assert updated["description"] == "SQA route disposition edit path"
+    assert updated["category"] == "hold"
+
+    page.on("dialog", lambda dialog: dialog.accept())
+    await updated_row.get_by_title("Delete").click()
+
+    await expect(page.locator("tr").filter(has_text=disposition_code)).to_have_count(0, timeout=8_000)
+
+    delete_resp = api.get(f"{API_DISPOSITIONS}/{created['id']}")
     assert delete_resp.status_code == 404, (
         f"Expected 404 after delete, got {delete_resp.status_code}: {delete_resp.text}"
     )

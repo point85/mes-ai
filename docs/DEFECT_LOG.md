@@ -150,3 +150,154 @@ E     - waiting for get_by_text("Products", exact=True)
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-14T01:36:22Z
+
+## [OPEN] 2026-05-14T03:06:53Z - modules/SQA-DT/test_route_editor_crud.py::test_route_disposition_editor_crud
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.fill: Timeout 30000ms exceeded.
+- First seen: 2026-05-14T03:06:53Z
+- Last seen: 2026-05-14T03:06:53Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:265: in test_route_disposition_editor_crud
+    await page.get_by_label("Code").fill(disposition_code)
+.venv\Lib\site-packages\playwright\async_api\_generated.py:16552: in fill
+    await self._impl_obj.fill(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:215: in fill
+    return await self._frame.fill(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_frame.py:607: in fill
+    await self._fill(**locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_frame.py:619: in _fill
+    await self._channel.send("fill", self._timeout, locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.TimeoutError: Locator.fill: Timeout 30000ms exceeded.
+E   Call log:
+E     - waiting for get_by_label("Code")
+```
+
+## [OPEN] 2026-05-14T03:07:16Z - modules/SQA-DT/test_route_editor_crud.py::test_route_disposition_editor_crud
+- Summary: E   Error: strict mode violation: locator("tr").filter(has_text="SQA_ROUTE_DISP_8fb9fa5e").locator("td").filter(has_text="SQA Route Disposition") resolved to 2 elements:
+- First seen: 2026-05-14T03:07:16Z
+- Last seen: 2026-05-14T03:07:16Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:273: in test_route_disposition_editor_crud
+    await expect(disposition_row.locator("td", has_text="SQA Route Disposition")).to_be_visible()
+E   AssertionError: Locator expected to be visible
+E   Actual value: None
+E   Error: strict mode violation: locator("tr").filter(has_text="SQA_ROUTE_DISP_8fb9fa5e").locator("td").filter(has_text="SQA Route Disposition") resolved to 2 elements:
+E       1) <td class="py-2 px-2 text-sm text-gray-900">SQA Route Disposition</td> aka get_by_role("cell", name="SQA Route Disposition", exact=True)
+E       2) <td class="py-2 px-2 text-sm text-gray-500">SQA route disposition create path</td> aka get_by_role("cell", name="SQA route disposition create")
+E
+E   Call log:
+E     - Expect "to_be_visible" with timeout 5000ms
+E     - waiting for locator("tr").filter(has_text="SQA_ROUTE_DISP_8fb9fa5e").locator("td").filter(has_text="SQA Route Disposition")
+```
+
+## [RESOLVED] 2026-05-14T03:07:40Z - modules/SQA-DT/test_route_editor_crud.py::test_route_disposition_editor_crud
+- Summary: E   Error: strict mode violation: locator("tr").filter(has_text="SQA_ROUTE_DISP_8fb9fa5e").locator("td").filter(has_text="SQA Route Disposition") resolved to 2 elements:
+- First seen: 2026-05-14T03:07:16Z
+- Last seen failing run: 2026-05-14T03:07:16Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-14T03:07:40Z
+
+## [OPEN] 2026-05-14T03:15:54Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_disposition_wiring
+- Summary: E   AssertionError: assert ['SQA_ROUTE_DISP_IN_ef415f'] == ['SQA_ROUTE_DISP_IN_4fdf7e']
+- First seen: 2026-05-14T03:15:54Z
+- Last seen: 2026-05-14T03:15:54Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:356: in test_route_step_disposition_wiring
+    assert [item["code"] for item in updated_detail["input_dispositions"]] == [input_b["code"]]
+E   AssertionError: assert ['SQA_ROUTE_DISP_IN_ef415f'] == ['SQA_ROUTE_DISP_IN_4fdf7e']
+E
+E     At index 0 diff: [0m[33m'[39;49;00m[33mSQA_ROUTE_DISP_IN_ef415f[39;49;00m[33m'[39;49;00m[90m[39;49;00m != [0m[33m'[39;49;00m[33mSQA_ROUTE_DISP_IN_4fdf7e[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+E
+E     Full diff:
+E     [0m[90m [39;49;00m [[90m[39;49;00m
+E     [91m-     'SQA_ROUTE_DISP_IN_4fdf7e',[39;49;00m[90m[39;49;00m
+E     ?                          ----[90m[39;49;00m...
+E
+E     ...Full output truncated (3 lines hidden), use '-vv' to show
+```
+
+## [OPEN] 2026-05-14T03:17:05Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_disposition_wiring
+- Summary: E   AssertionError: assert ['SQA_ROUTE_DISP_IN_cce13b'] == ['SQA_ROUTE_DISP_IN_ce43b0']
+- First seen: 2026-05-14T03:17:05Z
+- Last seen: 2026-05-14T03:17:05Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:363: in test_route_step_disposition_wiring
+    assert [item["code"] for item in updated_detail["input_dispositions"]] == [input_b["code"]]
+E   AssertionError: assert ['SQA_ROUTE_DISP_IN_cce13b'] == ['SQA_ROUTE_DISP_IN_ce43b0']
+E
+E     At index 0 diff: [0m[33m'[39;49;00m[33mSQA_ROUTE_DISP_IN_cce13b[39;49;00m[33m'[39;49;00m[90m[39;49;00m != [0m[33m'[39;49;00m[33mSQA_ROUTE_DISP_IN_ce43b0[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+E
+E     Full diff:
+E     [0m[90m [39;49;00m [[90m[39;49;00m
+E     [91m-     'SQA_ROUTE_DISP_IN_ce43b0',[39;49;00m[90m[39;49;00m
+E     ?                          ^  -[90m[39;49;00m...
+E
+E     ...Full output truncated (3 lines hidden), use '-vv' to show
+```
+
+## [OPEN] 2026-05-14T03:18:11Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_disposition_wiring
+- Summary: E   Error: element(s) not found
+- First seen: 2026-05-14T03:18:11Z
+- Last seen: 2026-05-14T03:18:11Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:307: in test_route_step_disposition_wiring
+    await _open_routes_page(page)
+SQA\modules\SQA-DT\test_route_editor_crud.py:35: in _open_routes_page
+    await expect(page.get_by_role("heading", name="Route Editor")).to_be_visible(timeout=10_000)
+E   AssertionError: Locator expected to be visible
+E   Actual value: None
+E   Error: element(s) not found
+E   Call log:
+E     - Expect "to_be_visible" with timeout 10000ms
+E     - waiting for get_by_role("heading", name="Route Editor")
+```
+
+## [OPEN] 2026-05-14T03:18:43Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_disposition_wiring
+- Summary: E   AssertionError: assert ['SQA_ROUTE_DISP_IN_7acda6'] == ['SQA_ROUTE_DISP_IN_8308a3']
+- First seen: 2026-05-14T03:18:43Z
+- Last seen: 2026-05-14T03:18:43Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:365: in test_route_step_disposition_wiring
+    assert [item["code"] for item in updated_detail["input_dispositions"]] == [input_b["code"]]
+E   AssertionError: assert ['SQA_ROUTE_DISP_IN_7acda6'] == ['SQA_ROUTE_DISP_IN_8308a3']
+E
+E     At index 0 diff: [0m[33m'[39;49;00m[33mSQA_ROUTE_DISP_IN_7acda6[39;49;00m[33m'[39;49;00m[90m[39;49;00m != [0m[33m'[39;49;00m[33mSQA_ROUTE_DISP_IN_8308a3[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+E
+E     Full diff:
+E     [0m[90m [39;49;00m [[90m[39;49;00m
+E     [91m-     'SQA_ROUTE_DISP_IN_8308a3',[39;49;00m[90m[39;49;00m
+E     ?                        ^^^^ ^[90m[39;49;00m...
+E
+E     ...Full output truncated (3 lines hidden), use '-vv' to show
+```
+
+## [RESOLVED] 2026-05-14T03:20:59Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_disposition_wiring
+- Summary: E   AssertionError: assert ['SQA_ROUTE_DISP_IN_7acda6'] == ['SQA_ROUTE_DISP_IN_8308a3']
+- First seen: 2026-05-14T03:18:43Z
+- Last seen failing run: 2026-05-14T03:18:43Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-14T03:20:59Z
