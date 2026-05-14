@@ -217,20 +217,10 @@ STEP_PARAMS: dict[int, list[dict]] = {
 # Data Collection Definitions  (actual measurement collection)
 # ---------------------------------------------------------------------------
 
-# Data definitions kept here are those with NO matching step parameter (unique time-series
-# measurements). Parameters that duplicate step parameters were removed — use step parameters
-# for spec-limit display; use data definitions for time-series data collection only.
-DATA_DEFS: dict[int, list[dict]] = {
-    10: [  # Blending — three unique measurements not covered by step parameters
-        {"code": "CPG-BLEND-TIME",  "name": "Blend Mix Time",    "data_type": "numeric", "source": "equipment", "lower_limit": 12.0, "upper_limit": 20.0, "uom": "min", "is_required": True},
-        {"code": "CPG-BLEND-TEMP",  "name": "Blend Temperature", "data_type": "numeric", "source": "sensor",    "lower_limit": 20.0, "upper_limit": 30.0, "uom": "°C",  "is_required": True},
-        {"code": "CPG-BLEND-RATIO", "name": "Blend Ratio (W:C)", "data_type": "numeric", "source": "equipment", "lower_limit": 3.8,  "upper_limit": 4.2,  "uom": None,  "is_required": True},
-    ],
-    30: [  # Quality Testing — Brix Value and pH Value are unique (step params use different names)
-        {"code": "CPG-QC-BRIX", "name": "Brix Value", "data_type": "numeric", "source": "manual", "lower_limit": 11.0, "upper_limit": 12.0, "uom": "°Bx", "is_required": True},
-        {"code": "CPG-QC-PH",   "name": "pH Value",   "data_type": "numeric", "source": "manual", "lower_limit": 3.5,  "upper_limit": 4.0,  "uom": None,  "is_required": True},
-    ],
-}
+# All CPG juice-line measurements that overlap with step parameters have been
+# removed here so the runtime/operator experience uses the step parameter rows
+# as the single source of truth for those specs and actuals.
+DATA_DEFS: dict[int, list[dict]] = {}
 
 # ---------------------------------------------------------------------------
 # Production Orders  (removed — create via Production Orders page in ERP Sim)

@@ -234,33 +234,15 @@ STEP_PARAMS: dict[int, list[dict]] = {
 # ---------------------------------------------------------------------------
 
 # Data definitions kept here are those with NO matching step parameter (unique time-series
-# measurements). Parameters that duplicate step parameters were removed — use step parameters
-# for spec-limit display; use data definitions for time-series data collection only.
+# measurements). Overlapping temperature, coating, functional-test, and rework-action
+# definitions were removed so step parameters remain the single source of truth.
 DATA_DEFS: dict[int, list[dict]] = {
-    30: [  # Reflow Soldering — 5 per-zone actual temperatures (step params use shortened names)
-        {"code": "ECB-RF-Z1", "name": "Zone 1 Temperature", "data_type": "numeric", "source": "sensor", "lower_limit": 140.0, "upper_limit": 160.0, "uom": "°C", "is_required": True},
-        {"code": "ECB-RF-Z2", "name": "Zone 2 Temperature", "data_type": "numeric", "source": "sensor", "lower_limit": 170.0, "upper_limit": 190.0, "uom": "°C", "is_required": True},
-        {"code": "ECB-RF-Z3", "name": "Zone 3 Temperature", "data_type": "numeric", "source": "sensor", "lower_limit": 220.0, "upper_limit": 240.0, "uom": "°C", "is_required": True},
-        {"code": "ECB-RF-Z4", "name": "Zone 4 Temperature", "data_type": "numeric", "source": "sensor", "lower_limit": 240.0, "upper_limit": 250.0, "uom": "°C", "is_required": True},
-        {"code": "ECB-RF-Z5", "name": "Zone 5 Temperature", "data_type": "numeric", "source": "sensor", "lower_limit": 190.0, "upper_limit": 210.0, "uom": "°C", "is_required": True},
-    ],
     40: [  # AOI — actual defect count (step param "Defect Threshold" is the spec limit, not the measurement)
         {"code": "ECB-AOI-DEF", "name": "Defect Count", "data_type": "numeric", "source": "equipment", "lower_limit": 0.0, "upper_limit": 3.0, "uom": "count", "is_required": True},
     ],
-    50: [  # Through-Hole & Conformal Coat — actual measurements with distinct names from step params
-        {"code": "ECB-TH-WAVETEMP", "name": "Wave Solder Temp",        "data_type": "numeric", "source": "equipment", "lower_limit": 250.0, "upper_limit": 270.0, "uom": "°C", "is_required": True},
-        {"code": "ECB-TH-COAT",     "name": "Conformal Coat Thickness", "data_type": "numeric", "source": "sensor",    "lower_limit": 25.0,  "upper_limit": 75.0,  "uom": "µm", "is_required": True},
-    ],
-    60: [  # Functional Test — all 5 are actual measured values distinct from step param setpoints
-        {"code": "ECB-FCT-VOLT", "name": "Measured Voltage",    "data_type": "numeric", "source": "equipment", "lower_limit": 4.9,  "upper_limit": 5.1,   "uom": "V",  "is_required": True},
-        {"code": "ECB-FCT-CURR", "name": "Measured Current",    "data_type": "numeric", "source": "equipment", "lower_limit": 0.0,  "upper_limit": 800.0, "uom": "mA", "is_required": True},
-        {"code": "ECB-FCT-DUR",  "name": "Actual Test Duration", "data_type": "numeric", "source": "equipment", "lower_limit": 20.0, "upper_limit": 45.0,  "uom": "s",  "is_required": True},
+    60: [  # Functional Test — only additional automated pass/fail checks remain distinct
         {"code": "ECB-FCT-IO",   "name": "I/O Channels OK",     "data_type": "boolean", "source": "equipment", "lower_limit": None, "upper_limit": None,  "uom": None, "is_required": True},
         {"code": "ECB-FCT-FW",   "name": "Firmware Checksum OK", "data_type": "boolean", "source": "equipment", "lower_limit": None, "upper_limit": None,  "uom": None, "is_required": True},
-    ],
-    70: [  # Rework — action taken is distinct from step param "Rework Action" (different name/enum values)
-        {"code": "ECB-RW-ACTION", "name": "Rework Action Taken", "data_type": "enum", "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True,
-         "enum_values": "re_solder,replace_component,re_coat,jumper_wire,other"},
     ],
 }
 
