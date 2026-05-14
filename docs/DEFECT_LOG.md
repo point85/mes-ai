@@ -382,3 +382,72 @@ E    +  where 404 = <Response [404 Not Found]>.status_code
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-14T15:34:01Z
+
+## [OPEN] 2026-05-14T15:45:13Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_equipment_requirements_editor
+- Summary: E   AssertionError: assert 'required' == 'preferred'
+- First seen: 2026-05-14T15:45:13Z
+- Last seen: 2026-05-14T15:45:13Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:654: in test_route_step_equipment_requirements_editor
+    assert created["use_type"] == "preferred"
+E   AssertionError: assert 'required' == 'preferred'
+E
+E     [0m[91m- preferred[39;49;00m[90m[39;49;00m
+E     [92m+ required[39;49;00m[90m[39;49;00m
+```
+
+## [OPEN] 2026-05-14T15:45:24Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_material_requirements_editor
+- Summary: E   Error: element(s) not found
+- First seen: 2026-05-14T15:45:24Z
+- Last seen: 2026-05-14T15:45:24Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:685: in test_route_step_material_requirements_editor
+    await expect(requirement_row).to_be_visible(timeout=8_000)
+E   AssertionError: Locator expected to be visible
+E   Actual value: None
+E   Error: element(s) not found
+E   Call log:
+E     - Expect "to_be_visible" with timeout 8000ms
+E     - waiting for get_by_role("dialog").locator("xpath=.//h4[normalize-space()='Material Requirements']/ancestor::div[contains(@class,'rounded-md')][1]").locator("li").filter(has_text="SQA_MAT_e2adae8c")
+```
+
+## [RESOLVED] 2026-05-14T15:55:10Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_equipment_requirements_editor
+- Summary: E   AssertionError: assert 'required' == 'preferred'
+- First seen: 2026-05-14T15:45:13Z
+- Last seen failing run: 2026-05-14T15:53:39Z
+- Occurrences before fix: 3
+- Status: resolved
+- Resolved at: 2026-05-14T15:55:10Z
+
+## [OPEN] 2026-05-14T17:28:06Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_material_requirements_editor
+- Summary: E   AssertionError: Locator expected to have Value ''
+- First seen: 2026-05-14T17:28:06Z
+- Last seen: 2026-05-14T17:28:06Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:703: in test_route_step_material_requirements_editor
+    await expect(section.locator("select").nth(0)).to_have_value("", timeout=8_000)
+E   AssertionError: Locator expected to have Value ''
+E   Actual value: 75084474-88fb-4c34-917c-bedaf0bca5e3
+E   Call log:
+E     - Expect "to_have_value" with timeout 8000ms
+E     - waiting for get_by_role("dialog").locator("xpath=.//h4[normalize-space()='Material Requirements']/ancestor::div[contains(@class,'rounded-md')][1]").locator("select").first
+E       11 × locator resolved to <select class="rounded border border-gray-300 bg-white px-2 py-1 text-xs">…</select>
+E          - unexpected value "75084474-88fb-4c34-917c-bedaf0bca5e3"
+```
+
+## [RESOLVED] 2026-05-14T17:31:33Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_material_requirements_editor
+- Summary: E   AssertionError: Locator expected to have Value ''
+- First seen: 2026-05-14T17:28:06Z
+- Last seen failing run: 2026-05-14T17:28:06Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-14T17:31:33Z

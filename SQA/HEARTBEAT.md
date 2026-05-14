@@ -236,3 +236,69 @@ TASK: Use SKILL_QA_ENGINEER to test the first feature listed in architecture.md.
 - Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
 - pytest : all tests passed
 - Report : SQA/reports/latest/report.html
+
+## 2026-05-14T08:36:44Z - DT-AUDIT [PASS]
+- Scope  : reasons
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T08:37:18Z - DT-AUDIT [PASS]
+- Scope  : users-and-groups
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T08:44:32Z - DT-AUDIT [FAIL]
+- Scope  : routes
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T08:49:39Z - DT-AUDIT [FAIL]
+- Scope  : routes
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T08:54:28Z - DT-AUDIT [FAIL]
+- Scope  : routes
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T08:55:55Z - DT-AUDIT [FAIL]
+- Scope  : routes
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T08:57:19Z - DT-AUDIT [FAIL]
+- Scope  : routes
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T08:59:07Z - DT-AUDIT [FAIL]
+- Scope  : routes
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T10:27:09Z - DT-AUDIT [FAIL]
+- Scope  : routes
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T10:30:48Z - DT-AUDIT [PASS]
+- Scope  : routes
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-14T10:35:39Z - DT-AUDIT [PASS]
+- Scope  : equipment
+- Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html

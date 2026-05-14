@@ -183,6 +183,14 @@ async def _open_equipment_class_page(page: Page) -> None:
     await expect(page.get_by_role("heading", name="Equipment Classes")).to_be_visible(timeout=10_000)
 
 
+async def _open_equipment_class_detail_page(page: Page, *, class_code: str, class_name: str) -> None:
+    await _open_equipment_class_page(page)
+    row = page.locator("tr").filter(has_text=class_code)
+    await expect(row).to_be_visible(timeout=8_000)
+    await row.get_by_title("Properties").click()
+    await expect(page.get_by_role("heading", name=class_name)).to_be_visible(timeout=10_000)
+
+
 async def _open_capability_page(page: Page, *, wc_id: str, equipment_code: str) -> None:
     await _open_equipment_page(page, wc_id=wc_id)
     row = page.locator("tr").filter(has_text=equipment_code)
@@ -278,6 +286,108 @@ async def test_equipment_class_crud(page: Page, api) -> None:
     assert delete_resp.status_code == 404, (
         f"Expected 404 after delete, got {delete_resp.status_code}: {delete_resp.text}"
     )
+
+
+@pytest.mark.ui
+@pytest.mark.usefixtures("physical_model_cleanup", "equipment_class_cleanup")
+async def test_equipment_class_detail_shows_assigned_equipment(page: Page, api) -> None:
+    hierarchy = _create_hierarchy(api)
+    wc_id = hierarchy["work_cell"]["id"]
+    equipment_class = _create_equipment_class(api, name="SQA Detail Equipment Class")
+    equipment = _create_equipment(
+        api,
+        wc_id=wc_id,
+        name="SQA Detail Equipment",
+        equipment_class_id=equipment_class["id"],
+    )
+
+    await _open_equipment_class_detail_page(
+        page,
+        class_code=equipment_class["code"],
+        class_name=equipment_class["name"],
+    )
+
+    await expect(page.get_by_text("Assigned Equipment")).to_be_visible(timeout=8_000)
+    member_row = page.locator("tr").filter(has_text=equipment["code"])
+    await expect(member_row).to_be_visible(timeout=8_000)
+    await expect(member_row).to_contain_text(equipment["name"])
+    await expect(page.get_by_text("(1 equipment assigned)")).to_be_visible(timeout=8_000)
+
+    detail_resp = api.get(f"{API_EQUIPMENT_CLASSES}/{equipment_class['id']}")
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()["data"]
+    assert detail["member_count"] == 1
+    assert any(item["code"] == equipment["code"] for item in detail["members"])
+
+
+@pytest.mark.ui
+@pytest.mark.usefixtures("equipment_class_cleanup", "uom_cleanup")
+async def test_equipment_class_property_crud(page: Page, api) -> None:
+    equipment_class = _create_equipment_class(api, name="SQA Property Equipment Class")
+    uom = _create_scalar_uom(api, symbol=_unique_code("SQA_PU"), name="SQA Property UoM")
+
+    await _open_equipment_class_detail_page(
+        page,
+        class_code=equipment_class["code"],
+        class_name=equipment_class["name"],
+    )
+
+    await page.get_by_role("button", name="Add Property").click()
+    await expect(page.get_by_role("heading", name="Add Property")).to_be_visible(timeout=5_000)
+
+    await page.locator("label:has-text('Name') + input").fill("max_speed")
+    await page.locator("label:has-text('Data Type') + select").select_option("float")
+    await page.locator("label:has-text('UoM') + select").select_option(value=uom["id"])
+    await page.locator("label:has-text('Default Value') + input").fill("125.5")
+    await page.locator("label:has-text('Description') + textarea").fill("SQA class property create path")
+    await page.get_by_role("button", name="Create").click()
+
+    property_row = page.locator("tr").filter(has_text="max_speed")
+    await expect(property_row).to_be_visible(timeout=8_000)
+    await expect(property_row).to_contain_text("float")
+    await expect(property_row).to_contain_text(uom["symbol"])
+    await expect(property_row).to_contain_text("125.5")
+
+    create_resp = api.get(f"{API_EQUIPMENT_CLASSES}/{equipment_class['id']}/properties")
+    assert create_resp.status_code == 200, create_resp.text
+    created = next((item for item in create_resp.json()["data"] if item["name"] == "max_speed"), None)
+    assert created is not None
+    assert created["data_type"] == "float"
+    assert created["uom_id"] == uom["id"]
+    assert created["default_value"] == "125.5"
+    assert created["description"] == "SQA class property create path"
+
+    await property_row.get_by_title("Edit").click()
+    await expect(page.get_by_role("heading", name="Edit Property")).to_be_visible(timeout=5_000)
+
+    await page.locator("label:has-text('Name') + input").fill("rated_speed")
+    await page.locator("label:has-text('Data Type') + select").select_option("int")
+    await page.locator("label:has-text('Default Value') + input").fill("150")
+    await page.locator("label:has-text('Description') + textarea").fill("SQA class property edit path")
+    await page.get_by_role("button", name="Save").click()
+
+    updated_row = page.locator("tr").filter(has_text="rated_speed")
+    await expect(updated_row).to_be_visible(timeout=8_000)
+    await expect(updated_row).to_contain_text("int")
+    await expect(updated_row).to_contain_text("150")
+
+    update_resp = api.get(f"{API_EQUIPMENT_CLASSES}/{equipment_class['id']}/properties")
+    assert update_resp.status_code == 200, update_resp.text
+    updated = next((item for item in update_resp.json()["data"] if item["id"] == created["id"]), None)
+    assert updated is not None
+    assert updated["name"] == "rated_speed"
+    assert updated["data_type"] == "int"
+    assert updated["default_value"] == "150"
+    assert updated["description"] == "SQA class property edit path"
+
+    page.on("dialog", lambda dialog: dialog.accept())
+    await updated_row.get_by_title("Delete").click()
+
+    await expect(page.locator("tr").filter(has_text="rated_speed")).to_have_count(0, timeout=8_000)
+
+    delete_resp = api.get(f"{API_EQUIPMENT_CLASSES}/{equipment_class['id']}/properties")
+    assert delete_resp.status_code == 200, delete_resp.text
+    assert all(item["id"] != created["id"] for item in delete_resp.json()["data"])
 
 
 @pytest.mark.ui
