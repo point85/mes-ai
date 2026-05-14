@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import ssl
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -206,17 +207,39 @@ class MQTTClient:
             })
         return results
 
-    async def read_state_topic(self) -> str | None:
-        """Read the equipment state from the configured state topic."""
+    async def read_state_topic(self) -> tuple[str | None, str | None]:
+        """Read the latest equipment state and optional equipment ID from the configured state topic."""
         state_topic = self._settings.EQUIP_MQTT_STATE_TOPIC
         if not state_topic:
-            return None
-        # The state topic may or may not be under the prefix
+            return None, None
+
+        if "{equipment_id}" in state_topic:
+            topic_regex = self._compile_topic_pattern(state_topic)
+            matches = [
+                cached for cached in self._tag_cache.values()
+                if cached.topic and topic_regex.fullmatch(cached.topic)
+            ]
+            if not matches:
+                return None, None
+            latest = max(matches, key=lambda cached: cached.timestamp)
+            match = topic_regex.fullmatch(latest.topic)
+            equipment_id = match.group("equipment_id") if match else None
+            state = str(latest.value) if latest.value is not None else None
+            return state, equipment_id
+
+        # The state topic may or may not be under the prefix.
         tag_name = self._topic_to_tag(state_topic)
         cached = self._tag_cache.get(tag_name)
         if cached is None:
-            return None
-        return str(cached.value) if cached.value is not None else None
+            return None, None
+        state = str(cached.value) if cached.value is not None else None
+        return state, None
+
+    @staticmethod
+    def _compile_topic_pattern(topic_pattern: str) -> re.Pattern[str]:
+        escaped = re.escape(topic_pattern)
+        regex = escaped.replace(re.escape("{equipment_id}"), r"(?P<equipment_id>[^/]+)")
+        return re.compile(regex)
 
     # ── Internal helpers ──
 
@@ -287,7 +310,7 @@ class MQTTClient:
                 # Update cache
                 self._tag_cache[tag_name] = _CachedValue(
                     value=value, quality="good", data_type=data_type,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=datetime.now(timezone.utc), topic=topic_str,
                 )
 
                 # Dispatch callback
@@ -315,13 +338,14 @@ class MQTTClient:
 class _CachedValue:
     """Lightweight container for a cached tag value."""
 
-    __slots__ = ("value", "quality", "data_type", "timestamp")
+    __slots__ = ("value", "quality", "data_type", "timestamp", "topic")
 
-    def __init__(self, value: Any, quality: str, data_type: str, timestamp: datetime) -> None:
+    def __init__(self, value: Any, quality: str, data_type: str, timestamp: datetime, topic: str) -> None:
         self.value = value
         self.quality = quality
         self.data_type = data_type
         self.timestamp = timestamp
+        self.topic = topic
 
 
 def _infer_python_type(value: Any) -> str:

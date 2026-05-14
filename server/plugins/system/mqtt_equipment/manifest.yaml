@@ -32,11 +32,11 @@ parameters:
     default: mes/equipment
   - name: equipment_id
     type: string
-    description: Equipment identifier for state tracking
-    required: true
+    description: Optional fallback equipment identifier for single-equipment state tracking
+    required: false
   - name: state_topic
     type: string
-    description: Topic for equipment state updates
+    description: Topic or topic pattern for equipment state updates, e.g. mes/equipment/{equipment_id}/state
     required: false
   - name: username
     type: string

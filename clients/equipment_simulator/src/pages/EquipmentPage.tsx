@@ -97,8 +97,8 @@ export default function EquipmentPage() {
   const [histCountResult, setHistCountResult] = useState<string | null>(null);
   const [histCountError, setHistCountError] = useState<string | null>(null);
 
-  // Installed plugins — drives visibility of plugin-specific simulation cards
-  const [installedPluginIds, setInstalledPluginIds] = useState<Set<string>>(new Set());
+  // Enabled plugins drive visibility of plugin-specific simulation cards.
+  const [enabledPluginIds, setEnabledPluginIds] = useState<Set<string>>(new Set());
 
   // Modbus Equipment Simulator state
   const [modbusSimStatus, setModbusSimStatus] = useState<ModbusSimStatus | null>(null);
@@ -153,12 +153,14 @@ export default function EquipmentPage() {
   const [histResult, setHistResult] = useState<string | null>(null);
   const [histError, setHistError] = useState<string | null>(null);
 
-  // Load state models, reasons, and installed plugins on mount
+  // Load state models, reasons, and enabled plugins on mount.
   useEffect(() => {
     fetchStateModels().then(setModels).catch(() => {});
     fetchReasons().then(setReasons).catch(() => {});
     fetchInstalledPlugins()
-      .then((plugins) => setInstalledPluginIds(new Set(plugins.map((p) => p.id))))
+      .then((plugins) => setEnabledPluginIds(new Set(
+        plugins.filter((p) => p.enabled).map((p) => p.id),
+      )))
       .catch(() => {});
   }, []);
 
@@ -718,8 +720,8 @@ export default function EquipmentPage() {
                 )}
               </div>
 
-              {/* OPC-UA State Simulation — PackML + opcua-equipment plugin installed */}
-              {current?.state_model === "packml" && installedPluginIds.has("opcua-equipment") && (
+              {/* OPC-UA State Simulation — visible only when opcua-equipment is enabled */}
+              {current?.state_model === "packml" && enabledPluginIds.has("opcua-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate OPC-UA State Change — {selectedEquip.code}
@@ -780,7 +782,7 @@ export default function EquipmentPage() {
               )}
 
               {/* MQTT State Simulation */}
-              {installedPluginIds.has("mqtt-equipment") && (
+              {enabledPluginIds.has("mqtt-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate MQTT State Message — {selectedEquip.code}
@@ -859,7 +861,7 @@ export default function EquipmentPage() {
               )}
 
               {/* Historian State Simulation */}
-              {installedPluginIds.has("aveva-historian") && (
+              {enabledPluginIds.has("aveva-historian") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate Historian State Change — {selectedEquip.code}
@@ -930,7 +932,7 @@ export default function EquipmentPage() {
               )}
 
               {/* Modbus Equipment Simulator — write registers directly */}
-              {installedPluginIds.has("modbus-equipment-simulator") && (
+              {enabledPluginIds.has("modbus-equipment-simulator") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1133,7 +1135,7 @@ export default function EquipmentPage() {
               </div>
 
               {/* Modbus Production Counters */}
-              {installedPluginIds.has("modbus-equipment-simulator") && (
+              {enabledPluginIds.has("modbus-equipment-simulator") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1201,7 +1203,7 @@ export default function EquipmentPage() {
               )}
 
               {/* MQTT Production Counts Simulation */}
-              {installedPluginIds.has("mqtt-equipment") && (
+              {enabledPluginIds.has("mqtt-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate MQTT Production Counts — {selectedEquip.code}
@@ -1279,7 +1281,7 @@ export default function EquipmentPage() {
               )}
 
               {/* AVEVA Historian Production Counts Simulation */}
-              {installedPluginIds.has("aveva-historian") && (
+              {enabledPluginIds.has("aveva-historian") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate Historian Production Counts — {selectedEquip.code}
@@ -1493,7 +1495,7 @@ export default function EquipmentPage() {
               </div>
 
               {/* OPC-UA Material Setup Simulation */}
-              {installedPluginIds.has("opcua-equipment") && (
+              {enabledPluginIds.has("opcua-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate OPC-UA Material Setup — {selectedEquip.code}
@@ -1580,7 +1582,7 @@ export default function EquipmentPage() {
               )}
 
               {/* MQTT Material Setup Simulation */}
-              {installedPluginIds.has("mqtt-equipment") && (
+              {enabledPluginIds.has("mqtt-equipment") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate MQTT Material Setup — {selectedEquip.code}
@@ -1670,7 +1672,7 @@ export default function EquipmentPage() {
               )}
 
               {/* Historian Material Setup Simulation */}
-              {installedPluginIds.has("aveva-historian") && (
+              {enabledPluginIds.has("aveva-historian") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-600 uppercase">
                   Simulate Historian Material Setup — {selectedEquip.code}

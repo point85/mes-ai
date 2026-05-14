@@ -119,12 +119,12 @@ class MQTTEquipmentAdapter(EquipmentAdapter):
         await self._client.unsubscribe_tag(handle.tag_name)
 
     async def get_equipment_state(self) -> EquipmentState:
-        state_value = await self._client.read_state_topic()
+        state_value, topic_equipment_id = await self._client.read_state_topic()
         state = (state_value or "unknown").lower()
         dispatch_category = _STATE_DISPATCH_MAP.get(state, "available")
         oee_bucket = _STATE_OEE_MAP.get(state, "uptime_non_value")
         return EquipmentState(
-            equipment_id=self.equipment_id,
+            equipment_id=topic_equipment_id or self.equipment_id,
             state=state,
             dispatch_category=dispatch_category,
             oee_bucket=oee_bucket,
