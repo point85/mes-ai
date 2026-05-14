@@ -359,3 +359,26 @@ E     - waiting for locator("tr").filter(has_text="CA74").locator("td").filter(h
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-14T15:29:29Z
+
+## [OPEN] 2026-05-14T15:33:15Z - modules/SQA-DT/test_auth_admin_crud.py::test_user_edit
+- Summary: E   AssertionError: {"error":{"code":"RESOURCE_NOT_FOUND","message":"User with id '63ec20fe-3ac0-4656-b5a2-70c0feb3899c' not found","details":null},"meta":{"timestamp":"2026-05-14T15:33:15.410719+00:00"}}
+- First seen: 2026-05-14T15:33:15Z
+- Last seen: 2026-05-14T15:33:15Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_auth_admin_crud.py:244: in test_user_edit
+    assert resp.status_code == 200, resp.text
+E   AssertionError: {"error":{"code":"RESOURCE_NOT_FOUND","message":"User with id '63ec20fe-3ac0-4656-b5a2-70c0feb3899c' not found","details":null},"meta":{"timestamp":"2026-05-14T15:33:15.410719+00:00"}}
+E   assert 404 == 200
+E    +  where 404 = <Response [404 Not Found]>.status_code
+```
+
+## [RESOLVED] 2026-05-14T15:34:01Z - modules/SQA-DT/test_auth_admin_crud.py::test_user_edit
+- Summary: E   AssertionError: {"error":{"code":"RESOURCE_NOT_FOUND","message":"User with id '63ec20fe-3ac0-4656-b5a2-70c0feb3899c' not found","details":null},"meta":{"timestamp":"2026-05-14T15:33:15.410719+00:00"}}
+- First seen: 2026-05-14T15:33:15Z
+- Last seen failing run: 2026-05-14T15:33:15Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-14T15:34:01Z

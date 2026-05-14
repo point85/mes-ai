@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MES AI - DT SQA Audit runner
-# Usage: ./run-dt-audit.sh --scope uom|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all [--headed] [--server URL] [--dt URL]
+# Usage: ./run-dt-audit.sh --scope uom|users-and-groups|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all [--headed] [--server URL] [--dt URL]
 
 set -euo pipefail
 
@@ -11,10 +11,11 @@ DT_URL="http://localhost:5177"
 
 show_usage() {
   echo "Usage:"
-  echo "  ./run-dt-audit.sh --scope <uom|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all> [--headed] [--server URL] [--dt URL]"
+  echo "  ./run-dt-audit.sh --scope <uom|users-and-groups|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all> [--headed] [--server URL] [--dt URL]"
   echo
   echo "Scopes:"
   echo "  uom            Run Units of Measure DT tests only"
+  echo "  users-and-groups Run Users and Roles DT tests only"
   echo "  reasons        Run Reason Codes DT tests only"
   echo "  physical-model Run Sites/Areas/Lines/Work Cells DT tests only"
   echo "  data-definitions Run Data Definitions DT tests only"
@@ -28,6 +29,7 @@ show_usage() {
   echo
   echo "Examples:"
   echo "  ./run-dt-audit.sh --scope uom"
+  echo "  ./run-dt-audit.sh --scope users-and-groups"
   echo "  ./run-dt-audit.sh --scope reasons"
   echo "  ./run-dt-audit.sh --scope physical-model"
   echo "  ./run-dt-audit.sh --scope data-definitions"
@@ -64,6 +66,9 @@ HEARTBEAT="$(dirname "$0")/HEARTBEAT.md"
 case "$SCOPE" in
   uom)
     TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT/test_uom_crud.py")
+    ;;
+  users-and-groups)
+    TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT/test_auth_admin_crud.py")
     ;;
   reasons)
     TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT/test_reason_crud.py")
@@ -108,7 +113,7 @@ case "$SCOPE" in
     ;;
   *)
     echo "Invalid scope: $SCOPE"
-    echo "Expected one of: uom, reasons, physical-model, data-definitions, storage-locations, materials, routes, equipment, products, work-schedule, all"
+    echo "Expected one of: uom, users-and-groups, reasons, physical-model, data-definitions, storage-locations, materials, routes, equipment, products, work-schedule, all"
     exit 2
     ;;
 esac

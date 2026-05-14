@@ -442,3 +442,28 @@ def reason_cleanup(api):
     _delete_sqa_reasons()
     yield
     _delete_sqa_reasons()
+
+
+# ---------------------------------------------------------------------------
+# auth_admin_cleanup -- delete SQA auth users and custom roles
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=False)
+def auth_admin_cleanup(api):
+    """Delete SQA auth users and custom roles before and after a test."""
+
+    def _delete_sqa_auth_data():
+        users_resp = api.get("/auth/users")
+        if users_resp.status_code == 200:
+            for user in users_resp.json().get("data", []):
+                if user.get("username", "").startswith("sqa-auth-user-"):
+                    api.delete(f"/auth/users/{user['id']}")
+
+        roles_resp = api.get("/auth/roles")
+        if roles_resp.status_code == 200:
+            for role in roles_resp.json().get("data", []):
+                if role.get("name", "").startswith("SQA_ROLE_"):
+                    api.delete(f"/auth/roles/{role['id']}")
+
+    _delete_sqa_auth_data()
+    yield
+    _delete_sqa_auth_data()

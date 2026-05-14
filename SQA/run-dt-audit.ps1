@@ -5,6 +5,7 @@
 .PARAMETER Scope
     Portion of the DT suite to run.
     - uom            : Units of Measure tests only
+    - users-and-groups : Users and Roles tests only
     - reasons        : Reason Codes tests only
     - physical-model : Sites/Areas/Lines/Work Cells tests only
     - data-definitions : Data Definitions tests only
@@ -28,6 +29,7 @@
 .EXAMPLE
     .\run-dt-audit.ps1 -Scope all
     .\run-dt-audit.ps1 -Scope uom
+    .\run-dt-audit.ps1 -Scope users-and-groups
     .\run-dt-audit.ps1 -Scope reasons
     .\run-dt-audit.ps1 -Scope physical-model
     .\run-dt-audit.ps1 -Scope data-definitions
@@ -40,7 +42,7 @@
     .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173
 #>
 param(
-    [ValidateSet("uom", "reasons", "physical-model", "data-definitions", "storage-locations", "materials", "routes", "equipment", "products", "work-schedule", "all")]
+    [ValidateSet("uom", "users-and-groups", "reasons", "physical-model", "data-definitions", "storage-locations", "materials", "routes", "equipment", "products", "work-schedule", "all")]
     [string]$Scope,
     [switch]$Headed,
     [switch]$Help,
@@ -58,10 +60,11 @@ $Heartbeat = Join-Path $PSScriptRoot "HEARTBEAT.md"
 
 function Show-Usage {
     Write-Host "Usage:" -ForegroundColor Yellow
-    Write-Host "  .\run-dt-audit.ps1 -Scope <uom|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all> [-Headed] [-ServerUrl <url>] [-DtUrl <url>]"
+    Write-Host "  .\run-dt-audit.ps1 -Scope <uom|users-and-groups|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all> [-Headed] [-ServerUrl <url>] [-DtUrl <url>]"
     Write-Host ""
     Write-Host "Scopes:" -ForegroundColor Yellow
     Write-Host "  uom            Run Units of Measure DT tests only"
+    Write-Host "  users-and-groups Run Users and Roles DT tests only"
     Write-Host "  reasons        Run Reason Codes DT tests only"
     Write-Host "  physical-model Run Sites/Areas/Lines/Work Cells DT tests only"
     Write-Host "  data-definitions Run Data Definitions DT tests only"
@@ -75,6 +78,7 @@ function Show-Usage {
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Yellow
     Write-Host "  .\run-dt-audit.ps1 -Scope uom"
+    Write-Host "  .\run-dt-audit.ps1 -Scope users-and-groups"
     Write-Host "  .\run-dt-audit.ps1 -Scope reasons"
     Write-Host "  .\run-dt-audit.ps1 -Scope physical-model"
     Write-Host "  .\run-dt-audit.ps1 -Scope data-definitions"
@@ -104,6 +108,11 @@ function Resolve-TestTargets {
         "uom" {
             return @(
                 (Join-Path $PSScriptRoot "modules\SQA-DT\test_uom_crud.py")
+            )
+        }
+        "users-and-groups" {
+            return @(
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_auth_admin_crud.py")
             )
         }
         "reasons" {
