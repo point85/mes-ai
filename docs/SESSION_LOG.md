@@ -8,6 +8,22 @@
 
 ---
 
+## S052 — 2026-05-13
+
+### Work done
+- Continued from the saved DT SQA expansion track by adding a dedicated `physical-model` audit slice for the ISA-95 hierarchy editors.
+- Added validated SQA coverage in `SQA/modules/SQA-DT/test_physical_model_crud.py` for:
+	- site CRUD on `/sites`
+	- area CRUD on `/sites/:siteId/areas`
+	- line CRUD on `/areas/:areaId/lines`
+	- work-cell CRUD on `/lines/:lineId/work-cells`
+- Extended both audit runners (`run-dt-audit.ps1` and `run-dt-audit.sh`) with a new `physical-model` scope so the hierarchy editors can be exercised independently of the broader DT suite.
+- Validated the new scope end-to-end; final state: `./SQA/run-dt-audit.ps1 -Scope physical-model` passed with 4 tests green.
+
+### Pending / next
+- Continue DT SQA expansion into another uncovered editor surface, with `reasons` or `dispatch` as the next smallest likely slices.
+- Alternatively begin SQA-API contract coverage or a thin SQA-SMOKE gate now that another DT editor family is locked down.
+
 ## S051 — 2026-05-13
 
 ### Work done

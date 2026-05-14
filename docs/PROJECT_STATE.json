@@ -4,7 +4,7 @@
   "description": "Open-source Manufacturing Execution System framework with plugin architecture, designed and maintained by AI",
   "repository": "https://github.com/point85/mes-ai",
   "lastUpdated": "2026-05-13",
-  "lastSessionId": "S051",
+  "lastSessionId": "S052",
 
   "phases": [
     {
@@ -266,7 +266,7 @@
   ],
 
   "currentPhase": "P5",
-  "currentTask": "S051 (2026-05-13): DT SQA `routes` scope expanded and validated end-to-end. The standalone route editor scope now covers route CRUD, step CRUD, product assignment, material assignment, standalone dispositions editor CRUD, and step input/output disposition wiring assertions that directly verify the `/dispositions` to step-editor dependency. Final validated state: `./run-dt-audit.ps1 -Scope routes` passed with 6 tests. Next: either isolate the separate route-step disposition rewire-on-edit behavior as a defect-focused slice, or continue expanding SQA-DT to another editor surface / SQA-API / SQA-SMOKE modules.",
+  "currentTask": "S052 (2026-05-13): DT SQA `physical-model` scope added and validated end-to-end. The standalone physical hierarchy slice now covers site CRUD on `/sites`, area CRUD on `/sites/:siteId/areas`, line CRUD on `/areas/:areaId/lines`, and work-cell CRUD on `/lines/:lineId/work-cells`, with API round-trip assertions after each UI mutation. Final validated state: `./SQA/run-dt-audit.ps1 -Scope physical-model` passed with 4 tests. Next: continue expanding SQA-DT into another uncovered editor surface such as `reasons` or `dispatch`, or pivot to SQA-API / SQA-SMOKE modules.",
 
   "modules": {
     "_comment": "Module registry. Each module gets a short ID for reference. Status: planned | in-progress | implemented | tested.",

@@ -5,6 +5,7 @@
 .PARAMETER Scope
     Portion of the DT suite to run.
     - uom            : Units of Measure tests only
+    - physical-model : Sites/Areas/Lines/Work Cells tests only
     - data-definitions : Data Definitions tests only
     - storage-locations : Storage Locations tests only
     - materials      : Materials tests only
@@ -26,6 +27,7 @@
 .EXAMPLE
     .\run-dt-audit.ps1 -Scope all
     .\run-dt-audit.ps1 -Scope uom
+    .\run-dt-audit.ps1 -Scope physical-model
     .\run-dt-audit.ps1 -Scope data-definitions
     .\run-dt-audit.ps1 -Scope storage-locations
     .\run-dt-audit.ps1 -Scope materials
@@ -36,7 +38,7 @@
     .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173
 #>
 param(
-    [ValidateSet("uom", "data-definitions", "storage-locations", "materials", "routes", "equipment", "products", "work-schedule", "all")]
+    [ValidateSet("uom", "physical-model", "data-definitions", "storage-locations", "materials", "routes", "equipment", "products", "work-schedule", "all")]
     [string]$Scope,
     [switch]$Headed,
     [switch]$Help,
@@ -54,10 +56,11 @@ $Heartbeat = Join-Path $PSScriptRoot "HEARTBEAT.md"
 
 function Show-Usage {
     Write-Host "Usage:" -ForegroundColor Yellow
-    Write-Host "  .\run-dt-audit.ps1 -Scope <uom|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all> [-Headed] [-ServerUrl <url>] [-DtUrl <url>]"
+    Write-Host "  .\run-dt-audit.ps1 -Scope <uom|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all> [-Headed] [-ServerUrl <url>] [-DtUrl <url>]"
     Write-Host ""
     Write-Host "Scopes:" -ForegroundColor Yellow
     Write-Host "  uom            Run Units of Measure DT tests only"
+    Write-Host "  physical-model Run Sites/Areas/Lines/Work Cells DT tests only"
     Write-Host "  data-definitions Run Data Definitions DT tests only"
     Write-Host "  storage-locations Run Storage Locations DT tests only"
     Write-Host "  materials      Run Materials DT tests only"
@@ -69,6 +72,7 @@ function Show-Usage {
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Yellow
     Write-Host "  .\run-dt-audit.ps1 -Scope uom"
+    Write-Host "  .\run-dt-audit.ps1 -Scope physical-model"
     Write-Host "  .\run-dt-audit.ps1 -Scope data-definitions"
     Write-Host "  .\run-dt-audit.ps1 -Scope storage-locations"
     Write-Host "  .\run-dt-audit.ps1 -Scope materials"
@@ -96,6 +100,11 @@ function Resolve-TestTargets {
         "uom" {
             return @(
                 (Join-Path $PSScriptRoot "modules\SQA-DT\test_uom_crud.py")
+            )
+        }
+        "physical-model" {
+            return @(
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_physical_model_crud.py")
             )
         }
         "data-definitions" {
