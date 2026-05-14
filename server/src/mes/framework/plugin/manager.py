@@ -276,6 +276,7 @@ class PluginManager:
 
         info.instance = instance
         info.is_loaded = True
+        info.error = None
         logger.info("Loaded plugin '%s' v%s", plugin_id, manifest.version)
 
     async def _start_plugin(self, plugin_id: str, info: PluginInfo) -> None:
@@ -287,6 +288,7 @@ class PluginManager:
 
         await info.instance.start()
         info.is_running = True
+        info.error = None
         logger.info("Started plugin '%s'", plugin_id)
 
         from mes.framework.events import MESEvent
@@ -326,6 +328,10 @@ class PluginManager:
             raise ValueError(f"Plugin '{plugin_id}' not found")
         if info.is_running:
             return
+
+        # Reset any stale startup error so a new enable attempt reports the
+        # current outcome rather than a previous failure.
+        info.error = None
 
         # Apply parameter values to config resolution if provided
         if parameter_values:
@@ -453,15 +459,20 @@ class PluginManager:
         Returns:
             The adapter instance, or None if no running plugin provides it.
         """
-        for info in self._plugins.values():
-            if not info.is_running or info.instance is None:
-                continue
-            for ep in info.manifest.extension_points:
-                if ep.type == adapter_type:
-                    adapter = info.instance.get_adapter()
-                    if isinstance(adapter, dict):
-                        return adapter.get(adapter_type)
-                    return adapter
+        for info in self._iter_adapter_plugins(adapter_type):
+            adapter = info.instance.get_adapter()
+            if isinstance(adapter, dict):
+                return adapter.get(adapter_type)
+            return adapter
+        return None
+
+    def get_preferred_adapter_by_type(self, adapter_type: str, plugin_id: str | None = None) -> Any:
+        """Return an adapter, optionally preferring a specific plugin ID."""
+        for info in self._iter_adapter_plugins(adapter_type, preferred_plugin_id=plugin_id):
+            adapter = info.instance.get_adapter()
+            if isinstance(adapter, dict):
+                return adapter.get(adapter_type)
+            return adapter
         return None
 
     def get_adapter_plugin(self, adapter_type: str) -> "PluginInfo | None":
@@ -471,13 +482,49 @@ class PluginManager:
         Returns:
             PluginInfo for the adapter plugin, or None.
         """
+        for info in self._iter_adapter_plugins(adapter_type):
+            return info
+        return None
+
+    def get_preferred_adapter_plugin(
+        self,
+        adapter_type: str,
+        plugin_id: str | None = None,
+    ) -> "PluginInfo | None":
+        """Return the plugin providing an adapter, optionally preferring a plugin ID."""
+        for info in self._iter_adapter_plugins(adapter_type, preferred_plugin_id=plugin_id):
+            return info
+        return None
+
+    def _iter_adapter_plugins(
+        self,
+        adapter_type: str,
+        preferred_plugin_id: str | None = None,
+    ):
+        preferred: list[PluginInfo] = []
+        primary: list[PluginInfo] = []
+        simulator: list[PluginInfo] = []
+
         for info in self._plugins.values():
             if not info.is_running or info.instance is None:
                 continue
             for ep in info.manifest.extension_points:
                 if ep.type == adapter_type:
-                    return info
-        return None
+                    if preferred_plugin_id and info.manifest.id == preferred_plugin_id:
+                        preferred.append(info)
+                    elif self._is_erp_simulator_plugin(info):
+                        simulator.append(info)
+                    else:
+                        primary.append(info)
+                    break
+
+        ordered = preferred + primary + simulator
+        for info in ordered:
+            yield info
+
+    @staticmethod
+    def _is_erp_simulator_plugin(info: "PluginInfo") -> bool:
+        return info.manifest.category == "erp" and info.manifest.id.endswith("-simulator")
 
     async def adapter_health(self) -> dict[str, bool]:
         """Check health of all running adapter plugins."""

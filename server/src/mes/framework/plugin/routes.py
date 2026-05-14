@@ -51,6 +51,10 @@ _ADAPTER_EP_TYPES = frozenset({
 })
 
 
+def _is_erp_simulator_plugin(plugin_id: str) -> bool:
+    return plugin_id.endswith("-simulator")
+
+
 # ─── Helper: get or create DB config row for a plugin ─────────────────
 
 
@@ -475,6 +479,7 @@ async def enable_plugin_route(
     _ERP_EP_TYPES = {"erp_inbound", "erp_outbound"}
     incoming_ep_types = {ep.type for ep in info.manifest.extension_points}
     if incoming_ep_types & _ERP_EP_TYPES:
+        incoming_is_simulator = _is_erp_simulator_plugin(plugin_id)
         for other_id, other_info in plugin_manager._plugins.items():
             if other_id == plugin_id:
                 continue
@@ -482,6 +487,9 @@ async def enable_plugin_route(
                 continue
             other_ep_types = {ep.type for ep in other_info.manifest.extension_points}
             if other_ep_types & _ERP_EP_TYPES:
+                other_is_simulator = _is_erp_simulator_plugin(other_id)
+                if incoming_is_simulator or other_is_simulator:
+                    continue
                 raise HTTPException(
                     status_code=409,
                     detail=(

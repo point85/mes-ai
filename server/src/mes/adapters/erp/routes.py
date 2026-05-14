@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,6 +52,8 @@ router = APIRouter(
     prefix="/api/v1/erp",
     tags=["ERP Integration"],
 )
+
+_ERP_PLUGIN_HEADER = "X-MES-ERP-PLUGIN"
 
 
 # ── Request schemas for outbound reports ───────────────────────────────────
@@ -101,9 +103,16 @@ class SyncRequest(BaseModel):
 
 # ── Helper to get adapters from plugin manager ─────────────────────────────
 
-def _get_erp_inbound():
+def _requested_plugin_id(request: Request) -> str | None:
+    return request.headers.get(_ERP_PLUGIN_HEADER)
+
+
+def _get_erp_inbound(request: Request):
     from mes.main import plugin_manager
-    adapter = plugin_manager.get_adapter_by_type("erp_inbound")
+    adapter = plugin_manager.get_preferred_adapter_by_type(
+        "erp_inbound",
+        plugin_id=_requested_plugin_id(request),
+    )
     if adapter is None:
         from mes.framework.api.exceptions import ServiceUnavailableException
         raise ServiceUnavailableException(
@@ -113,9 +122,12 @@ def _get_erp_inbound():
     return adapter
 
 
-def _get_erp_outbound():
+def _get_erp_outbound(request: Request):
     from mes.main import plugin_manager
-    adapter = plugin_manager.get_adapter_by_type("erp_outbound")
+    adapter = plugin_manager.get_preferred_adapter_by_type(
+        "erp_outbound",
+        plugin_id=_requested_plugin_id(request),
+    )
     if adapter is None:
         from mes.framework.api.exceptions import ServiceUnavailableException
         raise ServiceUnavailableException(
@@ -179,12 +191,13 @@ async def retry_item(
 
 
 @router.get("/health", response_model=dict)
-async def erp_health():
+async def erp_health(request: Request):
     """Check health of ERP inbound and outbound adapters."""
     from mes.main import plugin_manager
 
-    ib_plugin = plugin_manager.get_adapter_plugin("erp_inbound")
-    ob_plugin = plugin_manager.get_adapter_plugin("erp_outbound")
+    requested_plugin_id = _requested_plugin_id(request)
+    ib_plugin = plugin_manager.get_preferred_adapter_plugin("erp_inbound", requested_plugin_id)
+    ob_plugin = plugin_manager.get_preferred_adapter_plugin("erp_outbound", requested_plugin_id)
 
     result: dict[str, Any] = {
         "inbound": {
@@ -218,6 +231,7 @@ async def erp_health():
 
 @router.post("/sync/operations-requests", response_model=dict)
 async def sync_operations_requests(
+    request: Request,
     since: datetime | None = Query(None, description="Only fetch orders changed after this timestamp"),
     enqueue: bool = Query(True, description="Persist orders to the inbound queue for processing"),
     session: AsyncSession = Depends(get_db_session),
@@ -229,7 +243,7 @@ async def sync_operations_requests(
     ``erp_inbound_orders`` queue for asynchronous processing by the
     registered ``OrderProcessor``.
     """
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     orders = await adapter.sync_operations_requests(since=since)
 
     enqueued_ids: list[str] = []
@@ -248,6 +262,7 @@ async def sync_operations_requests(
 
 @router.post("/sync/materials", response_model=dict)
 async def sync_materials(
+    request: Request,
     since: datetime | None = Query(None),
     session: AsyncSession = Depends(get_db_session),
 ):
@@ -256,7 +271,7 @@ async def sync_materials(
     from mes.core.material.models import MaterialDefinition
     from mes.core.material.service import MaterialService
 
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     materials = await adapter.sync_materials(since=since)
 
     # Upsert each material into the MES database
@@ -293,31 +308,34 @@ async def sync_materials(
 
 @router.post("/sync/products", response_model=dict)
 async def sync_products(
+    request: Request,
     since: datetime | None = Query(None),
 ):
     """Pull product definitions from the ERP adapter."""
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     products = await adapter.sync_products(since=since)
     return list_response([p.model_dump(mode="json") for p in products])
 
 
 @router.post("/sync/boms", response_model=dict)
 async def sync_boms(
+    request: Request,
     product_id: str = Query(..., description="Product code to fetch BOMs for"),
 ):
     """Pull bills of material for a specific product from the ERP adapter."""
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     boms = await adapter.sync_boms(product_id)
     return list_response([b.model_dump(mode="json") for b in boms])
 
 
 @router.post("/sync/routings", response_model=dict)
 async def sync_routings(
+    request: Request,
     product_id: str = Query(..., description="Product code to fetch routings for"),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Pull process routings for a specific product from the ERP adapter and persist to the MES database."""
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     routes = await adapter.sync_routings(product_id)
 
     # Persist ERP routes → MES OperationsDefinition + ProcessSegment tables
@@ -329,9 +347,9 @@ async def sync_routings(
 
 
 @router.post("/sync/work-centers", response_model=dict)
-async def sync_work_centers():
+async def sync_work_centers(request: Request):
     """Pull work center definitions from the ERP adapter."""
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     wcs = await adapter.sync_work_cells()
     return list_response([wc.model_dump(mode="json") for wc in wcs])
 
@@ -342,9 +360,9 @@ async def sync_work_centers():
 
 
 @router.post("/report/completion", response_model=dict)
-async def report_completion(req: CompletionRequest):
+async def report_completion(request: Request, req: CompletionRequest):
     """Report production completion to the ERP adapter."""
-    adapter = _get_erp_outbound()
+    adapter = _get_erp_outbound(request)
     result = await adapter.report_completion(
         order_id=req.order_id,
         qty_good=req.qty_good,
@@ -355,9 +373,9 @@ async def report_completion(req: CompletionRequest):
 
 
 @router.post("/report/consumption", response_model=dict)
-async def report_consumption(req: ConsumptionRequest):
+async def report_consumption(request: Request, req: ConsumptionRequest):
     """Report material consumption to the ERP adapter."""
-    adapter = _get_erp_outbound()
+    adapter = _get_erp_outbound(request)
     result = await adapter.report_consumption(
         order_id=req.order_id,
         materials=req.materials,
@@ -366,9 +384,9 @@ async def report_consumption(req: ConsumptionRequest):
 
 
 @router.post("/report/scrap", response_model=dict)
-async def report_scrap(req: ScrapRequest):
+async def report_scrap(request: Request, req: ScrapRequest):
     """Report scrap to the ERP adapter."""
-    adapter = _get_erp_outbound()
+    adapter = _get_erp_outbound(request)
     result = await adapter.report_scrap(
         order_id=req.order_id,
         qty_scrapped=req.qty_scrapped,
@@ -378,9 +396,9 @@ async def report_scrap(req: ScrapRequest):
 
 
 @router.post("/report/labor", response_model=dict)
-async def report_labor(req: LaborRequest):
+async def report_labor(request: Request, req: LaborRequest):
     """Report labor time to the ERP adapter."""
-    adapter = _get_erp_outbound()
+    adapter = _get_erp_outbound(request)
     result = await adapter.report_labor(
         order_id=req.order_id,
         operator_id=req.operator_id,
@@ -390,9 +408,9 @@ async def report_labor(req: LaborRequest):
 
 
 @router.post("/report/downtime", response_model=dict)
-async def report_downtime(req: DowntimeRequest):
+async def report_downtime(request: Request, req: DowntimeRequest):
     """Report equipment downtime to the ERP adapter."""
-    adapter = _get_erp_outbound()
+    adapter = _get_erp_outbound(request)
     result = await adapter.report_downtime(
         equipment_id=req.equipment_id,
         duration_minutes=req.duration_minutes,
@@ -403,9 +421,9 @@ async def report_downtime(req: DowntimeRequest):
 
 
 @router.post("/report/quality-result", response_model=dict)
-async def report_quality_result(req: QualityResultRequest):
+async def report_quality_result(request: Request, req: QualityResultRequest):
     """Report quality test result to the ERP adapter."""
-    adapter = _get_erp_outbound()
+    adapter = _get_erp_outbound(request)
     result = await adapter.report_quality_result(
         order_id=req.order_id,
         test_id=req.test_id,
@@ -416,14 +434,14 @@ async def report_quality_result(req: QualityResultRequest):
 
 
 @router.get("/confirmations", response_model=dict)
-async def list_confirmations():
+async def list_confirmations(request: Request):
     """
     List outbound confirmations stored by the running ERP outbound adapter.
 
     This is useful with ERP simulator plugins (SAP or Oracle), which store
     all confirmations in memory for inspection.
     """
-    adapter = _get_erp_outbound()
+    adapter = _get_erp_outbound(request)
     confirmations = getattr(adapter, "confirmations", [])
     return list_response(confirmations)
 
@@ -466,9 +484,9 @@ class MaterialUpdateRequest(BaseModel):
 
 
 @router.get("/simulator/options", response_model=dict)
-async def simulator_options():
+async def simulator_options(request: Request):
     """Return dropdown options for material types and UOMs, plus ERP type."""
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     erp_type = getattr(adapter, "erp_type", "unknown")
     if hasattr(adapter, "material_type_options"):
         material_types = adapter.material_type_options()
@@ -483,13 +501,14 @@ async def simulator_options():
 
 @router.post("/simulator/materials", response_model=dict)
 async def create_simulator_material(
+    request: Request,
     req: MaterialCreateRequest,
     session: AsyncSession = Depends(get_db_session),
 ):
     """Create a new material in the simulator's in-memory store and persist to DB."""
     from mes.core.material.service import MaterialService
 
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     if not hasattr(adapter, "get_material"):
         from mes.framework.api.exceptions import MESException
         raise MESException(
@@ -534,6 +553,7 @@ async def create_simulator_material(
 
 @router.put("/simulator/materials/{code}", response_model=dict)
 async def update_simulator_material(
+    request: Request,
     code: str,
     req: MaterialUpdateRequest,
     session: AsyncSession = Depends(get_db_session),
@@ -543,7 +563,7 @@ async def update_simulator_material(
     from mes.core.material.models import MaterialDefinition
     from mes.core.material.service import MaterialService
 
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     if not hasattr(adapter, "update_material"):
         from mes.framework.api.exceptions import MESException
         raise MESException(
@@ -596,6 +616,7 @@ async def update_simulator_material(
 
 @router.delete("/simulator/materials/{code}", response_model=dict)
 async def delete_simulator_material(
+    request: Request,
     code: str,
     session: AsyncSession = Depends(get_db_session),
 ):
@@ -604,7 +625,7 @@ async def delete_simulator_material(
     from mes.core.material.models import MaterialDefinition
     from mes.core.material.service import MaterialService
 
-    adapter = _get_erp_inbound()
+    adapter = _get_erp_inbound(request)
     if not hasattr(adapter, "delete_material"):
         from mes.framework.api.exceptions import MESException
         raise MESException(
