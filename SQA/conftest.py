@@ -402,3 +402,43 @@ def physical_model_cleanup(api):
     _delete_sqa_physical_model()
     yield
     _delete_sqa_physical_model()
+
+
+# ---------------------------------------------------------------------------
+# reason_cleanup -- delete SQA reason-code hierarchy rows
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=False)
+def reason_cleanup(api):
+    """Delete SQA reason codes in child-first order before and after a test."""
+
+    def _is_sqa_reason(reason: dict) -> bool:
+        name = reason.get("name") or ""
+        description = reason.get("description") or ""
+        return name.startswith("SQA ") or description.startswith("SQA ")
+
+    def _delete_sqa_reasons():
+        resp = api.get("/performance/reasons")
+        if resp.status_code != 200:
+            return
+
+        items = resp.json().get("data", [])
+        sqa_reasons = [item for item in items if _is_sqa_reason(item)]
+        if not sqa_reasons:
+            return
+
+        by_id = {item["id"]: item for item in sqa_reasons}
+
+        def _depth(reason: dict) -> int:
+            depth = 0
+            parent_id = reason.get("parent_id")
+            while parent_id and parent_id in by_id:
+                depth += 1
+                parent_id = by_id[parent_id].get("parent_id")
+            return depth
+
+        for reason in sorted(sqa_reasons, key=_depth, reverse=True):
+            api.delete(f"/performance/reasons/{reason['id']}")
+
+    _delete_sqa_reasons()
+    yield
+    _delete_sqa_reasons()

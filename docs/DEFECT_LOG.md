@@ -301,3 +301,61 @@ E     ...Full output truncated (3 lines hidden), use '-vv' to show
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-14T03:20:59Z
+
+## [OPEN] 2026-05-14T15:28:46Z - modules/SQA-DT/test_reason_crud.py::test_reason_edit
+- Summary: E   Error: strict mode violation: locator("tr").filter(has_text="0108").locator("td").filter(has_text="SQA Edited Reason") resolved to 2 elements:
+- First seen: 2026-05-14T15:28:46Z
+- Last seen: 2026-05-14T15:28:46Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_reason_crud.py:140: in test_reason_edit
+    await expect(updated_row.locator("td", has_text="SQA Edited Reason")).to_be_visible()
+E   AssertionError: Locator expected to be visible
+E   Actual value: None
+E   Error: strict mode violation: locator("tr").filter(has_text="0108").locator("td").filter(has_text="SQA Edited Reason") resolved to 2 elements:
+E       1) <td class="py-2 px-2 text-sm text-gray-900">SQA Edited Reason</td> aka get_by_role("cell", name="SQA Edited Reason", exact=True)
+E       2) <td class="py-2 px-2 text-sm text-gray-500">SQA edited reason</td> aka get_by_role("cell", name="SQA edited reason", exact=True)
+E
+E   Call log:
+E     - Expect "to_be_visible" with timeout 5000ms
+E     - waiting for locator("tr").filter(has_text="0108").locator("td").filter(has_text="SQA Edited Reason")
+```
+
+## [OPEN] 2026-05-14T15:28:49Z - modules/SQA-DT/test_reason_crud.py::test_reason_add_child
+- Summary: E   Error: strict mode violation: locator("tr").filter(has_text="CA74").locator("td").filter(has_text="SQA Child Reason") resolved to 2 elements:
+- First seen: 2026-05-14T15:28:49Z
+- Last seen: 2026-05-14T15:28:49Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_reason_crud.py:206: in test_reason_add_child
+    await expect(child_row.locator("td", has_text="SQA Child Reason")).to_be_visible()
+E   AssertionError: Locator expected to be visible
+E   Actual value: None
+E   Error: strict mode violation: locator("tr").filter(has_text="CA74").locator("td").filter(has_text="SQA Child Reason") resolved to 2 elements:
+E       1) <td class="py-2 px-2 text-sm text-gray-900">SQA Child Reason</td> aka get_by_role("cell", name="SQA Child Reason", exact=True)
+E       2) <td class="py-2 px-2 text-sm text-gray-500">SQA child reason</td> aka get_by_role("cell", name="SQA child reason", exact=True)
+E
+E   Call log:
+E     - Expect "to_be_visible" with timeout 5000ms
+E     - waiting for locator("tr").filter(has_text="CA74").locator("td").filter(has_text="SQA Child Reason")
+```
+
+## [RESOLVED] 2026-05-14T15:29:26Z - modules/SQA-DT/test_reason_crud.py::test_reason_edit
+- Summary: E   Error: strict mode violation: locator("tr").filter(has_text="0108").locator("td").filter(has_text="SQA Edited Reason") resolved to 2 elements:
+- First seen: 2026-05-14T15:28:46Z
+- Last seen failing run: 2026-05-14T15:28:46Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-14T15:29:26Z
+
+## [RESOLVED] 2026-05-14T15:29:29Z - modules/SQA-DT/test_reason_crud.py::test_reason_add_child
+- Summary: E   Error: strict mode violation: locator("tr").filter(has_text="CA74").locator("td").filter(has_text="SQA Child Reason") resolved to 2 elements:
+- First seen: 2026-05-14T15:28:49Z
+- Last seen failing run: 2026-05-14T15:28:49Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-14T15:29:29Z
