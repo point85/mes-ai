@@ -287,6 +287,28 @@ def data_definition_cleanup(api):
     _delete_sqa_data_definitions()
 
 
+def _delete_sqa_routes(api) -> None:
+    routes_resp = api.get("/operations-definitions", params={"limit": "200"})
+    if routes_resp.status_code != 200:
+        return
+
+    for route in routes_resp.json().get("data", []):
+        if route.get("name", "").startswith("SQA"):
+            api.delete(f"/operations-definitions/{route['id']}")
+
+
+# ---------------------------------------------------------------------------
+# route_cleanup -- delete all SQA* standalone/test routes
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=False)
+def route_cleanup(api):
+    """Delete any active routes whose name starts with 'SQA' before and after the test."""
+
+    _delete_sqa_routes(api)
+    yield
+    _delete_sqa_routes(api)
+
+
 # ---------------------------------------------------------------------------
 # product_cleanup -- delete all SQA_PROD_* test products
 # ---------------------------------------------------------------------------
@@ -295,11 +317,7 @@ def product_cleanup(api):
     """Delete any products whose code starts with 'SQA_PROD_' before and after the test."""
 
     def _delete_sqa_products():
-        routes_resp = api.get("/operations-definitions", params={"limit": "200"})
-        if routes_resp.status_code == 200:
-            for route in routes_resp.json().get("data", []):
-                if route.get("name", "").startswith("SQA"):
-                    api.delete(f"/operations-definitions/{route['id']}")
+        _delete_sqa_routes(api)
 
         resp = api.get("/products", params={"limit": "200"})
         if resp.status_code != 200:

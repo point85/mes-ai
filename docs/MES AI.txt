@@ -317,6 +317,7 @@ SQA URLs
 .\run-dt-audit.ps1 -Scope data-definitions
 .\run-dt-audit.ps1 -Scope storage-locations
 .\run-dt-audit.ps1 -Scope materials
+.\run-dt-audit.ps1 -Scope routes
 .\run-dt-audit.ps1 -Scope equipment
 .\run-dt-audit.ps1 -Scope products
 .\run-dt-audit.ps1 -Scope work-schedule
