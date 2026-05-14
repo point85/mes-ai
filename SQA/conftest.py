@@ -247,18 +247,18 @@ async def page(browser_context: BrowserContext) -> Page:
 
 
 # ---------------------------------------------------------------------------
-# uom_cleanup — delete all SQA_* test UoMs after each test
+# uom_cleanup — delete all SQA* test UoMs after each test
 # ---------------------------------------------------------------------------
 @pytest.fixture(autouse=False)
 def uom_cleanup(api):
-    """Delete any UoM rows whose symbol starts with 'SQA_' before and after the test."""
+    """Delete any UoM rows whose symbol starts with 'SQA' before and after the test."""
     def _delete_sqa_uoms():
         resp = api.get("/uom", params={"limit": "200"})
         if resp.status_code != 200:
             return
         items = resp.json().get("data", [])
         for uom in items:
-            if uom.get("symbol", "").startswith("SQA_"):
+            if uom.get("symbol", "").startswith("SQA"):
                 api.delete(f"/uom/{uom['id']}")
 
     _delete_sqa_uoms()   # pre-test cleanup (idempotent)

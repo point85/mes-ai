@@ -194,9 +194,6 @@ export default function DashboardPage() {
               <li>Production Completion{erpType === "sap" ? " (MIGO 101)" : ""}</li>
               <li>Material Consumption{erpType === "sap" ? " (MIGO 261)" : " (WIP Issue)"}</li>
               <li>Scrap Report{erpType === "sap" ? " (MIGO 531)" : ""}</li>
-              <li>Labor{erpType === "sap" ? " (CATS Time)" : " (Resource Charge)"}</li>
-              <li>Downtime{erpType === "sap" ? " (PM Notification)" : " (Maintenance Event)"}</li>
-              <li>Quality Results{erpType === "sap" ? " (QM Recording)" : " (Inspection Result)"}</li>
             </ul>
           </div>
         </div>
