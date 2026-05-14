@@ -295,12 +295,26 @@ def product_cleanup(api):
     """Delete any products whose code starts with 'SQA_PROD_' before and after the test."""
 
     def _delete_sqa_products():
+        routes_resp = api.get("/operations-definitions", params={"limit": "200"})
+        if routes_resp.status_code == 200:
+            for route in routes_resp.json().get("data", []):
+                if route.get("name", "").startswith("SQA"):
+                    api.delete(f"/operations-definitions/{route['id']}")
+
         resp = api.get("/products", params={"limit": "200"})
         if resp.status_code != 200:
             return
         items = resp.json().get("data", [])
         for product in items:
             if product.get("code", "").startswith("SQA_PROD_"):
+                product_routes_resp = api.get(
+                    f"/products/{product['id']}/operations-definitions",
+                    params={"limit": "200"},
+                )
+                if product_routes_resp.status_code == 200:
+                    for route in product_routes_resp.json().get("data", []):
+                        if route.get("name", "").startswith("SQA"):
+                            api.delete(f"/operations-definitions/{route['id']}")
                 api.delete(f"/products/{product['id']}")
 
     _delete_sqa_products()
