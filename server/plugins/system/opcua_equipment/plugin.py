@@ -69,13 +69,13 @@ class OPCUAEquipmentPlugin(MESPlugin):
 
         state_tag = self._config.get("state_tag", "")
         state_model_id = self._config.get("state_model_id", "")
-        equipment_id = self._config.get("equipment_id", "")
+        equipment_id_tag = self._config.get("equipment_id_tag", "")
 
-        if state_tag and state_model_id and equipment_id:
+        if state_tag and state_model_id and equipment_id_tag:
             logger.info(
-                "Subscribing to state tag '%s' for equipment %s (model=%s)",
+                "Subscribing to state tag '%s' using equipment id tag '%s' (model=%s)",
                 state_tag,
-                equipment_id,
+                equipment_id_tag,
                 state_model_id,
             )
             self._subscription_handle = await self._adapter.subscribe_tag(
@@ -104,8 +104,17 @@ class OPCUAEquipmentPlugin(MESPlugin):
         from mes.framework.db import async_session_factory
 
         raw = tag_value.value
-        equipment_id = self._config.get("equipment_id", "")
+        equipment_id_tag = self._config.get("equipment_id_tag", "")
         state_model_id = self._config.get("state_model_id", "")
+
+        equipment_id = await self._adapter._client.read_tag(equipment_id_tag) if equipment_id_tag else None
+        equipment_id_value = str(equipment_id[0]) if equipment_id and equipment_id[0] is not None else ""
+        if not equipment_id_value:
+            logger.warning(
+                "Missing equipment identifier from tag '%s' while processing state change",
+                equipment_id_tag,
+            )
+            return
 
         # Resolve state name from integer or string value
         if isinstance(raw, int):
@@ -137,7 +146,7 @@ class OPCUAEquipmentPlugin(MESPlugin):
 
         logger.info(
             "Equipment %s state change: %s -> %s (raw=%r)",
-            equipment_id,
+            equipment_id_value,
             prev,
             state_name,
             raw,
@@ -147,7 +156,7 @@ class OPCUAEquipmentPlugin(MESPlugin):
             async with async_session_factory() as session:
                 await EquipmentStateEngine.transition_equipment(
                     session,
-                    equipment_id=UUID(equipment_id),
+                    equipment_id=UUID(equipment_id_value),
                     new_state=state_name,
                     state_model_id=state_model_id,
                     notes=f"OPC-UA tag {tag_value.tag_name} value={raw}",
@@ -156,7 +165,7 @@ class OPCUAEquipmentPlugin(MESPlugin):
         except Exception:
             logger.exception(
                 "Failed to record state transition for equipment %s: %s -> %s",
-                equipment_id,
+                equipment_id_value,
                 prev,
                 state_name,
             )

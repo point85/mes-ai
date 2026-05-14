@@ -25,10 +25,10 @@ parameters:
     description: Default namespace index for tag resolution
     required: false
     default: 2
-  - name: equipment_id
+  - name: equipment_id_tag
     type: string
-    description: Equipment identifier for state tracking
-    required: true
+    description: Tag name to read for the equipment identifier (e.g. ns=2;s=MachineId)
+    required: false
   - name: state_tag
     type: string
     description: Tag name to read for equipment state (e.g. ns=2;s=MachineState)

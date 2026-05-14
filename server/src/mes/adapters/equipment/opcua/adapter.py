@@ -77,10 +77,6 @@ class OPCUAEquipmentAdapter(EquipmentAdapter):
         self._client = OPCUAClient(self._settings)
         self._subscriptions: dict[str, SubscriptionHandle] = {}
 
-    @property
-    def equipment_id(self) -> str:
-        return self._settings.EQUIP_OPCUA_EQUIPMENT_ID
-
     # ──────────────────────────────────────────────────────────────
     # BaseAdapter lifecycle
     # ──────────────────────────────────────────────────────────────
@@ -148,13 +144,14 @@ class OPCUAEquipmentAdapter(EquipmentAdapter):
         If no state tag is configured, returns "unknown" state.
         """
         state_value = await self._client.read_state_tag()
+        equipment_id = await self._client.read_equipment_id_tag()
         state = (state_value or "unknown").lower()
 
         dispatch_category = _STATE_DISPATCH_MAP.get(state, "available")
         oee_bucket = _STATE_OEE_MAP.get(state, "uptime_non_value")
 
         return EquipmentState(
-            equipment_id=self.equipment_id,
+            equipment_id=equipment_id or "",
             state=state,
             dispatch_category=dispatch_category,
             oee_bucket=oee_bucket,

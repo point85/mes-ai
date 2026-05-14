@@ -53,7 +53,7 @@ class TestOPCUASettings:
         assert s.EQUIP_OPCUA_SECURITY_POLICY == "none"
         assert s.EQUIP_OPCUA_AUTH_TYPE == "anonymous"
         assert s.EQUIP_OPCUA_NAMESPACE == 2
-        assert s.EQUIP_OPCUA_EQUIPMENT_ID == "OPCUA-EQUIP-01"
+        assert s.EQUIP_OPCUA_EQUIPMENT_ID_TAG == ""
         assert s.EQUIP_OPCUA_REQUEST_TIMEOUT == 10
         assert s.EQUIP_OPCUA_SESSION_TIMEOUT == 60000
         assert s.EQUIP_OPCUA_SUB_INTERVAL_MS == 1000
@@ -69,7 +69,7 @@ class TestOPCUASettings:
             EQUIP_OPCUA_USERNAME="admin",
             EQUIP_OPCUA_PASSWORD="secret",
             EQUIP_OPCUA_NAMESPACE=3,
-            EQUIP_OPCUA_EQUIPMENT_ID="PLC-01",
+            EQUIP_OPCUA_EQUIPMENT_ID_TAG="ns=2;s=MachineId",
             EQUIP_OPCUA_STATE_TAG="ns=2;s=MachineState",
             EQUIP_OPCUA_REQUEST_TIMEOUT=5,
             EQUIP_OPCUA_SESSION_TIMEOUT=30000,
@@ -484,16 +484,11 @@ class TestOPCUAEquipmentAdapter:
 
         defaults = {
             "EQUIP_OPCUA_URL": "opc.tcp://localhost:4840",
-            "EQUIP_OPCUA_EQUIPMENT_ID": "EQUIP-01",
         }
         defaults.update(overrides)
         settings = OPCUASettings(**defaults)
         adapter = OPCUAEquipmentAdapter(settings)
         return adapter
-
-    def test_equipment_id(self):
-        adapter = self._make_adapter(EQUIP_OPCUA_EQUIPMENT_ID="PLC-X1")
-        assert adapter.equipment_id == "PLC-X1"
 
     @pytest.mark.asyncio
     async def test_connect_delegates_to_client(self):
@@ -602,11 +597,11 @@ class TestEquipmentStateMapping:
 
         settings = OPCUASettings(
             EQUIP_OPCUA_URL="opc.tcp://localhost:4840",
-            EQUIP_OPCUA_EQUIPMENT_ID="EQ-1",
         )
         adapter = OPCUAEquipmentAdapter(settings)
         adapter._client = AsyncMock()
         adapter._client.read_state_tag = AsyncMock(return_value="running")
+        adapter._client.read_equipment_id_tag = AsyncMock(return_value="EQ-1")
 
         state = await adapter.get_equipment_state()
         assert isinstance(state, EquipmentState)
@@ -625,6 +620,7 @@ class TestEquipmentStateMapping:
         ))
         adapter._client = AsyncMock()
         adapter._client.read_state_tag = AsyncMock(return_value="idle")
+        adapter._client.read_equipment_id_tag = AsyncMock(return_value=None)
 
         state = await adapter.get_equipment_state()
         assert state.dispatch_category == "available"
@@ -640,6 +636,7 @@ class TestEquipmentStateMapping:
         ))
         adapter._client = AsyncMock()
         adapter._client.read_state_tag = AsyncMock(return_value="fault")
+        adapter._client.read_equipment_id_tag = AsyncMock(return_value=None)
 
         state = await adapter.get_equipment_state()
         assert state.dispatch_category == "unavailable_unplanned"
@@ -655,6 +652,7 @@ class TestEquipmentStateMapping:
         ))
         adapter._client = AsyncMock()
         adapter._client.read_state_tag = AsyncMock(return_value="maintenance")
+        adapter._client.read_equipment_id_tag = AsyncMock(return_value=None)
 
         state = await adapter.get_equipment_state()
         assert state.dispatch_category == "unavailable_planned"
@@ -670,8 +668,10 @@ class TestEquipmentStateMapping:
         ))
         adapter._client = AsyncMock()
         adapter._client.read_state_tag = AsyncMock(return_value=None)
+        adapter._client.read_equipment_id_tag = AsyncMock(return_value=None)
 
         state = await adapter.get_equipment_state()
+        assert state.equipment_id == ""
         assert state.state == "unknown"
         assert state.dispatch_category == "available"
         assert state.oee_bucket == "uptime_non_value"
@@ -729,7 +729,7 @@ class TestOPCUAPluginStateCallback:
         p = OPCUAEquipmentPlugin()
         p._adapter = AsyncMock()
         p._config = {
-            "equipment_id": "00000000-0000-0000-0000-000000000001",
+            "equipment_id_tag": "ns=2;s=MachineId",
             "state_tag": "ns=2;s=MachineState",
             "state_model_id": "packml",
         }
@@ -750,7 +750,7 @@ class TestOPCUAPluginStateCallback:
 
         p = OPCUAEquipmentPlugin()
         p._adapter = AsyncMock()
-        p._config = {"equipment_id": "eq-1"}
+        p._config = {"equipment_id_tag": "ns=2;s=MachineId"}
         await p.start()
 
         plugin = p
@@ -784,6 +784,7 @@ class TestOPCUAPluginStateCallback:
         ), patch(
             "mes.core.performance.engine.EquipmentStateEngine",
         ) as MockEngine:
+            plugin._adapter._client.read_tag = AsyncMock(return_value=("00000000-0000-0000-0000-000000000001", "good", "string"))
             MockEngine.transition_equipment = AsyncMock()
             await plugin._on_state_change(tag_value)
 
@@ -809,6 +810,7 @@ class TestOPCUAPluginStateCallback:
         ), patch(
             "mes.core.performance.engine.EquipmentStateEngine",
         ) as MockEngine:
+            plugin._adapter._client.read_tag = AsyncMock(return_value=("00000000-0000-0000-0000-000000000001", "good", "string"))
             MockEngine.transition_equipment = AsyncMock()
             await plugin._on_state_change(tag_value)
 
@@ -824,6 +826,7 @@ class TestOPCUAPluginStateCallback:
         with patch(
             "mes.framework.db.async_session_factory",
         ) as mock_factory:
+            plugin._adapter._client.read_tag = AsyncMock(return_value=("00000000-0000-0000-0000-000000000001", "good", "string"))
             await plugin._on_state_change(tag_value)
 
         mock_factory.assert_not_called()
@@ -836,6 +839,7 @@ class TestOPCUAPluginStateCallback:
         with patch(
             "mes.framework.db.async_session_factory",
         ) as mock_factory:
+            plugin._adapter._client.read_tag = AsyncMock(return_value=("00000000-0000-0000-0000-000000000001", "good", "string"))
             await plugin._on_state_change(tag_value)
 
         mock_factory.assert_not_called()
@@ -849,6 +853,7 @@ class TestOPCUAPluginStateCallback:
         with patch(
             "mes.framework.db.async_session_factory",
         ) as mock_factory:
+            plugin._adapter._client.read_tag = AsyncMock(return_value=("00000000-0000-0000-0000-000000000001", "good", "string"))
             await plugin._on_state_change(tag_value)
 
         mock_factory.assert_not_called()
@@ -870,6 +875,7 @@ class TestOPCUAPluginStateCallback:
         ), patch(
             "mes.core.performance.engine.EquipmentStateEngine",
         ) as MockEngine:
+            plugin._adapter._client.read_tag = AsyncMock(return_value=("00000000-0000-0000-0000-000000000001", "good", "string"))
             MockEngine.transition_equipment = AsyncMock(
                 side_effect=RuntimeError("DB down"),
             )

@@ -27,7 +27,7 @@ class OPCUASettings(BaseSettings):
         MES_EQUIP_OPCUA_CLIENT_KEY      path to client private key (PEM)
         MES_EQUIP_OPCUA_SERVER_CERT     path to trusted server certificate (DER)
         MES_EQUIP_OPCUA_NAMESPACE       default namespace index for tag resolution
-        MES_EQUIP_OPCUA_EQUIPMENT_ID    equipment identifier for state reporting
+        MES_EQUIP_OPCUA_EQUIPMENT_ID_TAG OPC-UA node for equipment identifier
         MES_EQUIP_OPCUA_STATE_TAG       OPC-UA node for equipment state
         MES_EQUIP_OPCUA_REQUEST_TIMEOUT request timeout in seconds
         MES_EQUIP_OPCUA_SESSION_TIMEOUT session timeout in milliseconds
@@ -48,8 +48,8 @@ class OPCUASettings(BaseSettings):
     # Namespace and tag resolution
     EQUIP_OPCUA_NAMESPACE: int = Field(default=2, ge=0)
 
-    # Equipment identity
-    EQUIP_OPCUA_EQUIPMENT_ID: str = "OPCUA-EQUIP-01"
+    # Equipment identity tag
+    EQUIP_OPCUA_EQUIPMENT_ID_TAG: str = ""
 
     # State mapping: tag whose value represents equipment state
     EQUIP_OPCUA_STATE_TAG: str = ""

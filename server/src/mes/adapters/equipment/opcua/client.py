@@ -268,6 +268,14 @@ class OPCUAClient:
         value, _quality, _dtype = await self.read_tag(state_tag)
         return str(value) if value is not None else None
 
+    async def read_equipment_id_tag(self) -> str | None:
+        """Read the configured equipment identifier tag, if any."""
+        equipment_id_tag = self._settings.EQUIP_OPCUA_EQUIPMENT_ID_TAG
+        if not equipment_id_tag:
+            return None
+        value, _quality, _dtype = await self.read_tag(equipment_id_tag)
+        return str(value) if value is not None else None
+
     # ──────────────────────────────────────────────────────────────
     # Internal helpers
     # ──────────────────────────────────────────────────────────────
