@@ -18,6 +18,9 @@ Env vars:
     MES_STOMP_INBOUND_SUBSCRIPTIONS   Comma-separated broker destinations to subscribe to
     MES_STOMP_OUTBOUND_DESTINATION    Default broker destination for outbound messages
     MES_STOMP_EVENT_SUBSCRIPTIONS     Comma-separated MES event topics to forward outbound
+    MES_STOMP_TOPIC_PREFIX            Destination prefix for equipment tag messages
+    MES_STOMP_STATE_TAG               Tag name used for equipment state
+    MES_STOMP_EQUIPMENT_ID_TAG        Tag name used for equipment identity
 """
 
 from __future__ import annotations
@@ -51,3 +54,8 @@ class STOMPSettings(BaseSettings):
     STOMP_INBOUND_SUBSCRIPTIONS: str = "/queue/mes.inbound"
     STOMP_OUTBOUND_DESTINATION: str = "/topic/mes.events"
     STOMP_EVENT_SUBSCRIPTIONS: str = "*"
+
+    # Equipment tag routing
+    STOMP_TOPIC_PREFIX: str = "/topic/mes/equipment"
+    STOMP_STATE_TAG: str = "state"
+    STOMP_EQUIPMENT_ID_TAG: str = "equipment_id"

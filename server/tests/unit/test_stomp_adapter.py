@@ -1,5 +1,5 @@
 """
-Unit tests for STOMP JMS Messaging Adapter.
+Unit tests for STOMP equipment and messaging adapter.
 
 All tests use mocking — no real STOMP broker is required.
 Tests cover: STOMPSettings, STOMPClient lifecycle, STOMPListener callbacks,
@@ -42,6 +42,9 @@ class TestSTOMPSettings:
         assert s.STOMP_INBOUND_SUBSCRIPTIONS == "/queue/mes.inbound"
         assert s.STOMP_OUTBOUND_DESTINATION == "/topic/mes.events"
         assert s.STOMP_EVENT_SUBSCRIPTIONS == "*"
+        assert s.STOMP_TOPIC_PREFIX == "/topic/mes/equipment"
+        assert s.STOMP_STATE_TAG == "state"
+        assert s.STOMP_EQUIPMENT_ID_TAG == "equipment_id"
 
     def test_custom_values(self):
         from mes.adapters.messaging.stomp.config import STOMPSettings
@@ -61,6 +64,9 @@ class TestSTOMPSettings:
             STOMP_INBOUND_SUBSCRIPTIONS="/queue/erp.orders,/queue/erp.materials",
             STOMP_OUTBOUND_DESTINATION="/topic/mes.production",
             STOMP_EVENT_SUBSCRIPTIONS="wip.*,inventory.*",
+            STOMP_TOPIC_PREFIX="/topic/factory/line1",
+            STOMP_STATE_TAG="machine_state",
+            STOMP_EQUIPMENT_ID_TAG="machine_id",
         )
         assert s.STOMP_BROKER_HOST == "artemis.factory.local"
         assert s.STOMP_BROKER_PORT == 61614
@@ -73,6 +79,9 @@ class TestSTOMPSettings:
         assert s.STOMP_INBOUND_SUBSCRIPTIONS == "/queue/erp.orders,/queue/erp.materials"
         assert s.STOMP_OUTBOUND_DESTINATION == "/topic/mes.production"
         assert s.STOMP_EVENT_SUBSCRIPTIONS == "wip.*,inventory.*"
+        assert s.STOMP_TOPIC_PREFIX == "/topic/factory/line1"
+        assert s.STOMP_STATE_TAG == "machine_state"
+        assert s.STOMP_EQUIPMENT_ID_TAG == "machine_id"
 
     def test_port_range_validation(self):
         from pydantic import ValidationError
@@ -451,6 +460,74 @@ class TestSTOMPMessagingAdapter:
         assert await adapter.health_check() is False
 
 
+class TestSTOMPEquipmentAdapter:
+    def _make_adapter(self, **overrides):
+        from mes.adapters.messaging.stomp.adapter import STOMPEquipmentAdapter
+        from mes.adapters.messaging.stomp.config import STOMPSettings
+
+        settings = STOMPSettings(_env_file=None, **overrides)
+        return STOMPEquipmentAdapter(settings=settings, event_bus=None)
+
+    @pytest.mark.asyncio
+    async def test_inbound_tag_message_updates_cache(self):
+        adapter = self._make_adapter()
+
+        await adapter._on_broker_message(
+            "/topic/mes/equipment/state",
+            {},
+            json.dumps({"tag_name": "state", "value": "Running"}),
+        )
+
+        tag = await adapter.read_tag("state")
+        assert tag.value == "Running"
+
+    @pytest.mark.asyncio
+    async def test_get_equipment_state_uses_cached_tags(self):
+        adapter = self._make_adapter()
+
+        await adapter._on_broker_message(
+            "/topic/mes/equipment/equipment_id",
+            {},
+            json.dumps({"tag_name": "equipment_id", "value": "EQ-100"}),
+        )
+        await adapter._on_broker_message(
+            "/topic/mes/equipment/state",
+            {},
+            json.dumps({"tag_name": "state", "value": "Execute"}),
+        )
+
+        state = await adapter.get_equipment_state()
+        assert state.equipment_id == "EQ-100"
+        assert state.state == "execute"
+        assert state.dispatch_category == "busy"
+
+    @pytest.mark.asyncio
+    async def test_write_tag_sends_json_to_destination(self):
+        adapter = self._make_adapter()
+        adapter._client.send = MagicMock()
+
+        await adapter.write_tag("temperature", 42)
+
+        adapter._client.send.assert_called_once()
+        call_kwargs = adapter._client.send.call_args.kwargs
+        assert call_kwargs["destination"] == "/topic/mes/equipment/temperature"
+        assert json.loads(call_kwargs["body"]) == {"tag_name": "temperature", "value": 42}
+
+    @pytest.mark.asyncio
+    async def test_subscribe_and_unsubscribe_use_client_subscription(self):
+        adapter = self._make_adapter()
+        adapter._client = MagicMock()
+        type(adapter._client).is_connected = PropertyMock(return_value=True)
+        adapter._client.subscribe = MagicMock(return_value="mes-sub-1")
+        adapter._client.unsubscribe = MagicMock()
+
+        handle = await adapter.subscribe_tag("state", MagicMock())
+        await adapter.unsubscribe(handle)
+
+        adapter._client.subscribe.assert_called_once_with("/topic/mes/equipment/state")
+        adapter._client.unsubscribe.assert_called_once_with("mes-sub-1")
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Plugin Integration Tests
 # ═══════════════════════════════════════════════════════════════════════════
@@ -487,6 +564,9 @@ class TestSTOMPJMSPlugin:
             "inbound_subscriptions": "/queue/erp.inbound",
             "outbound_destination": "/topic/mes.production",
             "event_subscriptions": "wip.*,inventory.*",
+            "topic_prefix": "/topic/factory/equipment",
+            "state_tag": "machine_state",
+            "equipment_id_tag": "machine_id",
         })
         settings = plugin._adapter._settings
         assert settings.STOMP_BROKER_HOST == "artemis.local"
@@ -496,6 +576,9 @@ class TestSTOMPJMSPlugin:
         assert settings.STOMP_VHOST == "/factory"
         assert settings.STOMP_INBOUND_SUBSCRIPTIONS == "/queue/erp.inbound"
         assert settings.STOMP_EVENT_SUBSCRIPTIONS == "wip.*,inventory.*"
+        assert settings.STOMP_TOPIC_PREFIX == "/topic/factory/equipment"
+        assert settings.STOMP_STATE_TAG == "machine_state"
+        assert settings.STOMP_EQUIPMENT_ID_TAG == "machine_id"
 
     @pytest.mark.asyncio
     async def test_health_check_false_before_start(self):
@@ -566,8 +649,8 @@ class TestSTOMPJMSManifest:
             data = yaml.safe_load(f)
         manifest = PluginManifest.model_validate(data)
         assert manifest.id == "stomp-jms"
-        assert manifest.name == "STOMP JMS Messaging Adapter"
-        assert manifest.category == "messaging"
+        assert manifest.name == "STOMP Equipment Adapter"
+        assert manifest.category == "equipment"
         assert manifest.version == "1.0.0"
 
     def test_manifest_has_required_parameters(self):
@@ -586,6 +669,9 @@ class TestSTOMPJMSManifest:
         assert "inbound_subscriptions" in param_names
         assert "outbound_destination" in param_names
         assert "event_subscriptions" in param_names
+        assert "topic_prefix" in param_names
+        assert "state_tag" in param_names
+        assert "equipment_id_tag" in param_names
 
     def test_manifest_has_extension_point(self):
         import yaml
@@ -595,5 +681,5 @@ class TestSTOMPJMSManifest:
             data = yaml.safe_load(f)
         manifest = PluginManifest.model_validate(data)
 
-        assert len(manifest.extension_points) == 1
-        assert manifest.extension_points[0].name == "stomp_jms_bridge"
+        assert len(manifest.extension_points) == 2
+        assert {ep.name for ep in manifest.extension_points} == {"stomp_jms_bridge", "stomp_equipment"}

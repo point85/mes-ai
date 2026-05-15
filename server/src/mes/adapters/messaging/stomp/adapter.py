@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
+from mes.adapters.equipment.dtos import EquipmentState, SubscriptionHandle, TagInfo, TagValue
+from mes.adapters.equipment.exceptions import TagNotFoundError
+from mes.adapters.equipment.interfaces import EquipmentAdapter
 from mes.framework.events.bus import EventBus
 from mes.framework.events.schema import MESEvent
 
@@ -22,6 +26,32 @@ from .client import STOMPClient
 from .config import STOMPSettings
 
 logger = logging.getLogger("mes.adapters.messaging.stomp")
+
+_STATE_DISPATCH_MAP: dict[str, str] = {
+    "running": "busy",
+    "execute": "busy",
+    "idle": "available",
+    "stopped": "available",
+    "fault": "unavailable_unplanned",
+    "faulted": "unavailable_unplanned",
+    "error": "unavailable_unplanned",
+    "maintenance": "unavailable_planned",
+    "setup": "unavailable_planned",
+    "changeover": "unavailable_planned",
+}
+
+_STATE_OEE_MAP: dict[str, str] = {
+    "running": "uptime_value_add",
+    "execute": "uptime_value_add",
+    "idle": "uptime_non_value",
+    "stopped": "downtime_planned",
+    "fault": "downtime_unplanned",
+    "faulted": "downtime_unplanned",
+    "error": "downtime_unplanned",
+    "maintenance": "downtime_planned",
+    "setup": "uptime_non_value",
+    "changeover": "uptime_non_value",
+}
 
 
 class STOMPMessagingAdapter:
@@ -114,10 +144,6 @@ class STOMPMessagingAdapter:
         Expects JSON body with at least 'event_type'. Optional fields:
         'source', 'payload', 'correlation_id'.
         """
-        if not self._event_bus:
-            logger.warning("Received broker message but no event bus configured")
-            return
-
         try:
             data = json.loads(body)
         except json.JSONDecodeError:
@@ -126,13 +152,27 @@ class STOMPMessagingAdapter:
             )
             return
 
+        handled = False
+        if isinstance(data, dict):
+            handled = await self._handle_inbound_payload(destination, headers, data)
+
+        if not isinstance(data, dict):
+            if not handled:
+                logger.warning("Message from %s is not a JSON object", destination)
+            return
+
         event_type = data.get("event_type")
         if not event_type:
-            logger.warning(
-                "Message from %s missing 'event_type', skipping: %s",
-                destination,
-                body[:200],
-            )
+            if not handled:
+                logger.warning(
+                    "Message from %s missing 'event_type', skipping: %s",
+                    destination,
+                    body[:200],
+                )
+            return
+
+        if not self._event_bus:
+            logger.warning("Received broker message but no event bus configured")
             return
 
         event = MESEvent(
@@ -145,6 +185,16 @@ class STOMPMessagingAdapter:
         logger.debug(
             "Inbound STOMP → MES event: %s from %s", event_type, destination,
         )
+
+    async def _handle_inbound_payload(
+        self,
+        destination: str,
+        headers: dict[str, str],
+        data: dict[str, Any],
+    ) -> bool:
+        """Hook for subclasses that consume non-event STOMP messages."""
+        del destination, headers, data
+        return False
 
     async def _on_broker_error(
         self,
@@ -206,7 +256,12 @@ class STOMPMessagingAdapter:
         publish messages to specific queues/topics beyond the automatic
         event bridge.
         """
-        self._client.send(destination, body, content_type, headers)
+        self._client.send(
+            destination=destination,
+            body=body,
+            content_type=content_type,
+            headers=headers,
+        )
 
     # ── Helpers ───────────────────────────────────────────────────
 
@@ -214,3 +269,123 @@ class STOMPMessagingAdapter:
     def _parse_list(value: str) -> list[str]:
         """Parse a comma-separated string into a list of trimmed values."""
         return [v.strip() for v in value.split(",") if v.strip()]
+
+
+class STOMPEquipmentAdapter(STOMPMessagingAdapter, EquipmentAdapter):
+    """STOMP-backed equipment adapter using JSON messages and a local tag cache."""
+
+    def __init__(
+        self,
+        settings: STOMPSettings | None = None,
+        event_bus: EventBus | None = None,
+    ) -> None:
+        super().__init__(settings=settings, event_bus=event_bus)
+        self._tag_cache: dict[str, TagValue] = {}
+        self._subscriptions: dict[str, tuple[SubscriptionHandle, str | None]] = {}
+        self._callbacks: dict[str, Callable[[TagValue], Any]] = {}
+
+    async def read_tag(self, tag_name: str) -> TagValue:
+        value = self._tag_cache.get(tag_name)
+        if value is None:
+            raise TagNotFoundError(tag_name=tag_name)
+        return value
+
+    async def write_tag(self, tag_name: str, value: Any) -> None:
+        destination = self._tag_to_destination(tag_name)
+        payload = json.dumps({"tag_name": tag_name, "value": value})
+        self.send(destination=destination, body=payload)
+
+    async def subscribe_tag(
+        self,
+        tag_name: str,
+        callback: Callable[[TagValue], Any],
+        interval_ms: int = 1000,
+    ) -> SubscriptionHandle:
+        del interval_ms
+        destination = self._tag_to_destination(tag_name)
+        sub_id: str | None = None
+        if self._client.is_connected:
+            sub_id = self._client.subscribe(destination)
+        handle = SubscriptionHandle(tag_name=tag_name, topic=destination, active=True)
+        self._callbacks[tag_name] = callback
+        self._subscriptions[handle.handle_id] = (handle, sub_id)
+        return handle
+
+    async def unsubscribe(self, handle: SubscriptionHandle) -> None:
+        handle.active = False
+        stored = self._subscriptions.pop(handle.handle_id, None)
+        self._callbacks.pop(handle.tag_name, None)
+        if stored and stored[1]:
+            self._client.unsubscribe(stored[1])
+
+    async def get_equipment_state(self) -> EquipmentState:
+        state_value = self._tag_cache.get(self._settings.STOMP_STATE_TAG)
+        equipment_value = self._tag_cache.get(self._settings.STOMP_EQUIPMENT_ID_TAG)
+        state = str(state_value.value).lower() if state_value else "unknown"
+        return EquipmentState(
+            equipment_id=str(equipment_value.value) if equipment_value else "",
+            state=state,
+            dispatch_category=_STATE_DISPATCH_MAP.get(state, "available"),
+            oee_bucket=_STATE_OEE_MAP.get(state, "uptime_non_value"),
+        )
+
+    async def browse_tags(self, root: str | None = None) -> list[TagInfo]:
+        return [
+            TagInfo(
+                tag_name=tag_name,
+                data_type=value.data_type,
+                access="readwrite",
+                description=f"STOMP tag cached from {value.tag_name}",
+            )
+            for tag_name, value in sorted(self._tag_cache.items())
+            if root is None or tag_name.startswith(root)
+        ]
+
+    async def _handle_inbound_payload(
+        self,
+        destination: str,
+        headers: dict[str, str],
+        data: dict[str, Any],
+    ) -> bool:
+        del headers
+        tag_name = data.get("tag_name") if isinstance(data.get("tag_name"), str) else self._destination_to_tag(destination)
+        if not tag_name or "value" not in data:
+            return False
+
+        value = data.get("value")
+        data_type = str(data.get("data_type") or self._infer_data_type(value))
+        quality = str(data.get("quality") or "good")
+        tag_value = TagValue(tag_name=tag_name, value=value, quality=quality, data_type=data_type)
+        self._tag_cache[tag_name] = tag_value
+
+        callback = self._callbacks.get(tag_name)
+        if callback:
+            result = callback(tag_value)
+            if hasattr(result, "__await__"):
+                await result
+        return True
+
+    def _tag_to_destination(self, tag_name: str) -> str:
+        if tag_name.startswith("/"):
+            return tag_name
+        return f"{self._settings.STOMP_TOPIC_PREFIX.rstrip('/')}/{tag_name}"
+
+    def _destination_to_tag(self, destination: str) -> str | None:
+        prefix = self._settings.STOMP_TOPIC_PREFIX.rstrip("/")
+        if destination.startswith(prefix + "/"):
+            return destination[len(prefix) + 1 :]
+        return None
+
+    @staticmethod
+    def _infer_data_type(value: Any) -> str:
+        if isinstance(value, bool):
+            return "bool"
+        if isinstance(value, int):
+            return "int"
+        if isinstance(value, float):
+            return "float"
+        if isinstance(value, list):
+            return "array"
+        if isinstance(value, dict):
+            return "object"
+        return "string"

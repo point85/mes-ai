@@ -608,6 +608,12 @@ class ModbusSimSetCounterRequest(BaseModel):
     address: int = Field(100, ge=0, description="Holding register address (default 100 = Good, 101 = Reject, 102 = Rework)")
 
 
+class ModbusSimMaterialSetupRequest(BaseModel):
+    equipment_id: str = Field(..., description="MES equipment UUID")
+    material_code: str = Field(..., min_length=1, description="Configured material code to switch to")
+    job_number: str | None = Field(None, description="Optional current job / order number")
+
+
 def _get_modbus_sim_plugin():
     """Return the running ModbusEquipmentSimulatorPlugin instance or raise 503."""
     from mes.main import plugin_manager
@@ -695,3 +701,29 @@ async def modbus_simulator_set_counter(body: ModbusSimSetCounterRequest):
         "address": body.address,
         "value": body.value,
     })
+
+
+@router.post("/modbus-equipment-simulator/set-material-setup")
+async def modbus_simulator_set_material_setup(
+    body: ModbusSimMaterialSetupRequest,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """
+    Simulate a Modbus-driven material setup change for a selected equipment.
+
+    Unlike state and counters, the current Modbus simulator does not expose a
+    dedicated register map for material changes, so this route applies the same
+    equipment-material switch the simulator UI would ultimately drive.
+    """
+    from uuid import UUID
+
+    from mes.core.physical_model import service as svc
+    from mes.core.physical_model.routes import _build_setup_read
+
+    _get_modbus_sim_plugin()
+    equip_id = UUID(body.equipment_id)
+    em = await svc.find_equipment_material_by_code(session, equip_id, body.material_code)
+    equip, em = await svc.set_material_setup(session, equip_id, em.id, body.job_number)
+    data = _build_setup_read(equip, em)
+    await session.commit()
+    return success_response(data.model_dump())

@@ -1,16 +1,17 @@
 id: stomp-jms
-name: STOMP JMS Messaging Adapter
+name: STOMP Equipment Adapter
 version: "1.0.0"
 description: >
-  Bidirectional messaging bridge between the MES event bus and a
+  STOMP-backed equipment adapter and bidirectional messaging bridge between the MES event bus and a
   STOMP-compatible JMS message broker (ActiveMQ, Artemis, RabbitMQ, etc.).
   Inbound messages from broker queues/topics are published to the MES event
-  bus; MES events are forwarded to broker destinations as JSON.
+  bus; MES events are forwarded to broker destinations as JSON, and tag messages
+  can be consumed as equipment data.
 author: MES AI Contributors
 comment: >
   Requires stomp.py library. Install with: pip install mes-ai[stomp]
   Tested with Apache ActiveMQ Artemis and RabbitMQ (with STOMP plugin).
-category: messaging
+category: equipment
 origin: system
 min_mes_version: "0.1.0"
 pip_dependencies:
@@ -87,11 +88,28 @@ parameters:
       Supports wildcards (e.g. *, wip.*, inventory.received).
     required: false
     default: "*"
+  - name: topic_prefix
+    type: string
+    description: Destination prefix for STOMP equipment tag messages
+    required: false
+    default: /topic/mes/equipment
+  - name: state_tag
+    type: string
+    description: Tag name used for the equipment state value
+    required: false
+    default: state
+  - name: equipment_id_tag
+    type: string
+    description: Tag name used for the equipment identifier value
+    required: false
+    default: equipment_id
 
 permissions: []
 required_core_permissions: []
 
 extension_points:
+  - type: equipment_driver
+    name: stomp_equipment
   - type: event_handler
     name: stomp_jms_bridge
 

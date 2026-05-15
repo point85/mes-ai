@@ -14,7 +14,9 @@ Endpoints:
 - POST   /api/v1/performance/equipment/{equip_id}/manual-transition  Manual transition with reason
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-opcua-state  Simulate OPC-UA state change
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-mqtt-state   Simulate MQTT state message
+- POST   /api/v1/performance/equipment/{equip_id}/simulate-stomp-state  Simulate STOMP state message
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-mqtt-counts  Simulate MQTT production counts
+- POST   /api/v1/performance/equipment/{equip_id}/simulate-stomp-counts Simulate STOMP production counts
 - POST   /api/v1/performance/equipment/{equip_id}/simulate-historian-state  Simulate AVEVA Historian tag change
 - GET    /api/v1/performance/oee                                Calculate OEE for equipment + time range
 - GET    /api/v1/performance/equipment-states                   Query equipment state history
@@ -57,6 +59,8 @@ from .schemas import (
     SimulateHistorianStateRequest,
     SimulateMqttCountRequest,
     SimulateMqttStateRequest,
+    SimulateStompCountRequest,
+    SimulateStompStateRequest,
     SimulateOpcuaStateRequest,
     ProductionCounterRead,
     ReasonCreate,
@@ -340,6 +344,34 @@ async def simulate_mqtt_state(
     return success_response(EquipmentStateLogRead.model_validate(log).model_dump())
 
 
+@router.post("/equipment/{equip_id}/simulate-stomp-state", status_code=201)
+async def simulate_stomp_state(
+    equip_id: UUID,
+    body: SimulateStompStateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """
+    Simulate a STOMP message carrying a state and optional reason code.
+
+    Mimics a JSON payload arriving on a STOMP destination like
+    ``/topic/mes/equipment/state`` with body
+    ``{"tag_name": "state", "value": "Execute", "reason_code": "..."}``.
+    """
+    log = await EquipmentStateEngine.transition_equipment(
+        session,
+        equipment_id=equip_id,
+        new_state=body.state,
+        reason_code=body.reason_code,
+        notes=(
+            f"Simulated STOMP destination={body.destination} "
+            f"payload={{\"tag_name\": \"state\", \"value\": {body.state!r}, \"reason_code\": {body.reason_code!r}}}"
+        ),
+    )
+    await session.commit()
+    return success_response(EquipmentStateLogRead.model_validate(log).model_dump())
+
+
 @router.post("/equipment/{equip_id}/simulate-mqtt-counts", status_code=201)
 async def simulate_mqtt_counts(
     equip_id: UUID,
@@ -382,6 +414,39 @@ async def simulate_mqtt_counts(
         topic, equip_id, body.processed_count, body.defective_count, body.rework_count,
     )
 
+    return success_response(ProductionCounterRead.model_validate(counter).model_dump())
+
+
+@router.post("/equipment/{equip_id}/simulate-stomp-counts", status_code=201)
+async def simulate_stomp_counts(
+    equip_id: UUID,
+    body: SimulateStompCountRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("performance.create")),
+):
+    """
+    Simulate a STOMP message carrying production count deltas.
+
+    Mimics a JSON payload arriving on a STOMP destination like
+    ``/topic/mes/equipment/counts`` with body
+    ``{"good_delta": <int>, "reject_delta": <int>, "rework_delta": <int>}``.
+    """
+    if body.processed_count == 0 and body.defective_count == 0 and body.rework_count == 0:
+        from mes.framework.api.exceptions import ValidationException
+
+        raise ValidationException(
+            "At least one count (processed_count, defective_count, rework_count) must be > 0.",
+        )
+
+    counter = await ProductionCounterService.increment_counter(
+        session,
+        equipment_id=equip_id,
+        good_delta=body.processed_count,
+        reject_delta=body.defective_count,
+        rework_delta=body.rework_count,
+        source_plugin="stomp-counter-simulator",
+    )
+    await session.commit()
     return success_response(ProductionCounterRead.model_validate(counter).model_dump())
 
 

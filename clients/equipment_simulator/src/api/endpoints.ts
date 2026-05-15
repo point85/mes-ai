@@ -101,6 +101,19 @@ export async function simulateMqttState(
   return res.data.data;
 }
 
+export async function simulateStompState(
+  equipId: string,
+  state: string,
+  reasonCode?: string,
+  destination = "/topic/mes/equipment/state",
+): Promise<EquipmentStateLog> {
+  const res = await api.post<ApiResponse<EquipmentStateLog>>(
+    `/performance/equipment/${equipId}/simulate-stomp-state`,
+    { destination, state, reason_code: reasonCode ?? null },
+  );
+  return res.data.data;
+}
+
 export async function simulateHistorianState(
   equipId: string,
   state: string,
@@ -134,6 +147,13 @@ export async function simulateHistorianCounts(
 export async function fetchHistorianMapping(
   equipId: string,
 ): Promise<{ equipment_id: string; state_tag_fqn: string; state_model_id: string; tag_prefix?: string } | null> {
+  type HistorianMapping = {
+    equipment_id: string;
+    state_tag_fqn: string;
+    state_model_id: string;
+    tag_prefix?: string;
+  };
+
   try {
     const res = await api.get<ApiResponse<{
       config_values: Record<string, unknown>;
@@ -143,11 +163,11 @@ export async function fetchHistorianMapping(
     const raw =
       detail.config_values?.equipment_mappings ??
       detail.parameter_values?.equipment_mappings;
-    let mappings: Array<Record<string, string>> = [];
+    let mappings: HistorianMapping[] = [];
     if (typeof raw === "string") {
-      try { mappings = JSON.parse(raw); } catch { /* ignore */ }
+      try { mappings = JSON.parse(raw) as HistorianMapping[]; } catch { /* ignore */ }
     } else if (Array.isArray(raw)) {
-      mappings = raw;
+      mappings = raw as HistorianMapping[];
     }
     return mappings.find((m) => m.equipment_id === equipId) ?? null;
   } catch {
@@ -165,6 +185,20 @@ export async function simulateMqttCounts(
   const res = await api.post<ApiResponse<ProductionCounterRead>>(
     `/performance/equipment/${equipId}/simulate-mqtt-counts`,
     { topic, processed_count: processedCount, defective_count: defectiveCount, rework_count: reworkCount },
+  );
+  return res.data.data;
+}
+
+export async function simulateStompCounts(
+  equipId: string,
+  processedCount: number,
+  defectiveCount: number,
+  reworkCount = 0,
+  destination = "/topic/mes/equipment/counts",
+): Promise<ProductionCounterRead> {
+  const res = await api.post<ApiResponse<ProductionCounterRead>>(
+    `/performance/equipment/${equipId}/simulate-stomp-counts`,
+    { destination, processed_count: processedCount, defective_count: defectiveCount, rework_count: reworkCount },
   );
   return res.data.data;
 }
@@ -323,6 +357,19 @@ export async function simulateMqttMaterialSetup(
   return res.data.data;
 }
 
+export async function simulateStompMaterialSetup(
+  equipId: string,
+  materialCode: string,
+  jobNumber?: string | null,
+  destination = "/topic/mes/equipment/material-setup",
+): Promise<MaterialSetupRead> {
+  const res = await api.post<ApiResponse<MaterialSetupRead>>(
+    `/equipment/${equipId}/simulate-stomp-material-setup`,
+    { destination, material_code: materialCode, job_number: jobNumber ?? null },
+  );
+  return res.data.data;
+}
+
 export async function simulateHistorianMaterialSetup(
   equipId: string,
   materialCode: string,
@@ -397,5 +444,21 @@ export async function modbusSimSetCounter(value: number, unitId = 1, address = 1
     unit_id: unitId,
     address,
   });
+}
+
+export async function modbusSimSetMaterialSetup(
+  equipmentId: string,
+  materialCode: string,
+  jobNumber?: string | null,
+): Promise<MaterialSetupRead> {
+  const res = await api.post<ApiResponse<MaterialSetupRead>>(
+    "/plugins/modbus-equipment-simulator/set-material-setup",
+    {
+      equipment_id: equipmentId,
+      material_code: materialCode,
+      job_number: jobNumber ?? null,
+    },
+  );
+  return res.data.data;
 }
 

@@ -194,6 +194,25 @@ class SimulateMqttStateRequest(BaseModel):
     )
 
 
+class SimulateStompStateRequest(BaseModel):
+    """Schema for simulating a STOMP message carrying a state + optional reason code."""
+
+    destination: str = Field(
+        "/topic/mes/equipment/state",
+        description="STOMP destination the state message would arrive on",
+    )
+    state: str = Field(
+        ...,
+        max_length=50,
+        description="State name string (e.g. 'Execute', 'Idle', 'Stopped')",
+    )
+    reason_code: str | None = Field(
+        None,
+        max_length=100,
+        description="OEE reason code string (optional)",
+    )
+
+
 class SimulateMqttCountRequest(BaseModel):
     """Schema for simulating an MQTT message carrying PackML production counts."""
 
@@ -210,6 +229,30 @@ class SimulateMqttCountRequest(BaseModel):
         0,
         ge=0,
         description="Defective/rejected units to add (Admin.ProdDefectiveCount delta)",
+    )
+    rework_count: int = Field(
+        0,
+        ge=0,
+        description="Rework units to add (delta)",
+    )
+
+
+class SimulateStompCountRequest(BaseModel):
+    """Schema for simulating a STOMP message carrying production counts."""
+
+    destination: str = Field(
+        "/topic/mes/equipment/counts",
+        description="STOMP destination the count message would arrive on",
+    )
+    processed_count: int = Field(
+        0,
+        ge=0,
+        description="Good/processed units to add (delta)",
+    )
+    defective_count: int = Field(
+        0,
+        ge=0,
+        description="Defective/rejected units to add (delta)",
     )
     rework_count: int = Field(
         0,

@@ -315,6 +315,20 @@ class SimulateMqttMaterialSetupRequest(BaseModel):
     job_number: str | None = Field(None, max_length=64, description="Job / batch identifier")
 
 
+class SimulateStompMaterialSetupRequest(BaseModel):
+    """Simulate a STOMP message that triggers a material setup switch."""
+
+    destination: str = Field(
+        "/topic/mes/equipment/material-setup",
+        description="STOMP destination the message would arrive on",
+    )
+    material_code: str = Field(
+        ..., max_length=50,
+        description="Material code to switch to",
+    )
+    job_number: str | None = Field(None, max_length=64, description="Job / batch identifier")
+
+
 class SimulateHistorianMaterialSetupRequest(BaseModel):
     """Simulate an AVEVA Historian tag change that triggers a material setup switch."""
 

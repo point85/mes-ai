@@ -6,6 +6,7 @@ import {
   transitionEquipment,
   simulateOpcuaState,
   simulateMqttState,
+  simulateStompState,
   simulateHistorianState,
   simulateHistorianCounts,
   fetchHistorianMapping,
@@ -14,8 +15,10 @@ import {
   modbusSimSetState,
   modbusSimSetAlarm,
   modbusSimSetCounter,
+  modbusSimSetMaterialSetup,
   type ModbusSimStatus,
   simulateMqttCounts,
+  simulateStompCounts,
   incrementCounter,
   fetchCounters,
   fetchEquipmentMaterials,
@@ -24,6 +27,7 @@ import {
   clearMaterialSetup,
   simulateOpcuaMaterialSetup,
   simulateMqttMaterialSetup,
+  simulateStompMaterialSetup,
   simulateHistorianMaterialSetup,
 } from "../api/endpoints";
 import { useEquipmentContext } from "../App";
@@ -70,6 +74,14 @@ export default function EquipmentPage() {
   const [mqttResult, setMqttResult] = useState<string | null>(null);
   const [mqttError, setMqttError] = useState<string | null>(null);
 
+  // STOMP simulation state
+  const [stompState, setStompState] = useState("");
+  const [stompDestination, setStompDestination] = useState("/topic/mes/equipment/state");
+  const [stompReason, setStompReason] = useState("");
+  const [stompBusy, setStompBusy] = useState(false);
+  const [stompResult, setStompResult] = useState<string | null>(null);
+  const [stompError, setStompError] = useState<string | null>(null);
+
   // Production counts simulation state
   const [goodDelta, setGoodDelta] = useState(1);
   const [rejectDelta, setRejectDelta] = useState(0);
@@ -87,6 +99,15 @@ export default function EquipmentPage() {
   const [mqttCountBusy, setMqttCountBusy] = useState(false);
   const [mqttCountResult, setMqttCountResult] = useState<string | null>(null);
   const [mqttCountError, setMqttCountError] = useState<string | null>(null);
+
+  // STOMP production counts simulation state
+  const [stompCountDestination, setStompCountDestination] = useState("/topic/mes/equipment/counts");
+  const [stompProcessed, setStompProcessed] = useState(1);
+  const [stompDefective, setStompDefective] = useState(0);
+  const [stompRework, setStompRework] = useState(0);
+  const [stompCountBusy, setStompCountBusy] = useState(false);
+  const [stompCountResult, setStompCountResult] = useState<string | null>(null);
+  const [stompCountError, setStompCountError] = useState<string | null>(null);
 
   // Historian production counts simulation state
   const [histCountTagFqn, setHistCountTagFqn] = useState("Simulated.CountTag");
@@ -107,6 +128,8 @@ export default function EquipmentPage() {
   const [modbusCounterValue, setModbusCounterValue] = useState(0);
   const [modbusRejectValue, setModbusRejectValue] = useState(0);
   const [modbusReworkValue, setModbusReworkValue] = useState(0);
+  const [modbusSetupCode, setModbusSetupCode] = useState("");
+  const [modbusSetupJob, setModbusSetupJob] = useState("");
   const [modbusBusy, setModbusBusy] = useState(false);
   const [modbusResult, setModbusResult] = useState<string | null>(null);
   const [modbusError, setModbusError] = useState<string | null>(null);
@@ -137,6 +160,14 @@ export default function EquipmentPage() {
   const [mqttSetupBusy, setMqttSetupBusy] = useState(false);
   const [mqttSetupResult, setMqttSetupResult] = useState<string | null>(null);
   const [mqttSetupError, setMqttSetupError] = useState<string | null>(null);
+
+  // STOMP material-setup simulation
+  const [stompSetupDestination, setStompSetupDestination] = useState("/topic/mes/equipment/material-setup");
+  const [stompSetupCode, setStompSetupCode] = useState("");
+  const [stompSetupJob, setStompSetupJob] = useState("");
+  const [stompSetupBusy, setStompSetupBusy] = useState(false);
+  const [stompSetupResult, setStompSetupResult] = useState<string | null>(null);
+  const [stompSetupError, setStompSetupError] = useState<string | null>(null);
 
   // Historian material-setup simulation
   const [histSetupTagFqn, setHistSetupTagFqn] = useState("Simulated.MaterialSetupTag");
@@ -347,6 +378,31 @@ export default function EquipmentPage() {
     }
   }
 
+  async function simulateStomp() {
+    if (!selectedEquip || !stompState) return;
+    setStompBusy(true);
+    setStompError(null);
+    setStompResult(null);
+    try {
+      const log = await simulateStompState(
+        selectedEquip.id,
+        stompState,
+        stompReason || undefined,
+        stompDestination,
+      );
+      setStompResult(
+        `STOMP → "${log.state}"${stompReason ? ` reason=${stompReason}` : ""} at ${new Date(log.started_at).toLocaleTimeString()}`,
+      );
+      const st = await fetchCurrentState(selectedEquip.id);
+      setCurrent(st);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStompError(`Simulated STOMP message failed: ${msg}`);
+    } finally {
+      setStompBusy(false);
+    }
+  }
+
   async function submitCounts() {
     if (!selectedEquip) return;
     if (goodDelta === 0 && rejectDelta === 0 && reworkDelta === 0) return;
@@ -434,6 +490,36 @@ export default function EquipmentPage() {
       setHistCountError(`Simulated Historian count failed: ${msg}`);
     } finally {
       setHistCountBusy(false);
+    }
+  }
+
+  async function submitStompCounts() {
+    if (!selectedEquip) return;
+    if (stompProcessed === 0 && stompDefective === 0 && stompRework === 0) return;
+    setStompCountBusy(true);
+    setStompCountError(null);
+    setStompCountResult(null);
+    try {
+      const counter = await simulateStompCounts(
+        selectedEquip.id,
+        stompProcessed,
+        stompDefective,
+        stompRework,
+        stompCountDestination,
+      );
+      setTodayCounter(counter);
+      const parts: string[] = [];
+      if (stompProcessed > 0) parts.push(`+${stompProcessed} processed`);
+      if (stompDefective > 0) parts.push(`+${stompDefective} defective`);
+      if (stompRework > 0) parts.push(`+${stompRework} rework`);
+      setStompCountResult(
+        `STOMP → destination=${stompCountDestination} ${parts.join(", ")} — totals: ${counter.good_count} good, ${counter.reject_count} reject, ${counter.rework_count} rework`,
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStompCountError(`Simulated STOMP count message failed: ${msg}`);
+    } finally {
+      setStompCountBusy(false);
     }
   }
 
@@ -860,6 +946,94 @@ export default function EquipmentPage() {
               </div>
               )}
 
+              {/* STOMP State Simulation */}
+              {enabledPluginIds.has("stomp-jms") && (
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate STOMP State Message — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates a STOMP JSON message on a state destination.
+                  Payload: <code className="bg-gray-100 px-1 rounded">
+                  {`{"tag_name": "state", "value": ${stompState ? `"${stompState}"` : '"..."'}, "reason_code": ${stompReason ? `"${stompReason}"` : "null"}}`}
+                  </code>
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    STOMP Destination
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
+                      value={stompDestination}
+                      onChange={(e) => setStompDestination(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    State
+                    {fullModel ? (
+                      <select
+                        className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                        value={stompState}
+                        onChange={(e) => setStompState(e.target.value)}
+                      >
+                        <option value="">— select —</option>
+                        {fullModel.states
+                          .filter((s) => validNextStates.has(s.name))
+                          .map((s) => (
+                            <option key={s.name} value={s.name}>
+                              {s.name} ({s.dispatch_category})
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <input
+                        className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-40"
+                        value={stompState}
+                        onChange={(e) => setStompState(e.target.value)}
+                        placeholder="e.g. Execute"
+                      />
+                    )}
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Reason Code (optional)
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                      value={stompReason}
+                      onChange={(e) => setStompReason(e.target.value)}
+                    >
+                      <option value="">— none —</option>
+                      {reasons.map((r) => (
+                        <option key={r.id} value={r.code}>
+                          {r.code} — {r.name} ({r.oee_bucket})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-cyan-600 text-white text-sm rounded hover:bg-cyan-700 disabled:opacity-50"
+                    onClick={simulateStomp}
+                    disabled={stompBusy || !stompState}
+                  >
+                    {stompBusy ? "Sending…" : "Send STOMP Message"}
+                  </button>
+                </div>
+
+                {stompResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {stompResult}
+                  </div>
+                )}
+                {stompError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {stompError}
+                  </div>
+                )}
+              </div>
+              )}
+
               {/* Historian State Simulation */}
               {enabledPluginIds.has("aveva-historian") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
@@ -1280,6 +1454,84 @@ export default function EquipmentPage() {
               </div>
               )}
 
+              {/* STOMP Production Counts Simulation */}
+              {enabledPluginIds.has("stomp-jms") && (
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate STOMP Production Counts — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates a STOMP JSON message on a count destination carrying production deltas.
+                  Payload: <code className="bg-gray-100 px-1 rounded">
+                  {`{"good_delta": ${stompProcessed}, "reject_delta": ${stompDefective}, "rework_delta": ${stompRework}}`}
+                  </code>
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    STOMP Destination
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
+                      value={stompCountDestination}
+                      onChange={(e) => setStompCountDestination(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Processed (Good)
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={stompProcessed}
+                      onChange={(e) => setStompProcessed(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Defective (Reject)
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={stompDefective}
+                      onChange={(e) => setStompDefective(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Rework
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-28"
+                      value={stompRework}
+                      onChange={(e) => setStompRework(Math.max(0, Number(e.target.value)))}
+                    />
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-cyan-600 text-white text-sm rounded hover:bg-cyan-700 disabled:opacity-50"
+                    onClick={submitStompCounts}
+                    disabled={stompCountBusy || (stompProcessed === 0 && stompDefective === 0 && stompRework === 0)}
+                  >
+                    {stompCountBusy ? "Sending…" : "Send STOMP Counts"}
+                  </button>
+                </div>
+
+                {stompCountResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {stompCountResult}
+                  </div>
+                )}
+                {stompCountError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {stompCountError}
+                  </div>
+                )}
+              </div>
+              )}
+
               {/* AVEVA Historian Production Counts Simulation */}
               {enabledPluginIds.has("aveva-historian") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
@@ -1671,6 +1923,98 @@ export default function EquipmentPage() {
               </div>
               )}
 
+              {/* STOMP Material Setup Simulation */}
+              {enabledPluginIds.has("stomp-jms") && (
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate STOMP Material Setup — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Simulates a STOMP JSON message on a material-setup destination.
+                  Payload: <code className="bg-gray-100 px-1 rounded">
+                  {`{"tag_name": "material_setup", "material_code": "${stompSetupCode || "..."}", "job_number": ${stompSetupJob ? `"${stompSetupJob}"` : "null"}}`}
+                  </code>
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    STOMP Destination
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-80"
+                      value={stompSetupDestination}
+                      onChange={(e) => setStompSetupDestination(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Material
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm min-w-[180px]"
+                      value={stompSetupCode}
+                      onChange={(e) => setStompSetupCode(e.target.value)}
+                    >
+                      <option value="">— select —</option>
+                      {configuredMaterials.map((m) => (
+                        <option key={m.id} value={m.material_code ?? ""}>
+                          {m.material_code} — {m.material_name ?? m.material_id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Job Number
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-32"
+                      value={stompSetupJob}
+                      onChange={(e) => setStompSetupJob(e.target.value)}
+                      placeholder="Optional"
+                    />
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-cyan-600 text-white text-sm rounded hover:bg-cyan-700 disabled:opacity-50"
+                    disabled={stompSetupBusy || !stompSetupCode}
+                    onClick={async () => {
+                      if (!equipmentId || !stompSetupCode) return;
+                      setStompSetupBusy(true);
+                      setStompSetupError(null);
+                      setStompSetupResult(null);
+                      try {
+                        const result = await simulateStompMaterialSetup(
+                          equipmentId,
+                          stompSetupCode,
+                          stompSetupJob || null,
+                          stompSetupDestination,
+                        );
+                        setMaterialSetup_(result);
+                        setStompSetupResult(
+                          `STOMP → destination=${stompSetupDestination} material="${result.material_name}" (${result.material_code})${result.job_number ? ` job=${result.job_number}` : ""}`,
+                        );
+                      } catch (err: unknown) {
+                        setStompSetupError(err instanceof Error ? err.message : String(err));
+                      } finally {
+                        setStompSetupBusy(false);
+                      }
+                    }}
+                  >
+                    {stompSetupBusy ? "Sending…" : "Send STOMP Message"}
+                  </button>
+                </div>
+
+                {stompSetupResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {stompSetupResult}
+                  </div>
+                )}
+                {stompSetupError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {stompSetupError}
+                  </div>
+                )}
+              </div>
+              )}
+
               {/* Historian Material Setup Simulation */}
               {enabledPluginIds.has("aveva-historian") && (
               <div className="bg-white rounded-lg border p-4 space-y-4">
@@ -1753,6 +2097,87 @@ export default function EquipmentPage() {
                 {histSetupError && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
                     {histSetupError}
+                  </div>
+                )}
+              </div>
+              )}
+
+              {/* Modbus Material Setup Simulation */}
+              {enabledPluginIds.has("modbus-equipment-simulator") && (
+              <div className="bg-white rounded-lg border p-4 space-y-4">
+                <h2 className="text-sm font-semibold text-gray-600 uppercase">
+                  Simulate Modbus Material Setup — {selectedEquip.code}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Applies a material setup change through the Modbus simulator control path.
+                  The current Modbus simulator does not expose dedicated material registers,
+                  so this mirrors the simulator-driven material switch on the MES side.
+                </p>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Material
+                    <select
+                      className="mt-0.5 rounded border border-gray-300 bg-white px-2 py-1 text-sm min-w-[180px]"
+                      value={modbusSetupCode}
+                      onChange={(e) => setModbusSetupCode(e.target.value)}
+                    >
+                      <option value="">— select —</option>
+                      {configuredMaterials.map((m) => (
+                        <option key={m.id} value={m.material_code ?? ""}>
+                          {m.material_code} — {m.material_name ?? m.material_id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col text-xs font-medium text-gray-600">
+                    Job Number
+                    <input
+                      className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm w-32"
+                      value={modbusSetupJob}
+                      onChange={(e) => setModbusSetupJob(e.target.value)}
+                      placeholder="Optional"
+                    />
+                  </label>
+
+                  <button
+                    className="px-4 py-1.5 bg-sky-600 text-white text-sm rounded hover:bg-sky-700 disabled:opacity-50"
+                    disabled={modbusBusy || !modbusSetupCode}
+                    onClick={async () => {
+                      if (!equipmentId || !modbusSetupCode) return;
+                      setModbusBusy(true);
+                      setModbusError(null);
+                      setModbusResult(null);
+                      try {
+                        const result = await modbusSimSetMaterialSetup(
+                          equipmentId,
+                          modbusSetupCode,
+                          modbusSetupJob || null,
+                        );
+                        setMaterialSetup_(result);
+                        setModbusResult(
+                          `Modbus simulator → material="${result.material_name}" (${result.material_code})${result.job_number ? ` job=${result.job_number}` : ""}`,
+                        );
+                      } catch (err: unknown) {
+                        setModbusError(err instanceof Error ? err.message : String(err));
+                      } finally {
+                        setModbusBusy(false);
+                      }
+                    }}
+                  >
+                    {modbusBusy ? "Applying…" : "Apply Material Setup"}
+                  </button>
+                </div>
+
+                {modbusResult && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                    {modbusResult}
+                  </div>
+                )}
+                {modbusError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
+                    {modbusError}
                   </div>
                 )}
               </div>

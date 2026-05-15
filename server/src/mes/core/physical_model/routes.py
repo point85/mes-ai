@@ -50,6 +50,7 @@ from .schemas import (
     ProductionLineUpdate,
     SimulateHistorianMaterialSetupRequest,
     SimulateMqttMaterialSetupRequest,
+    SimulateStompMaterialSetupRequest,
     SimulateOpcuaMaterialSetupRequest,
     SiteCreate,
     SiteRead,
@@ -645,6 +646,29 @@ async def simulate_mqtt_material_setup(
     Mimics a JSON payload arriving on an MQTT topic like
     ``mes/equipment/{equipment_id}/material-setup`` with body
     ``{"material_code": "<code>", "job_number": "<string>"}``.
+    """
+    em = await svc.find_equipment_material_by_code(session, equip_id, body.material_code)
+    equip, em = await svc.set_material_setup(
+        session, equip_id, em.id, body.job_number,
+    )
+    data = _build_setup_read(equip, em)
+    await session.commit()
+    return success_response(data.model_dump())
+
+
+@router.post("/equipment/{equip_id}/simulate-stomp-material-setup", status_code=201)
+async def simulate_stomp_material_setup(
+    equip_id: UUID,
+    body: SimulateStompMaterialSetupRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("physical_model.update")),
+):
+    """
+    Simulate a STOMP JSON message that triggers a material setup switch.
+
+    Mimics a JSON payload arriving on a STOMP destination like
+    ``/topic/mes/equipment/material-setup`` with body
+    ``{"tag_name": "material_setup", "material_code": "<code>", "job_number": "<string>"}``.
     """
     em = await svc.find_equipment_material_by_code(session, equip_id, body.material_code)
     equip, em = await svc.set_material_setup(
