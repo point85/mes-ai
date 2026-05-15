@@ -43,6 +43,7 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PYTHON="$REPO_ROOT/.venv/bin/python"
+PREP_SCRIPT="$REPO_ROOT/server/scripts/prepare_rt_inventory.py"
 TIMESTAMP="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 HEARTBEAT="$(dirname "$0")/HEARTBEAT.md"
 
@@ -93,7 +94,15 @@ check_url "$SERVER_URL/health" "MES server"
 check_url "$RT_URL" "RT-CLIENT"
 
 echo ""
-echo "[2/3] Running pytest ($SCOPE)..."
+echo "[2/4] Normalizing demo inventory..."
+
+(
+  cd "$REPO_ROOT/server"
+  "$PYTHON" "$PREP_SCRIPT"
+)
+
+echo ""
+echo "[3/4] Running pytest ($SCOPE)..."
 
 export SQA_SERVER_URL="$SERVER_URL"
 export SQA_RT_URL="$RT_URL"
@@ -106,7 +115,7 @@ EXIT_CODE=$?
 set -e
 
 echo ""
-echo "[3/3] Updating HEARTBEAT.md..."
+echo "[4/4] Updating HEARTBEAT.md..."
 
 if [[ $EXIT_CODE -eq 0 ]]; then
   ICON="PASS"

@@ -1247,3 +1247,11 @@ E   assert []
 - Occurrences before fix: 2
 - Status: resolved
 - Resolved at: 2026-05-15T20:59:33Z
+
+## [RESOLVED] 2026-05-15T23:08:04Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E   AssertionError: No available lot with zero actual inventory found. Re-seed the DB or reset lot balances before running.
+- First seen: 2026-05-15T20:39:25Z
+- Last seen failing run: 2026-05-15T22:39:07Z
+- Occurrences before fix: 2
+- Status: resolved
+- Resolved at: 2026-05-15T23:08:04Z

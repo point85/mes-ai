@@ -37,6 +37,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot  = Split-Path $PSScriptRoot -Parent
 $Python    = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+$PrepScript = Join-Path $RepoRoot "server\scripts\prepare_rt_inventory.py"
 $Timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
 $Heartbeat = Join-Path $PSScriptRoot "HEARTBEAT.md"
 
@@ -133,7 +134,21 @@ if (-not $serverOk -or -not $rtOk) {
 }
 
 Write-Host ""
-Write-Host "[2/3] Running pytest ($Scope)..." -ForegroundColor Yellow
+Write-Host "[2/4] Normalizing demo inventory..." -ForegroundColor Yellow
+
+Push-Location (Join-Path $RepoRoot "server")
+try {
+    & $Python $PrepScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inventory normalization failed with exit code $LASTEXITCODE"
+    }
+}
+finally {
+    Pop-Location
+}
+
+Write-Host ""
+Write-Host "[3/4] Running pytest ($Scope)..." -ForegroundColor Yellow
 
 $env:SQA_SERVER_URL = $ServerUrl
 $env:SQA_RT_URL     = $RtUrl
@@ -149,7 +164,7 @@ finally {
 }
 
 Write-Host ""
-Write-Host "[3/3] Updating HEARTBEAT.md..." -ForegroundColor Yellow
+Write-Host "[4/4] Updating HEARTBEAT.md..." -ForegroundColor Yellow
 
 if ($ExitCode -eq 0) {
     $icon   = "PASS"

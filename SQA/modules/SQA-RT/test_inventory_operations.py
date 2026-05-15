@@ -11,8 +11,8 @@ Pattern:
 - UI action via Playwright against the RT-CLIENT
 - Verify success banners, balances, and transaction log
 
-No seeding or cleanup is required: the test picks a fresh (zero on-hand)
-existing lot from the database so balance assertions are deterministic.
+No seeding or cleanup is required: the test works from the lot's current
+balances and asserts the expected deltas.
 """
 from __future__ import annotations
 
@@ -27,25 +27,13 @@ API_BALANCES  = "/inventory/balances"
 @pytest.mark.ui
 async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
     # -- 1. Resolve existing data from the API --------------------------------
-    # We need a lot with no existing inventory balance records so our balance
-    # assertions are deterministic (receive 100 → loc1=80, adjust → loc2=50).
-    # The material_lots.quantity_on_hand column is stale after prior test runs,
-    # so we cross-reference against the actual inventory/balances table.
+    # We use any available lot and compute the expected final balances from its
+    # current state so repeated audits do not depend on a pristine DB.
     resp = api.get(API_LOTS, params={"limit": 100})
     assert resp.status_code == 200, f"Could not fetch lots: {resp.text}"
     available_lots = [l for l in resp.json()["data"] if l["status"] == "available"]
     assert available_lots, "No available lots found -- seed the DB first"
-
-    resp = api.get(API_BALANCES, params={"limit": 200})
-    assert resp.status_code == 200, f"Could not fetch balances: {resp.text}"
-    lots_with_balances = {b["material_lot_id"] for b in resp.json()["data"]}
-
-    clean_lots = [l for l in available_lots if l["id"] not in lots_with_balances]
-    assert clean_lots, (
-        "No available lot with zero actual inventory found. "
-        "Re-seed the DB or reset lot balances before running."
-    )
-    lot = clean_lots[0]
+    lot = available_lots[0]
     lot_id     = lot["id"]
     lot_number = lot["lot_number"]
 
@@ -55,6 +43,14 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
     assert len(active_locs) >= 2, "Need at least 2 active storage locations in the database"
     loc1 = active_locs[0]
     loc2 = active_locs[1]
+
+    resp = api.get(API_BALANCES, params={"material_lot_id": lot_id, "limit": 200})
+    assert resp.status_code == 200, f"Could not fetch balances: {resp.text}"
+    starting_balances = {
+        balance["location_id"]: float(balance["quantity_on_hand"])
+        for balance in resp.json()["data"]
+    }
+    starting_loc1 = starting_balances.get(loc1["id"], 0.0)
 
     rt_url = mes_urls["rt"]
 
@@ -113,8 +109,8 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
     await expect(page.locator("div.bg-green-50", has_text="completed")).to_be_visible()
 
     # -- 5. Verify Balances ---------------------------------------------------
-    # Expected final state (starting from zero on-hand):
-    #   loc1: receive 100 - move 5 - consume 15 = 80
+    # Expected final state:
+    #   loc1: start + receive 100 - move 5 - consume 15 = start + 80
     #   loc2: move in 5, then adjusted to 50
     # NOTE: All pages share the DOM (hidden via CSS), so scope to the Balances
     # panel h3 to avoid matching hidden rows from other page components.
@@ -124,7 +120,7 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
     bal_tbody = page.locator("h3", has_text="Current Inventory Balances").locator("xpath=following::tbody[1]")
     await expect(bal_tbody.locator("tr", has_text=loc1["code"])).to_be_visible(timeout=5_000)
     await expect(bal_tbody.locator("tr", has_text=loc2["code"])).to_be_visible(timeout=5_000)
-    await expect(bal_tbody.locator("tr", has_text=loc1["code"])).to_contain_text("80")
+    await expect(bal_tbody.locator("tr", has_text=loc1["code"])).to_contain_text(str(int(starting_loc1 + 80)))
     await expect(bal_tbody.locator("tr", has_text=loc2["code"])).to_contain_text("50")
 
     # -- 6. Verify Transaction Log --------------------------------------------
