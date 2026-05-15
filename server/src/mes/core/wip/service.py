@@ -252,7 +252,11 @@ class UnitService:
 
     @staticmethod
     async def get_unit(session: AsyncSession, unit_id: UUID) -> Unit:
-        stmt = select(Unit).where(Unit.id == unit_id, Unit.is_active.is_(True))
+        stmt = (
+            select(Unit)
+            .where(Unit.id == unit_id, Unit.is_active.is_(True))
+            .options(selectinload(Unit.order), selectinload(Unit.product))
+        )
         result = await session.execute(stmt)
         unit = result.scalar_one_or_none()
         if unit is None:
@@ -264,9 +268,13 @@ class UnitService:
         session: AsyncSession, serial_number: str,
     ) -> Unit:
         """Look up a unit by serial number. Used for barcode scanning."""
-        stmt = select(Unit).where(
-            Unit.serial_number == serial_number,
-            Unit.is_active.is_(True),
+        stmt = (
+            select(Unit)
+            .where(
+                Unit.serial_number == serial_number,
+                Unit.is_active.is_(True),
+            )
+            .options(selectinload(Unit.order), selectinload(Unit.product))
         )
         result = await session.execute(stmt)
         unit = result.scalar_one_or_none()

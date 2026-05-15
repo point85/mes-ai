@@ -1116,3 +1116,68 @@ E    +  where 422 = <Response [422 Unprocessable Content]>.status_code
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-15T19:07:45Z
+
+## [OPEN] 2026-05-15T20:17:28Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_unit_electronics_normal_path
+- Summary: E   Error: element(s) not found
+- First seen: 2026-05-15T20:17:28Z
+- Last seen: 2026-05-15T20:17:28Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:502: in test_rt_wip_unit_electronics_normal_path
+    await _open_active_unit(page, serial_number)
+SQA\modules\SQA-RT\test_wip_operations.py:96: in _open_active_unit
+    await expect(page.locator("h3.font-mono", has_text=serial_number)).to_be_visible(timeout=10_000)
+E   AssertionError: Locator expected to be visible
+E   Actual value: None
+E   Error: element(s) not found
+E   Call log:
+E     - Expect "to_be_visible" with timeout 10000ms
+E     - waiting for locator("h3.font-mono").filter(has_text="SQA-ECB-SN-20260515201713")
+```
+
+## [OPEN] 2026-05-15T20:17:51Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_unit_electronics_normal_path
+- Summary: E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+- First seen: 2026-05-15T20:17:51Z
+- Last seen: 2026-05-15T20:17:51Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:492: in test_rt_wip_unit_electronics_normal_path
+    _cleanup_sqa_artifacts(api)
+SQA\modules\SQA-RT\test_wip_operations.py:188: in _cleanup_sqa_artifacts
+    assert resp.status_code == 200, f"Could not scrap stale test unit {unit['serial_number']}: {resp.text}"
+E   AssertionError: Could not scrap stale test unit SQA-ECB-SN-20260515201713: {"error":{"code":"INTERNAL_ERROR","message":"An unexpected error occurred","details":{"type":"ValidationError","detail":"1 validation error for UnitRead\norder_number\n  Error extracting attribute: MissingGreenlet: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s) [type=get_attribute_error, input_value=<Unit id=7e13776c-a73e-4b...5201713 status=scrapped>, input_type=Unit]\n    For further information visit https://errors.pydantic.dev/2.12/v/get_attribute_error"}},"meta":{"timestamp":"2026-05-15T20:17:51.605477+00:00"}}
+E   assert 500 == 200
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+```
+
+## [OPEN] 2026-05-15T20:18:22Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_unit_electronics_normal_path
+- Summary: E   Error: element(s) not found
+- First seen: 2026-05-15T20:18:22Z
+- Last seen: 2026-05-15T20:18:22Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:506: in test_rt_wip_unit_electronics_normal_path
+    await _open_active_unit(page, serial_number)
+SQA\modules\SQA-RT\test_wip_operations.py:96: in _open_active_unit
+    await expect(page.get_by_role("button", name="← Back to list")).to_be_visible(timeout=10_000)
+E   AssertionError: Locator expected to be visible
+E   Actual value: None
+E   Error: element(s) not found
+E   Call log:
+E     - Expect "to_be_visible" with timeout 10000ms
+E     - waiting for get_by_role("button", name="← Back to list")
+```
+
+## [RESOLVED] 2026-05-15T20:20:29Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_unit_electronics_normal_path
+- Summary: E   Error: element(s) not found
+- First seen: 2026-05-15T20:18:22Z
+- Last seen failing run: 2026-05-15T20:18:22Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-15T20:20:29Z
