@@ -17,9 +17,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
+
+from mes.framework.events.schema import MESEvent
 
 from mes.core.dispatch.events import (
     dispatch_blocked,
@@ -597,3 +600,90 @@ class TestHandlerRegistration:
         import inspect
         assert inspect.iscoroutinefunction(on_lot_completed)
         assert inspect.iscoroutinefunction(on_unit_completed)
+
+
+class _ScalarResult:
+    def __init__(self, value):
+        self._value = value
+
+    def scalar_one_or_none(self):
+        return self._value
+
+
+class _AsyncSessionContext:
+    def __init__(self, session):
+        self._session = session
+
+    async def __aenter__(self):
+        return self._session
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class TestMoveHandlers:
+    @pytest.mark.asyncio
+    async def test_on_unit_moved_skips_stale_event(self, monkeypatch):
+        from mes.core.dispatch.handlers import on_unit_moved
+
+        unit_id = uuid.uuid4()
+        moved_to_step_id = uuid.uuid4()
+        current_step_id = uuid.uuid4()
+        session = AsyncMock()
+        session.execute.return_value = _ScalarResult(current_step_id)
+
+        monkeypatch.setattr(
+            "mes.core.dispatch.handlers.async_session_factory",
+            lambda: _AsyncSessionContext(session),
+        )
+
+        auto_dispatch = AsyncMock()
+        monkeypatch.setattr("mes.core.dispatch.service.DispatchService.auto_dispatch", auto_dispatch)
+
+        event = MESEvent(
+            event_type="wip.unit.moved",
+            source="wip",
+            payload={
+                "unit_id": str(unit_id),
+                "to_step_id": str(moved_to_step_id),
+            },
+        )
+
+        await on_unit_moved(event)
+
+        auto_dispatch.assert_not_awaited()
+        session.commit.assert_not_awaited()
+        session.rollback.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_on_lot_moved_skips_stale_event(self, monkeypatch):
+        from mes.core.dispatch.handlers import on_lot_moved
+
+        lot_id = uuid.uuid4()
+        moved_to_step_id = uuid.uuid4()
+        current_step_id = uuid.uuid4()
+        session = AsyncMock()
+        session.execute.return_value = _ScalarResult(current_step_id)
+
+        monkeypatch.setattr(
+            "mes.core.dispatch.handlers.async_session_factory",
+            lambda: _AsyncSessionContext(session),
+        )
+
+        auto_dispatch = AsyncMock()
+        monkeypatch.setattr("mes.core.dispatch.service.DispatchService.auto_dispatch", auto_dispatch)
+
+        event = MESEvent(
+            event_type="wip.lot.moved",
+            source="wip",
+            payload={
+                "lot_id": str(lot_id),
+                "to_step_id": str(moved_to_step_id),
+            },
+        )
+
+        await on_lot_moved(event)
+
+        auto_dispatch.assert_not_awaited()
+        session.commit.assert_not_awaited()
+        session.rollback.assert_not_awaited()

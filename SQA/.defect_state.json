@@ -1,3 +1,12 @@
 {
-  "open_defects": {}
+  "open_defects": {
+    "modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations": {
+      "first_seen": "2026-05-15T20:39:25Z",
+      "last_seen": "2026-05-15T20:39:25Z",
+      "occurrences": 1,
+      "signature": "modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations::E AssertionError: No available lot with zero actual inventory found. Re-seed the DB or reset lot balances before running.",
+      "summary": "E   AssertionError: No available lot with zero actual inventory found. Re-seed the DB or reset lot balances before running.",
+      "traceback": "SQA\\modules\\SQA-RT\\test_inventory_operations.py:44: in test_rt_inventory_operations\n    assert clean_lots, (\nE   AssertionError: No available lot with zero actual inventory found. Re-seed the DB or reset lot balances before running.\nE   assert []"
+    }
+  }
 }

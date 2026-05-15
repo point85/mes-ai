@@ -24,6 +24,9 @@ API_UNITS = "/units"
 API_LOTS = "/lots"
 API_MATERIALS = "/materials"
 API_MATERIAL_LOTS = "/material-lots"
+CPG_RECIPE_BATCH_QTY = 1000
+CPG_TEST_BATCH_QTY = 100
+CPG_TEST_BATCH_SCALE = CPG_TEST_BATCH_QTY / CPG_RECIPE_BATCH_QTY
 SQA_ORDER_PREFIXES = ("SQA-WIP-", "SQA-MRB-", "SQA-ECB-")
 SQA_UNIT_PREFIXES = ("SQA-ECB-SN-",)
 SQA_LOT_PREFIXES = ("SQA-OJ-", "SQA-MRB-OJ-")
@@ -96,7 +99,16 @@ async def _open_active_unit(page: Page, serial_number: str) -> None:
     await expect(page.get_by_role("button", name="← Back to list")).to_be_visible(timeout=10_000)
 
 
-async def _create_order_and_lot(page: Page, api, rt_url: str, product_id: str, order_number: str, lot_number: str) -> tuple[dict, dict]:
+async def _create_order_and_lot(
+    page: Page,
+    api,
+    rt_url: str,
+    product_id: str,
+    order_number: str,
+    lot_number: str,
+    *,
+    order_quantity: int = CPG_RECIPE_BATCH_QTY,
+) -> tuple[dict, dict]:
     await _open_orders(page, rt_url)
 
     await page.get_by_role("button", name="New").click()
@@ -105,7 +117,7 @@ async def _create_order_and_lot(page: Page, api, rt_url: str, product_id: str, o
     order_dialog = order_dialog_heading.locator("xpath=ancestor::div[contains(@class,'bg-white')][1]")
     await order_dialog.locator("label:has-text('Order Number') + input").fill(order_number)
     await order_dialog.locator("label:has-text('Product') + select").select_option(product_id)
-    await order_dialog.locator("label:has-text('Quantity') + input").fill("1000")
+    await order_dialog.locator("label:has-text('Quantity') + input").fill(str(order_quantity))
     await order_dialog.locator("label:has-text('Priority') + input").fill("1")
     await order_dialog.get_by_role("button", name="Create Order").click()
     await expect(order_dialog_heading).to_be_hidden(timeout=10_000)
@@ -232,6 +244,8 @@ async def _consume_bom_items(
     api,
     step_id: str,
     materials_by_code: dict[str, dict],
+    *,
+    quantity_scale: float = 1.0,
 ) -> None:
     bom_resp = api.get(f"/process-segments/{step_id}/bom-items")
     bom_items = _unwrap(bom_resp)
@@ -240,15 +254,16 @@ async def _consume_bom_items(
 
     for item in bom_items:
         material = materials_by_code[item["material_code"]]
+        required_quantity = float(item["quantity"]) * quantity_scale
         lots_resp = api.get(API_MATERIAL_LOTS, params={"material_id": material["id"], "status": "available"})
         material_lots = _unwrap(lots_resp)
-        matching = [lot for lot in material_lots if float(lot["quantity_on_hand"]) >= float(item["quantity"])]
+        matching = [lot for lot in material_lots if float(lot["quantity_on_hand"]) >= required_quantity]
         assert matching, f"No existing material lot can satisfy {item['material_code']}"
-        chosen_lot = matching[0]
+        chosen_lot = max(matching, key=lambda lot: float(lot["quantity_on_hand"]))
 
         row = page.locator("tr", has_text=item["material_code"]).first
         await row.locator("select").select_option(chosen_lot["id"])
-        await row.locator("input").fill(str(item["quantity"]))
+        await row.locator("input").fill(f"{required_quantity:g}")
         await row.get_by_role("button", name="Consume").click()
         await expect(page.locator("div.bg-green-50", has_text=item["material_code"])).to_be_visible(timeout=10_000)
 
@@ -262,6 +277,7 @@ async def _process_current_step(
     *,
     result: str | None = None,
     disposition_contains: str | None = None,
+    bom_quantity_scale: float = 1.0,
 ) -> None:
     ctx = _unwrap(api.get(f"{API_LOTS}/{lot_id}/step-context"))
     assert ctx["wip"]["status"] == "queued"
@@ -278,7 +294,13 @@ async def _process_current_step(
 
     await _fill_data_collection(page, ctx["data_definitions"])
     await _fill_step_parameters(page, ctx["step_parameters"])
-    await _consume_bom_items(page, api, ctx["step"]["id"], materials_by_code)
+    await _consume_bom_items(
+        page,
+        api,
+        ctx["step"]["id"],
+        materials_by_code,
+        quantity_scale=bom_quantity_scale,
+    )
 
     if result is not None:
         result_select = page.locator("label:has-text('Result') ~ select:visible")
@@ -382,12 +404,20 @@ async def test_rt_wip_lot_normal_path(page: Page, api, mes_urls) -> None:
     lot_number = f"SQA-OJ-{token}"
     rt_url = mes_urls["rt"]
 
-    _, lot = await _create_order_and_lot(page, api, rt_url, product["id"], order_number, lot_number)
+    _, lot = await _create_order_and_lot(
+        page,
+        api,
+        rt_url,
+        product["id"],
+        order_number,
+        lot_number,
+        order_quantity=CPG_TEST_BATCH_QTY,
+    )
 
     await _open_active_lot(page, lot_number)
 
-    await _process_current_step(page, api, lot["id"], "Blending", materials_by_code)
-    await _process_current_step(page, api, lot["id"], "Pasteurization", materials_by_code)
+    await _process_current_step(page, api, lot["id"], "Blending", materials_by_code, bom_quantity_scale=CPG_TEST_BATCH_SCALE)
+    await _process_current_step(page, api, lot["id"], "Pasteurization", materials_by_code, bom_quantity_scale=CPG_TEST_BATCH_SCALE)
     await _process_current_step(
         page,
         api,
@@ -396,9 +426,10 @@ async def test_rt_wip_lot_normal_path(page: Page, api, mes_urls) -> None:
         materials_by_code,
         result="pass",
         disposition_contains="QC Pass",
+        bom_quantity_scale=CPG_TEST_BATCH_SCALE,
     )
-    await _process_current_step(page, api, lot["id"], "Filling & Capping", materials_by_code)
-    await _process_current_step(page, api, lot["id"], "Labeling & Packing", materials_by_code)
+    await _process_current_step(page, api, lot["id"], "Filling & Capping", materials_by_code, bom_quantity_scale=CPG_TEST_BATCH_SCALE)
+    await _process_current_step(page, api, lot["id"], "Labeling & Packing", materials_by_code, bom_quantity_scale=CPG_TEST_BATCH_SCALE)
 
     final_lot = _unwrap(api.get(f"{API_LOTS}/{lot['id']}"))
     assert final_lot["status"] == "completed"
@@ -428,12 +459,20 @@ async def test_rt_wip_lot_mrb_rework_loop(page: Page, api, mes_urls) -> None:
     lot_number = f"SQA-MRB-OJ-{token}"
     rt_url = mes_urls["rt"]
 
-    _, lot = await _create_order_and_lot(page, api, rt_url, product["id"], order_number, lot_number)
+    _, lot = await _create_order_and_lot(
+        page,
+        api,
+        rt_url,
+        product["id"],
+        order_number,
+        lot_number,
+        order_quantity=CPG_TEST_BATCH_QTY,
+    )
 
     await _open_active_lot(page, lot_number)
 
-    await _process_current_step(page, api, lot["id"], "Blending", materials_by_code)
-    await _process_current_step(page, api, lot["id"], "Pasteurization", materials_by_code)
+    await _process_current_step(page, api, lot["id"], "Blending", materials_by_code, bom_quantity_scale=CPG_TEST_BATCH_SCALE)
+    await _process_current_step(page, api, lot["id"], "Pasteurization", materials_by_code, bom_quantity_scale=CPG_TEST_BATCH_SCALE)
     await _process_current_step(
         page,
         api,
@@ -442,6 +481,7 @@ async def test_rt_wip_lot_mrb_rework_loop(page: Page, api, mes_urls) -> None:
         materials_by_code,
         result="fail",
         disposition_contains="Escalate to MRB",
+        bom_quantity_scale=CPG_TEST_BATCH_SCALE,
     )
 
     ctx = _unwrap(api.get(f"{API_LOTS}/{lot['id']}/step-context"))
@@ -455,6 +495,7 @@ async def test_rt_wip_lot_mrb_rework_loop(page: Page, api, mes_urls) -> None:
         "MRB Review",
         materials_by_code,
         disposition_contains="Return to Blend",
+        bom_quantity_scale=CPG_TEST_BATCH_SCALE,
     )
 
     ctx = _unwrap(api.get(f"{API_LOTS}/{lot['id']}/step-context"))
@@ -468,8 +509,9 @@ async def test_rt_wip_lot_mrb_rework_loop(page: Page, api, mes_urls) -> None:
         ctx["step"]["name"],
         materials_by_code,
         disposition_contains="Rework Complete",
+        bom_quantity_scale=CPG_TEST_BATCH_SCALE,
     )
-    await _process_current_step(page, api, lot["id"], "Pasteurization", materials_by_code)
+    await _process_current_step(page, api, lot["id"], "Pasteurization", materials_by_code, bom_quantity_scale=CPG_TEST_BATCH_SCALE)
 
     final_lot = _unwrap(api.get(f"{API_LOTS}/{lot['id']}"))
     assert final_lot["status"] == "queued"

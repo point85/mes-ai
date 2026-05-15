@@ -1181,3 +1181,69 @@ E     - waiting for get_by_role("button", name="← Back to list")
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-15T20:20:29Z
+
+## [OPEN] 2026-05-15T20:39:25Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E   AssertionError: No available lot with zero actual inventory found. Re-seed the DB or reset lot balances before running.
+- First seen: 2026-05-15T20:39:25Z
+- Last seen: 2026-05-15T20:39:25Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_inventory_operations.py:44: in test_rt_inventory_operations
+    assert clean_lots, (
+E   AssertionError: No available lot with zero actual inventory found. Re-seed the DB or reset lot balances before running.
+E   assert []
+```
+
+## [OPEN] 2026-05-15T20:46:25Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_mrb_rework_loop
+- Summary: E   AssertionError: No existing material lot can satisfy RM-OJ-CONC
+- First seen: 2026-05-15T20:46:25Z
+- Last seen: 2026-05-15T20:46:25Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:435: in test_rt_wip_lot_mrb_rework_loop
+    await _process_current_step(page, api, lot["id"], "Blending", materials_by_code)
+SQA\modules\SQA-RT\test_wip_operations.py:281: in _process_current_step
+    await _consume_bom_items(page, api, ctx["step"]["id"], materials_by_code)
+SQA\modules\SQA-RT\test_wip_operations.py:246: in _consume_bom_items
+    assert matching, f"No existing material lot can satisfy {item['material_code']}"
+E   AssertionError: No existing material lot can satisfy RM-OJ-CONC
+E   assert []
+```
+
+## [OPEN] 2026-05-15T20:57:33Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   AssertionError: No existing material lot can satisfy RM-OJ-CONC
+- First seen: 2026-05-15T20:57:33Z
+- Last seen: 2026-05-15T20:57:33Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:419: in test_rt_wip_lot_normal_path
+    await _process_current_step(page, api, lot["id"], "Blending", materials_by_code, bom_quantity_scale=CPG_TEST_BATCH_SCALE)
+SQA\modules\SQA-RT\test_wip_operations.py:297: in _process_current_step
+    await _consume_bom_items(
+SQA\modules\SQA-RT\test_wip_operations.py:261: in _consume_bom_items
+    assert matching, f"No existing material lot can satisfy {item['material_code']}"
+E   AssertionError: No existing material lot can satisfy RM-OJ-CONC
+E   assert []
+```
+
+## [RESOLVED] 2026-05-15T20:59:00Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   AssertionError: No existing material lot can satisfy RM-OJ-CONC
+- First seen: 2026-05-15T20:57:33Z
+- Last seen failing run: 2026-05-15T20:57:33Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-15T20:59:00Z
+
+## [RESOLVED] 2026-05-15T20:59:33Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_mrb_rework_loop
+- Summary: E   AssertionError: No existing material lot can satisfy RM-OJ-CONC
+- First seen: 2026-05-15T20:46:25Z
+- Last seen failing run: 2026-05-15T20:57:44Z
+- Occurrences before fix: 2
+- Status: resolved
+- Resolved at: 2026-05-15T20:59:33Z

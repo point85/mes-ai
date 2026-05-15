@@ -23,13 +23,27 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
+from sqlalchemy import select
+
 from mes.framework.db import async_session_factory
 from mes.framework.events.decorators import event_handler
 from mes.framework.events.schema import MESEvent
 
+from mes.core.wip.models import Lot, Unit
+
 from .schemas import DispatchEvaluateResponse
 
 logger = logging.getLogger("mes.dispatch.handlers")
+
+
+async def _lot_is_still_at_step(session, lot_id: UUID, step_id: UUID) -> bool:
+    result = await session.execute(select(Lot.current_step_id).where(Lot.id == lot_id))
+    return result.scalar_one_or_none() == step_id
+
+
+async def _unit_is_still_at_step(session, unit_id: UUID, step_id: UUID) -> bool:
+    result = await session.execute(select(Unit.current_step_id).where(Unit.id == unit_id))
+    return result.scalar_one_or_none() == step_id
 
 
 @event_handler("wip.lot.moved")
@@ -54,8 +68,18 @@ async def on_lot_moved(event: MESEvent) -> None:
 
     async with async_session_factory() as session:
         try:
+            lot_id = UUID(lot_id_str)
+            expected_step_id = UUID(to_step_id)
+            if not await _lot_is_still_at_step(session, lot_id, expected_step_id):
+                logger.info(
+                    "Skipping stale auto-dispatch for lot %s; no longer at step %s",
+                    lot_id_str,
+                    to_step_id,
+                )
+                return
+
             result = await DispatchService.auto_dispatch(
-                session, lot_id=UUID(lot_id_str),
+                session, lot_id=lot_id,
             )
             await session.commit()
 
@@ -92,8 +116,18 @@ async def on_unit_moved(event: MESEvent) -> None:
 
     async with async_session_factory() as session:
         try:
+            unit_id = UUID(unit_id_str)
+            expected_step_id = UUID(to_step_id)
+            if not await _unit_is_still_at_step(session, unit_id, expected_step_id):
+                logger.info(
+                    "Skipping stale auto-dispatch for unit %s; no longer at step %s",
+                    unit_id_str,
+                    to_step_id,
+                )
+                return
+
             result = await DispatchService.auto_dispatch(
-                session, unit_id=UUID(unit_id_str),
+                session, unit_id=unit_id,
             )
             await session.commit()
 
