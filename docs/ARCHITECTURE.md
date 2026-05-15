@@ -1,7 +1,7 @@
 # MES AI — Architecture Document
 
 > **Living document** — updated as architectural decisions are made.  
-> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), ISA-95 Part 4 Process Segment model with equipment_class_id on route steps, SegmentEquipmentRequirement and SegmentMaterialRequirement tables, 3-tier dispatch equipment resolution (D049–D052, §5.11, §10.3), **full auth system: 3-mode AUTH_MODE (none/local/oidc), PBKDF2-SHA256 password hashing, JWT access+refresh tokens with silent refresh, RBAC with wildcard permission matching, User/Role/Permission/UserRole data model, 4 seeded system roles, admin bootstrap on first boot, demo users seeded by demo endpoints, DT-CLIENT auth UI (LoginPage, AuthGuard, AuthContext, UserListPage, RoleListPage) (§11)**, 1869 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated. Quality management (QUAL-MGMT) module removed — quality tests, test results, and non-conformances are no longer part of the core framework; quality tracking should be implemented as a plugin by end users.
+> Current status: **Phase 5 In Progress** — equipment state machine (D025), equipment simulator, OPC 40083 state-change wiring, hierarchical reason codes with manual transition, production counter data collection framework with PackML OPC-UA and MQTT plugins, graph-based step transitions for conditional routing (rework loops, MRB branches, disposition paths), WIP queuing and equipment queue tracking, demo data seeding module with CPG (process/lot-tracked) and Electronics (discrete/unit-tracked) scenarios (D047, D048), production order lifecycle with optional background WIP generator task (§20), runtime GUI operator client for shop-floor WIP processing (§18), inventory management module with storage locations, balance tracking, 6 transaction types, and WIP genealogy bridge (§5.2, §6.3), DT-CLIENT inventory pages (balances viewer + transaction log), RT-CLIENT inventory operations UI (receive/putaway/pick/move/consume/adjust with balances and audit log), plugin manifest `pip_dependencies` field (D053), parameter validation at enable time (D054), ISA-95 Part 2 formal Equipment Capability model with equipment classes, typed class properties, capability declarations, and capability property values (§5.10), ISA-95 Part 4 Process Segment model with equipment_class_id on route steps, SegmentEquipmentRequirement and SegmentMaterialRequirement tables, 3-tier dispatch equipment resolution (D049–D052, §5.11, §10.3), **full auth system: 3-mode AUTH_MODE (none/local/oidc), PBKDF2-SHA256 password hashing, JWT access+refresh tokens with silent refresh, RBAC with wildcard permission matching, User/Role/Permission/UserRole data model, 4 seeded system roles, admin bootstrap on first boot, demo users seeded by demo endpoints, DT-CLIENT auth UI (LoginPage, AuthGuard, AuthContext, UserListPage, RoleListPage) (§11)**, 1869 unit tests passing. Technology stack, data model, API, plugin framework, event bus, and integration adapter specifications fully populated. Quality management (QUAL-MGMT) module removed — quality tests, test results, and non-conformances are no longer part of the core framework; quality tracking should be implemented as a plugin by end users.
 
 ---
 
@@ -2703,10 +2703,10 @@ availability gate → capability gate → capacity gate.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET/POST` | `/api/v1/orders` | List / create production orders |
-| `GET/PUT` | `/api/v1/orders/{order_id}` | Get / update order |
-| `POST` | `/api/v1/orders/{order_id}/release` | Release order for production |
-| `POST` | `/api/v1/orders/{order_id}/complete` | Mark order as completed |
+| `GET/POST` | `/api/v1/operations-requests` | List / create production orders |
+| `GET/PATCH` | `/api/v1/operations-requests/{order_id}` | Get / update order |
+| `POST` | `/api/v1/operations-requests/{order_id}/release` | Release order for production |
+| `POST` | `/api/v1/operations-requests/{order_id}/complete` | Mark order as completed |
 
 #### WIP Tracking (WIP-TRACK)
 
@@ -2747,7 +2747,7 @@ availability gate → capability gate → capacity gate.
 | `GET/POST` | `/api/v1/materials` | List / create material definitions |
 | `GET/PUT` | `/api/v1/materials/{material_id}` | Get / update material |
 | `GET/POST` | `/api/v1/material-lots` | List / create material lots |
-| `GET/PUT` | `/api/v1/material-lots/{lot_id}` | Get / update material lot |
+| `GET/PATCH` | `/api/v1/material-lots/{lot_id}` | Get / update material lot |
 | `POST` | `/api/v1/material-lots/{lot_id}/consume` | Record material consumption |
 | `GET` | `/api/v1/units/{unit_id}/consumed-materials` | Materials consumed for a unit |
 
@@ -6824,7 +6824,7 @@ Since no real factory, ERP system, or production equipment is available during d
 │  │  [12:01:05] → POST /api/v1/sites  201  45ms                │ │
 │  │  [12:01:06] → GET  /api/v1/sites  200  12ms  (2 items)     │ │
 │  │  [12:01:08] ← ERP callback: completion report received      │ │
-│  │  [12:01:09] ⚡ Event: production.order.released             │ │
+│  │  [12:01:09] ⚡ Event: operations.request.released           │ │
 │  └────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -7168,10 +7168,10 @@ Connects to the MES server's WebSocket endpoint and displays real-time events:
 ┌─────────────────────────────────────────────────────────────┐
 │  Event Monitor              Connected: ws://localhost:8000   │
 │─────────────────────────────────────────────────────────────│
-│  Filter: [production.*           ]  [Apply]  [Clear]        │
+│  Filter: [operations.request.*   ]  [Apply]  [Clear]        │
 │                                                              │
 │  Time      Topic                          Source    Payload  │
-│  12:01:05  production.order.released      PROD-ORD  {...}   │
+│  12:01:05  operations.request.released    OPS-REQ   {...}   │
 │  12:01:06  wip.unit.created               WIP-TRACK {...}   │
 │  12:01:08  dispatch.decision.made         DISPATCH  {...}   │
 │  12:01:09  wip.unit.moved                 WIP-TRACK {...}   │
@@ -7222,7 +7222,7 @@ steps:
   - name: "Create production order"
     action: api_call
     method: POST
-    path: /api/v1/orders
+    path: /api/v1/operations-requests
     body:
       product_id: "${product_id}"
       quantity_ordered: "${order_qty}"
@@ -7234,7 +7234,7 @@ steps:
   - name: "Release order"
     action: api_call
     method: POST
-    path: /api/v1/orders/${order_id}/release
+    path: /api/v1/operations-requests/${order_id}/release
     expect_status: 200
 
   - name: "Verify units created"
@@ -7277,7 +7277,7 @@ steps:
   - name: "Complete order"
     action: api_call
     method: POST
-    path: /api/v1/orders/${order_id}/complete
+    path: /api/v1/operations-requests/${order_id}/complete
     expect_status: 200
 
   - name: "Verify ERP received completion report"
@@ -7691,7 +7691,7 @@ Two lookup endpoints support barcode gun input, placed **before** the `{unit_id}
 |----------|---------|
 | `GET /api/v1/units/by-serial/{serial_number}` | Look up a unit by its serial number |
 | `GET /api/v1/lots/by-number/{lot_number}` | Look up a lot by its lot number |
-| `GET /api/v1/steps/{step_id}/dispositions` | Get available MRB disposition choices |
+| `GET /api/v1/process-segments/{step_id}/dispositions` | Get available MRB disposition choices |
 
 ### 18.9 WebSocket Integration
 
@@ -7699,7 +7699,7 @@ The RT-CLIENT connects to `ws://localhost:8082/api/v1/events/ws` and subscribes 
 
 ```json
 { "action": "subscribe", "topics": [
-    "wip.*", "production.order.*", "dispatch.*",
+  "wip.*", "operations.request.*", "dispatch.*",
     "data.*", "equipment.state.*"
 ] }
 ```
@@ -7886,19 +7886,19 @@ A production order follows a strict five-state lifecycle. Each transition is enf
                      │  POST /orders/{id}/release   (DT-CLIENT "Release" button)
                      ▼
                 ┌──────────┐
-                │ released │   Available for production; WIP generator picks it up
+                 │ released │   Available for production; manual WIP creation or optional generator may start execution
                 └────┬─────┘
-                     │  Automatic — first unit/lot created by WIP generator
+                   │  Manual lot/unit creation in RT-CLIENT or optional WIP generator
                      ▼
               ┌─────────────┐
               │ in_progress │   At least one unit or lot is being processed
               └──────┬──────┘
-                     │  POST /orders/{id}/complete   (DT-CLIENT "Complete" button)
+                     │  POST /operations-requests/{id}/complete   (DT-CLIENT "Complete" button)
                      ▼
               ┌───────────┐
               │ completed │   All ordered quantity produced or scrapped
               └─────┬─────┘
-                    │  POST /orders/{id}/close   (DT-CLIENT "Close" button)
+                    │  POST /operations-requests/{id}/close   (DT-CLIENT "Close" button)
                     ▼
                ┌────────┐
                │ closed │   Finalized — no further changes
@@ -7910,21 +7910,21 @@ A production order follows a strict five-state lifecycle. Each transition is enf
 | From | Allowed targets | Trigger |
 |---|---|---|
 | `created` | `released`, `closed` | Manual (DT-CLIENT or API) |
-| `released` | `in_progress`, `closed` | Automatic (WIP generator) or manual close |
+| `released` | `in_progress`, `closed` | Manual lot/unit creation, optional WIP generator, or manual close |
 | `in_progress` | `completed`, `closed` | Manual (DT-CLIENT or API) |
 | `completed` | `closed` | Manual (DT-CLIENT or API) |
 
 ### 20.2 How Orders Are Created and Released
 
-1. **Create orders** — Use the **ERP Simulator** (port 5174) → "Production Orders" tab → "+ Create Orders". The form provides a product dropdown, a count field (number of orders to create, default 3), quantity per order, and priority. Orders are created in `created` status via `POST /api/v1/orders`.
+1. **Create orders** — Use the **ERP Simulator** (port 5174) → "Production Orders" tab → "+ Create Orders". The form provides a product dropdown, a count field (number of orders to create, default 3), quantity per order, and priority. Orders are created in `created` status via `POST /api/v1/operations-requests`.
 
-2. **Release orders** — Use the **Design-Time Client** (port 5173) → "Orders" page. Each order in `created` status shows a **Release** button (play icon ▶). Clicking it calls `POST /api/v1/orders/{id}/release`, which sets `status = "released"` and publishes a `production.order.released` event.
+2. **Release orders** — Use the **Design-Time Client** (port 5173) → "Orders" page. Each order in `created` status shows a **Release** button (play icon ▶). Clicking it calls `POST /api/v1/operations-requests/{id}/release`, which sets `status = "released"` and publishes an `operations.request.released` event.
 
-3. **WIP generation** — Within seconds, the server-side WIP generator background task picks up the released order and creates the appropriate lots or units (see §20.3).
+3. **WIP creation** — Released orders can be started by manually creating lots/units in the Runtime Client. An optional server-side WIP generator can also create initial lots/units automatically when enabled (see §20.3).
 
 ### 20.3 WIP Generator — Background Polling Task
 
-The WIP generator is a background `asyncio` task that runs inside the MES server process. It polls the database every **5 seconds** (configurable via `WIP_GENERATOR_INTERVAL_SEC`) for orders in `released` status and creates lots or units automatically.
+The WIP generator is an optional background `asyncio` task that runs inside the MES server process when `MES_ENABLE_WIP_GENERATOR=true`. When enabled, it polls the database for orders in `released` status and creates lots or units automatically.
 
 #### Source File
 
@@ -7932,7 +7932,7 @@ The WIP generator is a background `asyncio` task that runs inside the MES server
 server/src/mes/core/operations/wip_generator.py
 ```
 
-This is the **primary customization point** for end users who need to control how WIP is created.
+This is a customization point for end users who want automatic WIP creation. In the default configuration, manual RT-CLIENT lot/unit creation is the primary path.
 
 #### How It Works
 
@@ -7972,18 +7972,19 @@ This is the **primary customization point** for end users who need to control ho
 
 #### Startup Wiring
 
-The task is registered in the FastAPI lifespan handler (`server/src/mes/main.py`):
+The task is registered in the FastAPI lifespan handler (`server/src/mes/main.py`) only when the feature flag is enabled:
 
 ```python
 from mes.core.operations.wip_generator import wip_generator_loop
-wip_task = asyncio.create_task(wip_generator_loop())
+if settings.ENABLE_WIP_GENERATOR:
+  wip_task = asyncio.create_task(wip_generator_loop())
 ```
 
 On shutdown, the task is cancelled cleanly.
 
 ### 20.4 Customization Guide for End Users
 
-The WIP generator is designed as the **extension point** where end users implement site-specific business rules. The key function to customize is `_generate_wip_for_order()` in `wip_generator.py`.
+When automatic WIP creation is enabled, the WIP generator is an extension point where end users can implement site-specific business rules. The key function to customize is `_generate_wip_for_order()` in `wip_generator.py`.
 
 #### Serial Number / Lot Number Generation
 
