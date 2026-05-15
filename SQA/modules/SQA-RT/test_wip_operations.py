@@ -546,3 +546,74 @@ async def test_rt_wip_unit_electronics_normal_path(page: Page, api, mes_urls) ->
         "Final Packaging & Labeling",
     ]
     await expect(page.get_by_text("✅ All steps completed")).to_be_visible(timeout=10_000)
+
+
+@pytest.mark.ui
+async def test_rt_wip_unit_electronics_functional_fail_rework_loop(page: Page, api, mes_urls) -> None:
+    _cleanup_sqa_artifacts(api)
+    product, materials_by_code = _load_product_setup(api, "FG-ECB-100")
+
+    token = _stamp()
+    order_number = f"SQA-ECB-{token}"
+    serial_number = f"SQA-ECB-SN-{token}"
+    rt_url = mes_urls["rt"]
+
+    _, unit = await _create_order_and_unit(page, api, rt_url, product["id"], order_number, serial_number)
+
+    await _open_active_unit(page, serial_number)
+
+    await _process_current_unit_step(page, api, unit["id"], "Solder Paste Application", materials_by_code)
+    await _process_current_unit_step(page, api, unit["id"], "SMD Placement", materials_by_code)
+    await _process_current_unit_step(page, api, unit["id"], "Reflow Soldering", materials_by_code)
+    await _process_current_unit_step(
+        page,
+        api,
+        unit["id"],
+        "Automated Optical Inspection",
+        materials_by_code,
+        result="pass",
+        disposition_contains="AOI Pass",
+    )
+    await _process_current_unit_step(page, api, unit["id"], "Through-Hole & Conformal Coat", materials_by_code)
+    await _process_current_unit_step(
+        page,
+        api,
+        unit["id"],
+        "Functional Test",
+        materials_by_code,
+        result="fail",
+        disposition_contains="Functional Test Fail",
+    )
+
+    ctx = _unwrap(api.get(f"{API_UNITS}/{unit['id']}/step-context"))
+    assert ctx["step"]["name"] == "Rework Station"
+    assert ctx["wip"]["status"] == "queued"
+
+    await _process_current_unit_step(
+        page,
+        api,
+        unit["id"],
+        "Rework Station",
+        materials_by_code,
+        disposition_contains="Rework Complete",
+    )
+
+    final_unit = _unwrap(api.get(f"{API_UNITS}/{unit['id']}"))
+    assert final_unit["status"] == "queued"
+    assert final_unit["current_step_name"] == "Automated Optical Inspection"
+
+    final_ctx = _unwrap(api.get(f"{API_UNITS}/{unit['id']}/step-context"))
+    assert final_ctx["step"]["name"] == "Automated Optical Inspection"
+    assert final_ctx["wip"]["status"] == "queued"
+    route_steps = {step["id"]: step["name"] for step in final_ctx["route_steps"]}
+    history = _unwrap(api.get(f"{API_UNITS}/{unit['id']}/history"))
+    step_names = [route_steps[record["step_id"]] for record in history]
+    assert step_names == [
+        "Solder Paste Application",
+        "SMD Placement",
+        "Reflow Soldering",
+        "Automated Optical Inspection",
+        "Through-Hole & Conformal Coat",
+        "Functional Test",
+        "Rework Station",
+    ]
