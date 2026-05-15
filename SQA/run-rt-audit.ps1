@@ -5,6 +5,7 @@
 .PARAMETER Scope
     Portion of the RT suite to run.
     - inventory : Inventory RT tests only
+    - wip       : WIP RT tests only
     - all       : All RT-CLIENT SQA tests
 
 .PARAMETER Headed
@@ -20,10 +21,10 @@
     .\run-rt-audit.ps1 -Scope inventory
 
 .EXAMPLE
-    .\run-rt-audit.ps1 -Scope inventory -RtUrl http://localhost:5178 -ServerUrl http://localhost:8081
+    .\run-rt-audit.ps1 -Scope wip -RtUrl http://localhost:5178 -ServerUrl http://localhost:8081
 #>
 param(
-    [ValidateSet("inventory", "all")]
+    [ValidateSet("inventory", "wip", "all")]
     [string]$Scope,
     [switch]$Headed,
     [switch]$Help,
@@ -41,16 +42,18 @@ $Heartbeat = Join-Path $PSScriptRoot "HEARTBEAT.md"
 
 function Show-Usage {
     Write-Host "Usage:" -ForegroundColor Yellow
-    Write-Host "  .\run-rt-audit.ps1 -Scope <inventory|all> [-Headed] [-ServerUrl <url>] [-RtUrl <url>]"
+    Write-Host "  .\run-rt-audit.ps1 -Scope <inventory|wip|all> [-Headed] [-ServerUrl <url>] [-RtUrl <url>]"
     Write-Host ""
     Write-Host "Scopes:" -ForegroundColor Yellow
     Write-Host "  inventory      Run Inventory RT tests only"
+    Write-Host "  wip            Run WIP RT tests only"
     Write-Host "  all            Run the full RT SQA suite"
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Yellow
     Write-Host "  .\run-rt-audit.ps1 -Scope inventory"
+    Write-Host "  .\run-rt-audit.ps1 -Scope wip"
     Write-Host "  .\run-rt-audit.ps1 -Scope all -Headed"
-    Write-Host "  .\run-rt-audit.ps1 -Scope inventory -ServerUrl http://localhost:8081 -RtUrl http://localhost:5178"
+    Write-Host "  .\run-rt-audit.ps1 -Scope wip -ServerUrl http://localhost:8081 -RtUrl http://localhost:5178"
 }
 
 if ($Help) {
@@ -70,6 +73,11 @@ function Resolve-TestTargets {
         "inventory" {
             return @(
                 (Join-Path $PSScriptRoot "modules\SQA-RT\test_inventory_operations.py")
+            )
+        }
+        "wip" {
+            return @(
+                (Join-Path $PSScriptRoot "modules\SQA-RT\test_wip_operations.py")
             )
         }
         default {

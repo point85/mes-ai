@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MES AI - RT SQA Audit runner
-# Usage: ./run-rt-audit.sh --scope inventory|all [--headed] [--server URL] [--rt URL]
+# Usage: ./run-rt-audit.sh --scope inventory|wip|all [--headed] [--server URL] [--rt URL]
 
 set -euo pipefail
 
@@ -11,16 +11,18 @@ RT_URL="http://localhost:5178"
 
 show_usage() {
   echo "Usage:"
-  echo "  ./run-rt-audit.sh --scope <inventory|all> [--headed] [--server URL] [--rt URL]"
+  echo "  ./run-rt-audit.sh --scope <inventory|wip|all> [--headed] [--server URL] [--rt URL]"
   echo
   echo "Scopes:"
   echo "  inventory      Run Inventory RT tests only"
+  echo "  wip            Run WIP RT tests only"
   echo "  all            Run the full RT SQA suite"
   echo
   echo "Examples:"
   echo "  ./run-rt-audit.sh --scope inventory"
+  echo "  ./run-rt-audit.sh --scope wip"
   echo "  ./run-rt-audit.sh --scope all --headed"
-  echo "  ./run-rt-audit.sh --scope inventory --server http://localhost:8081 --rt http://localhost:5178"
+  echo "  ./run-rt-audit.sh --scope wip --server http://localhost:8081 --rt http://localhost:5178"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -48,12 +50,15 @@ case "$SCOPE" in
   inventory)
     TEST_TARGETS=("$(dirname "$0")/modules/SQA-RT/test_inventory_operations.py")
     ;;
+  wip)
+    TEST_TARGETS=("$(dirname "$0")/modules/SQA-RT/test_wip_operations.py")
+    ;;
   all)
     TEST_TARGETS=("$(dirname "$0")/modules/SQA-RT")
     ;;
   *)
     echo "Invalid scope: $SCOPE"
-    echo "Expected one of: inventory, all"
+    echo "Expected one of: inventory, wip, all"
     exit 2
     ;;
 esac

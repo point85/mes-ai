@@ -701,3 +701,169 @@ E         - unexpected value "hidden"
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-15T15:55:44Z
+
+## [OPEN] 2026-05-15T18:40:06Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   playwright._impl._errors.Error: Locator.fill: Error: strict mode violation: locator("label:has-text('Quantity') + input") resolved to 2 elements:
+- First seen: 2026-05-15T18:40:06Z
+- Last seen: 2026-05-15T18:40:06Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:196: in test_rt_wip_lot_normal_path
+    await page.locator("label:has-text('Quantity') + input").fill("1000")
+.venv\Lib\site-packages\playwright\async_api\_generated.py:16552: in fill
+    await self._impl_obj.fill(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:215: in fill
+    return await self._frame.fill(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_frame.py:607: in fill
+    await self._fill(**locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_frame.py:619: in _fill
+    await self._channel.send("fill", self._timeout, locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.Error: Locator.fill: Error: strict mode violation: locator("label:has-text('Quantity') + input") resolved to 2 elements:
+E       1) <input min="1" value="" type="number" class="input-field w-full"/> aka get_by_role("spinbutton").first
+E       2) <input value="" step="any" min="0.001" required="" type="number" placeholder="Enter quantity" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/> aka get_by_placeholder("Enter quantity")
+E
+E   Call log:
+E     - waiting for locator("label:has-text('Quantity') + input")
+```
+
+## [OPEN] 2026-05-15T18:40:35Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   AssertionError: Order SQA-WIP-20260515184028 not found after creation
+- First seen: 2026-05-15T18:40:35Z
+- Last seen: 2026-05-15T18:40:35Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:218: in test_rt_wip_lot_normal_path
+    assert order is not None, f"Order {order_number} not found after creation"
+E   AssertionError: Order SQA-WIP-20260515184028 not found after creation
+E   assert None is not None
+```
+
+## [OPEN] 2026-05-15T18:41:08Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   AssertionError: assert 'in_progress' == 'released'
+- First seen: 2026-05-15T18:41:08Z
+- Last seen: 2026-05-15T18:41:08Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:219: in test_rt_wip_lot_normal_path
+    assert order["status"] == "released"
+E   AssertionError: assert 'in_progress' == 'released'
+E
+E     [0m[91m- released[39;49;00m[90m[39;49;00m
+E     [92m+ in_progress[39;49;00m[90m[39;49;00m
+```
+
+## [OPEN] 2026-05-15T18:41:28Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   TypeError: 'Locator' object is not callable
+- First seen: 2026-05-15T18:41:28Z
+- Last seen: 2026-05-15T18:41:28Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:225: in test_rt_wip_lot_normal_path
+    await _open_active_lot(page, lot_number)
+SQA\modules\SQA-RT\test_wip_operations.py:72: in _open_active_lot
+    await expect(lot_row()).to_be_visible(timeout=15_000)
+                 ^^^^^^^^^
+E   TypeError: 'Locator' object is not callable
+```
+
+## [OPEN] 2026-05-15T18:41:48Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   Error: strict mode violation: get_by_text("SQA-OJ-20260515184142", exact=True) resolved to 2 elements:
+- First seen: 2026-05-15T18:41:48Z
+- Last seen: 2026-05-15T18:41:48Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:225: in test_rt_wip_lot_normal_path
+    await _open_active_lot(page, lot_number)
+SQA\modules\SQA-RT\test_wip_operations.py:74: in _open_active_lot
+    await expect(page.get_by_text(lot_number, exact=True)).to_be_visible(timeout=10_000)
+E   AssertionError: Locator expected to be visible
+E   Actual value: None
+E   Error: strict mode violation: get_by_text("SQA-OJ-20260515184142", exact=True) resolved to 2 elements:
+E       1) <td class="py-2 px-3 font-mono">SQA-OJ-20260515184142</td> aka get_by_role("cell", name="SQA-OJ-20260515184142")
+E       2) <td class="py-1 px-2 font-mono">SQA-OJ-20260515184142</td> aka get_by_text("SQA-OJ-20260515184142").nth(3)
+E
+E   Call log:
+E     - Expect "to_be_visible" with timeout 10000ms
+E     - waiting for get_by_text("SQA-OJ-20260515184142", exact=True)
+```
+
+## [OPEN] 2026-05-15T18:42:12Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   TypeError: 'NoneType' object is not subscriptable
+- First seen: 2026-05-15T18:42:12Z
+- Last seen: 2026-05-15T18:42:12Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:227: in test_rt_wip_lot_normal_path
+    await _process_current_step(page, api, lot["id"], "Blending", materials_by_code)
+SQA\modules\SQA-RT\test_wip_operations.py:140: in _process_current_step
+    assert ctx["step"]["name"] == expected_step_name
+           ^^^^^^^^^^^^^^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable
+```
+
+## [OPEN] 2026-05-15T18:44:24Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.select_option: Timeout 30000ms exceeded.
+- First seen: 2026-05-15T18:44:24Z
+- Last seen: 2026-05-15T18:44:24Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:231: in test_rt_wip_lot_normal_path
+    await _process_current_step(
+SQA\modules\SQA-RT\test_wip_operations.py:157: in _process_current_step
+    await page.locator("label:has-text('Result') ~ select:visible").select_option(result)
+.venv\Lib\site-packages\playwright\async_api\_generated.py:18201: in select_option
+    await self._impl_obj.select_option(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:610: in select_option
+    return await self._frame.select_option(
+.venv\Lib\site-packages\playwright\_impl\_frame.py:781: in select_option
+    return await self._channel.send("selectOption", self._timeout, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.TimeoutError: Locator.select_option: Timeout 30000ms exceeded.
+E   Call log:
+E     - waiting for locator("label:has-text('Result') ~ select:visible")
+```
+
+## [OPEN] 2026-05-15T18:45:20Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   KeyError: 'quantity_scrapped'
+- First seen: 2026-05-15T18:45:20Z
+- Last seen: 2026-05-15T18:45:20Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:255: in test_rt_wip_lot_normal_path
+    assert float(final_lot["quantity_scrapped"]) == 0
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'quantity_scrapped'
+```
+
+## [RESOLVED] 2026-05-15T18:46:21Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   KeyError: 'quantity_scrapped'
+- First seen: 2026-05-15T18:45:20Z
+- Last seen failing run: 2026-05-15T18:45:20Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-15T18:46:21Z
