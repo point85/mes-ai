@@ -13,6 +13,7 @@ const CATEGORIES = [
   { value: "route", label: "Route" },
   { value: "hold", label: "Hold" },
   { value: "scrap", label: "Scrap" },
+  { value: "release", label: "Release" },
 ];
 
 interface Props {

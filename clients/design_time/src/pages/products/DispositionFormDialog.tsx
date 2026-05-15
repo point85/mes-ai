@@ -17,7 +17,7 @@ import type { Disposition } from "../../types";
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   description: z.string().max(500).nullable().optional(),
-  category: z.enum(["route", "hold", "scrap"]),
+  category: z.enum(["route", "hold", "scrap", "release"]),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -140,6 +140,7 @@ export default function DispositionFormDialog({
                 <option value="route">Route</option>
                 <option value="hold">Hold</option>
                 <option value="scrap">Scrap</option>
+                <option value="release">Release</option>
               </select>
               {errors.category && (
                 <p className="mt-1 text-xs text-red-600">{errors.category.message}</p>

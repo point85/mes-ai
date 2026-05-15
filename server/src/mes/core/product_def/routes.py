@@ -70,7 +70,7 @@ svc = ProductDefService
 async def list_dispositions(
     category: str | None = Query(
         None,
-        description="Optional filter: 'route', 'hold', or 'scrap'.",
+        description="Optional filter: 'route', 'hold', 'scrap', or 'release'.",
     ),
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),

@@ -23,7 +23,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   route: "bg-green-100 text-green-700",
   hold: "bg-amber-100 text-amber-700",
   scrap: "bg-red-100 text-red-700",
+  release: "bg-blue-100 text-blue-700",
 };
+
+const CATEGORIES = ["route", "hold", "scrap", "release"] as const;
 
 export default function DispositionListPage() {
   const { data: listResp, isLoading } = useDispositions();
@@ -31,11 +34,12 @@ export default function DispositionListPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Disposition | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
 
-  const dispositions = useMemo(
-    () => (listResp?.data ?? []).slice().sort((a, b) => a.code.localeCompare(b.code)),
-    [listResp],
-  );
+  const dispositions = useMemo(() => {
+    const sorted = (listResp?.data ?? []).slice().sort((a, b) => a.code.localeCompare(b.code));
+    return categoryFilter ? sorted.filter((d) => d.category === categoryFilter) : sorted;
+  }, [listResp, categoryFilter]);
 
   const openCreate = () => {
     setEditing(null);
@@ -61,18 +65,36 @@ export default function DispositionListPage() {
             Disposition codes that route, hold, or scrap WIP at each process step.
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500"
-        >
-          <PlusIcon className="h-4 w-4" /> New Disposition
-        </button>
+        <div className="flex items-center gap-3">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="rounded-md border border-gray-300 bg-white py-2 pl-3 pr-8 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="">All Categories</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c.charAt(0).toUpperCase() + c.slice(1)}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500"
+          >
+            <PlusIcon className="h-4 w-4" /> New Disposition
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
         <p className="mt-8 text-sm text-gray-400">Loading…</p>
       ) : dispositions.length === 0 ? (
-        <p className="mt-8 text-sm text-gray-400">No dispositions defined yet.</p>
+        <p className="mt-8 text-sm text-gray-400">
+          {categoryFilter
+            ? `No ${categoryFilter} dispositions found.`
+            : "No dispositions defined yet."}
+        </p>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200 text-left">

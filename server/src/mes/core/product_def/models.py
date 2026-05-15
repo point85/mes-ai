@@ -59,7 +59,7 @@ class Disposition(BaseModel):
     )
     category: Mapped[str] = mapped_column(
         String(20), nullable=False, default="route",
-        comment="Disposition category: 'route', 'hold', or 'scrap'",
+        comment="Disposition category: 'route', 'hold', 'scrap', or 'release'",
     )
 
     def __repr__(self) -> str:
