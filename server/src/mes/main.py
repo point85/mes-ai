@@ -108,8 +108,11 @@ async def lifespan(app: FastAPI):
     outbound_task = asyncio.create_task(_outbound_queue_loop())
 
     # ── WIP generator: create lots/units for released orders ──
-    from mes.core.operations.wip_generator import wip_generator_loop
-    wip_task = asyncio.create_task(wip_generator_loop())
+    wip_task: asyncio.Task[None] | None = None
+    if settings.ENABLE_WIP_GENERATOR:
+        from mes.core.operations.wip_generator import wip_generator_loop
+
+        wip_task = asyncio.create_task(wip_generator_loop())
 
     logger.info("MES AI server ready")
     yield
@@ -118,7 +121,8 @@ async def lifespan(app: FastAPI):
     logger.info("MES AI server shutting down")
     inbound_task.cancel()
     outbound_task.cancel()
-    wip_task.cancel()
+    if wip_task is not None:
+        wip_task.cancel()
     try:
         await inbound_task
     except asyncio.CancelledError:
@@ -127,10 +131,11 @@ async def lifespan(app: FastAPI):
         await outbound_task
     except asyncio.CancelledError:
         pass
-    try:
-        await wip_task
-    except asyncio.CancelledError:
-        pass
+    if wip_task is not None:
+        try:
+            await wip_task
+        except asyncio.CancelledError:
+            pass
     await plugin_manager.stop_all()
     event_bus.clear()
     logger.info("MES AI server stopped")

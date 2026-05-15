@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     ERP_CLIENT_SECRET: str = ""
     ERP_TOKEN_URL: str = ""
 
+    # --- WIP Auto-generation (OPS-REQUEST) ---
+    ENABLE_WIP_GENERATOR: bool = False
+
     model_config = SettingsConfigDict(
         env_prefix="MES_",
         env_file=".env",
