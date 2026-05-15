@@ -22,6 +22,7 @@ from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 # ---------------------------------------------------------------------------
 SERVER_URL = os.environ.get("SQA_SERVER_URL", "http://localhost:8081")
 DT_URL     = os.environ.get("SQA_DT_URL",     "http://localhost:5177")
+RT_URL     = os.environ.get("SQA_RT_URL",     "http://localhost:5176")
 HEADED     = os.environ.get("SQA_HEADED", "0") == "1"
 
 API_BASE   = f"{SERVER_URL}/api/v1"
@@ -196,6 +197,7 @@ def mes_urls() -> dict[str, str]:
         "server": SERVER_URL,
         "api":    API_BASE,
         "dt":     DT_URL,
+        "rt":     RT_URL,
     }
 
 

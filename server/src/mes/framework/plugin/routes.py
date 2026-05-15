@@ -717,7 +717,7 @@ async def modbus_simulator_set_material_setup(
     """
     from uuid import UUID
 
-    from mes.core.physical_model import service as svc
+    from mes.core.physical_model.service import PhysicalModelService as svc
     from mes.core.physical_model.routes import _build_setup_read
 
     _get_modbus_sim_plugin()

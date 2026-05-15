@@ -451,3 +451,143 @@ E          - unexpected value "75084474-88fb-4c34-917c-bedaf0bca5e3"
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-14T17:31:33Z
+
+## [OPEN] 2026-05-15T00:29:11Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+- First seen: 2026-05-15T00:29:11Z
+- Last seen: 2026-05-15T00:29:11Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+page = <Page url='about:blank'>
+api = <httpx.Client object at 0x000001C535AB5940>
+mes_urls = {'api': 'http://localhost:8081/api/v1', 'dt': 'http://localhost:5177', 'rt': 'http://localhost:5176', 'server': 'http://localhost:8081'}
+
+    @pytest.mark.ui
+    @pytest.mark.usefixtures("uom_cleanup", "material_cleanup", "storage_location_cleanup")
+    async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
+        # 1. API Seeds
+        uom = _create_scalar_uom(api, symbol=_unique_code("SQA_UOM"), name="SQA Material UoM")
+        mat = _create_material(api, uom_id=uom["id"], code=_unique_code("SQA_MAT"), name="SQA Inventory Material")
+        loc1 = _create_storage_location(api, code=_unique_code("WH1"), name="Warehouse 1")
+        loc2 = _create_storage_location(api, code=_unique_code("WH2"), name="Warehouse 2")
+
+        rt_url = mes_urls.get("rt", "http://localhost:5176")
+
+        # 2. Go to RT Inventory Page
+>       await page.goto(rt_url)
+
+SQA\modules\SQA-RT\test_inventory_operations.py:97:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv\Lib\site-packages\playwright\async_api\_generated.py:9365: in goto
+    await self._impl_obj.goto(
+.venv\Lib\site-packages\playwright\_impl\_page.py:552: in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+## [OPEN] 2026-05-15T00:29:46Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E       Error: strict mode violation: get_by_role("heading", name="Inventory") resolved to 2 elements:
+- First seen: 2026-05-15T00:29:46Z
+- Last seen: 2026-05-15T00:29:46Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+page = <Page url='http://localhost:5176/'>
+api = <httpx.Client object at 0x000001CB8EE75940>
+mes_urls = {'api': 'http://localhost:8081/api/v1', 'dt': 'http://localhost:5177', 'rt': 'http://localhost:5176', 'server': 'http://localhost:8081'}
+
+    @pytest.mark.ui
+    @pytest.mark.usefixtures("uom_cleanup", "material_cleanup", "storage_location_cleanup")
+    async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
+        # 1. API Seeds
+        uom = _create_scalar_uom(api, symbol=_unique_code("SQA_UOM"), name="SQA Material UoM")
+        mat = _create_material(api, uom_id=uom["id"], code=_unique_code("SQA_MAT"), name="SQA Inventory Material")
+        loc1 = _create_storage_location(api, code=_unique_code("WH1"), name="Warehouse 1")
+        loc2 = _create_storage_location(api, code=_unique_code("WH2"), name="Warehouse 2")
+
+        rt_url = mes_urls.get("rt", "http://localhost:5176")
+
+        # 2. Go to RT Inventory Page
+        await page.goto(rt_url)
+        await page.get_by_role("button", name="Inventory").click()
+>       await expect(page.get_by_role("heading", name="Inventory")).to_be_visible(timeout=10000)
+E       AssertionError: Locator expected to be visible
+E       Actual value: None
+E       Error: strict mode violation: get_by_role("heading", name="Inventory") resolved to 2 elements:
+E           1) <h2 class="text-2xl font-bold text-gray-800">Inventory</h2> aka get_by_role("heading", name="Inventory", exact=True)
+E           2) <h3 class="text-lg font-semibold text-gray-700 capitalize">receive Inventory</h3> aka get_by_role("heading", name="receive Inventory")
+E
+```
+
+## [OPEN] 2026-05-15T00:30:37Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: # Dialog for new lot
+- First seen: 2026-05-15T00:30:37Z
+- Last seen: 2026-05-15T00:30:37Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+page = <Page url='http://localhost:5176/'>
+api = <httpx.Client object at 0x0000022FD5655940>
+mes_urls = {'api': 'http://localhost:8081/api/v1', 'dt': 'http://localhost:5177', 'rt': 'http://localhost:5176', 'server': 'http://localhost:8081'}
+
+    @pytest.mark.ui
+    @pytest.mark.usefixtures("uom_cleanup", "material_cleanup", "storage_location_cleanup")
+    async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
+        # 1. API Seeds
+        uom = _create_scalar_uom(api, symbol=_unique_code("SQA_UOM"), name="SQA Material UoM")
+        mat = _create_material(api, uom_id=uom["id"], code=_unique_code("SQA_MAT"), name="SQA Inventory Material")
+        loc1 = _create_storage_location(api, code=_unique_code("WH1"), name="Warehouse 1")
+        loc2 = _create_storage_location(api, code=_unique_code("WH2"), name="Warehouse 2")
+
+        rt_url = mes_urls.get("rt", "http://localhost:5176")
+
+        # 2. Go to RT Inventory Page
+        await page.goto(rt_url)
+        await page.get_by_role("button", name="Inventory").click()
+        await expect(page.get_by_role("heading", name="Inventory", exact=True)).to_be_visible(timeout=10000)
+
+        # 3. Create a Material Lot
+        await page.get_by_role("button", name="Material Lots").click()
+        await page.get_by_role("button", name="New Lot").click()
+
+        # Dialog for new lot
+```
+
+## [OPEN] 2026-05-15T01:02:01Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.select_option: Timeout 30000ms exceeded.
+- First seen: 2026-05-15T01:02:01Z
+- Last seen: 2026-05-15T01:02:01Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_inventory_operations.py:129: in test_rt_inventory_operations
+    await get_select("Material Lot").select_option(value=lot_id)
+.venv\Lib\site-packages\playwright\async_api\_generated.py:18201: in select_option
+    await self._impl_obj.select_option(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:610: in select_option
+    return await self._frame.select_option(
+.venv\Lib\site-packages\playwright\_impl\_frame.py:781: in select_option
+    return await self._channel.send("selectOption", self._timeout, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.TimeoutError: Locator.select_option: Timeout 30000ms exceeded.
+E   Call log:
+E     - waiting for locator("label:has-text('Material Lot') ~ select:visible")
+E       - locator resolved to <select required="" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">…</select>
+E     - attempting select option action
+E       2 × waiting for element to be visible and enabled
+E         - did not find some options
+E       - retrying select option action
+E       - waiting 20ms
+E       2 × waiting for element to be visible and enabled
+E         - did not find some options
+E       - retrying select option action
+```

@@ -314,3 +314,9 @@ TASK: Use SKILL_QA_ENGINEER to test the first feature listed in architecture.md.
 - Server : http://localhost:8081  DT-CLIENT : http://localhost:5177
 - pytest : all tests passed
 - Report : SQA/reports/latest/report.html
+
+## 2026-05-14T18:01:17Z - RT-AUDIT [FAIL]
+- Scope  : inventory
+- Server : http://localhost:8081  RT-CLIENT : http://localhost:5178
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
