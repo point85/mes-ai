@@ -10,8 +10,6 @@ import {
   updateMaterialLot,
   fetchMaterials,
   receiveInventory,
-  putawayInventory,
-  pickInventory,
   moveInventory,
   consumeInventory,
   adjustInventory,
@@ -23,8 +21,6 @@ import type { InventoryTransaction, InventoryBalance, StorageLocation, MaterialL
 const TXN_TYPES = [
   { label: "All", value: "" },
   { label: "Receive", value: "receive" },
-  { label: "Put Away", value: "putaway" },
-  { label: "Pick", value: "pick" },
   { label: "Move", value: "move" },
   { label: "Consume", value: "consume" },
   { label: "Adjust", value: "adjust" },
@@ -32,20 +28,16 @@ const TXN_TYPES = [
 
 const TYPE_COLORS: Record<string, string> = {
   receive: "bg-green-100 text-green-700",
-  putaway: "bg-blue-100 text-blue-700",
-  pick: "bg-amber-100 text-amber-700",
   move: "bg-purple-100 text-purple-700",
   consume: "bg-red-100 text-red-700",
   adjust: "bg-gray-100 text-gray-700",
 };
 
 type PageTab = "operations" | "balances" | "log" | "lots";
-type OpType = "receive" | "putaway" | "pick" | "move" | "consume" | "adjust";
+type OpType = "receive" | "move" | "consume" | "adjust";
 
 const OP_LABELS: { id: OpType; label: string; color: string }[] = [
   { id: "receive", label: "Receive", color: "bg-green-600 hover:bg-green-700" },
-  { id: "putaway", label: "Put Away", color: "bg-blue-600 hover:bg-blue-700" },
-  { id: "pick", label: "Pick", color: "bg-amber-600 hover:bg-amber-700" },
   { id: "move", label: "Move", color: "bg-purple-600 hover:bg-purple-700" },
   { id: "consume", label: "Consume", color: "bg-red-600 hover:bg-red-700" },
   { id: "adjust", label: "Adjust", color: "bg-gray-600 hover:bg-gray-700" },
@@ -107,7 +99,7 @@ export default function InventoryPage() {
         {(["operations", "balances", "lots", "log"] as PageTab[]).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => { setTab(t); if (t === "operations") loadRefData(); }}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === t
                 ? "border-indigo-600 text-indigo-700"
@@ -195,24 +187,6 @@ function OperationsPanel({
         case "receive":
           await receiveInventory({
             material_lot_id: lotId,
-            to_location_id: toLocId,
-            quantity: qty,
-            reason: reason || undefined,
-          });
-          break;
-        case "putaway":
-          await putawayInventory({
-            material_lot_id: lotId,
-            from_location_id: fromLocId,
-            to_location_id: toLocId,
-            quantity: qty,
-            reason: reason || undefined,
-          });
-          break;
-        case "pick":
-          await pickInventory({
-            material_lot_id: lotId,
-            from_location_id: fromLocId,
             to_location_id: toLocId,
             quantity: qty,
             reason: reason || undefined,

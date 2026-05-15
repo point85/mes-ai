@@ -117,6 +117,11 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
 
     # 4. Perform Operations
     await page.get_by_role("button", name="Operations").click()
+    # Wait for the freshly created lot to populate the Material Lot dropdown
+    # (clicking the tab triggers loadRefData() in the parent component)
+    await expect(
+        page.locator(f"label:has-text('Material Lot') ~ select option[value='{lot_id}']"),
+    ).to_be_attached(timeout=10000)
 
     def get_select(label_text: str):
         return page.locator(f"label:has-text('{label_text}') ~ select:visible")
@@ -132,25 +137,7 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
     await page.get_by_role("button", name="Submit Receive").click()
     await expect(page.locator("div.bg-green-50", has_text="completed")).to_be_visible()
 
-    # 4b. Put Away Inventory
-    await page.get_by_role("button", name="Put Away").click()
-    await get_select("Material Lot").select_option(value=lot_id)
-    await get_select("From Location").select_option(value=loc1["id"])
-    await get_select("To Location").select_option(value=loc2["id"])
-    await get_input("Quantity").fill("20")
-    await page.get_by_role("button", name="Submit Putaway").click()
-    await expect(page.locator("div.bg-green-50", has_text="completed")).to_be_visible()
-
-    # 4c. Pick Inventory
-    await page.get_by_role("button", name="Pick").click()
-    await get_select("Material Lot").select_option(value=lot_id)
-    await get_select("From Location").select_option(value=loc2["id"]) # picking FROM the new put away location
-    await get_select("To Location").select_option(value=loc1["id"])
-    await get_input("Quantity").fill("10")
-    await page.get_by_role("button", name="Submit Pick").click()
-    await expect(page.locator("div.bg-green-50", has_text="completed")).to_be_visible()
-
-    # 4d. Move Inventory
+    # 4b. Move Inventory
     await page.get_by_role("button", name="Move").click()
     await get_select("Material Lot").select_option(value=lot_id)
     await get_select("From Location").select_option(value=loc1["id"])
@@ -159,7 +146,7 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
     await page.get_by_role("button", name="Submit Move").click()
     await expect(page.locator("div.bg-green-50", has_text="completed")).to_be_visible()
 
-    # 4e. Consume Inventory
+    # 4c. Consume Inventory
     await page.get_by_role("button", name="Consume").click()
     await get_select("Material Lot").select_option(value=lot_id)
     await get_select("From Location").select_option(value=loc1["id"])
@@ -167,7 +154,7 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
     await page.get_by_role("button", name="Submit Consume").click()
     await expect(page.locator("div.bg-green-50", has_text="completed")).to_be_visible()
 
-    # 4f. Adjust Inventory
+    # 4d. Adjust Inventory
     await page.get_by_role("button", name="Adjust").click()
     await get_select("Material Lot").select_option(value=lot_id)
     
@@ -184,8 +171,8 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
 
     # 5. Verify Balances
     await page.get_by_role("button", name="Balances").click()
-    # loc1 should have 100 - 20 - 10 - 5 - 15 = 50
-    # loc2 should have been adjusted to exactly 50
+    # loc1: receive 100, move out 5, consume 15 → 80
+    # loc2: move in 5, adjusted to exactly 50
     await page.get_by_placeholder("Search by lot number…").fill(lot_number)
     
     # Wait for table to filter
@@ -197,7 +184,7 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
     assert loc2["code"] in balances_text
     # We can't strictly assert exactly innerText match easily without proper DOM paths, 
     # but asserting that "50" exists next to both rows is a reasonably strong signal
-    await expect(page.locator("tr", has_text=loc1["code"])).to_contain_text("50")
+    await expect(page.locator("tr", has_text=loc1["code"])).to_contain_text("80")
     await expect(page.locator("tr", has_text=loc2["code"])).to_contain_text("50")
 
     # 6. Verify Transaction Log
@@ -207,14 +194,9 @@ async def test_rt_inventory_operations(page: Page, api, mes_urls) -> None:
     # Wait for UI to filter
     await expect(page.locator("tbody tr").first).to_be_visible()
     
-    # Should be 6 transactions: Receive, Put Away, Pick, Move, Consume, Adjust
-    # Because order is typically descending, Adjust is first. Let's just check the counts.
-    # Note: Sometimes there might be fewer/more if something double executed, 
-    # but we will just ensure they all show up.
+    # Should be 4 transactions: Receive, Move, Consume, Adjust
     log_text = await page.locator("tbody").inner_text()
     assert "receive" in log_text.lower()
-    assert "putaway" in log_text.lower()
-    assert "pick" in log_text.lower()
     assert "move" in log_text.lower()
     assert "consume" in log_text.lower()
     assert "adjust" in log_text.lower()
