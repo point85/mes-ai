@@ -326,3 +326,39 @@ TASK: Use SKILL_QA_ENGINEER to test the first feature listed in architecture.md.
 - Server : http://localhost:8081  RT-CLIENT : http://localhost:5178
 - pytest : FAILURES - see SQA/reports/latest/report.html
 - Report : SQA/reports/latest/report.html
+
+## 2026-05-15T08:40:50Z - RT-AUDIT [FAIL]
+- Scope  : inventory
+- Server : http://localhost:8081  RT-CLIENT : http://localhost:5178
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-15T08:42:40Z - RT-AUDIT [FAIL]
+- Scope  : inventory
+- Server : http://localhost:8081  RT-CLIENT : http://localhost:5178
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-15T08:47:49Z - RT-AUDIT [FAIL]
+- Scope  : inventory
+- Server : http://localhost:8081  RT-CLIENT : http://localhost:5178
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-15T08:50:46Z - RT-AUDIT [FAIL]
+- Scope  : inventory
+- Server : http://localhost:8081  RT-CLIENT : http://localhost:5178
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-15T08:51:05Z - RT-AUDIT [FAIL]
+- Scope  : inventory
+- Server : http://localhost:8081  RT-CLIENT : http://localhost:5178
+- pytest : FAILURES - see SQA/reports/latest/report.html
+- Report : SQA/reports/latest/report.html
+
+## 2026-05-15T08:55:29Z - RT-AUDIT [PASS]
+- Scope  : inventory
+- Server : http://localhost:8081  RT-CLIENT : http://localhost:5178
+- pytest : all tests passed
+- Report : SQA/reports/latest/report.html

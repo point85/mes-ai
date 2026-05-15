@@ -591,3 +591,113 @@ E       2 × waiting for element to be visible and enabled
 E         - did not find some options
 E       - retrying select option action
 ```
+
+## [OPEN] 2026-05-15T15:41:10Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E   AssertionError: Locator expected to have count '2'
+- First seen: 2026-05-15T15:41:10Z
+- Last seen: 2026-05-15T15:41:10Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_inventory_operations.py:179: in test_rt_inventory_operations
+    await expect(page.locator("tbody tr")).to_have_count(2, timeout=5000)
+E   AssertionError: Locator expected to have count '2'
+E   Actual value: 23
+E   Call log:
+E     - Expect "to_have_count" with timeout 5000ms
+E     - waiting for locator("tbody tr")
+E       3 × locator resolved to 22 elements
+E         - unexpected value "22"
+E       6 × locator resolved to 23 elements
+E         - unexpected value "23"
+```
+
+## [OPEN] 2026-05-15T15:43:26Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.fill: Timeout 30000ms exceeded.
+- First seen: 2026-05-15T15:43:26Z
+- Last seen: 2026-05-15T15:43:26Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_inventory_operations.py:188: in test_rt_inventory_operations
+    await page.get_by_placeholder("Filter by lot #").fill(lot_number)
+.venv\Lib\site-packages\playwright\async_api\_generated.py:16552: in fill
+    await self._impl_obj.fill(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:215: in fill
+    return await self._frame.fill(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_frame.py:607: in fill
+    await self._fill(**locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_frame.py:619: in _fill
+    await self._channel.send("fill", self._timeout, locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.TimeoutError: Locator.fill: Timeout 30000ms exceeded.
+E   Call log:
+E     - waiting for get_by_placeholder("Filter by lot #")
+```
+
+## [OPEN] 2026-05-15T15:48:09Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E   AssertionError: Locator expected to contain text '80'
+- First seen: 2026-05-15T15:48:09Z
+- Last seen: 2026-05-15T15:48:09Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_inventory_operations.py:112: in test_rt_inventory_operations
+    await expect(page.locator("tr", has_text=loc1["code"])).to_contain_text("80")
+E   AssertionError: Locator expected to contain text '80'
+E   Actual value: LOT_fd3f50a5—WH2_a77815cb1300130
+E   Call log:
+E     - Expect "to_contain_text" with timeout 5000ms
+E     - waiting for locator("tr").filter(has_text="WH2_a77815cb")
+E       9 × locator resolved to <tr class="hover:bg-gray-50">…</tr>
+E         - unexpected value "LOT_fd3f50a5—WH2_a77815cb1300130"
+```
+
+## [OPEN] 2026-05-15T15:50:54Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E   AssertionError: Could not fetch balances: {"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":{"errors":[{"type":"less_than_equal","loc":["query","limit"],"msg":"Input should be less than or equal to 200","input":"500","ctx":{"le":200}}]}},"meta":{"timestamp":"202
+- First seen: 2026-05-15T15:50:54Z
+- Last seen: 2026-05-15T15:50:54Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_inventory_operations.py:40: in test_rt_inventory_operations
+    assert resp.status_code == 200, f"Could not fetch balances: {resp.text}"
+E   AssertionError: Could not fetch balances: {"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":{"errors":[{"type":"less_than_equal","loc":["query","limit"],"msg":"Input should be less than or equal to 200","input":"500","ctx":{"le":200}}]}},"meta":{"timestamp":"2026-05-15T15:50:54.849781+00:00"}}
+E   assert 422 == 200
+E    +  where 422 = <Response [422 Unprocessable Content]>.status_code
+```
+
+## [OPEN] 2026-05-15T15:51:25Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E   AssertionError: Locator expected to be visible
+- First seen: 2026-05-15T15:51:25Z
+- Last seen: 2026-05-15T15:51:25Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_inventory_operations.py:130: in test_rt_inventory_operations
+    await expect(page.locator("tbody tr").first).to_be_visible(timeout=5_000)
+E   AssertionError: Locator expected to be visible
+E   Actual value: hidden
+E   Call log:
+E     - Expect "to_be_visible" with timeout 5000ms
+E     - waiting for locator("tbody tr").first
+E       9 × locator resolved to <tr class="border-b hover:bg-gray-50">…</tr>
+E         - unexpected value "hidden"
+```
+
+## [RESOLVED] 2026-05-15T15:55:44Z - modules/SQA-RT/test_inventory_operations.py::test_rt_inventory_operations
+- Summary: E   AssertionError: Locator expected to be visible
+- First seen: 2026-05-15T15:51:25Z
+- Last seen failing run: 2026-05-15T15:51:25Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-15T15:55:44Z
