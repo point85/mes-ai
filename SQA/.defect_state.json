@@ -1,3 +1,12 @@
 {
-  "open_defects": {}
+  "open_defects": {
+    "modules/SQA-DT/test_route_editor_crud.py::test_route_editor_crud": {
+      "first_seen": "2026-05-15T23:45:55Z",
+      "last_seen": "2026-05-15T23:45:55Z",
+      "occurrences": 1,
+      "signature": "modules/SQA-DT/test_route_editor_crud.py::test_route_editor_crud::E playwright._impl._errors.Error: Locator.click: Error: strict mode violation: locator(\"div\").filter(has_text=\"SQA Standalone Route\").filter(has_text=\"v2.0\").first.get_by_title(\"Edit route\") resolved to 3 elements:",
+      "summary": "E   playwright._impl._errors.Error: Locator.click: Error: strict mode violation: locator(\"div\").filter(has_text=\"SQA Standalone Route\").filter(has_text=\"v2.0\").first.get_by_title(\"Edit route\") resolved to 3 elements:",
+      "traceback": "SQA\\modules\\SQA-DT\\test_route_editor_crud.py:279: in test_route_editor_crud\n    await route_entry.get_by_title(\"Edit route\").click()\n.venv\\Lib\\site-packages\\playwright\\async_api\\_generated.py:16212: in click\n    await self._impl_obj.click(\n.venv\\Lib\\site-packages\\playwright\\_impl\\_locator.py:162: in click\n    return await self._frame._click(self._selector, strict=True, **params)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.venv\\Lib\\site-packages\\playwright\\_impl\\_frame.py:566: in _click\n    await self._channel.send(\"click\", self._timeout, locals_to_params(locals()))\n.venv\\Lib\\site-packages\\playwright\\_impl\\_connection.py:69: in send\n    return await self._connection.wrap_api_call(\n.venv\\Lib\\site-packages\\playwright\\_impl\\_connection.py:559: in wrap_api_call\n    raise rewrite_error(error, f\"{parsed_st['apiName']}: {error}\") from None\nE   playwright._impl._errors.Error: Locator.click: Error: strict mode violation: locator(\"div\").filter(has_text=\"SQA Standalone Route\").filter(has_text=\"v2.0\").first.get_by_title(\"Edit route\") resolved to 3 elements:\nE       1) <button title=\"Edit route\" class=\"rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors\">\u2026</button> aka get_by_role(\"button\", name=\"Edit route\").first\nE       2) <button title=\"Edit route\" class=\"rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors\">\u2026</button> aka get_by_role(\"button\", name=\"Edit route\").nth(1)\nE       3) <button title=\"Edit route\" class=\"rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors\">\u2026</button> aka get_by_role(\"button\", name=\"Edit route\").nth(2)\nE\nE   Call log:\nE     - waiting for locator(\"div\").filter(has_text=\"SQA Standalone Route\").filter(has_text=\"v2.0\").first.get_by_title(\"Edit route\")"
+    }
+  }
 }

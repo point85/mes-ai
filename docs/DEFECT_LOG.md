@@ -1255,3 +1255,33 @@ E   assert []
 - Occurrences before fix: 2
 - Status: resolved
 - Resolved at: 2026-05-15T23:08:04Z
+
+## [OPEN] 2026-05-15T23:45:55Z - modules/SQA-DT/test_route_editor_crud.py::test_route_editor_crud
+- Summary: E   playwright._impl._errors.Error: Locator.click: Error: strict mode violation: locator("div").filter(has_text="SQA Standalone Route").filter(has_text="v2.0").first.get_by_title("Edit route") resolved to 3 elements:
+- First seen: 2026-05-15T23:45:55Z
+- Last seen: 2026-05-15T23:45:55Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:279: in test_route_editor_crud
+    await route_entry.get_by_title("Edit route").click()
+.venv\Lib\site-packages\playwright\async_api\_generated.py:16212: in click
+    await self._impl_obj.click(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:162: in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_frame.py:566: in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.Error: Locator.click: Error: strict mode violation: locator("div").filter(has_text="SQA Standalone Route").filter(has_text="v2.0").first.get_by_title("Edit route") resolved to 3 elements:
+E       1) <button title="Edit route" class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">…</button> aka get_by_role("button", name="Edit route").first
+E       2) <button title="Edit route" class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">…</button> aka get_by_role("button", name="Edit route").nth(1)
+E       3) <button title="Edit route" class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">…</button> aka get_by_role("button", name="Edit route").nth(2)
+E
+E   Call log:
+E     - waiting for locator("div").filter(has_text="SQA Standalone Route").filter(has_text="v2.0").first.get_by_title("Edit route")
+```

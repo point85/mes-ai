@@ -1,0 +1,68 @@
+graph TD
+    %% Styling Definitions
+    classDef clientLayer fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#01579b;
+    classDef serverLayer fill:#efebe9,stroke:#5d4037,stroke-width:2px,color:#3e2723;
+    classDef coreLayer fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1b5e20;
+    classDef pluginLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#4a148c;
+    classDef dbLayer fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#e65100;
+    classDef protocolLayer fill:#eceff1,stroke:#455a64,stroke-width:1px,stroke-dasharray: 5 5,color:#263238;
+
+    %% --- CLIENT LAYER (Vite / React 19 / TS 5) ---
+    subgraph Clients ["UI CLIENT LAYER (Vite 6 / React 19 / TS 5 / Tailwind 4)"]
+        direction LR
+        DT["Design-Time Client<br/>• Master Data & Routes<br/>• Product Configuration<br/>• Zod / React Hook Form"] 
+        RT["Runtime Client<br/>• Shop Floor Execution<br/>• WIP & Active Lots<br/>• Inventory Operations"]
+        ERP["ERP Simulator<br/>• Order Releases<br/>• Inbound Planning Flow"]
+        EQP["Equipment Simulator<br/>• Dev / Testing Tool<br/>• Simulates Shop Hardware"]
+    end
+    class Clients,DT,RT,ERP,EQP clientLayer;
+
+    %% --- NETWORK / COMMUNICATION LAYER ---
+    DT & RT & ERP & EQP -->|HTTP REST / JSON| Fast["FastAPI Core Gateway<br/>(Uvicorn / Asyncio Runtime)"]
+    RT & EQP <==>|WebSocket Event Stream| Fast
+
+    %% --- SERVER CORE LAYER (FastAPI / Python 3.12+) ---
+    subgraph ServerCore ["FASTAPI MES SERVER CORE (server/src/mes/core)"]
+        Fast --> Auth["Auth & RBAC<br/>(PyJWT Tokens)"]
+        Fast --> Bus["Async Domain Event Bus"]
+        
+        subgraph DomainModules ["Core Domain Services"]
+            WIP["WIP & Lot Tracking"]
+            Disp["Dispositions & Holds"]
+            Mat["Material & Balances"]
+            Phys["Physical Equipment Model"]
+        end
+    end
+    class ServerCore,Fast,Auth,Bus,DomainModules,WIP,Disp,Mat,Phys coreLayer;
+
+    %% --- EXTENSION / PLUGIN LAYER ---
+    subgraph Plugins ["PLUGIN FRAMEWORK (Extension Model)"]
+        direction TB
+        PM["Plugin Manager Lifecycle"]
+        PE["Custom REST Endpoints"]
+        PH["Custom Event Handlers"]
+        PS["Dispatch Strategies"]
+        PM --> PE & PH & PS
+    end
+    Fast <-->|Registers / Dispatches| PM
+    class Plugins,PM,PE,PH,PS pluginLayer;
+
+    %% --- EXTERNAL PROTOCOLS & INTEGRATIONS ---
+    subgraph Protocols ["Optional Integration Ecosystem"]
+        direction RL
+        OPC["OPC UA / Modbus"]
+        MQ["MQTT / Kafka / NATS"]
+        SAP["SAP / ERP Adapters"]
+        AV["AVEVA Integration"]
+    end
+    PM <--> Protocols
+    class Protocols,OPC,MQ,SAP,AV protocolLayer;
+
+    %% --- PERSISTENCE LAYER ---
+    subgraph Storage ["PERSISTENCE & DATA EVOLUTION"]
+        direction LR
+        SQLA["SQLAlchemy 2<br/>(Async ORM)"] --> Alembic["Alembic<br/>(Schema Migrations)"]
+        Alembic --> DB[("PostgreSQL DB<br/>(System of Record)")]
+    end
+    DomainModules --> SQLA
+    class Storage,SQLA,Alembic,DB dbLayer;
