@@ -439,13 +439,13 @@ ROUTE_MATERIAL_ASSIGNMENTS: list[str] = [
 # ---------------------------------------------------------------------------
 
 MATERIAL_LOTS: list[dict] = [
-    {"material_code": "RM-PCB-BLANK",  "lot_number": "LOT-PCB-2026A",  "quantity_on_hand": 2000.0,  "supplier": "PCBTech Inc."},
-    {"material_code": "RM-SMD-KIT",    "lot_number": "LOT-SMD-2026A",  "quantity_on_hand": 1500.0,  "supplier": "Arrow Electronics"},
-    {"material_code": "RM-THRU-KIT",   "lot_number": "LOT-THRU-2026A", "quantity_on_hand": 1500.0,  "supplier": "Digi-Key"},
-    {"material_code": "RM-SOLDER-PST", "lot_number": "LOT-SLDR-2026A", "quantity_on_hand": 50000.0, "supplier": "Kester"},
-    {"material_code": "RM-FLUX",       "lot_number": "LOT-FLUX-2026A", "quantity_on_hand": 20000.0, "supplier": "Kester"},
-    {"material_code": "RM-CONFORMAL",  "lot_number": "LOT-CONF-2026A", "quantity_on_hand": 30000.0, "supplier": "HumiSeal"},
-    {"material_code": "PKG-ESD-BAG",   "lot_number": "LOT-ESDB-2026A", "quantity_on_hand": 2500.0,  "supplier": "Desco Industries"},
+    {"material_code": "RM-PCB-BLANK",  "lot_number": "LOT-PCB-2026A",  "quantity_on_hand": 2000.0,  "supplier": "PCBTech Inc.",      "received_date": "2026-02-28", "expiry_date": "2029-02-28"},
+    {"material_code": "RM-SMD-KIT",    "lot_number": "LOT-SMD-2026A",  "quantity_on_hand": 1500.0,  "supplier": "Arrow Electronics", "received_date": "2026-02-15", "expiry_date": "2028-02-15"},
+    {"material_code": "RM-THRU-KIT",   "lot_number": "LOT-THRU-2026A", "quantity_on_hand": 1500.0,  "supplier": "Digi-Key",          "received_date": "2026-02-15", "expiry_date": "2028-02-15"},
+    {"material_code": "RM-SOLDER-PST", "lot_number": "LOT-SLDR-2026A", "quantity_on_hand": 50000.0, "supplier": "Kester",            "received_date": "2026-04-15", "expiry_date": "2026-10-15"},
+    {"material_code": "RM-FLUX",       "lot_number": "LOT-FLUX-2026A", "quantity_on_hand": 20000.0, "supplier": "Kester",            "received_date": "2026-03-31", "expiry_date": "2027-03-31"},
+    {"material_code": "RM-CONFORMAL",  "lot_number": "LOT-CONF-2026A", "quantity_on_hand": 30000.0, "supplier": "HumiSeal",          "received_date": "2026-03-15", "expiry_date": "2028-03-15"},
+    {"material_code": "PKG-ESD-BAG",   "lot_number": "LOT-ESDB-2026A", "quantity_on_hand": 2500.0,  "supplier": "Desco Industries",  "received_date": "2026-01-31", "expiry_date": "2031-01-31"},
 ]
 
 # ---------------------------------------------------------------------------

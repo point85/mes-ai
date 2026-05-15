@@ -20,30 +20,42 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-DB_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/mes_ai_s95"
-DB_NAME = "mes_ai_s95"
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("reset")
+
+
+def _get_db_info() -> tuple[str, str, str]:
+    """Return (maint_url, db_name, db_name_for_log) derived from settings."""
+    from sqlalchemy.engine.url import make_url
+    from mes.config import settings
+
+    url = make_url(settings.DATABASE_URL)
+    db_name = url.database or "mes_ai"
+    user = url.username or "postgres"
+    pwd = str(url.password or "postgres")
+    host = url.host or "localhost"
+    port = url.port or 5432
+    maint_url = f"postgresql+asyncpg://{user}:{pwd}@{host}:{port}/postgres"
+    return maint_url, db_name, f"{host}:{port}/{db_name}"
 
 
 async def drop_and_recreate_schema() -> None:
     """Drop-and-recreate the application database itself. Connects to the
     maintenance `postgres` database to avoid the can't-drop-self error.
     """
-    maint_url = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
+    maint_url, db_name, db_label = _get_db_info()
     engine = create_async_engine(maint_url, isolation_level="AUTOCOMMIT")
     try:
         async with engine.connect() as c:
-            log.info("Terminating other connections to %s ...", DB_NAME)
+            log.info("Terminating other connections to %s ...", db_label)
             await c.execute(text(
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
                 "WHERE datname = :db AND pid <> pg_backend_pid()"
-            ).bindparams(db=DB_NAME))
-            log.info("Dropping database %s (if exists) ...", DB_NAME)
-            await c.execute(text(f'DROP DATABASE IF EXISTS "{DB_NAME}"'))
-            log.info("Creating database %s ...", DB_NAME)
-            await c.execute(text(f'CREATE DATABASE "{DB_NAME}"'))
+            ).bindparams(db=db_name))
+            log.info("Dropping database %s (if exists) ...", db_name)
+            await c.execute(text(f'DROP DATABASE IF EXISTS "{db_name}"'))
+            log.info("Creating database %s ...", db_name)
+            await c.execute(text(f'CREATE DATABASE "{db_name}"'))
             log.info("Database reset complete.")
     finally:
         await engine.dispose()
@@ -89,12 +101,41 @@ async def seed_all() -> None:
 
     async with async_session_factory() as session:
         log.info("Seeding built-in UoMs ...")
-        base_units = [UnitOfMeasure(**d) for d in get_builtin_scalar_dicts()]
-        session.add_all(base_units)
-        await session.flush()
-        symbol_to_uom = {u.symbol: (u.id, u.uom_type) for u in base_units}
-        composite_units = [UnitOfMeasure(**d) for d in get_builtin_composite_dicts_typed(symbol_to_uom)]
-        session.add_all(composite_units)
+        from sqlalchemy import select
+
+        existing_scalar_rows = await session.execute(
+            select(UnitOfMeasure.symbol, UnitOfMeasure.id, UnitOfMeasure.uom_type)
+            .where(UnitOfMeasure.uom_class == "scalar")
+        )
+        existing_scalars: dict[str, tuple] = {
+            row.symbol: (row.id, row.uom_type) for row in existing_scalar_rows
+        }
+        new_scalars = [
+            UnitOfMeasure(**d)
+            for d in get_builtin_scalar_dicts()
+            if d["symbol"] not in existing_scalars
+        ]
+        if new_scalars:
+            session.add_all(new_scalars)
+            await session.flush()
+        symbol_to_uom = {
+            **existing_scalars,
+            **{u.symbol: (u.id, u.uom_type) for u in new_scalars},
+        }
+
+        existing_composite_syms = {
+            row[0] for row in await session.execute(
+                select(UnitOfMeasure.symbol)
+                .where(UnitOfMeasure.uom_class.in_(["quotient", "power"]))
+            )
+        }
+        new_composites = [
+            UnitOfMeasure(**d)
+            for d in get_builtin_composite_dicts_typed(symbol_to_uom)
+            if d["symbol"] not in existing_composite_syms
+        ]
+        if new_composites:
+            session.add_all(new_composites)
         await session.commit()
 
     async with async_session_factory() as session:

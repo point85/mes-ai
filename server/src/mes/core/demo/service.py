@@ -169,6 +169,8 @@ async def seed_erp_data(session: AsyncSession) -> dict[str, Any]:
                 lot_number=ml["lot_number"],
                 quantity_on_hand=ml["quantity_on_hand"],
                 supplier=ml.get("supplier"),
+                received_date=ml.get("received_date"),
+                expiry_date=ml.get("expiry_date"),
             )
             if created:
                 summary["material_lots"] += 1
@@ -619,6 +621,8 @@ async def seed_electronics_erp_data(session: AsyncSession) -> dict[str, Any]:
             lot_number=ml["lot_number"],
             quantity_on_hand=ml["quantity_on_hand"],
             supplier=ml.get("supplier"),
+            received_date=ml.get("received_date"),
+            expiry_date=ml.get("expiry_date"),
         )
         if created:
             summary["material_lots"] += 1
@@ -989,6 +993,8 @@ async def _get_or_create_material_lot(
     lot_number: str,
     quantity_on_hand: float,
     supplier: str | None = None,
+    received_date: str | None = None,
+    expiry_date: str | None = None,
 ) -> bool:
     """Return True if a new lot was created, False if it already existed."""
     result = await session.execute(
@@ -1002,6 +1008,8 @@ async def _get_or_create_material_lot(
         lot_number=lot_number,
         quantity_on_hand=quantity_on_hand,
         supplier=supplier,
+        received_date=date.fromisoformat(received_date) if received_date else None,
+        expiry_date=date.fromisoformat(expiry_date) if expiry_date else None,
     )
     return True
 

@@ -114,9 +114,6 @@ export default function InventoryBalancesPage() {
                   On Hand
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Reserved
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Available
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -141,9 +138,6 @@ export default function InventoryBalancesPage() {
                     <td className="px-4 py-2.5 text-sm text-right font-medium text-gray-900">
                       {b.quantity_on_hand.toLocaleString()}
                     </td>
-                    <td className="px-4 py-2.5 text-sm text-right text-amber-600">
-                      {b.quantity_reserved > 0 ? b.quantity_reserved.toLocaleString() : "—"}
-                    </td>
                     <td className={`px-4 py-2.5 text-sm text-right font-medium ${available > 0 ? "text-green-700" : "text-red-600"}`}>
                       {available.toLocaleString()}
                     </td>
@@ -160,7 +154,7 @@ export default function InventoryBalancesPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-4 py-8 text-center text-sm text-gray-400"
                   >
                     No inventory balances found.

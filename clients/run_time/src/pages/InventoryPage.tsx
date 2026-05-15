@@ -485,15 +485,14 @@ function BalancesPanel({
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Material</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Location</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">On Hand</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Reserved</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Available</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">Loading…</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">Loading…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">{search || locationFilter ? "No matches found." : "No inventory balances found."}</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">{search || locationFilter ? "No matches found." : "No inventory balances found."}</td></tr>
               ) : (
                 filtered.map((b) => {
                   const available = b.quantity_on_hand - b.quantity_reserved;
@@ -512,7 +511,6 @@ function BalancesPanel({
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-600">{locName(b.location_id)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 text-right font-mono">{b.quantity_on_hand}</td>
-                      <td className="px-4 py-2 text-sm text-gray-600 text-right font-mono">{b.quantity_reserved}</td>
                       <td className={`px-4 py-2 text-sm text-right font-mono font-semibold ${available > 0 ? "text-green-700" : "text-red-600"}`}>
                         {available}
                       </td>
@@ -1017,7 +1015,6 @@ function LotsPanel() {
               <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wide text-xs">Lot #</th>
               <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wide text-xs">Material</th>
               <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase tracking-wide text-xs">On Hand</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase tracking-wide text-xs">Reserved</th>
               <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wide text-xs">Status</th>
               <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wide text-xs">Received</th>
               <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wide text-xs">Expiry</th>
@@ -1027,9 +1024,9 @@ function LotsPanel() {
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
             {loading && lots.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
             ) : lots.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">
                 {materialFilter || statusFilter ? "No lots match the current filters." : "No material lots found. Create one to get started."}
               </td></tr>
             ) : (
@@ -1042,7 +1039,6 @@ function LotsPanel() {
                       {mat ? <><span className="font-medium">{mat.code}</span> — {mat.name}</> : lot.material_id}
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-gray-900">{lot.quantity_on_hand}</td>
-                    <td className="px-4 py-2 text-right font-mono text-gray-600">{lot.quantity_reserved}</td>
                     <td className="px-4 py-2">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[lot.status] ?? "bg-gray-100 text-gray-600"}`}>
                         {lot.status === "available" && <CheckCircleIcon className="mr-1 h-3 w-3" />}

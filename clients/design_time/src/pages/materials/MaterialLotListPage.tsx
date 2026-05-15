@@ -136,9 +136,6 @@ export default function MaterialLotListPage() {
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   On Hand
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Reserved
-                </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Status
                 </th>
@@ -182,9 +179,6 @@ export default function MaterialLotListPage() {
                         {mat?.uom_symbol ?? ""}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-sm text-right font-mono text-gray-600">
-                      {lot.quantity_reserved}
-                    </td>
                     <td className="px-4 py-2.5">
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(lot.status)}`}
@@ -218,7 +212,7 @@ export default function MaterialLotListPage() {
               {lots.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={8}
                     className="px-4 py-8 text-center text-sm text-gray-400"
                   >
                     No material lots found.
