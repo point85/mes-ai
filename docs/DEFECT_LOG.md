@@ -867,3 +867,252 @@ E   KeyError: 'quantity_scrapped'
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-15T18:46:21Z
+
+## [OPEN] 2026-05-15T18:57:02Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_mrb_rework_loop
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.select_option: Timeout 30000ms exceeded.
+- First seen: 2026-05-15T18:57:02Z
+- Last seen: 2026-05-15T18:57:02Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:310: in test_rt_wip_lot_mrb_rework_loop
+    await _process_current_step(
+SQA\modules\SQA-RT\test_wip_operations.py:191: in _process_current_step
+    await _fill_step_parameters(page, ctx["step_parameters"])
+SQA\modules\SQA-RT\test_wip_operations.py:122: in _fill_step_parameters
+    await select.select_option(index=1)
+.venv\Lib\site-packages\playwright\async_api\_generated.py:18201: in select_option
+    await self._impl_obj.select_option(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:610: in select_option
+    return await self._frame.select_option(
+.venv\Lib\site-packages\playwright\_impl\_frame.py:781: in select_option
+    return await self._channel.send("selectOption", self._timeout, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.TimeoutError: Locator.select_option: Timeout 30000ms exceeded.
+E   Call log:
+E     - waiting for locator("tr").filter(has_text="Disposition").first.locator("select")
+```
+
+## [OPEN] 2026-05-15T18:57:37Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_mrb_rework_loop
+- Summary: E   AssertionError: Locator expected to contain text 'released'
+- First seen: 2026-05-15T18:57:37Z
+- Last seen: 2026-05-15T18:57:37Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:288: in test_rt_wip_lot_mrb_rework_loop
+    _, lot = await _create_order_and_lot(page, api, rt_url, product["id"], order_number, lot_number)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SQA\modules\SQA-RT\test_wip_operations.py:95: in _create_order_and_lot
+    await expect(order_row).to_contain_text("released", timeout=10_000)
+E   AssertionError: Locator expected to contain text 'released'
+E   Actual value: SQA-MRB-20260515185725in progress1000001000 queued0/1000
+E   Call log:
+E     - Expect "to_contain_text" with timeout 10000ms
+E     - waiting for locator("tbody tr").filter(has_text="SQA-MRB-20260515185725").first
+E       5 × locator resolved to <tr class="border-b cursor-pointer transition-colors bg-indigo-50">…</tr>
+E         - unexpected value "SQA-MRB-20260515185725Premium Orange Juice 1 Lcreated11000 EA0 EA0 EA—5/15/2026, 11:57:26 AM"
+E       7 × locator resolved to <tr class="border-b cursor-pointer transition-colors bg-indigo-50">…</tr>
+E         - unexpected value "SQA-MRB-20260515185725Premium Orange Juice 1 Lin progress11000 EA0 EA0 EA—5/15/2026, 11:57:26 AM"
+E       - locator resolved to <tr class="border-b hover:bg-gray-50">…</tr>
+E       - unexpected value "SQA-MRB-20260515185725in progress1000001000 queued0/1000"
+```
+
+## [OPEN] 2026-05-15T18:58:31Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_mrb_rework_loop
+- Summary: E   AssertionError: No disposition option contains 'Rework Complete'
+- First seen: 2026-05-15T18:58:31Z
+- Last seen: 2026-05-15T18:58:31Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:322: in test_rt_wip_lot_mrb_rework_loop
+    await _process_current_step(
+SQA\modules\SQA-RT\test_wip_operations.py:206: in _process_current_step
+    assert matched_value is not None, f"No disposition option contains '{disposition_contains}'"
+E   AssertionError: No disposition option contains 'Rework Complete'
+E   assert None is not None
+```
+
+## [RESOLVED] 2026-05-15T18:59:34Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_mrb_rework_loop
+- Summary: E   AssertionError: No disposition option contains 'Rework Complete'
+- First seen: 2026-05-15T18:58:31Z
+- Last seen failing run: 2026-05-15T18:58:31Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-15T18:59:34Z
+
+## [OPEN] 2026-05-15T19:00:39Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+- First seen: 2026-05-15T19:00:39Z
+- Last seen: 2026-05-15T19:00:39Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:251: in test_rt_wip_lot_normal_path
+    await _process_current_step(
+SQA\modules\SQA-RT\test_wip_operations.py:182: in _process_current_step
+    await page.get_by_role("button", name="Start").click()
+.venv\Lib\site-packages\playwright\async_api\_generated.py:16212: in click
+    await self._impl_obj.click(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:162: in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_frame.py:566: in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+E   Call log:
+E     - waiting for get_by_role("button", name="Start")
+E       - locator resolved to <button disabled class="btn-primary">Start</button>
+E     - attempting click action
+E       2 × waiting for element to be visible, enabled and stable
+E         - element is not enabled
+E       - retrying click action
+E       - waiting 20ms
+E       2 × waiting for element to be visible, enabled and stable
+```
+
+## [OPEN] 2026-05-15T19:01:30Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_mrb_rework_loop
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+- First seen: 2026-05-15T19:01:30Z
+- Last seen: 2026-05-15T19:01:30Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:296: in test_rt_wip_lot_mrb_rework_loop
+    await _process_current_step(
+SQA\modules\SQA-RT\test_wip_operations.py:182: in _process_current_step
+    await page.get_by_role("button", name="Start").click()
+.venv\Lib\site-packages\playwright\async_api\_generated.py:16212: in click
+    await self._impl_obj.click(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:162: in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_frame.py:566: in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+E   Call log:
+E     - waiting for get_by_role("button", name="Start")
+E       - locator resolved to <button disabled class="btn-primary">Start</button>
+E     - attempting click action
+E       2 × waiting for element to be visible, enabled and stable
+E         - element is not enabled
+E       - retrying click action
+E       - waiting 20ms
+E       2 × waiting for element to be visible, enabled and stable
+```
+
+## [RESOLVED] 2026-05-15T19:02:34Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+- First seen: 2026-05-15T19:00:39Z
+- Last seen failing run: 2026-05-15T19:00:39Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-15T19:02:34Z
+
+## [OPEN] 2026-05-15T19:03:37Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+- First seen: 2026-05-15T19:03:37Z
+- Last seen: 2026-05-15T19:03:37Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:251: in test_rt_wip_lot_normal_path
+    await _process_current_step(
+SQA\modules\SQA-RT\test_wip_operations.py:182: in _process_current_step
+    await page.get_by_role("button", name="Start").click()
+.venv\Lib\site-packages\playwright\async_api\_generated.py:16212: in click
+    await self._impl_obj.click(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:162: in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_frame.py:566: in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+E   Call log:
+E     - waiting for get_by_role("button", name="Start")
+E       - locator resolved to <button disabled class="btn-primary">Start</button>
+E     - attempting click action
+E       2 × waiting for element to be visible, enabled and stable
+E         - element is not enabled
+E       - retrying click action
+E       - waiting 20ms
+E       2 × waiting for element to be visible, enabled and stable
+```
+
+## [OPEN] 2026-05-15T19:06:32Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   AssertionError: {"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":{"errors":[{"type":"less_than_equal","loc":["query","limit"],"msg":"Input should be less than or equal to 200","input":"500","ctx":{"le":200}}]}},"meta":{"timestamp":"2026-05-15T19:06:32.713775+00
+- First seen: 2026-05-15T19:06:32Z
+- Last seen: 2026-05-15T19:06:32Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:258: in test_rt_wip_lot_normal_path
+    _cleanup_sqa_artifacts(api)
+SQA\modules\SQA-RT\test_wip_operations.py:119: in _cleanup_sqa_artifacts
+    orders = _unwrap(api.get(API_ORDERS, params={"limit": 500}))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SQA\modules\SQA-RT\test_wip_operations.py:35: in _unwrap
+    assert resp.status_code == 200, resp.text
+E   AssertionError: {"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":{"errors":[{"type":"less_than_equal","loc":["query","limit"],"msg":"Input should be less than or equal to 200","input":"500","ctx":{"le":200}}]}},"meta":{"timestamp":"2026-05-15T19:06:32.713775+00:00"}}
+E   assert 422 == 200
+E    +  where 422 = <Response [422 Unprocessable Content]>.status_code
+```
+
+## [OPEN] 2026-05-15T19:06:32Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_mrb_rework_loop
+- Summary: E   AssertionError: {"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":{"errors":[{"type":"less_than_equal","loc":["query","limit"],"msg":"Input should be less than or equal to 200","input":"500","ctx":{"le":200}}]}},"meta":{"timestamp":"2026-05-15T19:06:32.860527+00
+- First seen: 2026-05-15T19:06:32Z
+- Last seen: 2026-05-15T19:06:32Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-RT\test_wip_operations.py:304: in test_rt_wip_lot_mrb_rework_loop
+    _cleanup_sqa_artifacts(api)
+SQA\modules\SQA-RT\test_wip_operations.py:119: in _cleanup_sqa_artifacts
+    orders = _unwrap(api.get(API_ORDERS, params={"limit": 500}))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SQA\modules\SQA-RT\test_wip_operations.py:35: in _unwrap
+    assert resp.status_code == 200, resp.text
+E   AssertionError: {"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":{"errors":[{"type":"less_than_equal","loc":["query","limit"],"msg":"Input should be less than or equal to 200","input":"500","ctx":{"le":200}}]}},"meta":{"timestamp":"2026-05-15T19:06:32.860527+00:00"}}
+E   assert 422 == 200
+E    +  where 422 = <Response [422 Unprocessable Content]>.status_code
+```
+
+## [RESOLVED] 2026-05-15T19:07:15Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_normal_path
+- Summary: E   AssertionError: {"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":{"errors":[{"type":"less_than_equal","loc":["query","limit"],"msg":"Input should be less than or equal to 200","input":"500","ctx":{"le":200}}]}},"meta":{"timestamp":"2026-05-15T19:06:32.713775+00
+- First seen: 2026-05-15T19:06:32Z
+- Last seen failing run: 2026-05-15T19:06:32Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-15T19:07:15Z
+
+## [RESOLVED] 2026-05-15T19:07:45Z - modules/SQA-RT/test_wip_operations.py::test_rt_wip_lot_mrb_rework_loop
+- Summary: E   AssertionError: {"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":{"errors":[{"type":"less_than_equal","loc":["query","limit"],"msg":"Input should be less than or equal to 200","input":"500","ctx":{"le":200}}]}},"meta":{"timestamp":"2026-05-15T19:06:32.860527+00
+- First seen: 2026-05-15T19:06:32Z
+- Last seen failing run: 2026-05-15T19:06:32Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-15T19:07:45Z

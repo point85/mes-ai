@@ -12,6 +12,7 @@ The test uses existing seeded material lots for all required consumption.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 
 import pytest
 from playwright.async_api import Page, expect
@@ -22,6 +23,8 @@ API_ORDERS = "/operations-requests"
 API_LOTS = "/lots"
 API_MATERIALS = "/materials"
 API_MATERIAL_LOTS = "/material-lots"
+SQA_ORDER_PREFIXES = ("SQA-WIP-", "SQA-MRB-")
+SQA_LOT_PREFIXES = ("SQA-OJ-", "SQA-MRB-OJ-")
 
 
 def _stamp() -> str:
@@ -74,16 +77,70 @@ async def _open_active_lot(page: Page, lot_number: str) -> None:
     await expect(page.locator("h3.font-mono", has_text=lot_number)).to_be_visible(timeout=10_000)
 
 
+async def _create_order_and_lot(page: Page, api, rt_url: str, product_id: str, order_number: str, lot_number: str) -> tuple[dict, dict]:
+    await _open_orders(page, rt_url)
+
+    await page.get_by_role("button", name="New").click()
+    order_dialog_heading = page.get_by_role("heading", name="New Production Order")
+    await expect(order_dialog_heading).to_be_visible(timeout=5_000)
+    order_dialog = order_dialog_heading.locator("xpath=ancestor::div[contains(@class,'bg-white')][1]")
+    await order_dialog.locator("label:has-text('Order Number') + input").fill(order_number)
+    await order_dialog.locator("label:has-text('Product') + select").select_option(product_id)
+    await order_dialog.locator("label:has-text('Quantity') + input").fill("1000")
+    await order_dialog.locator("label:has-text('Priority') + input").fill("1")
+    await order_dialog.get_by_role("button", name="Create Order").click()
+    await expect(order_dialog_heading).to_be_hidden(timeout=10_000)
+
+    order_row = page.locator("tbody tr", has_text=order_number).first
+    await expect(order_row).to_be_visible(timeout=15_000)
+    await order_row.click()
+    await page.get_by_role("button", name="Release").click()
+    await expect(order_row).to_contain_text(re.compile(r"released|in progress", re.IGNORECASE), timeout=10_000)
+
+    await order_row.locator("button").first.click()
+    await page.get_by_role("button", name="Create Lot").click()
+    create_lot_panel = page.get_by_text("Create Lot", exact=True).locator("xpath=ancestor::div[contains(@class,'bg-indigo-50')][1]")
+    await create_lot_panel.locator("label:has-text('Lot #') + input").fill(lot_number)
+    await create_lot_panel.get_by_role("button", name="Create Lot").click()
+    await expect(create_lot_panel.get_by_text(f"Lot {lot_number} created")).to_be_visible(timeout=10_000)
+
+    orders = _unwrap(api.get(API_ORDERS, params={"limit": 200}))
+    order = next((o for o in orders if o["order_number"] == order_number), None)
+    assert order is not None, f"Order {order_number} not found after creation"
+    assert order["status"] in {"released", "in_progress"}
+
+    lots = _unwrap(api.get(API_LOTS, params={"order_id": order["id"], "limit": 200}))
+    lot = next((item for item in lots if item["lot_number"] == lot_number), None)
+    assert lot is not None, f"Lot {lot_number} not found after creation"
+    return order, lot
+
+
+def _cleanup_sqa_artifacts(api) -> None:
+    orders = _unwrap(api.get(API_ORDERS, params={"limit": 200}))
+    for order in orders:
+        if not order["order_number"].startswith(SQA_ORDER_PREFIXES):
+            continue
+
+        lots = _unwrap(api.get(API_LOTS, params={"order_id": order["id"], "limit": 200}))
+        for lot in lots:
+            if not lot["lot_number"].startswith(SQA_LOT_PREFIXES):
+                continue
+            if lot["status"] not in {"completed", "scrapped"}:
+                resp = api.post(f"{API_LOTS}/{lot['id']}/scrap", json={"reason": "SQA cleanup"})
+                assert resp.status_code == 200, f"Could not scrap stale test lot {lot['lot_number']}: {resp.text}"
+
+        resp = api.delete(f"{API_ORDERS}/{order['id']}")
+        assert resp.status_code == 204, f"Could not delete stale test order {order['order_number']}: {resp.text}"
+
+
 async def _fill_step_parameters(page: Page, step_parameters: list[dict]) -> None:
     for param in step_parameters:
         row = page.locator("tr", has_text=param["name"]).first
         if param["data_type"] == "boolean":
             await row.locator("select").select_option("true")
-        elif param["data_type"] == "enum":
-            select = row.locator("select")
-            await select.select_option(index=1)
         else:
-            await row.locator("input").fill(_pick_numeric_value(param))
+            value = _pick_numeric_value(param) if param["data_type"] == "numeric" else f"SQA {param['name']}"
+            await row.locator("input").fill(value)
 
 
 async def _fill_data_collection(page: Page, data_definitions: list[dict]) -> None:
@@ -159,15 +216,16 @@ async def _process_current_step(
             await result_select.select_option(result)
     if disposition_contains is not None:
         disposition_select = page.locator("label:has-text('Disposition') ~ select:visible")
-        options = disposition_select.locator("option")
-        matched_value = None
-        for index in range(await options.count()):
-            option = options.nth(index)
-            if disposition_contains in await option.inner_text():
-                matched_value = await option.get_attribute("value")
-                break
-        assert matched_value is not None, f"No disposition option contains '{disposition_contains}'"
-        await disposition_select.select_option(matched_value)
+        if await disposition_select.count() > 0:
+            options = disposition_select.locator("option")
+            matched_value = None
+            for index in range(await options.count()):
+                option = options.nth(index)
+                if disposition_contains in await option.inner_text():
+                    matched_value = await option.get_attribute("value")
+                    break
+            assert matched_value is not None, f"No disposition option contains '{disposition_contains}'"
+            await disposition_select.select_option(matched_value)
 
     qty_out = ctx["wip"].get("quantity")
     if qty_out is not None:
@@ -183,8 +241,7 @@ async def _process_current_step(
     await expect(page.locator("div.bg-green-50", has_text="Step completed")).to_be_visible(timeout=15_000)
 
 
-@pytest.mark.ui
-async def test_rt_wip_lot_normal_path(page: Page, api, mes_urls) -> None:
+def _load_fg_oj_setup(api) -> tuple[dict, dict[str, dict]]:
     products_resp = api.get(API_PRODUCTS, params={"limit": 200})
     products = _unwrap(products_resp)
     product = next((p for p in products if p["code"] == "FG-OJ-1L"), None)
@@ -193,46 +250,20 @@ async def test_rt_wip_lot_normal_path(page: Page, api, mes_urls) -> None:
     materials_resp = api.get(API_MATERIALS, params={"limit": 200})
     materials = _unwrap(materials_resp)
     materials_by_code = {material["code"]: material for material in materials}
+    return product, materials_by_code
+
+
+@pytest.mark.ui
+async def test_rt_wip_lot_normal_path(page: Page, api, mes_urls) -> None:
+    _cleanup_sqa_artifacts(api)
+    product, materials_by_code = _load_fg_oj_setup(api)
 
     token = _stamp()
     order_number = f"SQA-WIP-{token}"
     lot_number = f"SQA-OJ-{token}"
     rt_url = mes_urls["rt"]
 
-    await _open_orders(page, rt_url)
-
-    await page.get_by_role("button", name="New").click()
-    order_dialog_heading = page.get_by_role("heading", name="New Production Order")
-    await expect(order_dialog_heading).to_be_visible(timeout=5_000)
-    order_dialog = order_dialog_heading.locator("xpath=ancestor::div[contains(@class,'bg-white')][1]")
-    await order_dialog.locator("label:has-text('Order Number') + input").fill(order_number)
-    await order_dialog.locator("label:has-text('Product') + select").select_option(product["id"])
-    await order_dialog.locator("label:has-text('Quantity') + input").fill("1000")
-    await order_dialog.locator("label:has-text('Priority') + input").fill("1")
-    await order_dialog.get_by_role("button", name="Create Order").click()
-    await expect(order_dialog_heading).to_be_hidden(timeout=10_000)
-
-    order_row = page.locator("tbody tr", has_text=order_number).first
-    await expect(order_row).to_be_visible(timeout=15_000)
-    await order_row.click()
-    await page.get_by_role("button", name="Release").click()
-    await expect(order_row).to_contain_text("released", timeout=10_000)
-
-    await order_row.locator("button").first.click()
-    await page.get_by_role("button", name="Create Lot").click()
-    create_lot_panel = page.get_by_text("Create Lot", exact=True).locator("xpath=ancestor::div[contains(@class,'bg-indigo-50')][1]")
-    await create_lot_panel.locator("label:has-text('Lot #') + input").fill(lot_number)
-    await create_lot_panel.get_by_role("button", name="Create Lot").click()
-    await expect(create_lot_panel.get_by_text(f"Lot {lot_number} created")).to_be_visible(timeout=10_000)
-
-    orders = _unwrap(api.get(API_ORDERS, params={"limit": 200}))
-    order = next((o for o in orders if o["order_number"] == order_number), None)
-    assert order is not None, f"Order {order_number} not found after creation"
-    assert order["status"] in {"released", "in_progress"}
-
-    lots = _unwrap(api.get(API_LOTS, params={"order_id": order["id"], "limit": 200}))
-    lot = next((item for item in lots if item["lot_number"] == lot_number), None)
-    assert lot is not None, f"Lot {lot_number} not found after creation"
+    _, lot = await _create_order_and_lot(page, api, rt_url, product["id"], order_number, lot_number)
 
     await _open_active_lot(page, lot_number)
 
@@ -266,3 +297,76 @@ async def test_rt_wip_lot_normal_path(page: Page, api, mes_urls) -> None:
         "Labeling & Packing",
     ]
     await expect(page.get_by_text("✅ All steps completed")).to_be_visible(timeout=10_000)
+
+
+@pytest.mark.ui
+async def test_rt_wip_lot_mrb_rework_loop(page: Page, api, mes_urls) -> None:
+    _cleanup_sqa_artifacts(api)
+    product, materials_by_code = _load_fg_oj_setup(api)
+
+    token = _stamp()
+    order_number = f"SQA-MRB-{token}"
+    lot_number = f"SQA-MRB-OJ-{token}"
+    rt_url = mes_urls["rt"]
+
+    _, lot = await _create_order_and_lot(page, api, rt_url, product["id"], order_number, lot_number)
+
+    await _open_active_lot(page, lot_number)
+
+    await _process_current_step(page, api, lot["id"], "Blending", materials_by_code)
+    await _process_current_step(page, api, lot["id"], "Pasteurization", materials_by_code)
+    await _process_current_step(
+        page,
+        api,
+        lot["id"],
+        "Quality Testing",
+        materials_by_code,
+        result="fail",
+        disposition_contains="Escalate to MRB",
+    )
+
+    ctx = _unwrap(api.get(f"{API_LOTS}/{lot['id']}/step-context"))
+    assert ctx["step"]["name"] == "MRB Review"
+    assert ctx["wip"]["status"] == "queued"
+
+    await _process_current_step(
+        page,
+        api,
+        lot["id"],
+        "MRB Review",
+        materials_by_code,
+        disposition_contains="Return to Blend",
+    )
+
+    ctx = _unwrap(api.get(f"{API_LOTS}/{lot['id']}/step-context"))
+    assert ctx["step"]["name"] in {"Re‑Blend (Rework)", "Re-Blend (Rework)"}
+    assert ctx["wip"]["status"] == "queued"
+
+    await _process_current_step(
+        page,
+        api,
+        lot["id"],
+        ctx["step"]["name"],
+        materials_by_code,
+        disposition_contains="Rework Complete",
+    )
+    await _process_current_step(page, api, lot["id"], "Pasteurization", materials_by_code)
+
+    final_lot = _unwrap(api.get(f"{API_LOTS}/{lot['id']}"))
+    assert final_lot["status"] == "queued"
+    assert final_lot["current_step_name"] == "Quality Testing"
+
+    final_ctx = _unwrap(api.get(f"{API_LOTS}/{lot['id']}/step-context"))
+    assert final_ctx["step"]["name"] == "Quality Testing"
+    assert final_ctx["wip"]["status"] == "queued"
+    route_steps = {step["id"]: step["name"] for step in final_ctx["route_steps"]}
+    history = _unwrap(api.get(f"{API_LOTS}/{lot['id']}/history"))
+    step_names = [route_steps[record["step_id"]] for record in history]
+    assert step_names == [
+        "Blending",
+        "Pasteurization",
+        "Quality Testing",
+        "MRB Review",
+        ctx["step"]["name"],
+        "Pasteurization",
+    ]
