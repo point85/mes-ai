@@ -1,6 +1,13 @@
-# MES AI Architecture Overview
+## Introduction
 
-MES AI is an open-source Manufacturing Execution System built around a FastAPI server, multiple Vite-based web clients, and a plugin-oriented extension model. The platform is designed to support ISA-95-style manufacturing workflows while staying practical for iterative development, simulation, and AI-assisted customization. This overview is intentionally shorter than the full architecture document and is intended for README-style orientation.
+The MES AI application empowers you to create a MES that is 100% tailored to your business nees.  It empowers you in many ways:
+- no vendor licensing fees or ongoing support fees.  These funds can be redeployed to small AI knowledgeable development teams in your area of expertise.
+- software quality assurance can be performed by AI in a CI workflow, therefore there is no need to hire and train SQA engineers with potential competing priorities with other business software development
+- avoid vendor lock-in.  You are in complete control over what functionality is implemented and when it is released.  There is no business risk by having to request vendor support to fix bugs or implement needed features or finding work-arounds.
+
+## MES AI Architecture Overview
+
+MES AI is an open-source Manufacturing Execution System built around a FastAPI server, multiple Vite-based web clients, and a plugin-oriented extension model. The platform is designed to support ISA-95-style manufacturing workflows while staying practical for iterative development, simulation, and AI-assisted customization. 
 
 ## System at a Glance
 
