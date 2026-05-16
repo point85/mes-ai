@@ -48,10 +48,6 @@ export default function AboutDialog({ onClose }: Props) {
             <dd className="font-medium text-gray-700">{__MES_VERSION__}</dd>
           </div>
           <div className="flex justify-between">
-            <dt>Release Date</dt>
-            <dd className="font-medium text-gray-700">{__MES_RELEASE_DATE__}</dd>
-          </div>
-          <div className="flex justify-between">
             <dt>Standard</dt>
             <dd className="font-medium text-gray-700">ISA-95 / IEC 62264</dd>
           </div>
