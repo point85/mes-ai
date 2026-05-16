@@ -25,7 +25,7 @@ These applications communicate with the MES server over a versioned HTTP API, an
 
 ## High-Level Architecture
 The diagram below is an overview of the system achitecture:
-![System Architecture](https://github.com/point85/mes_ai/blob/main/docs/architecture_diagram.svg)
+![Architecture](docs/architecture_diagram.svg)
 
 The architecture follows a client-server model with clear separation between core execution logic, user interfaces, and integration points.
 
