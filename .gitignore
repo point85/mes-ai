@@ -53,6 +53,7 @@ server/pgdata/
 /SQA/.defect_state.json
 /SQA/logs/
 /SQA/reports/
+/SQA/SQA/reports/
 /SQA/tests/screenshots/
 /SQA/plans/
 /server/logs/

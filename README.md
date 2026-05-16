@@ -1,24 +1,16 @@
 ## Introduction
 
-The MES AI application empowers you to create a MES that is 100% tailored to your business needs.  It empowers you in many ways:
-- no vendor licensing fees or ongoing support fees.  These funds can be redeployed to small AI knowledgeable development teams in your area of expertise.
-- software quality assurance (SQA) can be performed by AI in a CI workflow, therefore there is no need to hire and train SQA engineers with potential competing priorities with other business software development.
-- avoid vendor lock-in.  You are in complete control over what functionality is implemented and when it is released.  There is no business risk by having to request vendor support to fix bugs or implement needed features or finding work-arounds.
+MES AI is an open-source Manufacturing Execution System framework for teams that want to tailor MES workflows, integrations, and user experiences to their own operations. Instead of adapting your business to a fixed vendor product, MES AI provides a foundation you can extend with your own domain logic, plugins, and AI-assisted engineering workflows.
 
-## Process
-
-This project began with this prompt to Claude Opus: 
-"*I want to build a free and open source Manufacturing Execution System (MES) that will be designed, coded and tested solely by an AI (you).  The code should never need to be looked at or maintained by a human, but rather by an AI coding agent.  Therefore the implementation should be optimized for ease of maintenance and enhancements by an AI, not by a human.*"
-
-"*The project deliverable will be an MES framework with plug-in functionality (much like a coding IDE has plugins).  An end user will download the framework from GitHub and proceed to customize the functionality based on their unique requirements.  Using their preferred IDE (e.g. Claude Code, Visual Studio Code, etc.), they will describe to the AI agent what customizations they require, and the AI will proceed to implement them.*"
-
-Claude Opus was then asked to survey existing commercial MES's for expected functionality, then break down the implementation into a series of steps.  I approved each step and provided feedback. Claude chose the technology stack and UI client design.  Claude also wrote and executed approximately 1900 unit tests.
-
-After the functionality stabilized, ChatGPT was prompted to create SQA tests along with its chosen technology stack.  Approximately 90 tests were written to cover all design time CRUD editors as well as WIP and inventory transactions in runtime.
+Key advantages include:
+- Reduced dependence on vendor licensing and proprietary roadmaps
+- Workflows and integrations that can be adapted to specific plant and business processes
+- AI-assisted development and testing to accelerate delivery
+- Greater control over release timing, feature priorities, and operational data
 
 ## MES AI Architecture Overview
 
-MES AI is an open-source Manufacturing Execution System built around a FastAPI server, multiple Vite-based web clients, and a plugin-oriented extension model. The platform is designed to support ISA-95-style manufacturing workflows while staying practical for iterative development, simulation, and AI-assisted customization. 
+MES AI is built around a FastAPI server, multiple Vite-based web clients, and a plugin-oriented extension model. The platform is designed to support ISA-95-style manufacturing workflows while staying practical for iterative development, simulation, and AI-assisted customization.
 
 ## System at a Glance
 
@@ -29,7 +21,7 @@ At the center of the system is the MES server in `server/src/mes`, which exposes
 - `clients/erp_simulator`: a simulator used to create and release operations requests and exercise ERP-style inbound flows.
 - `clients/equipment_simulator`: a simulator used for equipment-centric development and testing.
 
-These apps communicate with the MES server over HTTP REST API, and the runtime-facing experiences can also consume WebSocket events for near-real-time updates.
+These applications communicate with the MES server over a versioned HTTP API, and runtime-facing workflows can also consume WebSocket events for near-real-time updates.
 
 ## High-Level Architecture
 
@@ -38,9 +30,9 @@ The architecture follows a client-server model with clear separation between cor
 1. The FastAPI MES server owns the domain model, persistence, business rules, API surface, and event publication.
 2. The Vite applications provide focused user experiences for engineering, operations, and simulation.
 3. Plugins extend the platform without requiring direct modification of the core for every site-specific workflow or adapter.
-4. SQL Server, Oracle and PostgreSQL databases are supported, while SQLAlchemy and Alembic handle object mapping and schema evolution.
+4. PostgreSQL, SQL Server, and Oracle databases are supported, while SQLAlchemy and Alembic handle object mapping and schema evolution.
 
-In practice, a typical flow looks like this: engineering users define products, process segments, equipment requirements, material requirements, and dispositions in the design-time client; an ERP-facing flow creates and releases operations requests; runtime users create or process lots and units against released work; server-side services update inventory, genealogy, dispatch queues, and event streams; and simulator apps make it possible to exercise the platform without external systems.
+In practice, a typical flow looks like this: engineering users define products, process segments, equipment requirements, material requirements, and dispositions in the design-time client; an ERP-facing flow creates and releases operations requests; runtime users create or process lots and units against released work; server-side services update inventory, genealogy, dispatch queues, and event streams; and simulator applications make it possible to exercise the platform without external systems.
 
 ## FastAPI MES Server
 
@@ -54,11 +46,11 @@ Key responsibilities of the server include:
 - Running plugin lifecycle management so built-in and user plugins can register routes, event handlers, and integration behavior.
 - Enforcing authentication and role-based access control across both API and UI-backed workflows.
 
-The server is intentionally modular. Core services implement business rules, route modules expose those capabilities through HTTP endpoints, and shared framework pieces such as the event bus and plugin manager support extension without tightly coupling new behavior into the base application.
+The server is intentionally modular. Core services implement business rules, route modules expose those capabilities through HTTP endpoints, and shared framework pieces such as the event bus and plugin manager support extension without tightly coupling new behavior into the base platform.
 
 ## Vite Applications
 
-MES AI uses multiple Vite apps so each workflow can evolve with minimal cross-coupling.
+MES AI uses multiple Vite applications so each workflow can evolve with minimal cross-coupling.
 
 ### Design-Time Client
 
@@ -121,4 +113,12 @@ This matters because manufacturing implementations are rarely identical. Site-sp
 
 MES AI is developed as a multi-application workspace. The server runs as a FastAPI service, and each client runs as its own Vite application during development. In local workflows, simulators and operator clients can be launched independently against the same server instance. This makes it straightforward to test design-time configuration, runtime execution, ERP release flows, and equipment-facing behavior side by side.
 
-The default persistence model is PostgreSQL, with schema management handled through Alembic migrations and environment-driven configuration on the server side. SQL Server and Oracle databases are also supported.
+The default persistence model is PostgreSQL, with schema management handled through Alembic migrations and environment-driven configuration on the server side. SQL Server and Oracle are also supported for teams that need those platforms.
+
+## Development Approach
+
+MES AI was developed as an experiment in AI-assisted software delivery for industrial applications. The goal was to create a free and open-source MES framework that could be extended by end users with the help of modern coding agents and standard developer tools.
+
+The implementation was built iteratively: expected MES capabilities were researched first, the architecture and technology stack were selected to support extensibility, and features were added in reviewable steps with human feedback guiding scope and direction.
+
+AI-assisted testing was part of that process from the beginning. The project includes broad server-side unit test coverage along with end-to-end SQA coverage for key design-time and runtime workflows. The aim is not to claim that AI replaces engineering judgment, but to show that AI can materially improve the speed and reach of implementation, testing, and customization work.
