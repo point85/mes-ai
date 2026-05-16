@@ -13,22 +13,28 @@ import {
   useCreateStepEquipmentRequirement,
   useUpdateStepEquipmentRequirement,
   useDeleteStepEquipmentRequirement,
+  useUpdateRouteStep,
 } from "../../hooks/useProductDef";
 import { useEquipmentClasses, useAllEquipment } from "../../hooks/usePhysicalModel";
 import type { EquipmentRequirementUseType } from "../../types";
 
 interface Props {
   stepId: string;
+  primaryEquipmentClassId?: string | null;
 }
 
 type TargetMode = "class" | "equipment";
 
-export default function EquipmentRequirementsEditor({ stepId }: Props) {
+export default function EquipmentRequirementsEditor({
+  stepId,
+  primaryEquipmentClassId = null,
+}: Props) {
   const { data: reqsResp, isLoading } = useStepEquipmentRequirements(stepId);
   const reqs = reqsResp?.data ?? [];
   const createMut = useCreateStepEquipmentRequirement(stepId);
   const updateMut = useUpdateStepEquipmentRequirement(stepId);
   const deleteMut = useDeleteStepEquipmentRequirement(stepId);
+  const updateStepMut = useUpdateRouteStep();
 
   const { data: ecResp } = useEquipmentClasses();
   const equipmentClasses = (ecResp?.data ?? []).slice().sort((a, b) => a.code.localeCompare(b.code));
@@ -97,16 +103,42 @@ export default function EquipmentRequirementsEditor({ stepId }: Props) {
         <div>
           <h4 className="text-sm font-semibold text-gray-800">Equipment Requirements</h4>
           <p className="text-xs text-gray-500">
-            Add one or more equipment class / specific equipment constraints. Dispatch ANDs them all.
+            Set the primary equipment class for the step and add any extra class or specific-equipment constraints. Dispatch ANDs them all.
           </p>
         </div>
+      </div>
+
+      <div className="mb-3 rounded border border-gray-200 bg-white p-2">
+        <label className="block text-xs font-medium text-gray-700">
+          Primary Equipment Class <span className="text-gray-400">(ISA-95)</span>
+        </label>
+        <select
+          value={primaryEquipmentClassId ?? ""}
+          onChange={(e) =>
+            updateStepMut.mutate({
+              id: stepId,
+              equipment_class_id: e.target.value || null,
+            })
+          }
+          className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+        >
+          <option value="">— None —</option>
+          {equipmentClasses.map((ec) => (
+            <option key={ec.id} value={ec.id}>
+              {ec.code} — {ec.name}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-400">
+          The step-level equipment class used by dispatch and shown in the route table.
+        </p>
       </div>
 
       {isLoading ? (
         <p className="text-xs text-gray-500">Loading…</p>
       ) : reqs.length === 0 ? (
         <p className="rounded border border-dashed border-gray-300 bg-white px-3 py-2 text-xs text-gray-500">
-          No additional requirements. The primary Equipment Class above is the only constraint.
+          No additional requirements. The primary equipment class above is the only constraint.
         </p>
       ) : (
         <ul className="space-y-1">

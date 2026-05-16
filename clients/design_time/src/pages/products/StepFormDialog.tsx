@@ -9,7 +9,6 @@ import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useCreateRouteStep, useUpdateRouteStep, useDispositions } from "../../hooks/useProductDef";
-import { useAllWorkCells, useAllLines, useEquipmentClasses } from "../../hooks/usePhysicalModel";
 import type { RouteStep } from "../../types";
 import EquipmentRequirementsEditor from "./EquipmentRequirementsEditor";
 import MaterialRequirementsEditor from "./MaterialRequirementsEditor";
@@ -20,8 +19,6 @@ const schema = z.object({
   sequence: z.number().int().min(1, "Sequence ≥ 1"),
   name: z.string().min(1, "Name is required").max(255),
   step_type: z.enum(["production", "inspection", "rework", "mrb"]),
-  work_cell_id: z.string().nullable().optional(),
-  equipment_class_id: z.string().nullable().optional(),
   expected_cycle_time_sec: z.number().min(0).nullable().optional(),
   erp_operation_number: z.string().max(50).nullable().optional(),
   is_initial_step: z.boolean().optional(),
@@ -43,21 +40,6 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
   const updateMut = useUpdateRouteStep();
   const { data: dispResp } = useDispositions();
   const dispositions = dispResp?.data ?? [];
-  const { data: wcResp } = useAllWorkCells();
-  const workCells = (wcResp?.data ?? []).sort((a, b) => a.code.localeCompare(b.code));
-  const { data: linesResp } = useAllLines();
-  const allLines = linesResp?.data ?? [];
-  const lineMap = new Map(allLines.map((ln) => [ln.id, ln]));
-  const { data: ecResp } = useEquipmentClasses();
-  const equipmentClasses = (ecResp?.data ?? []).sort((a: { code: string }, b: { code: string }) => a.code.localeCompare(b.code));
-
-  // Group work cells by production line for the dropdown
-  const wcByLine = new Map<string, typeof workCells>();
-  for (const wc of workCells) {
-    const group = wcByLine.get(wc.line_id) ?? [];
-    group.push(wc);
-    wcByLine.set(wc.line_id, group);
-  }
 
   const {
     register,
@@ -73,8 +55,6 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
       sequence: 10,
       name: "",
       step_type: "production",
-      work_cell_id: null,
-      equipment_class_id: null,
       expected_cycle_time_sec: null,
       erp_operation_number: null,
       is_initial_step: false,
@@ -89,8 +69,6 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
         sequence: step.sequence,
         name: step.name,
         step_type: step.step_type as "production" | "inspection" | "rework" | "mrb",
-        work_cell_id: step.work_cell_id,
-        equipment_class_id: step.equipment_class_id,
         expected_cycle_time_sec: step.expected_cycle_time_sec,
         erp_operation_number: step.erp_operation_number,
         is_initial_step: step.is_initial_step,
@@ -121,8 +99,6 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
     try {
       const payload = {
         ...data,
-        work_cell_id: data.work_cell_id || null,
-        equipment_class_id: data.equipment_class_id || null,
         is_initial_step: !!data.is_initial_step,
         input_disposition_ids: data.input_disposition_ids ?? [],
         output_disposition_ids: data.output_disposition_ids ?? [],
@@ -198,48 +174,11 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
                 <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>
               )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Work Cell <span className="text-gray-400">(optional)</span>
-              </label>
-              <select
-                {...register("work_cell_id")}
-                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              >
-                <option value="">— None —</option>
-                {[...wcByLine.entries()]
-                  .sort(([a], [b]) => (lineMap.get(a)?.code ?? "").localeCompare(lineMap.get(b)?.code ?? ""))
-                  .map(([lineId, cells]) => (
-                    <optgroup key={lineId} label={lineMap.get(lineId)?.code ?? "Unknown Line"}>
-                      {cells.map((wc) => (
-                        <option key={wc.id} value={wc.id}>
-                          {wc.code} — {wc.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-400">Where this step is performed</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Equipment Class <span className="text-gray-400">(ISA-95)</span>
-              </label>
-              <select
-                {...register("equipment_class_id")}
-                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              >
-                <option value="">— None —</option>
-                {equipmentClasses.map((ec: { id: string; code: string; name: string }) => (
-                  <option key={ec.id} value={ec.id}>
-                    {ec.code} — {ec.name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-400">What class of equipment is needed (dispatch uses this)</p>
-            </div>
             {isEdit && step && (
-              <EquipmentRequirementsEditor stepId={step.id} />
+              <EquipmentRequirementsEditor
+                stepId={step.id}
+                primaryEquipmentClassId={step.equipment_class_id}
+              />
             )}
             {isEdit && step && (
               <MaterialRequirementsEditor stepId={step.id} />
