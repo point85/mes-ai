@@ -28,7 +28,7 @@ HEADED     = os.environ.get("SQA_HEADED", "0") == "1"
 API_BASE   = f"{SERVER_URL}/api/v1"
 SQA_ROOT   = Path(__file__).resolve().parent
 REPO_ROOT  = SQA_ROOT.parent
-DEFECT_LOG_PATH = REPO_ROOT / "docs" / "DEFECT_LOG.md"
+DEFECT_LOG_PATH = SQA_ROOT / "logs" / "DEFECT_LOG.md"
 DEFECT_STATE_PATH = SQA_ROOT / ".defect_state.json"
 
 

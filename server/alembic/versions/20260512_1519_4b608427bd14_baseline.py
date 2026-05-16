@@ -33,7 +33,7 @@ def upgrade() -> None:
     sa.Column('code', sa.String(length=50), nullable=False, comment="Short unique code (e.g. 'PASS', 'QC-FAIL')"),
     sa.Column('name', sa.String(length=255), nullable=False, comment='Human-readable disposition name'),
     sa.Column('description', sa.Text(), nullable=True, comment='Optional description of when this disposition applies'),
-    sa.Column('category', sa.String(length=20), nullable=False, comment="Disposition category: 'route', 'hold', or 'scrap'"),
+    sa.Column('category', sa.String(length=20), nullable=False, comment="Disposition category: 'route', 'hold', 'scrap', or 'release'"),
     sa.Column('id', sa.Uuid(), nullable=False, comment='Unique identifier for the entity'),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was created'),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, comment='Timestamp when the entity was last updated'),
@@ -956,7 +956,6 @@ def upgrade() -> None:
     sa.Column('created_at_utc', sa.DateTime(), nullable=True, comment='Timestamp when the entity was created (UTC)'),
     sa.Column('updated_at_utc', sa.DateTime(), nullable=True, comment='Timestamp when the entity was last updated (UTC)'),
     sa.Column('is_active', sa.Boolean(), nullable=False, comment='Soft delete flag. False means the entity is logically deleted.'),
-    sa.ForeignKeyConstraint(['current_material_id'], ['equipment_materials.id'], name='fk_equipment_current_material_id', use_alter=True),
     sa.ForeignKeyConstraint(['equipment_class_id'], ['equipment_classes.id'], ),
     sa.ForeignKeyConstraint(['work_cell_id'], ['work_cells.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -1010,6 +1009,14 @@ def upgrade() -> None:
     op.create_index(op.f('ix_equipment_materials_equipment_id'), 'equipment_materials', ['equipment_id'], unique=False)
     op.create_index(op.f('ix_equipment_materials_id'), 'equipment_materials', ['id'], unique=False)
     op.create_index(op.f('ix_equipment_materials_material_id'), 'equipment_materials', ['material_id'], unique=False)
+    op.create_foreign_key(
+        'fk_equipment_current_material_id',
+        'equipment',
+        'equipment_materials',
+        ['current_material_id'],
+        ['id'],
+        use_alter=True,
+    )
     op.create_table('equipment_state_logs',
     sa.Column('equipment_id', sa.Uuid(), nullable=False),
     sa.Column('state_model', sa.String(length=50), nullable=False, comment="State model plugin ID (e.g. 'packml', 'semi_e10', 'oee_tpm')"),
@@ -1440,6 +1447,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_equipment_state_logs_id'), table_name='equipment_state_logs')
     op.drop_index(op.f('ix_equipment_state_logs_equipment_id'), table_name='equipment_state_logs')
     op.drop_table('equipment_state_logs')
+    op.drop_constraint('fk_equipment_current_material_id', 'equipment', type_='foreignkey')
     op.drop_index(op.f('ix_equipment_materials_material_id'), table_name='equipment_materials')
     op.drop_index(op.f('ix_equipment_materials_id'), table_name='equipment_materials')
     op.drop_index(op.f('ix_equipment_materials_equipment_id'), table_name='equipment_materials')
