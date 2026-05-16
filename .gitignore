@@ -43,3 +43,23 @@ server/pgdata/
 /tmp_steps.json
 /tmp_trans50.json
 /docs/archive/SESSION_LOG_2026-04-25.md
+
+# Internal tracking artifacts
+/docs/PROJECT_STATE.json
+/docs/SESSION_LOG.md
+/SQA/HEARTBEAT.md
+
+# Local-only release cleanup artifacts
+/SQA/.defect_state.json
+/SQA/logs/
+/SQA/reports/
+/SQA/tests/screenshots/
+/SQA/plans/
+/server/logs/
+/server/migration_output.txt
+/server/mes_ai.db
+/server/watch/
+/server/query2.py
+/server/query3.py
+/scripts/tmp/
+/server/scripts/tmp/
