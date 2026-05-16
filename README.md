@@ -24,6 +24,8 @@ At the center of the system is the MES server in `server/src/mes`, which exposes
 These applications communicate with the MES server over a versioned HTTP API, and runtime-facing workflows can also consume WebSocket events for near-real-time updates.
 
 ## High-Level Architecture
+The diagram below is an overview of the system achitecture:
+![System Architecture](https://github.com/point85/mes_ai/blob/main/docs/architecture_diagram.svg)
 
 The architecture follows a client-server model with clear separation between core execution logic, user interfaces, and integration points.
 
