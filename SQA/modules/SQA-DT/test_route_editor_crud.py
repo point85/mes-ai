@@ -215,6 +215,11 @@ async def _select_route(page: Page, *, route_name: str, route_version: str) -> N
     await expect(page.get_by_text(f"Steps — {route_name}")).to_be_visible(timeout=8_000)
 
 
+def _route_entry(page: Page, *, route_name: str, route_version: str) -> Locator:
+    select_button = page.locator("button").filter(has_text=route_name).filter(has_text=f"v{route_version}").first
+    return select_button.locator("xpath=ancestor::div[contains(@class,'flex items-center justify-between')][1]")
+
+
 def _step_row(page: Page, step_name: str) -> Locator:
     return page.locator("tr").filter(has_text=step_name)
 
@@ -267,7 +272,7 @@ async def test_route_editor_crud(page: Page, api) -> None:
     await page.locator("input[name='is_default']").check()
     await page.locator("button[type='submit']").click()
 
-    route_entry = page.locator("div").filter(has_text=route_name).filter(has_text="v2.0").first
+    route_entry = _route_entry(page, route_name=route_name, route_version="2.0")
     await expect(route_entry).to_be_visible(timeout=8_000)
 
     created = _find_route_by_name(api, route_name)
@@ -284,7 +289,11 @@ async def test_route_editor_crud(page: Page, api) -> None:
     await page.locator("textarea[name='description']").fill("SQA standalone route edit path")
     await page.locator("button[type='submit']").click()
 
-    updated_entry = page.locator("div").filter(has_text="SQA Standalone Route Updated").filter(has_text="v2.1").first
+    updated_entry = _route_entry(
+        page,
+        route_name="SQA Standalone Route Updated",
+        route_version="2.1",
+    )
     await expect(updated_entry).to_be_visible(timeout=8_000)
 
     detail_resp = api.get(f"{API_ROUTES}/{created['id']}")

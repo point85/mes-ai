@@ -1285,3 +1285,11 @@ E
 E   Call log:
 E     - waiting for locator("div").filter(has_text="SQA Standalone Route").filter(has_text="v2.0").first.get_by_title("Edit route")
 ```
+
+## [RESOLVED] 2026-05-16T01:00:38Z - modules/SQA-DT/test_route_editor_crud.py::test_route_editor_crud
+- Summary: E   playwright._impl._errors.Error: Locator.click: Error: strict mode violation: locator("div").filter(has_text="SQA Standalone Route").filter(has_text="v2.0").first.get_by_title("Edit route") resolved to 3 elements:
+- First seen: 2026-05-15T23:45:55Z
+- Last seen failing run: 2026-05-15T23:45:55Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-16T01:00:38Z
