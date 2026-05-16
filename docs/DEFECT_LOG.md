@@ -1293,3 +1293,46 @@ E     - waiting for locator("div").filter(has_text="SQA Standalone Route").filte
 - Occurrences before fix: 1
 - Status: resolved
 - Resolved at: 2026-05-16T01:00:38Z
+
+## [OPEN] 2026-05-16T17:25:14Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_equipment_requirements_editor
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.select_option: Timeout 30000ms exceeded.
+- First seen: 2026-05-16T17:25:14Z
+- Last seen: 2026-05-16T17:25:14Z
+- Occurrences: 1
+- Status: open
+- Traceback excerpt:
+```text
+SQA\modules\SQA-DT\test_route_editor_crud.py:663: in test_route_step_equipment_requirements_editor
+    await section.locator("select").nth(1).select_option("required")
+.venv\Lib\site-packages\playwright\async_api\_generated.py:18201: in select_option
+    await self._impl_obj.select_option(
+.venv\Lib\site-packages\playwright\_impl\_locator.py:610: in select_option
+    return await self._frame.select_option(
+.venv\Lib\site-packages\playwright\_impl\_frame.py:781: in select_option
+    return await self._channel.send("selectOption", self._timeout, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\playwright\_impl\_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+.venv\Lib\site-packages\playwright\_impl\_connection.py:559: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.TimeoutError: Locator.select_option: Timeout 30000ms exceeded.
+E   Call log:
+E     - waiting for get_by_role("dialog").locator("xpath=.//h4[normalize-space()='Equipment Requirements']/ancestor::div[contains(@class,'rounded-md')][1]").locator("select").nth(1)
+E       - locator resolved to <select class="rounded border border-gray-300 bg-white px-2 py-1 text-xs">…</select>
+E     - attempting select option action
+E       2 × waiting for element to be visible and enabled
+E         - did not find some options
+E       - retrying select option action
+E       - waiting 20ms
+E       2 × waiting for element to be visible and enabled
+E         - did not find some options
+E       - retrying select option action
+```
+
+## [RESOLVED] 2026-05-16T17:38:04Z - modules/SQA-DT/test_route_editor_crud.py::test_route_step_equipment_requirements_editor
+- Summary: E   playwright._impl._errors.TimeoutError: Locator.select_option: Timeout 30000ms exceeded.
+- First seen: 2026-05-16T17:25:14Z
+- Last seen failing run: 2026-05-16T17:25:14Z
+- Occurrences before fix: 1
+- Status: resolved
+- Resolved at: 2026-05-16T17:38:04Z

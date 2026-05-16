@@ -156,7 +156,6 @@ export interface RouteStep {
   sequence: number;
   name: string;
   step_type: string;
-  work_cell_id: string | null;
   equipment_class_id: string | null;
   expected_cycle_time_sec: number | null;
   erp_operation_number: string | null;
@@ -172,9 +171,9 @@ export interface RouteStepCreate {
   sequence: number;
   name: string;
   step_type?: string;
-  work_cell_id?: string | null;
   equipment_class_id?: string | null;
   expected_cycle_time_sec?: number | null;
+  erp_operation_number?: string | null;
   is_initial_step?: boolean;
   input_disposition_ids?: string[];
   output_disposition_ids?: string[];
@@ -184,9 +183,9 @@ export interface RouteStepUpdate {
   sequence?: number;
   name?: string;
   step_type?: string;
-  work_cell_id?: string | null;
   equipment_class_id?: string | null;
   expected_cycle_time_sec?: number | null;
+  erp_operation_number?: string | null;
   is_initial_step?: boolean;
   input_disposition_ids?: string[];
   output_disposition_ids?: string[];

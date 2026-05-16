@@ -50,10 +50,10 @@ graph TD
     %% --- EXTERNAL PROTOCOLS & INTEGRATIONS ---
     subgraph Protocols ["Optional Integration Ecosystem"]
         direction RL
-        OPC["OPC UA / Modbus"]
-        MQ["MQTT / Kafka / NATS"]
-        SAP["SAP / ERP Adapters"]
-        AV["AVEVA Integration"]
+        TAGS["OPC UA / Modbus"]
+        MQ["MQTT / Stomp"]
+        ERP["SAP / Oracle"]
+        HIST["AVEVA Historian"]
     end
     PM <--> Protocols
     class Protocols,OPC,MQ,SAP,AV protocolLayer;

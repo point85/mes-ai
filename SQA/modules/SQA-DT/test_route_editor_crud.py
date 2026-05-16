@@ -659,8 +659,8 @@ async def test_route_step_equipment_requirements_editor(page: Page, api) -> None
     dialog = await _open_step_edit_dialog(page, step_name=step["name"])
 
     section = _step_subeditor(dialog, "Equipment Requirements")
-    await section.locator("select").nth(0).select_option(value=equipment_class["id"])
-    await section.locator("select").nth(1).select_option("required")
+    await section.get_by_label("Requirement equipment class").select_option(value=equipment_class["id"])
+    await section.get_by_label("Requirement use type").select_option("required")
     await section.get_by_role("button", name="Add").click()
 
     requirement_row = section.locator("li").filter(has_text=equipment_class["code"])

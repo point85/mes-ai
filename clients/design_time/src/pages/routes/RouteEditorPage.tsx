@@ -341,7 +341,7 @@ export default function RouteEditorPage() {
                         Equipment Class
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Work Cell
+                        Hosted Work Cells
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Type
@@ -378,9 +378,6 @@ export default function RouteEditorPage() {
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-600">
                           {(() => {
-                            if (s.work_cell_id) {
-                              return wcMap.get(s.work_cell_id)?.code ?? "—";
-                            }
                             if (s.equipment_class_id) {
                               const cellIds = classToWorkCells.get(s.equipment_class_id);
                               if (cellIds && cellIds.size > 0) {

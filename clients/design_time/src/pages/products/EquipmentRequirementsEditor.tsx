@@ -120,6 +120,7 @@ export default function EquipmentRequirementsEditor({
               equipment_class_id: e.target.value || null,
             })
           }
+          aria-label="Primary equipment class"
           className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs"
         >
           <option value="">— None —</option>
@@ -209,6 +210,7 @@ export default function EquipmentRequirementsEditor({
           <select
             value={targetId}
             onChange={(e) => setTargetId(e.target.value)}
+            aria-label={mode === "class" ? "Requirement equipment class" : "Requirement equipment"}
             className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
           >
             <option value="">— Select {mode === "class" ? "class" : "equipment"} —</option>
@@ -227,6 +229,7 @@ export default function EquipmentRequirementsEditor({
           <select
             value={useType}
             onChange={(e) => setUseType(e.target.value as EquipmentRequirementUseType)}
+            aria-label="Requirement use type"
             className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
           >
             <option value="required">required</option>
