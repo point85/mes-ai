@@ -48,44 +48,74 @@ const sections: NavSection[] = [
   {
     title: "Plant Model",
     items: [
-      { label: "Sites", to: "/sites", icon: BuildingOffice2Icon },
-      { label: "Equipment Classes", to: "/equipment-classes", icon: WrenchScrewdriverIcon },
-      { label: "Storage Locations", to: "/storage-locations", icon: ArchiveBoxIcon },
+      { label: "Sites", to: "/sites", icon: BuildingOffice2Icon, helpTopic: "sites" as HelpTopic },
+      {
+        label: "Equipment Classes",
+        to: "/equipment-classes",
+        icon: WrenchScrewdriverIcon,
+        helpTopic: "equipmentClasses" as HelpTopic,
+      },
+      {
+        label: "Storage Locations",
+        to: "/storage-locations",
+        icon: ArchiveBoxIcon,
+        helpTopic: "storageLocations" as HelpTopic,
+      },
     ],
   },
   {
     title: "Products",
     items: [
       { label: "Products", to: "/products", icon: CubeIcon, helpTopic: "products" as HelpTopic },
-      { label: "Routes", to: "/routes", icon: QueueListIcon },
-      { label: "Dispositions", to: "/dispositions", icon: TagIcon },
+      { label: "Routes", to: "/routes", icon: QueueListIcon, helpTopic: "routes" as HelpTopic },
+      { label: "Dispositions", to: "/dispositions", icon: TagIcon, helpTopic: "dispositions" as HelpTopic },
       { label: "Materials", to: "/materials", icon: BeakerIcon, helpTopic: "materials" as HelpTopic },
     ],
   },
   {
     title: "Definitions",
     items: [
-      { label: "Units of Measure", to: "/uom", icon: ScaleIcon },
-      { label: "Work Schedules", to: "/work-schedules", icon: CalendarDaysIcon },
-      { label: "Data Definitions", to: "/data-definitions", icon: ClipboardDocumentListIcon },
-      { label: "Reason Codes", to: "/reasons", icon: ExclamationTriangleIcon },
+      { label: "Units of Measure", to: "/uom", icon: ScaleIcon, helpTopic: "uom" as HelpTopic },
+      {
+        label: "Work Schedules",
+        to: "/work-schedules",
+        icon: CalendarDaysIcon,
+        helpTopic: "workSchedules" as HelpTopic,
+      },
+      {
+        label: "Data Definitions",
+        to: "/data-definitions",
+        icon: ClipboardDocumentListIcon,
+        helpTopic: "dataDefinitions" as HelpTopic,
+      },
+      {
+        label: "Reason Codes",
+        to: "/reasons",
+        icon: ExclamationTriangleIcon,
+        helpTopic: "reasonCodes" as HelpTopic,
+      },
     ],
   },
 
   {
     title: "Admin",
     items: [
-      { label: "Users", to: "/admin/users", icon: UsersIcon },
-      { label: "Roles", to: "/admin/roles", icon: ShieldCheckIcon },
-      { label: "Plugins", to: "/plugins", icon: PuzzlePieceIcon },
-      { label: "Settings", to: "/admin/settings", icon: Cog6ToothIcon },
+      { label: "Users", to: "/admin/users", icon: UsersIcon, helpTopic: "users" as HelpTopic },
+      { label: "Roles", to: "/admin/roles", icon: ShieldCheckIcon, helpTopic: "roles" as HelpTopic },
+      { label: "Plugins", to: "/plugins", icon: PuzzlePieceIcon, helpTopic: "plugins" as HelpTopic },
+      { label: "Settings", to: "/admin/settings", icon: Cog6ToothIcon, helpTopic: "settings" as HelpTopic },
     ],
   },
   {
     title: "Demos",
     items: [
-      { label: "CPG Demo", to: "/demos/cpg", icon: BeakerIcon },
-      { label: "Electronics Demo", to: "/demos/electronics", icon: CpuChipIcon },
+      { label: "CPG Demo", to: "/demos/cpg", icon: BeakerIcon, helpTopic: "cpgDemo" as HelpTopic },
+      {
+        label: "Electronics Demo",
+        to: "/demos/electronics",
+        icon: CpuChipIcon,
+        helpTopic: "electronicsDemo" as HelpTopic,
+      },
     ],
   },
 ];
