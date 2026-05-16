@@ -62,7 +62,7 @@ graph TD
     subgraph Storage ["PERSISTENCE & DATA EVOLUTION"]
         direction LR
         SQLA["SQLAlchemy 2<br/>(Async ORM)"] --> Alembic["Alembic<br/>(Schema Migrations)"]
-        Alembic --> DB[("PostgreSQL DB<br/>(System of Record)")]
+        Alembic --> DB[("Database<br/>(System of Record)")]
     end
     DomainModules --> SQLA
     class Storage,SQLA,Alembic,DB dbLayer;
