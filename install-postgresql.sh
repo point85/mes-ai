@@ -62,6 +62,26 @@ ok()   { echo "    OK   $1"; }
 warn() { echo "    WARN $1"; }
 fail() { echo; echo "ERROR: $1" >&2; exit 1; }
 
+ensure_macos_postgres_role() {
+  if [[ "$OS" != "macos" ]]; then
+    return 0
+  fi
+
+  if ! command -v psql &>/dev/null; then
+    fail "psql was not found on PATH after installing PostgreSQL."
+  fi
+
+  if psql postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'postgres'" 2>/dev/null | grep -q 1; then
+    ok "PostgreSQL role 'postgres' already exists."
+  else
+    warn "Homebrew PostgreSQL typically creates a superuser matching your macOS account, not 'postgres'."
+    warn "Creating a 'postgres' role so MES AI can use its default PostgreSQL settings."
+
+    psql postgres -v mes_ai_pwd="postgres" -c "CREATE ROLE postgres WITH LOGIN SUPERUSER CREATEDB CREATEROLE PASSWORD :'mes_ai_pwd';" >/dev/null
+    ok "Created PostgreSQL role 'postgres' with default password 'postgres'."
+  fi
+}
+
 # ─── OS detection ─────────────────────────────────────────────────────────────
 detect_os() {
     if [[ "$(uname)" == "Darwin" ]]; then
@@ -82,6 +102,7 @@ step "Checking for existing PostgreSQL installation"
 
 if command -v psql &>/dev/null; then
     ok "PostgreSQL is already installed: $(psql --version)"
+  ensure_macos_postgres_role
     echo ""
     echo "  Nothing to do.  Run install.sh to set up MES AI."
     exit 0
@@ -102,6 +123,7 @@ Then rerun this script."
         # Add brew-installed psql to PATH for this session
         PG_BIN="$(brew --prefix postgresql@16)/bin"
         export PATH="$PG_BIN:$PATH"
+        ensure_macos_postgres_role
         ok "PostgreSQL installed and started."
         ;;
     debian)
@@ -126,13 +148,16 @@ esac
 # ─── Post-install guidance ────────────────────────────────────────────────────
 if [[ "$OS" == "macos" ]]; then
     PASS_CMD="psql postgres -c \"ALTER USER postgres PASSWORD 'your_password';\""
-    SERVICE_NOTE="  The service was started automatically by brew services."
+  SERVICE_NOTE="  The service was started automatically by brew services."
+  MACOS_NOTE="  On macOS, this script also ensures a 'postgres' role exists. If it had to create it, the initial password is 'postgres'."
 elif [[ "$OS" == "debian" ]]; then
     PASS_CMD="sudo -u postgres psql -c \"ALTER USER postgres PASSWORD 'your_password';\""
     SERVICE_NOTE="  The service was enabled and started via systemctl."
+  MACOS_NOTE=""
 else
     PASS_CMD="sudo -u postgres psql -c \"ALTER USER postgres PASSWORD 'your_password';\""
     SERVICE_NOTE="  The service was enabled and started via systemctl."
+  MACOS_NOTE=""
 fi
 
 cat <<EOF
@@ -141,6 +166,7 @@ cat <<EOF
   PostgreSQL installation complete!
 ================================================================
 $SERVICE_NOTE
+$MACOS_NOTE
 
   Next steps:
 

@@ -1,7 +1,5 @@
 ## Introduction
 
-For setup and day-to-day startup instructions, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
-
 MES AI is an open-source Manufacturing Execution System framework for teams that want to tailor MES workflows, integrations, and user experiences to their own operations. Instead of adapting your business to a fixed vendor product, MES AI provides a foundation you can extend with your own domain logic, plugins, and AI-assisted engineering workflows.
 
 Key advantages include:
@@ -9,6 +7,8 @@ Key advantages include:
 - Workflows and integrations that can be adapted to specific plant and business processes
 - AI-assisted development and testing to accelerate delivery
 - Greater control over release timing, feature priorities, and operational data
+
+For setup and usage instructions, see [docs/USER_GUIDE.pdf](docs/USER_GUIDE.pdf).
 
 ## MES AI Architecture Overview
 

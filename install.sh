@@ -94,6 +94,26 @@ warn() { echo "    WARN $1"; }
 skip() { echo "    --   $1"; }
 fail() { echo; echo "ERROR: $1" >&2; exit 1; }
 
+ensure_macos_postgres_role() {
+    if [[ "$OS" != "macos" || "$DB_TYPE_LOWER" != "postgresql" || -n "$DATABASE_URL" || "$DB_USER" != "postgres" ]]; then
+        return 0
+    fi
+
+    if ! command -v psql &>/dev/null; then
+        fail "psql is required to verify the PostgreSQL role on macOS. Ensure PostgreSQL is installed and on PATH."
+    fi
+
+    if psql postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'postgres'" 2>/dev/null | grep -q 1; then
+        ok "PostgreSQL role 'postgres' already exists."
+    else
+        warn "Homebrew PostgreSQL typically creates a superuser matching your macOS account, not 'postgres'."
+        warn "Creating a 'postgres' role so the MES AI installer can use the default PostgreSQL settings."
+
+        psql postgres -v mes_ai_pwd="$DB_PASSWORD" -c "CREATE ROLE postgres WITH LOGIN SUPERUSER CREATEDB CREATEROLE PASSWORD :'mes_ai_pwd';" >/dev/null
+        ok "Created PostgreSQL role 'postgres'."
+    fi
+}
+
 check_mssql_odbc_driver() {
     local driver_name=""
 
@@ -345,6 +365,11 @@ pushd "$SERVER_DIR" > /dev/null
 popd > /dev/null
 
 ok "Python packages installed (mes-ai + dev extras)."
+
+if [[ "$DB_TYPE_LOWER" == "postgresql" ]]; then
+    step "Step 4/8 - Checking PostgreSQL role prerequisites"
+    ensure_macos_postgres_role
+fi
 
 # ─── Step 5: server/.env ──────────────────────────────────────────────────────
 step "Step 5/8 — Creating server/.env configuration"
