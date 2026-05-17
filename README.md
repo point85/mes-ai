@@ -130,3 +130,5 @@ MES AI was developed as an experiment in AI-assisted software delivery for indus
 The implementation was built iteratively: expected MES capabilities were researched first, the architecture and technology stack were selected to support extensibility, and features were added in reviewable steps with human feedback guiding scope and direction.
 
 AI-assisted testing was part of that process from the beginning. The project includes broad server-side unit test coverage along with end-to-end SQA coverage for key design-time and runtime workflows. The aim is not to claim that AI replaces engineering judgment, but to show that AI can materially improve the speed and reach of implementation, testing, and customization work.
+
+Please send any comments or suggestions to point85.apps@gmail.com.
