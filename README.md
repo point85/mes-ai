@@ -26,7 +26,9 @@ These applications communicate with the MES server over a versioned HTTP API, an
 ## High-Level Architecture
 The diagram below is an overview of the system achitecture:
 ![Architecture1](docs/architecture_part1.png)
+
 ![Architecture2](docs/architecture_part2.png)
+
 ![Architecture3](docs/architecture_part3.png)
 
 The architecture follows a client-server model with clear separation between core execution logic, user interfaces, and integration points.
