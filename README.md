@@ -24,10 +24,14 @@ At the center of the system is the MES server in `server/src/mes`, which exposes
 These applications communicate with the MES server over a versioned HTTP API, and runtime-facing workflows can also consume WebSocket events for near-real-time updates.
 
 ## High-Level Architecture
-The diagram below is an overview of the system achitecture:
+The diagram below is an overview of the clients and MES server achitecture:
 ![Architecture1](docs/architecture_part1.png)
 
-![Architecture2](docs/architecture_part2.png) ![Architecture3](docs/architecture_part3.png)
+The diagram below is an overview of the plugin achitecture:
+![Architecture2](docs/architecture_part2.png) 
+
+The diagram below is an overview of the backend achitecture:
+![Architecture3](docs/architecture_part3.png)
 
 The architecture follows a client-server model with clear separation between core execution logic, user interfaces, and integration points.
 
