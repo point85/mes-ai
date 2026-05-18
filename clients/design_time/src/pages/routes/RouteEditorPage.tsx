@@ -49,6 +49,7 @@ export default function RouteEditorPage() {
   const [pickerSource, setPickerSource] = useState<"materials" | "products">("materials");
   const [pickerTypeFilter, setPickerTypeFilter] = useState("");
   const [stepsView, setStepsView] = useState<"table" | "diagram">("table");
+  const [assignedViewFilter, setAssignedViewFilter] = useState<"all" | "materials" | "products">("all");
   const validateMut = useValidateRoute();
   const validation = validateMut.data ?? null;
 
@@ -510,6 +511,20 @@ export default function RouteEditorPage() {
               {/* Inline material picker */}
               {showMaterialPicker && (
                 <div className="border-b border-gray-200 px-4 py-3 bg-gray-50 space-y-2">
+                  {/* Picker header */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-700">Assign to route</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowMaterialPicker(false)}
+                      className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+                      title="Cancel"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
                   {/* Radio: Products vs Materials */}
                   <div className="flex items-center gap-4">
                     <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer">
@@ -586,6 +601,22 @@ export default function RouteEditorPage() {
                 </div>
               )}
 
+              {/* Filter strip for assigned items */}
+              <div className="flex items-center gap-4 border-b border-gray-200 px-4 py-2 bg-gray-50">
+                {(["all", "products", "materials"] as const).map((f) => (
+                  <label key={f} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="assignedViewFilter"
+                      checked={assignedViewFilter === f}
+                      onChange={() => setAssignedViewFilter(f)}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                  </label>
+                ))}
+              </div>
+
               {/* Assigned items list */}
               <div className="divide-y divide-gray-100">
                 {materialAssignments.length === 0 && productAssignments.length === 0 && (
@@ -593,7 +624,7 @@ export default function RouteEditorPage() {
                     No materials or products assigned.
                   </p>
                 )}
-                {productAssignments.map((a) => {
+                {assignedViewFilter !== "materials" && productAssignments.map((a) => {
                   const product = productMap.get(a.product_id);
                   return (
                     <div
@@ -630,7 +661,7 @@ export default function RouteEditorPage() {
                     </div>
                   );
                 })}
-                {materialAssignments.map((a) => {
+                {assignedViewFilter !== "products" && materialAssignments.map((a) => {
                   const material = materialMap.get(a.material_id);
                   return (
                     <div

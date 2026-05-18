@@ -14,6 +14,7 @@ import {
   useCreateStepMaterialRequirement,
   useUpdateStepMaterialRequirement,
   useDeleteStepMaterialRequirement,
+  useRouteMaterials,
 } from "../../hooks/useProductDef";
 import { useMaterials } from "../../hooks/useMaterial";
 import { useUoMs } from "../../hooks/useUoM";
@@ -21,18 +22,29 @@ import type { MaterialUse } from "../../types";
 
 interface Props {
   stepId: string;
+  routeId: string;
 }
 
-export default function MaterialRequirementsEditor({ stepId }: Props) {
+export default function MaterialRequirementsEditor({ stepId, routeId }: Props) {
   const { data: reqsResp, isLoading } = useStepMaterialRequirements(stepId);
   const reqs = reqsResp?.data ?? [];
   const createMut = useCreateStepMaterialRequirement(stepId);
   const updateMut = useUpdateStepMaterialRequirement(stepId);
   const deleteMut = useDeleteStepMaterialRequirement(stepId);
 
+  const { data: routeMatsResp } = useRouteMaterials(routeId);
+  const routeMaterialIds = new Set((routeMatsResp?.data ?? []).map((a) => a.material_id));
+
+  const stepMaterialIds = new Set(reqs.map((r) => r.material_id));
+
   const { data: matResp } = useMaterials();
-  const materials = (matResp?.data ?? []).slice().sort((a, b) => a.code.localeCompare(b.code));
-  const matMap = new Map(materials.map((m) => [m.id, m]));
+  const allMaterials = matResp?.data ?? [];
+  // Full lookup used to display already-assigned requirements
+  const matMap = new Map(allMaterials.map((m) => [m.id, m]));
+  // Dropdown only shows route-assigned materials not yet on this step
+  const materials = allMaterials
+    .filter((m) => routeMaterialIds.has(m.id) && !stepMaterialIds.has(m.id))
+    .sort((a, b) => a.code.localeCompare(b.code));
 
   const { data: uomData } = useUoMs();
   const nonRateUoMs = (uomData?.data ?? []).filter((u) => u.uom_type !== "rate");
@@ -174,62 +186,73 @@ export default function MaterialRequirementsEditor({ stepId }: Props) {
         </ul>
       )}
 
-      <div className="mt-3 rounded border border-gray-200 bg-white p-2">
-        <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2">
-          <select
-            value={materialId}
-            onChange={(e) => handleMaterialChange(e.target.value)}
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
-          >
-            <option value="">— Select material —</option>
-            {materials.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.code} — {m.name} ({m.material_type})
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            step="any"
-            min="0"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            placeholder="Qty"
-            className="w-20 rounded border border-gray-300 px-2 py-1 text-right text-xs"
-          />
-          <select
-            value={uomId}
-            onChange={(e) => setUomId(e.target.value)}
-            placeholder="UoM"
-            className="w-32 rounded border border-gray-300 bg-white px-2 py-1 text-xs"
-          >
-            <option value="">— UoM —</option>
-            {nonRateUoMs.map((u) => (
-              <option key={u.id} value={u.id}>{u.symbol}</option>
-            ))}
-          </select>
-          <select
-            value={materialUse}
-            onChange={(e) => setMaterialUse(e.target.value as MaterialUse)}
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
-          >
-            <option value="consumed">consumed</option>
-            <option value="produced">produced</option>
-          </select>
-          <input
-            type="number"
-            min="0"
-            value={position}
-            onChange={(e) => setPosition(e.target.value)}
-            placeholder="Pos"
-            title="Position (ordering)"
-            className="w-14 rounded border border-gray-300 px-2 py-1 text-right text-xs"
-          />
+      <div className="mt-3 rounded border border-gray-200 bg-white p-2 space-y-2">
+        {/* Row 1: material selector */}
+        <select
+          value={materialId}
+          onChange={(e) => handleMaterialChange(e.target.value)}
+          className="block w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+        >
+          <option value="">— Select material —</option>
+          {materials.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.code} — {m.name} ({m.material_type})
+            </option>
+          ))}
+        </select>
+        {/* Row 2: qty, UoM, use, position, Add */}
+        <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] font-medium text-gray-500">Quantity</label>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="w-16 rounded border border-gray-300 px-2 py-1 text-right text-xs"
+            />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <label className="text-[10px] font-medium text-gray-500">UoM</label>
+            <select
+              value={uomId}
+              onChange={(e) => setUomId(e.target.value)}
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+            >
+              <option value="">— UoM —</option>
+              {nonRateUoMs.map((u) => (
+                <option key={u.id} value={u.id}>{u.symbol}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] font-medium text-gray-500">Use</label>
+            <select
+              value={materialUse}
+              onChange={(e) => setMaterialUse(e.target.value as MaterialUse)}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+            >
+              <option value="consumed">consumed</option>
+              <option value="produced">produced</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] font-medium text-gray-500">Position</label>
+            <input
+              type="number"
+              min="0"
+              value={position}
+              onChange={(e) => setPosition(e.target.value)}
+              title="Sort order within the step's material list"
+              className="w-16 rounded border border-gray-300 px-2 py-1 text-right text-xs"
+            />
+          </div>
           <button
             type="button"
             onClick={handleAdd}
             disabled={createMut.isPending || !materialId}
-            className="inline-flex items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="inline-flex shrink-0 items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
           >
             <PlusIcon className="h-3.5 w-3.5" />
             Add
