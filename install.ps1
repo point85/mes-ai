@@ -411,7 +411,7 @@ MES_SECRET_KEY=${secretKey}
 
 # -- Logging ----------------------------------------------------------------
 # DEBUG | INFO | WARNING | ERROR | CRITICAL
-MES_LOG_LEVEL=INFO
+MES_LOG_LEVEL=WARNING
 
 # -- Event bus --------------------------------------------------------------
 # memory = in-process (single server)

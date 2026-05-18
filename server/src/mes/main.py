@@ -206,8 +206,8 @@ def _register_demo_order_processor() -> None:
         ERPInboundQueueService.set_processor(CPGLotProcessor())
 
 
-INBOUND_QUEUE_INTERVAL_SEC = 5   # How often to check for new inbound orders
-OUTBOUND_QUEUE_INTERVAL_SEC = 10  # How often to drain the outbound ERP queue
+INBOUND_QUEUE_INTERVAL_SEC = 15   # How often to check for new inbound orders
+OUTBOUND_QUEUE_INTERVAL_SEC = 15  # How often to drain the outbound ERP queue
 
 
 async def _inbound_queue_loop() -> None:
