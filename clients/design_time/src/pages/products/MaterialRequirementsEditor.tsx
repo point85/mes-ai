@@ -53,7 +53,6 @@ export default function MaterialRequirementsEditor({ stepId, routeId }: Props) {
   const [quantity, setQuantity] = useState<string>("1");
   const [uomId, setUomId] = useState<string>("");
   const [materialUse, setMaterialUse] = useState<MaterialUse>("consumed");
-  const [position, setPosition] = useState<string>("0");
   const [description, setDescription] = useState<string>("");
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -74,21 +73,20 @@ export default function MaterialRequirementsEditor({ stepId, routeId }: Props) {
       setFormError("Quantity must be greater than 0.");
       return;
     }
-    const pos = parseInt(position, 10);
+    const nextPos = reqs.length > 0 ? Math.max(...reqs.map((r) => r.position)) + 1 : 0;
     try {
       await createMut.mutateAsync({
         material_id: materialId,
         quantity: qty,
         uom_id: uomId || (nonRateUoMs[0]?.id ?? ""),
         material_use: materialUse,
-        position: Number.isFinite(pos) ? pos : 0,
+        position: nextPos,
         description: description.trim() || null,
       });
       setMaterialId("");
       setQuantity("1");
       setUomId("");
       setMaterialUse("consumed");
-      setPosition("0");
       setDescription("");
     } catch (err: unknown) {
       const detail =
@@ -140,7 +138,6 @@ export default function MaterialRequirementsEditor({ stepId, routeId }: Props) {
               key={r.id}
               className="flex items-center gap-2 rounded border border-gray-200 bg-white px-2 py-1.5 text-xs"
             >
-              <span className="w-8 shrink-0 text-gray-400">#{r.position}</span>
               <span className="flex-1 truncate text-gray-800">{materialLabel(r)}</span>
               <input
                 type="number"
@@ -236,17 +233,6 @@ export default function MaterialRequirementsEditor({ stepId, routeId }: Props) {
               <option value="consumed">consumed</option>
               <option value="produced">produced</option>
             </select>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] font-medium text-gray-500">Position</label>
-            <input
-              type="number"
-              min="0"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              title="Sort order within the step's material list"
-              className="w-16 rounded border border-gray-300 px-2 py-1 text-right text-xs"
-            />
           </div>
           <button
             type="button"
