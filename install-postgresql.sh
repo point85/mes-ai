@@ -74,10 +74,13 @@ ensure_macos_postgres_role() {
   if psql postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'postgres'" 2>/dev/null | grep -q 1; then
     ok "PostgreSQL role 'postgres' already exists."
   else
+    local escaped_password
+
     warn "Homebrew PostgreSQL typically creates a superuser matching your macOS account, not 'postgres'."
     warn "Creating a 'postgres' role so MES AI can use its default PostgreSQL settings."
 
-    psql postgres -v mes_ai_pwd="postgres" -c "CREATE ROLE postgres WITH LOGIN SUPERUSER CREATEDB CREATEROLE PASSWORD :'mes_ai_pwd';" >/dev/null
+    escaped_password=$(printf "%s" "postgres" | sed "s/'/''/g")
+    psql postgres -c "CREATE ROLE postgres WITH LOGIN SUPERUSER CREATEDB CREATEROLE PASSWORD '${escaped_password}';" >/dev/null
     ok "Created PostgreSQL role 'postgres' with default password 'postgres'."
   fi
 }
