@@ -176,6 +176,9 @@ echo "Starting $LABEL..."
 echo "Press Ctrl+C to stop."
 echo ""
 
+# Suppress DEP0205: module.register() deprecated in Node 22+ (comes from Vite internals)
+export NODE_OPTIONS="${NODE_OPTIONS:-} --disable-warning=DEP0205"
+
 cd "$CLIENT_DIR"
 if [[ "$PORT" -ne 0 ]]; then
     npx vite --port "$EFFECTIVE_PORT"
