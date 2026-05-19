@@ -330,7 +330,11 @@ if [[ "$SKIP_CLIENTS" == "false" ]]; then
                 ;;
             debian)
                 # NodeSource LTS (Node 20+)
-                curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+                # The setup script calls apt-get update internally; a broken third-party
+                # PPA (e.g. open62541-team/ppa) can cause it to exit non-zero even though
+                # the NodeSource repo was added successfully. Tolerate that.
+                curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - || \
+                    warn "NodeSource setup had warnings (possibly a third-party PPA); continuing."
                 sudo apt-get install -y nodejs
                 ;;
             rhel)
@@ -342,6 +346,14 @@ if [[ "$SKIP_CLIENTS" == "false" ]]; then
 Install Node.js 20+ from https://nodejs.org, or rerun with --skip-clients."
                 ;;
         esac
+        # Re-check the installed version — NodeSource may have failed silently and
+        # apt may have installed the older distro nodejs instead.
+        installed_node_major=$(node --version 2>&1 | grep -oE '[0-9]+' | head -1)
+        if [[ "$installed_node_major" -lt 20 ]]; then
+            fail "Node.js 20+ could not be installed automatically (found $(node --version)).
+Install Node.js 20+ manually from https://nodejs.org, then rerun.
+  e.g.  curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs"
+        fi
         ok "Node.js installed: $(node --version)"
     else
         ok "Found: $(node --version)"
@@ -359,12 +371,20 @@ else
     "$PYTHON_CMD" -m venv "$VENV_DIR"
     ok "Created .venv/"
 fi
+
+# On Debian/Ubuntu, venvs may be created without pip if python3-pip is absent.
+# Bootstrap pip unconditionally so subsequent installs always succeed.
+if [[ ! -x "$VENV_PIP" ]]; then
+    warn "pip not found in venv — bootstrapping with ensurepip..."
+    "$VENV_PYTHON" -m ensurepip --upgrade --quiet 2>/dev/null || \
+        curl -fsSL https://bootstrap.pypa.io/get-pip.py | "$VENV_PYTHON"
+fi
 # ─── Step 4: Python dependencies ────────────────────────────────────────────────
 step "Step 4/8 — Installing Python server dependencies"
 
 pushd "$SERVER_DIR" > /dev/null
-"$VENV_PIP" install --upgrade pip --quiet
-"$VENV_PIP" install -e ".[dev]" --quiet
+"$VENV_PYTHON" -m pip install --upgrade pip --quiet
+"$VENV_PYTHON" -m pip install -e ".[dev]" --quiet
 popd > /dev/null
 
 ok "Python packages installed (mes-ai + dev extras)."
