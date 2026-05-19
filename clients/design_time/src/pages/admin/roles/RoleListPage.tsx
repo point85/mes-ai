@@ -53,7 +53,7 @@ export default function RoleListPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
         {isLoading ? (
           <p className="px-4 py-6 text-sm text-gray-500">Loading…</p>
         ) : error ? (

@@ -60,7 +60,7 @@ export default function EquipmentClassListPage() {
       {classes.length === 0 ? (
         <p className="text-gray-500">No equipment classes defined. Create one to get started.</p>
       ) : (
-        <table className="min-w-full divide-y divide-gray-200 border rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 border rounded-lg overflow-x-auto">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Name</th>

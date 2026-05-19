@@ -95,7 +95,7 @@ export default function EquipmentClassDetailPage() {
             No equipment has been assigned to this class yet.
           </p>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200 border rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200 border rounded-lg overflow-x-auto">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Code</th>
@@ -135,7 +135,7 @@ export default function EquipmentClassDetailPage() {
           <p className="text-sm mt-1">Properties define measurable attributes like speed, temperature, etc.</p>
         </div>
       ) : (
-        <table className="min-w-full divide-y divide-gray-200 border rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 border rounded-lg overflow-x-auto">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Name</th>

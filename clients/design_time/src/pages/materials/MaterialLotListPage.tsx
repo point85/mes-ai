@@ -123,7 +123,7 @@ export default function MaterialLotListPage() {
 
       {/* Table */}
       {!isLoading && !error && (
-        <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
