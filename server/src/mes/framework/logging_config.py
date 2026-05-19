@@ -8,7 +8,7 @@ server output is captured to disk in addition to the terminal.
 Controlled via ``MES_LOG_*`` environment variables (see mes.config.Settings):
 - MES_LOG_DIR         (default: "logs")
 - MES_LOG_FILE        (default: "mes_server.log")
-- MES_LOG_LEVEL       (default: "INFO")
+- MES_LOG_LEVEL       (default: "WARNING")
 - MES_LOG_MAX_BYTES   (default: 10 MB)
 - MES_LOG_BACKUP_COUNT(default: 5)
 - MES_LOG_TO_CONSOLE  (default: True)

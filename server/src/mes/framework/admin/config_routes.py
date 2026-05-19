@@ -191,8 +191,14 @@ def _write_env_file(updates: dict[str, str]) -> None:
 
 
 def _current_values() -> dict[str, str]:
-    """Return live values from settings (not the .env file on disk)."""
-    return {
+    """Return values from the .env file (authoritative) with fallback to startup settings.
+
+    The in-memory ``settings`` singleton is frozen at process start, so after a
+    PATCH writes a new value to .env the re-fetch must read from the file to
+    reflect the pending change instead of the stale in-memory value.
+    """
+    env_file = _read_env_file()
+    defaults = {
         "MES_AUTH_MODE": settings.AUTH_MODE,
         "MES_SECRET_KEY": settings.SECRET_KEY,
         "MES_ALGORITHM": settings.ALGORITHM,
@@ -208,6 +214,8 @@ def _current_values() -> dict[str, str]:
         "MES_REDIS_URL": settings.REDIS_URL,
         "MES_LOG_LEVEL": settings.LOG_LEVEL,
     }
+    # .env file values win — they reflect what will be active after the next restart.
+    return {k: env_file.get(k, v) for k, v in defaults.items()}
 
 
 # ── Response models ───────────────────────────────────────────────────────────
