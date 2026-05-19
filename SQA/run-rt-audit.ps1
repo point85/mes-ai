@@ -12,24 +12,24 @@
     Launch Playwright browser in headed mode (visible window). Default: headless.
 
 .PARAMETER ServerUrl
-    MES server base URL. Default: http://localhost:8081
+    MES server base URL. Default: http://localhost:8082
 
 .PARAMETER RtUrl
-    RT-CLIENT base URL. Default: http://localhost:5178
+    RT-CLIENT base URL. Default: http://localhost:5176
 
 .EXAMPLE
     .\run-rt-audit.ps1 -Scope inventory
 
 .EXAMPLE
-    .\run-rt-audit.ps1 -Scope wip -RtUrl http://localhost:5178 -ServerUrl http://localhost:8081
+    .\run-rt-audit.ps1 -Scope wip -RtUrl http://localhost:5176 -ServerUrl http://localhost:8082
 #>
 param(
     [ValidateSet("inventory", "wip", "all")]
     [string]$Scope,
     [switch]$Headed,
     [switch]$Help,
-    [string]$ServerUrl = "http://localhost:8081",
-    [string]$RtUrl     = "http://localhost:5178"
+    [string]$ServerUrl = "http://localhost:8082",
+    [string]$RtUrl     = "http://localhost:5176"
 )
 
 Set-StrictMode -Version Latest
@@ -54,7 +54,7 @@ function Show-Usage {
     Write-Host "  .\run-rt-audit.ps1 -Scope inventory"
     Write-Host "  .\run-rt-audit.ps1 -Scope wip"
     Write-Host "  .\run-rt-audit.ps1 -Scope all -Headed"
-    Write-Host "  .\run-rt-audit.ps1 -Scope wip -ServerUrl http://localhost:8081 -RtUrl http://localhost:5178"
+    Write-Host "  .\run-rt-audit.ps1 -Scope wip -ServerUrl http://localhost:8082 -RtUrl http://localhost:5176"
 }
 
 if ($Help) {

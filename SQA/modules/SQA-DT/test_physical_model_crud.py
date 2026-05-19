@@ -18,7 +18,9 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
-DT_SITES_URL = "http://localhost:5177/sites"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_SITES_URL = f"{_DT_BASE}/sites"
 API_SITES = "/sites"
 
 
@@ -83,19 +85,19 @@ async def _open_sites_page(page: Page) -> None:
 
 
 async def _open_areas_page(page: Page, *, site_id: str, site_name: str) -> None:
-    await page.goto(f"http://localhost:5177/sites/{site_id}/areas", wait_until="networkidle")
+    await page.goto(f"{_DT_BASE}/sites/{site_id}/areas", wait_until="networkidle")
     await expect(page.get_by_role("heading", name="Areas")).to_be_visible(timeout=10_000)
     await expect(page.get_by_text(f"Areas within {site_name}.")).to_be_visible(timeout=10_000)
 
 
 async def _open_lines_page(page: Page, *, area_id: str, area_name: str) -> None:
-    await page.goto(f"http://localhost:5177/areas/{area_id}/lines", wait_until="networkidle")
+    await page.goto(f"{_DT_BASE}/areas/{area_id}/lines", wait_until="networkidle")
     await expect(page.get_by_role("heading", name="Production Lines")).to_be_visible(timeout=10_000)
     await expect(page.get_by_text(f"Lines within area {area_name}.")).to_be_visible(timeout=10_000)
 
 
 async def _open_work_cells_page(page: Page, *, line_id: str, line_name: str) -> None:
-    await page.goto(f"http://localhost:5177/lines/{line_id}/work-cells", wait_until="networkidle")
+    await page.goto(f"{_DT_BASE}/lines/{line_id}/work-cells", wait_until="networkidle")
     await expect(page.get_by_role("heading", name="Work Cells")).to_be_visible(timeout=10_000)
     await expect(page.get_by_text(f"Work cells on line {line_name}.")).to_be_visible(timeout=10_000)
 

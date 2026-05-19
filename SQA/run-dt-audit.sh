@@ -6,8 +6,8 @@ set -euo pipefail
 
 SCOPE=""
 HEADED="0"
-SERVER_URL="http://localhost:8081"
-DT_URL="http://localhost:5177"
+SERVER_URL="http://localhost:8082"
+DT_URL="http://localhost:5173"
 
 show_usage() {
   echo "Usage:"

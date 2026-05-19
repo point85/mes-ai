@@ -8,7 +8,7 @@ Authoring rules (enforced):
 - Selectors use HTML name attrs / radio values / CSS siblings — no CSS classes.
 - Every UI action is followed by an API oracle confirming persistence.
 - Setup and teardown use the REST API (conftest uom_cleanup fixture).
-- Server: http://localhost:8081  DT-CLIENT: http://localhost:5177
+- Server: http://localhost:8082  DT-CLIENT: http://localhost:5173
 
 Implementation notes:
 - Headless UI <Dialog> root div is CSS-invisible (no bounding box); check the
@@ -23,7 +23,9 @@ from __future__ import annotations
 import pytest
 from playwright.async_api import Page, expect
 
-DT_UOM_URL = "http://localhost:5177/uom"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_UOM_URL = f"{_DT_BASE}/uom"
 API_UOM    = "/uom"          # relative to conftest api.base_url
 
 

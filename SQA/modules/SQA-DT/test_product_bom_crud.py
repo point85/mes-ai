@@ -18,6 +18,9 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+
 API_PRODUCTS = "/products"
 API_UOM = "/uom"
 API_MATERIALS = "/materials"
@@ -136,7 +139,7 @@ def _create_bom_item(api, *, bom_id: str, material_code: str, uom_id: str, **ove
 
 
 async def _open_bom_editor(page: Page, *, product_id: str) -> None:
-    await page.goto(f"http://localhost:5177/products/{product_id}/boms")
+    await page.goto(f"{_DT_BASE}/products/{product_id}/boms")
     await expect(page.get_by_role("heading", name="Bills of Material")).to_be_visible(timeout=10_000)
 
 

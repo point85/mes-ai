@@ -18,7 +18,9 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
-DT_PRODUCTS_URL = "http://localhost:5177/products"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_PRODUCTS_URL = f"{_DT_BASE}/products"
 API_PRODUCTS = "/products"
 API_UOM = "/uom"
 
@@ -249,6 +251,6 @@ async def test_product_open_detail(page: Page, api) -> None:
     await expect(row).to_be_visible(timeout=8_000)
     await row.get_by_role("link", name=product["code"]).click()
 
-    await expect(page).to_have_url(f"http://localhost:5177/products/{product['id']}")
+    await expect(page).to_have_url(f"{_DT_BASE}/products/{product['id']}")
     await expect(page.get_by_role("heading", name="SQA Detail Product")).to_be_visible(timeout=8_000)
     await expect(page.get_by_text(f"{product['code']} · v3.1", exact=False)).to_be_visible(timeout=8_000)

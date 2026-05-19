@@ -17,7 +17,9 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
-DT_MATERIALS_URL = "http://localhost:5177/materials"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_MATERIALS_URL = f"{_DT_BASE}/materials"
 API_MATERIALS = "/materials"
 API_UOM = "/uom"
 

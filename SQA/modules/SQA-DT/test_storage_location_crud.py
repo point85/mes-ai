@@ -17,7 +17,9 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
-DT_STORAGE_LOCATIONS_URL = "http://localhost:5177/storage-locations"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_STORAGE_LOCATIONS_URL = f"{_DT_BASE}/storage-locations"
 API_STORAGE_LOCATIONS = "/storage-locations"
 
 

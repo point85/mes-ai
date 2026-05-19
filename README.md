@@ -12,15 +12,15 @@ For setup and usage instructions, see [docs/USER_GUIDE.pdf](docs/USER_GUIDE.pdf)
 
 ## MES AI Architecture Overview
 
-MES AI is built around a FastAPI server, multiple Vite-based web clients, and a plugin-oriented extension model. The platform is designed to support ISA-95-style manufacturing workflows while staying practical for iterative development, simulation, and AI-assisted customization.
+MES AI is built around a FastAPI server, multiple Vite-based web clients, and a plugin-oriented extension model. The platform is designed to support ISA-95-style manufacturing workflows while staying practical for iterative development, simulation, and AI-assisted customization.  MES AI can be run on Linux, MacOS or Windows operating systems.
 
 ## System at a Glance
 
 At the center of the system is the MES server in `server/src/mes`, which exposes a versioned REST API and WebSocket event stream. Around that core are several browser-based applications in `clients/` that support different user roles and development workflows:
 
 - `clients/design_time`: the design-time application for configuring products, routes, dispositions, equipment, plugins, and other master data.
-- `clients/run_time`: the runtime operator application for creating and processing WIP, dispatching work, recording inventory activity, and handling shop-floor execution.
-- `clients/erp_simulator`: a simulator used to create and release operations requests and exercise ERP-style inbound flows.
+- `clients/run_time`: the runtime application for creating and processing WIP, dispatching work, recording inventory activity, and handling shop-floor execution.
+- `clients/erp_simulator`: a simulator used to create and release operations requests and exercise ERP-style inbound and outbound flows.
 - `clients/equipment_simulator`: a simulator used for equipment-centric development and testing.
 
 These applications communicate with the MES server over a versioned HTTP API, and runtime-facing workflows can also consume WebSocket events for near-real-time updates.
@@ -64,15 +64,15 @@ MES AI uses multiple Vite applications so each workflow can evolve with minimal 
 
 ### Design-Time Client
 
-The design-time app is aimed at engineers and administrators. It manages configuration-heavy workflows such as products, process definitions, dispositions, plugin management, and reference data. It uses React, TypeScript, React Router, TanStack Query, Axios, Zod, and React Hook Form to provide structured forms and API-driven screens.
+The design-time app manages configuration-heavy workflows such as products, process definitions, dispositions, plugin management, and reference data. It uses React, TypeScript, React Router, TanStack Query, Axios, Zod, and React Hook Form to provide structured forms and API-driven screens.
 
 ### Runtime Client
 
-The runtime app is aimed at operators and supervisors. It focuses on active WIP, step processing, dispatch decisions, inventory movements, and hold or disposition handling. It uses the same core React and TypeScript stack as the design-time app, with TanStack Query and Axios handling server communication.
+The runtime app focuses on active WIP, step processing, dispatch decisions, inventory movements, and hold or disposition handling. It uses the same core React and TypeScript stack as the design-time app, with TanStack Query and Axios handling server communication.
 
 ### ERP Simulator
 
-The ERP simulator is a Vite app that exercises inbound planning and order-release scenarios without requiring a real ERP connection. It is useful for demos, development, and integration testing of operations-request flows.
+The ERP simulator is a Vite app that exercises inbound planning and order-release scenarios without requiring a real ERP connection. It also exercises outbound reporting touch points.  It is useful for demos, development, and integration testing of operations-request flows.
 
 ### Equipment Simulator
 

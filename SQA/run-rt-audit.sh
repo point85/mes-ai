@@ -6,8 +6,8 @@ set -euo pipefail
 
 SCOPE=""
 HEADED="0"
-SERVER_URL="http://localhost:8081"
-RT_URL="http://localhost:5178"
+SERVER_URL="http://localhost:8082"
+RT_URL="http://localhost:5176"
 
 show_usage() {
   echo "Usage:"
@@ -22,7 +22,7 @@ show_usage() {
   echo "  ./run-rt-audit.sh --scope inventory"
   echo "  ./run-rt-audit.sh --scope wip"
   echo "  ./run-rt-audit.sh --scope all --headed"
-  echo "  ./run-rt-audit.sh --scope wip --server http://localhost:8081 --rt http://localhost:5178"
+  echo "  ./run-rt-audit.sh --scope wip --server http://localhost:8082 --rt http://localhost:5176"
 }
 
 while [[ $# -gt 0 ]]; do

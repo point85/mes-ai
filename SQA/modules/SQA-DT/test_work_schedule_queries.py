@@ -8,7 +8,9 @@ from __future__ import annotations
 import pytest
 from playwright.async_api import Page, expect
 
-DT_WORK_SCHEDULE_URL = "http://localhost:5177/work-schedules"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_WORK_SCHEDULE_URL = f"{_DT_BASE}/work-schedules"
 API_WORK_SCHEDULE = "/work-schedules"
 
 

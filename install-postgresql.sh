@@ -130,7 +130,9 @@ Then rerun this script."
         ok "PostgreSQL installed and started."
         ;;
     debian)
-        sudo apt-get update -q
+        # apt-get update may warn about third-party PPAs that don't yet support
+        # this Ubuntu release — those warnings are harmless here, so don't abort.
+        sudo apt-get update -q || warn "apt-get update had warnings (possibly a third-party PPA); continuing."
         sudo apt-get install -y postgresql postgresql-client
         sudo systemctl enable --now postgresql
         ok "PostgreSQL installed and started."

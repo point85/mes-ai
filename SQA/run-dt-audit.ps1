@@ -21,10 +21,10 @@
     Launch Playwright browser in headed mode (visible window). Default: headless.
 
 .PARAMETER ServerUrl
-    MES server base URL. Default: http://localhost:8081
+    MES server base URL. Default: http://localhost:8082
 
 .PARAMETER DtUrl
-    DT-CLIENT base URL. Default: http://localhost:5177
+    DT-CLIENT base URL. Default: http://localhost:5173
 
 .EXAMPLE
     .\run-dt-audit.ps1 -Scope all
@@ -46,8 +46,8 @@ param(
     [string]$Scope,
     [switch]$Headed,
     [switch]$Help,
-    [string]$ServerUrl = "http://localhost:8081",
-    [string]$DtUrl     = "http://localhost:5177"
+    [string]$ServerUrl = "http://localhost:8082",
+    [string]$DtUrl     = "http://localhost:5173"
 )
 
 Set-StrictMode -Version Latest

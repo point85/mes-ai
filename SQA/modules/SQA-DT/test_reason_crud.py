@@ -17,7 +17,9 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
-DT_REASONS_URL = "http://localhost:5177/reasons"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_REASONS_URL = f"{_DT_BASE}/reasons"
 API_REASONS = "/performance/reasons"
 
 

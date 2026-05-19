@@ -19,8 +19,10 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
-DT_USERS_URL = "http://localhost:5177/admin/users"
-DT_ROLES_URL = "http://localhost:5177/admin/roles"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_USERS_URL = f"{_DT_BASE}/admin/users"
+DT_ROLES_URL = f"{_DT_BASE}/admin/roles"
 API_USERS = "/auth/users"
 API_ROLES = "/auth/roles"
 

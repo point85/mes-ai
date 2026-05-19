@@ -17,7 +17,9 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
-DT_DATA_DEFINITION_URL = "http://localhost:5177/data-definitions"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_DATA_DEFINITION_URL = f"{_DT_BASE}/data-definitions"
 API_DATA_DEFINITIONS = "/data/definitions"
 
 

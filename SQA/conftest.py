@@ -2,8 +2,8 @@
 SQA root conftest.py — session-scoped fixtures shared across all SQA modules.
 
 Environment variables (with defaults):
-  SQA_SERVER_URL   MES API base URL        default: http://localhost:8081
-  SQA_DT_URL       DT-CLIENT base URL      default: http://localhost:5177
+  SQA_SERVER_URL   MES API base URL        default: http://localhost:8082
+  SQA_DT_URL       DT-CLIENT base URL      default: http://localhost:5173
   SQA_HEADED       Set to "1" for headed browser (useful for local debug)
 """
 from __future__ import annotations
@@ -20,8 +20,8 @@ from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 # ---------------------------------------------------------------------------
 # URL configuration
 # ---------------------------------------------------------------------------
-SERVER_URL = os.environ.get("SQA_SERVER_URL", "http://localhost:8081")
-DT_URL     = os.environ.get("SQA_DT_URL",     "http://localhost:5177")
+SERVER_URL = os.environ.get("SQA_SERVER_URL", "http://localhost:8082")
+DT_URL     = os.environ.get("SQA_DT_URL",     "http://localhost:5173")
 RT_URL     = os.environ.get("SQA_RT_URL",     "http://localhost:5176")
 HEADED     = os.environ.get("SQA_HEADED", "0") == "1"
 

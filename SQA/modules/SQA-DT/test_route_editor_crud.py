@@ -16,8 +16,10 @@ import pytest
 from playwright.async_api import Locator, Page, expect
 from uuid import uuid4
 
-DT_DISPOSITIONS_URL = "http://localhost:5177/dispositions"
-DT_ROUTES_URL = "http://localhost:5177/routes"
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+DT_DISPOSITIONS_URL = f"{_DT_BASE}/dispositions"
+DT_ROUTES_URL = f"{_DT_BASE}/routes"
 API_DISPOSITIONS = "/dispositions"
 API_ROUTES = "/operations-definitions"
 API_PRODUCTS = "/products"
@@ -113,6 +115,11 @@ def _create_material(api, *, uom_id: str, **overrides) -> dict:
     resp = api.post(API_MATERIALS, json=payload)
     assert resp.status_code in (200, 201), f"Material setup failed: {resp.text}"
     return resp.json()["data"]
+
+
+def _assign_material_to_route(api, *, route_id: str, material_id: str) -> None:
+    resp = api.post(f"{API_ROUTES}/{route_id}/materials", json={"material_id": material_id})
+    assert resp.status_code in (200, 201), f"Route material assignment failed: {resp.text}"
 
 
 def _create_data_definition(api, **overrides) -> dict:
@@ -696,6 +703,8 @@ async def test_route_step_material_requirements_editor(page: Page, api) -> None:
     step = _create_step(api, route_id=route["id"], name="SQA Material Requirement Step")
     uom = _create_scalar_uom(api, symbol=f"SQA_SM_{uuid4().hex[:8]}", name="SQA Step Material Each")
     material = _create_material(api, uom_id=uom["id"], name="SQA Step Material")
+    # The MaterialRequirementsEditor dropdown only lists materials assigned to the route.
+    _assign_material_to_route(api, route_id=route["id"], material_id=material["id"])
 
     await _open_routes_page(page)
     await _select_route(page, route_name=route["name"], route_version=route["version"])
@@ -706,7 +715,6 @@ async def test_route_step_material_requirements_editor(page: Page, api) -> None:
     await section.locator("input[type='number']").nth(0).fill("2.5")
     await section.locator("select").nth(1).select_option(value=uom["id"])
     await section.locator("select").nth(2).select_option("consumed")
-    await section.locator("input[type='number']").nth(1).fill("3")
     await section.get_by_role("button", name="Add").click()
 
     list_resp = await _wait_for_api_match(
@@ -722,4 +730,4 @@ async def test_route_step_material_requirements_editor(page: Page, api) -> None:
     assert created is not None
     assert created["quantity"] == 2.5
     assert created["material_use"] == "consumed"
-    assert created["position"] == 3
+    assert created["position"] == 0

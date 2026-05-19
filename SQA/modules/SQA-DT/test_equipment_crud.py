@@ -16,6 +16,9 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+
 API_SITES = "/sites"
 API_UOM = "/uom"
 API_MATERIALS = "/materials"
@@ -174,12 +177,12 @@ def _create_equipment_material(api, *, equip_id: str, material_id: str, design_s
 
 
 async def _open_equipment_page(page: Page, *, wc_id: str) -> None:
-    await page.goto(f"http://localhost:5177/work-cells/{wc_id}/equipment")
+    await page.goto(f"{_DT_BASE}/work-cells/{wc_id}/equipment")
     await expect(page.get_by_role("heading", name="Equipment")).to_be_visible(timeout=10_000)
 
 
 async def _open_equipment_class_page(page: Page) -> None:
-    await page.goto("http://localhost:5177/equipment-classes")
+    await page.goto(f"{_DT_BASE}/equipment-classes")
     await expect(page.get_by_role("heading", name="Equipment Classes")).to_be_visible(timeout=10_000)
 
 

@@ -13,6 +13,9 @@ from uuid import uuid4
 import pytest
 from playwright.async_api import Page, expect
 
+import os
+_DT_BASE = os.environ.get("SQA_DT_URL", "http://localhost:5177")
+
 API_PRODUCTS = "/products"
 API_UOM = "/uom"
 
@@ -71,7 +74,7 @@ def _create_route(api, *, product_id: str, **overrides) -> dict:
 
 
 async def _open_product_detail(page: Page, *, product_id: str) -> None:
-    await page.goto(f"http://localhost:5177/products/{product_id}")
+    await page.goto(f"{_DT_BASE}/products/{product_id}")
     await expect(page.get_by_text("Process Routes")).to_be_visible(timeout=10_000)
 
 
