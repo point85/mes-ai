@@ -30,8 +30,9 @@ DEFAULT_SERVER_URL = "http://localhost:8000"
 
 def _discover_manifests() -> list[PluginManifest]:
     """Scan both system and user plugin directories and return parsed manifests."""
+    from mes.config import settings
     manifests: list[PluginManifest] = []
-    for plugin_dir in [Path("plugins/system"), Path("plugins/user")]:
+    for plugin_dir in [Path(settings.PLUGIN_DIR), Path(settings.PLUGIN_USER_DIR)]:
         if not plugin_dir.exists():
             continue
         for candidate in sorted(plugin_dir.iterdir()):

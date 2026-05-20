@@ -17,7 +17,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-UOM_TYPES = {"mass", "length", "time", "temperature", "electrical", "force", "amount_of_substance", "luminous_intensity", "count", "custom"}
+UOM_TYPES = {"mass", "length", "time", "temperature", "electrical", "force", "amount_of_substance", "luminous_intensity", "count", "custom", "rate"}
 UOM_CLASSES = {"scalar", "quotient", "product", "power"}
 
 
@@ -44,6 +44,9 @@ class UoMCreate(BaseModel):
         None, description="Right component: denominator (quotient), second factor (product)",
     )
     exponent: int | None = Field(None, ge=2, description="Integer exponent (power class only)")
+    # Rate-type aliases for left/right (used when uom_type='rate')
+    numerator_uom_symbol: str | None = Field(None, description="Numerator unit symbol (rate type only)")
+    denominator_uom_symbol: str | None = Field(None, description="Denominator unit symbol (rate type only)")
 
     @field_validator("symbol")
     @classmethod
@@ -65,6 +68,26 @@ class UoMCreate(BaseModel):
         left = self.left_uom_symbol
         right = self.right_uom_symbol
         exp = self.exponent
+        num_sym = self.numerator_uom_symbol
+        den_sym = self.denominator_uom_symbol
+
+        # Rate type uses numerator_uom_symbol / denominator_uom_symbol
+        if self.uom_type == "rate":
+            if not num_sym:
+                raise ValueError("numerator_uom_symbol is required for rate type")
+            if not den_sym:
+                raise ValueError("denominator_uom_symbol is required for rate type")
+            self.left_uom_symbol = num_sym
+            self.right_uom_symbol = den_sym
+            self.uom_class = "quotient"
+            return self
+
+        # For non-rate types, reject numerator/denominator fields
+        if num_sym:
+            raise ValueError("numerator_uom_symbol is only valid for rate type")
+        if den_sym:
+            raise ValueError("denominator_uom_symbol is only valid for rate type")
+
         if cls_ == "scalar":
             if left or right or exp is not None:
                 raise ValueError("scalar UoMs must not set left/right/exponent")
@@ -96,7 +119,7 @@ class UoMRead(BaseModel):
     name: str
     description: str | None = None
     uom_type: str
-    uom_class: str
+    uom_class: str | None = None
     multiplier: float
     offset: float
     is_builtin: bool
@@ -108,6 +131,11 @@ class UoMRead(BaseModel):
     left_uom_type: str | None = None
     right_uom_type: str | None = None
     exponent: int | None = None
+    # Rate-type field aliases
+    numerator_uom_id: UUID | None = None
+    denominator_uom_id: UUID | None = None
+    numerator_uom_symbol: str | None = None
+    denominator_uom_symbol: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -127,6 +155,8 @@ class UoMUpdate(BaseModel):
     left_uom_symbol: str | None = None
     right_uom_symbol: str | None = None
     exponent: int | None = Field(None, ge=2)
+    numerator_uom_symbol: str | None = None
+    denominator_uom_symbol: str | None = None
 
     @field_validator("symbol")
     @classmethod

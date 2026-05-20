@@ -84,9 +84,11 @@ class PluginManager:
         """
         discovered: list[str] = []
 
+        from mes.config import settings
+
         for plugin_dir, origin in [
-            (Path("plugins/system"), "system"),
-            (Path("plugins/user"), "user"),
+            (Path(settings.PLUGIN_DIR), "system"),
+            (Path(settings.PLUGIN_USER_DIR), "user"),
         ]:
             if not plugin_dir.exists():
                 logger.info("Plugin directory '%s' does not exist, skipping", plugin_dir)

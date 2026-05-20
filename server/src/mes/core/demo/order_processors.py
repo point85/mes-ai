@@ -140,7 +140,7 @@ class CPGLotProcessor(OrderProcessor):
         existing = await _find_existing_order(session, erp_ref)
         if existing is not None:
             # Backfill route_id if it was not set when the order was first created
-            if existing.route_id is None:
+            if getattr(existing, 'route_id', None) is None:
                 product = await _resolve_product(session, product_code)
                 route = await _resolve_route(session, product.id)
                 if route is not None:
@@ -231,7 +231,7 @@ class ElectronicsUnitProcessor(OrderProcessor):
         existing = await _find_existing_order(session, erp_ref)
         if existing is not None:
             # Backfill route_id if it was not set when the order was first created
-            if existing.route_id is None:
+            if getattr(existing, 'route_id', None) is None:
                 product = await _resolve_product(session, product_code)
                 route = await _resolve_route(session, product.id)
                 if route is not None:

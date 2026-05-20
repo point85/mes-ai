@@ -65,7 +65,6 @@ STRATEGY_DESCRIPTIONS: dict[str, str] = {
     "shortest_queue": "Route to equipment with the shortest queue of WIP",
     "round_robin": "Distribute evenly across available equipment",
     "capability_match": "Route based on equipment capability and product requirements",
-    "custom": "AI-driven strategy governed by the natural language prompt stored on the Work Cell",
 }
 
 

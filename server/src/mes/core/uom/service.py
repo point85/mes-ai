@@ -234,6 +234,26 @@ class UoMService:
         return (base_value - to_uom.offset) / to_uom.multiplier
 
     @staticmethod
+    def _get_uom_class(uom) -> str:
+        """Get UoM class, falling back to is_rate for legacy SimpleNamespace objects."""
+        cls = getattr(uom, 'uom_class', None)
+        if cls is not None:
+            return cls
+        if getattr(uom, 'is_rate', False):
+            return 'quotient'
+        return 'scalar'
+
+    @staticmethod
+    def _get_left_component(uom):
+        """Get left/numerator component, supporting both naming conventions."""
+        return getattr(uom, 'left_uom', None) or getattr(uom, 'numerator_uom', None)
+
+    @staticmethod
+    def _get_right_component(uom):
+        """Get right/denominator component, supporting both naming conventions."""
+        return getattr(uom, 'right_uom', None) or getattr(uom, 'denominator_uom', None)
+
+    @staticmethod
     def convert(
         value: float,
         from_uom: UnitOfMeasure,
@@ -249,18 +269,20 @@ class UoMService:
         product:  result = value × left_factor × right_factor
         power:    result = value × (scalar_factor ^ exponent)
         """
-        if from_uom.uom_class != to_uom.uom_class:
+        from_cls = UoMService._get_uom_class(from_uom)
+        to_cls = UoMService._get_uom_class(to_uom)
+        if from_cls != to_cls:
             raise IncompatibleUoMTypeException(
                 from_symbol=from_uom.symbol,
-                from_type=f"{from_uom.uom_class}",
+                from_type=from_cls,
                 to_symbol=to_uom.symbol,
-                to_type=f"{to_uom.uom_class}",
+                to_type=to_cls,
             )
 
         if from_uom.symbol == to_uom.symbol:
             return value
 
-        cls = from_uom.uom_class
+        cls = from_cls
 
         if cls == "scalar":
             if from_uom.uom_type != to_uom.uom_type:
@@ -273,10 +295,10 @@ class UoMService:
             return UoMService._convert_affine(value, from_uom, to_uom)
 
         if cls in ("quotient", "product"):
-            left_from = from_uom.left_uom
-            left_to = to_uom.left_uom
-            right_from = from_uom.right_uom
-            right_to = to_uom.right_uom
+            left_from = UoMService._get_left_component(from_uom)
+            left_to = UoMService._get_left_component(to_uom)
+            right_from = UoMService._get_right_component(from_uom)
+            right_to = UoMService._get_right_component(to_uom)
 
             if left_from.uom_type != left_to.uom_type:
                 raise IncompatibleUoMTypeException(
@@ -302,8 +324,8 @@ class UoMService:
                 return value * left_factor * right_factor
 
         if cls == "power":
-            base_from = from_uom.left_uom
-            base_to = to_uom.left_uom
+            base_from = UoMService._get_left_component(from_uom)
+            base_to = UoMService._get_left_component(to_uom)
             exp_from = from_uom.exponent
             exp_to = to_uom.exponent
 

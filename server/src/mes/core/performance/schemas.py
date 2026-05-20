@@ -40,7 +40,7 @@ OEE_BUCKETS = {
 class ReasonCreate(BaseModel):
     """Schema for creating a new reason."""
 
-    code: str = Field(..., min_length=1, max_length=4, description="Reason code up to 4 characters")
+    code: str = Field(..., min_length=3, max_length=4, description="Reason code up to 4 characters")
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
     oee_bucket: str = Field(..., description="OEE loss bucket for this reason")

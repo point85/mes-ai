@@ -237,13 +237,67 @@ STEP_PARAMS: dict[int, list[dict]] = {
 # measurements). Overlapping temperature, coating, functional-test, and rework-action
 # definitions were removed so step parameters remain the single source of truth.
 DATA_DEFS: dict[int, list[dict]] = {
-    40: [  # AOI — actual defect count (step param "Defect Threshold" is the spec limit, not the measurement)
-        {"code": "ECB-AOI-DEF", "name": "Defect Count", "data_type": "numeric", "source": "equipment", "lower_limit": 0.0, "upper_limit": 3.0, "uom": "count", "is_required": True},
+    10: [  # Solder Paste Application — measured process parameters
+        {"code": "ECB-PST-SPEED", "name": "Squeegee Speed",    "data_type": "numeric", "source": "equipment", "lower_limit": 40.0, "upper_limit": 80.0,  "uom": "mm/s",  "is_required": True},
+        {"code": "ECB-PST-PRES",  "name": "Squeegee Pressure", "data_type": "numeric", "source": "equipment", "lower_limit": 3.0,  "upper_limit": 7.0,   "uom": "kPa",   "is_required": True},
+        {"code": "ECB-PST-GAP",   "name": "Stencil Gap",       "data_type": "numeric", "source": "equipment", "lower_limit": 0.0,  "upper_limit": 0.05,  "uom": "mm",    "is_required": True},
     ],
-    60: [  # Functional Test — only additional automated pass/fail checks remain distinct
-        {"code": "ECB-FCT-IO",   "name": "I/O Channels OK",     "data_type": "boolean", "source": "equipment", "lower_limit": None, "upper_limit": None,  "uom": None, "is_required": True},
-        {"code": "ECB-FCT-FW",   "name": "Firmware Checksum OK", "data_type": "boolean", "source": "equipment", "lower_limit": None, "upper_limit": None,  "uom": None, "is_required": True},
+    20: [  # SMD Placement — measured placement parameters
+        {"code": "ECB-SMD-SPD",  "name": "Placement Speed",  "data_type": "numeric", "source": "equipment", "lower_limit": 10000.0, "upper_limit": 20000.0, "uom": "cph", "is_required": True},
+        {"code": "ECB-SMD-VAC",  "name": "Nozzle Vacuum",    "data_type": "numeric", "source": "equipment", "lower_limit": 50.0,    "upper_limit": 70.0,    "uom": "kPa", "is_required": True},
+        {"code": "ECB-SMD-TOL",  "name": "Vision Tolerance", "data_type": "numeric", "source": "equipment", "lower_limit": 0.02,    "upper_limit": 0.10,    "uom": "mm",  "is_required": True},
     ],
+    30: [  # Reflow Soldering — measured zone temperatures and conveyor speed
+        {"code": "ECB-RFW-Z1",  "name": "Zone 1 Temperature", "data_type": "numeric", "source": "equipment", "lower_limit": 140.0, "upper_limit": 160.0, "uom": "°C",     "is_required": True},
+        {"code": "ECB-RFW-Z2",  "name": "Zone 2 Temperature", "data_type": "numeric", "source": "equipment", "lower_limit": 170.0, "upper_limit": 190.0, "uom": "°C",     "is_required": True},
+        {"code": "ECB-RFW-Z3",  "name": "Zone 3 Temperature", "data_type": "numeric", "source": "equipment", "lower_limit": 220.0, "upper_limit": 240.0, "uom": "°C",     "is_required": True},
+        {"code": "ECB-RFW-Z4",  "name": "Zone 4 Temperature", "data_type": "numeric", "source": "equipment", "lower_limit": 240.0, "upper_limit": 250.0, "uom": "°C",     "is_required": True},
+        {"code": "ECB-RFW-Z5",  "name": "Zone 5 Temperature", "data_type": "numeric", "source": "equipment", "lower_limit": 190.0, "upper_limit": 210.0, "uom": "°C",     "is_required": True},
+        {"code": "ECB-RFW-SPD", "name": "Conveyor Speed",     "data_type": "numeric", "source": "equipment", "lower_limit": 700.0, "upper_limit": 900.0, "uom": "mm/min", "is_required": True},
+    ],
+    40: [  # AOI — actual defect count and inspection results
+        {"code": "ECB-AOI-DEF",  "name": "Defect Count",     "data_type": "numeric", "source": "equipment", "lower_limit": 0.0,  "upper_limit": 3.0,  "uom": "count", "is_required": True},
+        {"code": "ECB-AOI-RSL",  "name": "Resolution",       "data_type": "numeric", "source": "equipment", "lower_limit": 10.0, "upper_limit": 20.0, "uom": "µm",    "is_required": True},
+        {"code": "ECB-AOI-TIME", "name": "Inspection Time",  "data_type": "numeric", "source": "equipment", "lower_limit": 5.0,  "upper_limit": 15.0, "uom": "s",     "is_required": True},
+    ],
+    50: [  # Through-Hole & Conformal Coat — measured process parameters
+        {"code": "ECB-THT-WTEMP", "name": "Wave Temperature", "data_type": "numeric", "source": "equipment", "lower_limit": 250.0,  "upper_limit": 270.0,  "uom": "°C",   "is_required": True},
+        {"code": "ECB-THT-WSPD",  "name": "Wave Speed",       "data_type": "numeric", "source": "equipment", "lower_limit": 1000.0, "upper_limit": 1400.0, "uom": "mm/s", "is_required": True},
+        {"code": "ECB-THT-CTCK",  "name": "Coat Thickness",   "data_type": "numeric", "source": "equipment", "lower_limit": 25.0,   "upper_limit": 75.0,   "uom": "µm",   "is_required": True},
+        {"code": "ECB-THT-CURE",  "name": "Cure Time",        "data_type": "numeric", "source": "equipment", "lower_limit": 240.0,  "upper_limit": 360.0,  "uom": "s",    "is_required": True},
+    ],
+    60: [  # Functional Test — automated pass/fail checks
+        {"code": "ECB-FCT-IO",  "name": "I/O Channels OK",      "data_type": "boolean", "source": "equipment", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-FCT-FW",  "name": "Firmware Checksum OK",  "data_type": "boolean", "source": "equipment", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-FCT-VLT", "name": "Supply Voltage",        "data_type": "numeric", "source": "equipment", "lower_limit": 4.9,  "upper_limit": 5.1,  "uom": "V",  "is_required": True},
+    ],
+    70: [  # Rework Station
+        {"code": "ECB-RWK-ACT",  "name": "Rework Action",   "data_type": "enum",    "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-RWK-NTS",  "name": "Rework Notes",    "data_type": "string",  "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-RWK-TIME", "name": "Rework Duration", "data_type": "numeric", "source": "operator", "lower_limit": 0.0,  "upper_limit": None, "uom": "s",  "is_required": False},
+    ],
+    80: [  # MRB Review
+        {"code": "ECB-MRB-DISP", "name": "Disposition",   "data_type": "enum",   "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-MRB-NTS",  "name": "Review Notes",  "data_type": "string", "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-MRB-RVWR", "name": "Reviewer ID",   "data_type": "string", "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+    ],
+    90: [  # Final Packaging & Labeling
+        {"code": "ECB-PKG-LBL", "name": "Label Verified",  "data_type": "boolean", "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-PKG-ESD", "name": "ESD Bag Applied", "data_type": "boolean", "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# Quality Tests
+# ---------------------------------------------------------------------------
+
+QUALITY_TEST: dict = {
+    "code": "ECB-FCT-BOARD",
+    "name": "Board Functional Test",
+    "test_type": "inline",
+    "description": "Full functional test of the electronic controller board",
+    "step_sequence": 60,
+    "parameters": {},
 }
 
 # ---------------------------------------------------------------------------

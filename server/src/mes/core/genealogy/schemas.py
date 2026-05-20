@@ -54,6 +54,18 @@ class GenealogyDataRecord(BaseModel):
     collected_at_utc: datetime | None = None
 
 
+class GenealogyTestRecord(BaseModel):
+    """A quality test result associated with the unit/lot."""
+
+    result_id: UUID
+    test_code: str | None = None
+    test_name: str | None = None
+    result: str | None = None
+    measured_values: dict | None = None
+    tested_at: datetime
+    equipment_id: UUID | None = None
+
+
 class GenealogyRecord(BaseModel):
     """
     The full as-built record for a unit or lot.
@@ -74,4 +86,5 @@ class GenealogyRecord(BaseModel):
 
     steps: list[GenealogyStepRecord] = []
     materials: list[GenealogyMaterialRecord] = []
+    test_results: list[GenealogyTestRecord] = []
     data_points: list[GenealogyDataRecord] = []

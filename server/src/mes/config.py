@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     # --- WIP Auto-generation (OPS-REQUEST) ---
     ENABLE_WIP_GENERATOR: bool = False
 
+    # --- Plugin system (PLUGIN-MANAGER) ---
+    PLUGIN_DIR: str = "plugins/system"
+    PLUGIN_USER_DIR: str = "plugins/user"
+
     model_config = SettingsConfigDict(
         env_prefix="MES_",
         env_file=".env",

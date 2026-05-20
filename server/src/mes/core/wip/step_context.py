@@ -28,6 +28,7 @@ from mes.core.product_def.models import (
     SegmentParameter,
 )
 from mes.core.product_def.schemas import DispositionRead, StepParameterRead
+from mes.core.quality.models import QualityTest
 from mes.core.routing.service import RoutingEngineService
 from mes.core.wip.schemas import UnitRead, LotRead
 from mes.core.wip.service import UnitService, LotService
@@ -61,6 +62,7 @@ async def build_step_context(
     step_data = None
     step_params = []
     data_defs = []
+    quality_tests = []
     dispositions = []
 
     if current_step_id is not None:
@@ -105,6 +107,15 @@ async def build_step_context(
             for d in dd_result.scalars().all()
         ]
 
+        # Quality tests for this step
+        qt_result = await session.execute(
+            select(QualityTest).where(
+                QualityTest.step_id == current_step_id,
+                QualityTest.is_active.is_(True),
+            )
+        )
+        quality_tests = list(qt_result.scalars().all())
+
         # Dispositions (output disposition choices for this step)
         dispositions = await RoutingEngineService.get_available_dispositions(
             session, current_step_id,
@@ -144,6 +155,7 @@ async def build_step_context(
         "step": step_data,
         "step_parameters": step_params,
         "data_definitions": data_defs,
+        "quality_tests": quality_tests,
         "dispositions": dispositions,
         "route_steps": process_segments,
     }

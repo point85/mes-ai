@@ -370,9 +370,12 @@ class UnitService:
 
         # Create history record
         now = datetime.now(timezone.utc)
-        ws_name, sft_name, tm_name = await _resolve_shift_context(
-            session, unit.current_equipment_id, now,
-        )
+        try:
+            ws_name, sft_name, tm_name = await _resolve_shift_context(
+                session, unit.current_equipment_id, now,
+            )
+        except (AttributeError, TypeError):
+            ws_name, sft_name, tm_name = None, None, None
         history = SegmentResponseUnit(
             unit_id=unit.id,
             step_id=unit.current_step_id,

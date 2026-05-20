@@ -181,22 +181,19 @@ class MQTTCountersPlugin(MESPlugin):
             equipment_id, good_delta, reject_delta, rework_delta,
         )
 
-    def _extract_equipment_id(self, topic: str) -> UUID | None:
+    @staticmethod
+    def _extract_equipment_id(topic: str) -> UUID | None:
         """
         Extract equipment_id from the configured topic pattern.
 
-        Supports either a named ``{equipment_id}`` placeholder or a single ``+``
-        wildcard in the configured topic pattern. Returns None if the topic
-        structure doesn't match or the extracted UUID is invalid.
+        Supports the default pattern mes/equipment/{uuid}/counters.
+        Returns None if the topic structure doesn't match or the extracted UUID is invalid.
         """
-        topic_pattern = str(self._config.get("topic_pattern", "mes/equipment/+/counters"))
-        regex = self._compile_topic_pattern(topic_pattern)
-        match = regex.fullmatch(topic)
-        if not match:
+        parts = topic.split("/")
+        if len(parts) != 4 or parts[3] != "counters":
             return None
-        equipment_id_str = match.group("equipment_id")
         try:
-            return UUID(equipment_id_str)
+            return UUID(parts[2])
         except ValueError:
             return None
 

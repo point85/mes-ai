@@ -217,10 +217,57 @@ STEP_PARAMS: dict[int, list[dict]] = {
 # Data Collection Definitions  (actual measurement collection)
 # ---------------------------------------------------------------------------
 
-# All CPG juice-line measurements that overlap with step parameters have been
-# removed here so the runtime/operator experience uses the step parameter rows
-# as the single source of truth for those specs and actuals.
-DATA_DEFS: dict[int, list[dict]] = {}
+# All CPG juice-line measurements — one data definition per step parameter.
+DATA_DEFS: dict[int, list[dict]] = {
+    10: [  # Blending
+        {"code": "CPG-BLD-TIME", "name": "Mix Time",        "data_type": "numeric", "source": "equipment", "lower_limit": 12.0,  "upper_limit": 20.0,  "uom": "min",    "is_required": True},
+        {"code": "CPG-BLD-TEMP", "name": "Mix Temperature", "data_type": "numeric", "source": "equipment", "lower_limit": 20.0,  "upper_limit": 30.0,  "uom": "°C",     "is_required": True},
+        {"code": "CPG-BLD-RTIO", "name": "Blend Ratio",     "data_type": "numeric", "source": "equipment", "lower_limit": 3.8,   "upper_limit": 4.2,   "uom": None,     "is_required": True},
+    ],
+    20: [  # Pasteurization
+        {"code": "CPG-PST-TEMP", "name": "HTST Temperature", "data_type": "numeric", "source": "equipment", "lower_limit": 71.5, "upper_limit": 73.0, "uom": "°C", "is_required": True},
+        {"code": "CPG-PST-HOLD", "name": "Hold Time",        "data_type": "numeric", "source": "equipment", "lower_limit": 15.0, "upper_limit": 20.0, "uom": "s",  "is_required": True},
+        {"code": "CPG-PST-EXIT", "name": "Exit Temperature", "data_type": "numeric", "source": "equipment", "lower_limit": 2.0,  "upper_limit": 6.0,  "uom": "°C", "is_required": True},
+    ],
+    30: [  # Quality Testing
+        {"code": "CPG-QC-BRIX",  "name": "Brix",            "data_type": "numeric", "source": "equipment", "lower_limit": 11.0, "upper_limit": 12.0, "uom": "°Bx",    "is_required": True},
+        {"code": "CPG-QC-PH",    "name": "pH",              "data_type": "numeric", "source": "equipment", "lower_limit": 3.5,  "upper_limit": 4.0,  "uom": None,     "is_required": True},
+        {"code": "CPG-QC-MCNT",  "name": "Microbial Count", "data_type": "numeric", "source": "equipment", "lower_limit": 0.0,  "upper_limit": 10.0, "uom": "CFU/mL", "is_required": True},
+        {"code": "CPG-QC-CIDX",  "name": "Color Index",     "data_type": "numeric", "source": "equipment", "lower_limit": 30.0, "upper_limit": 40.0, "uom": None,     "is_required": True},
+        {"code": "CPG-QC-TSTE",  "name": "Taste Approved",  "data_type": "boolean", "source": "manual",    "lower_limit": None, "upper_limit": None, "uom": None,     "is_required": True},
+    ],
+    40: [  # Filling & Capping
+        {"code": "CPG-FLL-VOL",  "name": "Fill Volume", "data_type": "numeric", "source": "equipment", "lower_limit": 995.0, "upper_limit": 1010.0, "uom": "mL", "is_required": True},
+        {"code": "CPG-FLL-TORQ", "name": "Cap Torque",  "data_type": "numeric", "source": "equipment", "lower_limit": 1.0,   "upper_limit": 1.5,    "uom": "Nm", "is_required": True},
+        {"code": "CPG-FLL-HEAD", "name": "Headspace",   "data_type": "numeric", "source": "equipment", "lower_limit": 10.0,  "upper_limit": 20.0,   "uom": "mm", "is_required": True},
+    ],
+    50: [  # Labeling & Packing
+        {"code": "CPG-PKG-ALGN", "name": "Label Aligned",    "data_type": "boolean", "source": "manual",    "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "CPG-PKG-DATE", "name": "Date Code Legible", "data_type": "boolean", "source": "manual",    "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "CPG-PKG-CCNT", "name": "Case Count",        "data_type": "numeric", "source": "equipment", "lower_limit": 12.0, "upper_limit": 12.0, "uom": "EA", "is_required": True},
+    ],
+    60: [  # Re-Blend (Rework)
+        {"code": "CPG-RWK-ANOT", "name": "Adjustment Notes",  "data_type": "string", "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "CPG-RWK-ACTN", "name": "Corrective Action", "data_type": "enum",   "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+    ],
+    70: [  # MRB Review
+        {"code": "CPG-MRB-DISP", "name": "Disposition",  "data_type": "enum",   "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "CPG-MRB-RNTS", "name": "Review Notes", "data_type": "string", "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# Quality Tests
+# ---------------------------------------------------------------------------
+
+QUALITY_TEST: dict = {
+    "code": "CPG-QC-INLINE",
+    "name": "Juice Quality Inline Test",
+    "test_type": "inline",
+    "description": "Inline quality test for Brix, pH, microbial count, colour, and taste",
+    "step_sequence": 30,
+    "parameters": {},
+}
 
 # ---------------------------------------------------------------------------
 # Production Orders  (removed — create via Production Orders page in ERP Sim)

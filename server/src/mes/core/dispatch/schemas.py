@@ -20,7 +20,6 @@ DISPATCH_STRATEGIES = {
     "shortest_queue",
     "round_robin",
     "capability_match",
-    "custom",
 }
 
 
@@ -35,7 +34,7 @@ class DispatchEvaluateRequest(BaseModel):
     unit_id: UUID | None = None
     lot_id: UUID | None = None
     strategy: str | None = Field(
-        None,
+        "first_available",
         description="Dispatch strategy to use. When omitted the work cell's default_dispatch_strategy is used; falls back to 'first_available'.",
     )
 

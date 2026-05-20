@@ -238,3 +238,55 @@ def get_builtin_composite_dicts_typed(
 
     return result
 
+
+# ── Compatibility aliases ────────────────────────────────────────────
+#
+# BUILTIN_UNITS is a flattened scalar list where the "fl oz" symbol
+# (which contains a space) is normalised to "fl_oz".  This avoids
+# symbol-uniqueness issues when the list is used as a lookup key.
+#
+BUILTIN_UNITS: list[tuple[str, str, str, float, float]] = [
+    (sym.replace(" ", "_"), name, uom_type, multiplier, offset)
+    for sym, name, uom_type, multiplier, offset in BUILTIN_SCALARS
+]
+
+# Rate units are the quotient (left / right) built-ins.
+BUILTIN_RATE_UNITS: list[tuple[str, str, str, str]] = BUILTIN_QUOTIENTS
+
+
+def get_builtin_unit_dicts() -> list[dict]:
+    """Return BUILTIN_UNITS as dicts ready for ``UnitOfMeasure(**d)``."""
+    return [
+        {
+            "symbol": symbol,
+            "name": name,
+            "uom_type": uom_type,
+            "uom_class": "scalar",
+            "multiplier": multiplier,
+            "offset": offset,
+            "is_builtin": True,
+        }
+        for symbol, name, uom_type, multiplier, offset in BUILTIN_UNITS
+    ]
+
+
+def get_builtin_rate_unit_dicts(symbol_to_id: dict) -> list[dict]:
+    """Return BUILTIN_RATE_UNITS as dicts with resolved FK IDs.
+
+    *symbol_to_id* must map scalar-unit symbols to their database UUIDs.
+    """
+    return [
+        {
+            "symbol": symbol,
+            "name": name,
+            "uom_type": "rate",
+            "uom_class": "quotient",
+            "multiplier": 1.0,
+            "offset": 0.0,
+            "numerator_uom_id": symbol_to_id[left_sym],
+            "denominator_uom_id": symbol_to_id[right_sym],
+            "is_builtin": True,
+        }
+        for symbol, name, left_sym, right_sym in BUILTIN_RATE_UNITS
+    ]
+
