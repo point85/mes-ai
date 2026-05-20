@@ -25,9 +25,10 @@ interface LayoutProps {
 export default function Layout({ activeTab, onTabChange, children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showAbout, setShowAbout] = useState(false);
-  const { erpType, erpLabel } = useERPType();
+  const { erpType, erpLabel, health } = useERPType();
 
   const badgeColor = erpType === "oracle" ? "bg-red-600" : "bg-blue-500";
+  const outboundDisabled = health !== null && !health.outbound.available;
 
   const inboundTabs = tabs.filter((t) =>
     ["dashboard", "orders", "materials", "products"].includes(t.id)
@@ -74,19 +75,26 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
           <div className="px-3 py-2 mt-3 text-xs font-semibold uppercase text-gray-500">
             Outbound (MES → ERP)
           </div>
-          {outboundTabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => onTabChange(t.id)}
-              className={`block w-full text-left px-4 py-1.5 hover:bg-gray-800 ${
-                activeTab === t.id
-                  ? "bg-gray-800 text-white border-l-2 border-blue-400"
-                  : ""
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          {outboundTabs.map((t) => {
+            const isReportAction = ["completion", "consumption", "scrap"].includes(t.id);
+            const disabled = isReportAction && outboundDisabled;
+            return (
+              <button
+                key={t.id}
+                onClick={() => { if (!disabled) onTabChange(t.id); }}
+                disabled={disabled}
+                title={disabled ? "Outbound ERP adapter not installed — install the ERP Simulator plugin to enable" : undefined}
+                className={`block w-full text-left px-4 py-1.5 transition-colors ${
+                  disabled
+                    ? "opacity-40 cursor-not-allowed text-gray-400"
+                    : `hover:bg-gray-800 ${activeTab === t.id ? "bg-gray-800 text-white border-l-2 border-blue-400" : ""}`
+                }`}
+              >
+                {t.label}
+                {disabled && <span className="ml-1 text-[10px] text-amber-400">(unavailable)</span>}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Sidebar footer — About */}

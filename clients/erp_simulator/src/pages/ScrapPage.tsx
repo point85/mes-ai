@@ -7,8 +7,11 @@ import {
   type DBProductionOrder,
   type DBDisposition,
 } from "../api/erp";
+import { useERPType } from "../hooks/useERPType";
 
 export default function ScrapPage() {
+  const { health } = useERPType();
+  const adapterUnavailable = health !== null && !health.outbound.available;
   const [orders, setOrders] = useState<DBProductionOrder[]>([]);
   const [dispositions, setDispositions] = useState<DBDisposition[]>([]);
   const [orderId, setOrderId] = useState("");
@@ -46,6 +49,12 @@ export default function ScrapPage() {
   return (
     <div className="max-w-xl space-y-4">
       <p className="text-sm text-gray-600">Post a goods movement 531 (scrap posting) to SAP.</p>
+      {adapterUnavailable && (
+        <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+          <strong>Outbound ERP adapter not installed.</strong>{" "}
+          Install the ERP Simulator plugin and restart the server to enable this feature.
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="bg-white rounded-lg border p-4 space-y-3">
         <div>
           <label className="block text-sm font-medium text-gray-700">Production Order</label>
@@ -75,7 +84,7 @@ export default function ScrapPage() {
             <input type="text" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" required placeholder="e.g. DEFECTIVE" />
           )}
         </div>
-        <button type="submit" disabled={loading} className="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50">
+        <button type="submit" disabled={loading || adapterUnavailable} className="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50">
           {loading ? "Posting…" : "Post Scrap (531)"}
         </button>
       </form>
