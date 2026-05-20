@@ -66,3 +66,4 @@ server/pgdata/
 /server/scripts/tmp/
 /docs/clients_server.jpg
 /docs/USER_GUIDE.md
+/server/test_results.txt
