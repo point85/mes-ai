@@ -2,7 +2,7 @@ import axios from "axios";
 import type {
   Unit, Lot, UnitHistory, LotHistory,
   StepContext, ProductionOrder, Product, Disposition, DispositionCatalog,
-  StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption,
+  StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption, MaterialSetup,
   InventoryTransaction, InventoryBalance, StorageLocation,
   Site, Area, ProductionLine, WorkCell, Equipment, EquipmentCurrentState,
   GenealogyRecord,
@@ -367,6 +367,9 @@ export const fetchEquipment = (equipId: string) =>
 
 export const fetchEquipmentCurrentState = (equipId: string) =>
   api.get(`/performance/equipment/${equipId}/current-state`).then(unwrap<EquipmentCurrentState>);
+
+export const fetchEquipmentMaterialSetup = (equipId: string) =>
+  api.get(`/equipment/${equipId}/material-setup`).then(unwrap<MaterialSetup>);
 
 // ── Hierarchy traversal helpers ───────────────────────────────────
 

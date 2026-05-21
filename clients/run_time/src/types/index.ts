@@ -380,6 +380,17 @@ export interface StepEquipmentStatus {
 
 // ── Material Management ──────────────────────────────────────────
 
+export interface MaterialSetup {
+  equipment_material_id: string | null;
+  material_id: string | null;
+  material_code: string | null;
+  material_name: string | null;
+  design_speed: number | null;
+  design_speed_uom_id: string | null;
+  job_number: string | null;
+  setup_at: string | null;
+}
+
 export interface BOMItem {
   id: string;
   bom_id: string;
