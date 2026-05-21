@@ -206,7 +206,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["wip-history"] });
       await onRefresh();
     } catch (err: unknown) {
-      const m = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Action failed";
+      const m = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? "Action failed";
       setError(m);
     } finally {
       setActionLoading(false);
@@ -398,7 +398,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       await refetchConsumed();
       await queryClient.invalidateQueries({ queryKey: ["material-lots-available"] });
     } catch (err: unknown) {
-      const m = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Consumption failed";
+      const m = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? "Consumption failed";
       setError(m);
     } finally {
       setConsumeLoading(null);

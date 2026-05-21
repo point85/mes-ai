@@ -29,7 +29,7 @@ export default function ScanPage() {
         setContext(ctx);
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message
         ?? "Not found";
       setError(msg);
     } finally {
