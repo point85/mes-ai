@@ -3,6 +3,7 @@ import type {
   Unit, Lot, UnitHistory, LotHistory,
   StepContext, ProductionOrder, Product, Disposition, DispositionCatalog,
   StepEquipmentStatus, BOMItem, Material, MaterialLot, MaterialConsumption, MaterialSetup,
+  EquipmentMaterialSetup,
   InventoryTransaction, InventoryBalance, StorageLocation,
   Site, Area, ProductionLine, WorkCell, Equipment, EquipmentCurrentState,
   GenealogyRecord,
@@ -370,6 +371,23 @@ export const fetchEquipmentCurrentState = (equipId: string) =>
 
 export const fetchEquipmentMaterialSetup = (equipId: string) =>
   api.get(`/equipment/${equipId}/material-setup`).then(unwrap<MaterialSetup>);
+
+export const fetchEquipmentMaterials = (equipId: string) =>
+  api.get(`/equipment/${equipId}/materials`, { params: { limit: 200 } })
+    .then((r) => (r.data.data as EquipmentMaterialSetup[]).filter((m) => m.is_active));
+
+export const setEquipmentMaterialSetup = (
+  equipId: string,
+  equipmentMaterialId: string,
+  jobNumber?: string | null,
+) =>
+  api.post(`/equipment/${equipId}/material-setup`, {
+    equipment_material_id: equipmentMaterialId,
+    job_number: jobNumber ?? null,
+  }).then(unwrap<MaterialSetup>);
+
+export const clearEquipmentMaterialSetup = (equipId: string) =>
+  api.delete(`/equipment/${equipId}/material-setup`);
 
 // ── Hierarchy traversal helpers ───────────────────────────────────
 

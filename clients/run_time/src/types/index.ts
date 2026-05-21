@@ -391,6 +391,19 @@ export interface MaterialSetup {
   setup_at: string | null;
 }
 
+export interface EquipmentMaterialSetup {
+  id: string;
+  equipment_id: string;
+  material_id: string;
+  material_name: string | null;
+  material_code: string | null;
+  design_speed: number;
+  design_speed_uom: string;
+  reject_uom: string;
+  target_oee: number;
+  is_active: boolean;
+}
+
 export interface BOMItem {
   id: string;
   bom_id: string;
