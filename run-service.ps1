@@ -48,10 +48,8 @@
     'PSAvoidUsingPlainTextForPassword', 'Password',
     Justification = 'Password is read from a config file and stored only in NSSM environment block.')]
 param(
-    [Parameter(Position = 0, Mandatory)]
-    [ValidateSet("install", "uninstall", "start", "stop", "restart", "status",
-                 IgnoreCase = $true)]
-    [string]$Action,
+    [Parameter(Position = 0)]
+    [string]$Action = "",
 
     [Parameter(Position = 1)]
     [string]$ConfigFile = "",
@@ -290,6 +288,43 @@ function Assert-Admin {
 Write-Host ""
 Write-Host "MES AI Service Manager" -ForegroundColor White
 Write-Host "======================" -ForegroundColor White
+
+# ── No arguments → print usage and exit ──────────────────────────────────────
+if ($Action -eq "") {
+    Write-Host ""
+    Write-Host "USAGE" -ForegroundColor Yellow
+    Write-Host "  .\run-service.ps1 <action> [-ConfigFile <path>] [-RunMigrations]"
+    Write-Host ""
+    Write-Host "ACTIONS" -ForegroundColor Yellow
+    Write-Host "  install    Register and configure the MES AI Windows service (requires Admin)"
+    Write-Host "  uninstall  Remove the Windows service (requires Admin)"
+    Write-Host "  start      Start the service (requires Admin)"
+    Write-Host "  stop       Stop the service (requires Admin)"
+    Write-Host "  restart    Restart the service (requires Admin)"
+    Write-Host "  status     Show current service status"
+    Write-Host ""
+    Write-Host "OPTIONS" -ForegroundColor Yellow
+    Write-Host "  -ConfigFile <path>   Path to config file (default: mes-service.conf)"
+    Write-Host "  -RunMigrations       Run 'alembic upgrade head' before starting/installing"
+    Write-Host ""
+    Write-Host "EXAMPLES" -ForegroundColor Yellow
+    Write-Host "  .\run-service.ps1 install -RunMigrations"
+    Write-Host "  .\run-service.ps1 install -ConfigFile C:\mes\prod.conf -RunMigrations"
+    Write-Host "  .\run-service.ps1 start"
+    Write-Host "  .\run-service.ps1 status"
+    Write-Host "  .\run-service.ps1 uninstall"
+    Write-Host ""
+    Write-Host "  See mes-service.conf.example for all available configuration keys."
+    Write-Host ""
+    exit 0
+}
+
+$validActions = @("install", "uninstall", "start", "stop", "restart", "status")
+if ($Action.ToLower() -notin $validActions) {
+    Write-Host "ERROR: Unknown action '$Action'.  Valid actions: $($validActions -join ', ')" -ForegroundColor Red
+    Write-Host "Run .\run-service.ps1 with no arguments to see usage."
+    exit 1
+}
 
 # ── STATUS ───────────────────────────────────────────────────────────────────
 if ($Action -ieq "status") {
