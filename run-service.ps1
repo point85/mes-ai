@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Manage the MES AI server as a Windows service using NSSM.
 
@@ -132,7 +132,7 @@ function Install-Nssm {
     # Try winget (Windows 11 / Server 2022+)
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Step "Installing NSSM via winget..."
-        winget install --id NSSM.NSSM --silent --accept-source-agreements --accept-package-agreements
+        winget install --id NSSM.NSSM --silent --accept-source-agreements --accept-package-agreements | Out-Host
         if ($LASTEXITCODE -eq 0) {
             # winget installs to a path that may not be on PATH yet; refresh
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
@@ -145,7 +145,7 @@ function Install-Nssm {
     # Try Chocolatey
     if (Get-Command choco -ErrorAction SilentlyContinue) {
         Write-Step "Installing NSSM via Chocolatey..."
-        choco install nssm -y --no-progress
+        choco install nssm -y --no-progress | Out-Host
         if ($LASTEXITCODE -eq 0) {
             $path = Find-Nssm
             if ($path) { Write-OK "NSSM installed via Chocolatey at: $path"; return $path }
