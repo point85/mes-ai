@@ -187,7 +187,14 @@ export async function syncMaterials(): Promise<MaterialDefinition[]> {
 }
 
 export async function readMaterials(): Promise<MaterialDefinition[]> {
-  return unwrapData(await api.get("/materials", { params: { limit: 200 } }));
+  const rows = unwrapData(await api.get("/materials", { params: { limit: 200 } }));
+  // The /materials endpoint returns uom_symbol (not uom); normalise to the
+  // MaterialDefinition shape used throughout the ERP simulator.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return rows.map((r: any) => ({
+    ...r,
+    uom: r.uom ?? r.uom_symbol ?? "",
+  }));
 }
 
 export async function syncProducts(): Promise<ProductDefinition[]> {
