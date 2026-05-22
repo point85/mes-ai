@@ -15,6 +15,7 @@ import {
 interface CreateForm {
   product_id: string;
   count: number;
+  order_number: string;
   quantity_ordered: number;
   priority: number;
   erp_reference: string;
@@ -23,6 +24,7 @@ interface CreateForm {
 const defaultCreate: CreateForm = {
   product_id: "",
   count: 3,
+  order_number: "",
   quantity_ordered: 100,
   priority: 0,
   erp_reference: "",
@@ -91,8 +93,9 @@ export default function OrdersPage() {
     setError(null);
 
     const product = products.find((p) => p.id === form.product_id);
-    const prefix = product ? product.code : "PO";
+    const autoPrefix = product ? product.code : "PO";
     const ts = Date.now().toString(36).toUpperCase();
+    const userOrderNumber = form.order_number.trim();
 
     try {
       // Resolve the product's default (or first) route once for all orders
@@ -109,8 +112,15 @@ export default function OrdersPage() {
             ? `${refBase}-${suffix}`
             : refBase
           : null;
+        // Order number: user-supplied (suffixed when count > 1) or auto-generated
+        let orderNumber: string;
+        if (userOrderNumber) {
+          orderNumber = form.count > 1 ? `${userOrderNumber}-${suffix}` : userOrderNumber;
+        } else {
+          orderNumber = `${autoPrefix}-${ts}-${suffix}`;
+        }
         const order = await createProductionOrder({
-          order_number: `${prefix}-${ts}-${suffix}`,
+          order_number: orderNumber,
           product_id: form.product_id,
           route_id: routeId,
           quantity_ordered: form.quantity_ordered,
@@ -300,6 +310,22 @@ export default function OrdersPage() {
                     priority: Math.max(0, parseInt(e.target.value) || 0),
                   }))
                 }
+                className={inp + " w-full"}
+              />
+            </label>
+
+            {/* Order Number */}
+            <label className="space-y-1 md:col-span-2">
+              <span className="text-xs text-gray-500">
+                Order Number{form.count > 1 ? " (suffixed -001, -002… if provided)" : ""}
+              </span>
+              <input
+                type="text"
+                value={form.order_number}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, order_number: e.target.value }))
+                }
+                placeholder="leave blank to auto-generate"
                 className={inp + " w-full"}
               />
             </label>
