@@ -114,7 +114,7 @@ export default function EquipmentMaterialFormDialog({
         <DialogPanel className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <DialogTitle className="text-lg font-semibold text-gray-900">
-              {isEdit ? "Edit Material Setup" : "New Material Setup"}
+              {isEdit ? "Edit Material Capability" : "New Material Capability"}
             </DialogTitle>
             <button
               onClick={onClose}

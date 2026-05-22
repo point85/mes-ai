@@ -215,7 +215,10 @@ export interface DBProduct {
 }
 
 export async function readProducts(): Promise<DBProduct[]> {
-  return unwrapData(await api.get("/products", { params: { limit: 200 } }));
+  const rows = unwrapData(await api.get("/products", { params: { limit: 200 } }));
+  // The /products endpoint returns uom_symbol (not uom); normalise to DBProduct shape.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return rows.map((r: any) => ({ ...r, uom: r.uom ?? r.uom_symbol ?? "" }));
 }
 
 export async function deleteProduct(id: string): Promise<void> {
@@ -261,7 +264,9 @@ export async function readProductBoms(productId: string): Promise<DBBom[]> {
 }
 
 export async function readBomItems(bomId: string): Promise<DBBomItem[]> {
-  return unwrapData(await api.get(`/boms/${encodeURIComponent(bomId)}/items`, { params: { limit: 200 } }));
+  const rows = unwrapData(await api.get(`/boms/${encodeURIComponent(bomId)}/items`, { params: { limit: 200 } }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return rows.map((r: any) => ({ ...r, uom: r.uom ?? r.uom_symbol ?? "" }));
 }
 
 export interface DBMaterial {
