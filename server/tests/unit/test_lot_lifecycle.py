@@ -187,6 +187,7 @@ class TestLotStart:
         lot = _make_lot(status="queued", current_step_id=_uuid())
         mock_get.return_value = lot
         session = AsyncMock()
+        session.add = MagicMock()
         session.flush = AsyncMock()
 
         result = await LotService.start_lot(session, lot.id)
@@ -216,6 +217,7 @@ class TestLotStart:
         mock_get.return_value = lot
         first_step = _make_step(sequence=10)
         session = AsyncMock()
+        session.add = MagicMock()
         session.flush = AsyncMock()
 
         with patch(
@@ -799,6 +801,7 @@ class TestFullLotLifecycleSequence:
                 lot_mock = _make_lot(status="queued", quantity=100, current_step_id=_uuid())
                 mock_get.return_value = lot_mock
                 session = AsyncMock()
+                session.add = MagicMock()
                 session.flush = AsyncMock()
 
                 # 2. Start

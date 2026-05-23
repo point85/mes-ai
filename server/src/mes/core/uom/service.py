@@ -117,6 +117,10 @@ class UoMService:
 
         Handles quotient, product, and power classes.
         """
+        # Also discard rate-type alias fields — the model_validator has already
+        # mapped them to left_uom_symbol / right_uom_symbol before we get here.
+        kwargs.pop("numerator_uom_symbol", None)
+        kwargs.pop("denominator_uom_symbol", None)
         left_symbol = kwargs.pop("left_uom_symbol", None)
         right_symbol = kwargs.pop("right_uom_symbol", None)
         if left_symbol:

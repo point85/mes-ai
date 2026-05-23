@@ -21,6 +21,8 @@ from sqlalchemy.orm import selectinload
 
 from mes.core.data_collection.models import DataDefinition
 from mes.core.data_collection.schemas import DataDefinitionRead
+from mes.core.quality.models import QualityTest
+from mes.core.quality.schemas import QualityTestRead
 from mes.core.product_def.models import (
     ProcessSegment,
     ProcessSegmentInputDisposition,
@@ -61,6 +63,7 @@ async def build_step_context(
     step_data = None
     step_params = []
     data_defs = []
+    quality_tests = []
     dispositions = []
 
     if current_step_id is not None:
@@ -105,6 +108,17 @@ async def build_step_context(
             for d in dd_result.scalars().all()
         ]
 
+        # Quality tests assigned to this step
+        qt_result = await session.execute(
+            select(QualityTest).where(
+                QualityTest.step_id == current_step_id,
+            )
+        )
+        quality_tests = [
+            QualityTestRead.model_validate(q).model_dump()
+            for q in qt_result.scalars().all()
+        ]
+
         # Dispositions (output disposition choices for this step)
         dispositions = await RoutingEngineService.get_available_dispositions(
             session, current_step_id,
@@ -144,6 +158,7 @@ async def build_step_context(
         "step": step_data,
         "step_parameters": step_params,
         "data_definitions": data_defs,
+        "quality_tests": quality_tests,
         "dispositions": dispositions,
         "route_steps": process_segments,
     }

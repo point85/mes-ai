@@ -291,11 +291,13 @@ class TestOPCUAClientLifecycle:
         client._session_active = True
 
         mock_ua = _make_mock_ua()
+
+        async def _wait_for(coro, *, timeout):
+            return await coro
+
         with patch.dict("sys.modules", {"asyncua": MagicMock(ua=mock_ua), "asyncua.ua": mock_ua}):
-            with patch("mes.adapters.equipment.opcua.client.asyncio.wait_for", new_callable=lambda: lambda: AsyncMock(return_value=0)):
-                # Simpler: just set up the mock chain
+            with patch("mes.adapters.equipment.opcua.client.asyncio.wait_for", _wait_for):
                 result = await client.health_check()
-                # It might fail to import ua properly in test, that's ok — tests False
                 assert isinstance(result, bool)
 
 

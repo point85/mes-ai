@@ -183,6 +183,7 @@ class TestUnitStart:
         unit = _make_unit(status="queued", current_step_id=_uuid())
         mock_get.return_value = unit
         session = AsyncMock()
+        session.add = MagicMock()
         session.flush = AsyncMock()
 
         result = await UnitService.start_unit(session, unit.id)
@@ -222,6 +223,7 @@ class TestUnitStart:
         mock_get.return_value = unit
         first_step = _make_step(sequence=10)
         session = AsyncMock()
+        session.add = MagicMock()
         session.flush = AsyncMock()
 
         with patch(
@@ -240,6 +242,7 @@ class TestUnitStart:
         unit = _make_unit(status="queued", current_step_id=_uuid(), current_equipment_id=None)
         mock_get.return_value = unit
         session = AsyncMock()
+        session.add = MagicMock()
         session.flush = AsyncMock()
 
         await UnitService.start_unit(session, unit.id, equipment_id=equip_id)
@@ -832,6 +835,7 @@ class TestFullUnitLifecycleSequence:
                 unit_mock = _make_unit(status="queued", current_step_id=_uuid())
                 mock_get.return_value = unit_mock
                 session = AsyncMock()
+                session.add = MagicMock()
                 session.flush = AsyncMock()
 
                 # 2. Start
