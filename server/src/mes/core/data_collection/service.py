@@ -13,6 +13,7 @@ from typing import Any, Sequence
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.framework.api.exceptions import NotFoundException
@@ -27,6 +28,7 @@ from .exceptions import (
     ValueOutOfLimitsException,
 )
 from .models import DataDefinition, DataPoint
+from mes.core.product_def.models import ProcessSegment
 
 logger = logging.getLogger("mes.data_collection")
 
@@ -50,8 +52,10 @@ class DataDefinitionService:
         When `unassigned` is True, returns only definitions with no step
         assignment (step_id IS NULL). Ignored when `step_id` is set.
         """
-        stmt = select(DataDefinition).where(
-            DataDefinition.is_active.is_(True),
+        stmt = (
+            select(DataDefinition)
+            .where(DataDefinition.is_active.is_(True))
+            .options(selectinload(DataDefinition.step_rel).selectinload(ProcessSegment.route))
         )
         if step_id is not None:
             stmt = stmt.where(DataDefinition.step_id == step_id)
@@ -68,9 +72,13 @@ class DataDefinitionService:
         session: AsyncSession, definition_id: UUID,
     ) -> DataDefinition:
         """Get a data definition by ID. Raises NotFoundException if missing."""
-        stmt = select(DataDefinition).where(
-            DataDefinition.id == definition_id,
-            DataDefinition.is_active.is_(True),
+        stmt = (
+            select(DataDefinition)
+            .where(
+                DataDefinition.id == definition_id,
+                DataDefinition.is_active.is_(True),
+            )
+            .options(selectinload(DataDefinition.step_rel).selectinload(ProcessSegment.route))
         )
         result = await session.execute(stmt)
         defn = result.scalar_one_or_none()

@@ -72,6 +72,10 @@ class DataDefinitionRead(BaseModel):
     uom_id: UUID | None = None
     uom_symbol: str | None = None
     step_id: UUID | None = None
+    step_name: str | None = None
+    step_sequence: int | None = None
+    route_id: UUID | None = None
+    route_name: str | None = None
     source: str
     is_required: bool
     enum_values: str | None = None

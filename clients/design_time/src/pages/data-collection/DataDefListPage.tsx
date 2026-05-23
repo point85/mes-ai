@@ -125,6 +125,12 @@ export default function DataDefListPage() {
                   Name
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Route
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Step
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Data Type
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -155,6 +161,14 @@ export default function DataDefListPage() {
                   </td>
                   <td className="px-4 py-2.5 text-sm text-gray-700">
                     {d.name}
+                  </td>
+                  <td className="px-4 py-2.5 text-sm text-gray-500">
+                    {d.route_name ?? <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-sm text-gray-500">
+                    {d.step_sequence != null && d.step_name
+                      ? `#${d.step_sequence} — ${d.step_name}`
+                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-2.5">
                     <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
@@ -214,7 +228,7 @@ export default function DataDefListPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={10}
                     className="px-4 py-8 text-center text-sm text-gray-400"
                   >
                     No data definitions found.

@@ -90,10 +90,36 @@ class DataDefinition(BaseModel):
     uom_rel: Mapped["UnitOfMeasure | None"] = relationship(
         "UnitOfMeasure", foreign_keys=[uom_id], lazy="selectin",
     )
+    step_rel: Mapped["ProcessSegment | None"] = relationship(
+        "ProcessSegment", foreign_keys=[step_id], lazy="selectin",
+    )
 
     @property
     def uom_symbol(self) -> str | None:
         return self.uom_rel.symbol if self.uom_rel else None
+
+    @property
+    def step_name(self) -> str | None:
+        return self.step_rel.name if self.step_rel else None
+
+    @property
+    def step_sequence(self) -> int | None:
+        return self.step_rel.sequence if self.step_rel else None
+
+    @property
+    def route_id(self) -> uuid.UUID | None:
+        return self.step_rel.route_id if self.step_rel else None
+
+    @property
+    def route_name(self) -> str | None:
+        if self.step_rel is None:
+            return None
+        from sqlalchemy.exc import MissingGreenlet  # noqa: PLC0415
+        try:
+            route = self.step_rel.route
+            return route.name if route else None
+        except MissingGreenlet:
+            return None
 
     def __repr__(self) -> str:
         return (

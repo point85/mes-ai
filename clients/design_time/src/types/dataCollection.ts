@@ -13,6 +13,10 @@ export interface DataDefinition {
   uom_id: string | null;
   uom_symbol: string | null;
   step_id: string | null;
+  step_name: string | null;
+  step_sequence: number | null;
+  route_id: string | null;
+  route_name: string | null;
   source: string;
   is_required: boolean;
   enum_values: string | null;
