@@ -16,6 +16,7 @@ Plugin isolation:
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import importlib.util
 import logging
@@ -529,7 +530,11 @@ class PluginManager:
         return info.manifest.category == "erp" and info.manifest.id.endswith("-simulator")
 
     async def adapter_health(self) -> dict[str, bool]:
-        """Check health of all running adapter plugins."""
+        """Check health of all running adapter plugins.
+
+        Each adapter gets a 5-second timeout so a hung adapter cannot
+        block the /health endpoint indefinitely.
+        """
         results: dict[str, bool] = {}
         adapter_types = {
             "erp_inbound", "erp_outbound", "equipment_driver", "test_equipment",
@@ -542,7 +547,9 @@ class PluginManager:
             )
             if has_adapter:
                 try:
-                    results[info.manifest.id] = await info.instance.health_check()
+                    results[info.manifest.id] = await asyncio.wait_for(
+                        info.instance.health_check(), timeout=5.0
+                    )
                 except Exception:
                     results[info.manifest.id] = False
         return results
