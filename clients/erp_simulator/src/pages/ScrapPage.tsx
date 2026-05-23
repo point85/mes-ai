@@ -10,7 +10,7 @@ import {
 import { useERPType } from "../hooks/useERPType";
 
 export default function ScrapPage() {
-  const { health } = useERPType();
+  const { erpType, erpLabel, health } = useERPType();
   const adapterUnavailable = health !== null && !health.outbound.available;
   const [orders, setOrders] = useState<DBProductionOrder[]>([]);
   const [dispositions, setDispositions] = useState<DBDisposition[]>([]);
@@ -48,7 +48,7 @@ export default function ScrapPage() {
 
   return (
     <div className="max-w-xl space-y-4">
-      <p className="text-sm text-gray-600">Post a goods movement 531 (scrap posting) to SAP.</p>
+      <p className="text-sm text-gray-600">Post a {erpType === "sap" ? "goods movement 531 (scrap posting)" : "scrap posting"} to {erpLabel}.</p>
       {adapterUnavailable && (
         <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
           <strong>Outbound ERP adapter not installed.</strong>{" "}

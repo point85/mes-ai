@@ -360,38 +360,110 @@ async def sync_work_centers(request: Request):
 
 
 @router.post("/report/completion", response_model=dict)
-async def report_completion(request: Request, req: CompletionRequest):
+async def report_completion(
+    request: Request,
+    req: CompletionRequest,
+    db: AsyncSession = Depends(get_db_session),
+):
     """Report production completion to the ERP adapter."""
+    from .exceptions import ERPConnectionError
+    from .queue import ERPOutboundQueueService
+    from mes.adapters.erp.dtos import ERPConfirmation
     adapter = _get_erp_outbound(request)
-    result = await adapter.report_completion(
-        order_id=req.order_id,
-        qty_good=req.qty_good,
-        qty_reject=req.qty_reject,
-        step_id=req.step_id,
-    )
+    try:
+        result = await adapter.report_completion(
+            order_id=req.order_id,
+            qty_good=req.qty_good,
+            qty_reject=req.qty_reject,
+            step_id=req.step_id,
+        )
+    except ERPConnectionError:
+        item_id = await ERPOutboundQueueService.enqueue(
+            db,
+            report_type="completion",
+            payload={
+                "order_id": req.order_id,
+                "qty_good": req.qty_good,
+                "qty_reject": req.qty_reject,
+                "step_id": req.step_id,
+            },
+        )
+        await db.commit()
+        result = ERPConfirmation(
+            success=True,
+            message="ERP system unreachable — report queued for retry",
+            metadata={"queued": True, "queue_item_id": item_id},
+        )
     return success_response(result.model_dump(mode="json"))
 
 
 @router.post("/report/consumption", response_model=dict)
-async def report_consumption(request: Request, req: ConsumptionRequest):
+async def report_consumption(
+    request: Request,
+    req: ConsumptionRequest,
+    db: AsyncSession = Depends(get_db_session),
+):
     """Report material consumption to the ERP adapter."""
+    from .exceptions import ERPConnectionError
+    from .queue import ERPOutboundQueueService
+    from mes.adapters.erp.dtos import ERPConfirmation
     adapter = _get_erp_outbound(request)
-    result = await adapter.report_consumption(
-        order_id=req.order_id,
-        materials=req.materials,
-    )
+    try:
+        result = await adapter.report_consumption(
+            order_id=req.order_id,
+            materials=req.materials,
+        )
+    except ERPConnectionError:
+        item_id = await ERPOutboundQueueService.enqueue(
+            db,
+            report_type="consumption",
+            payload={
+                "order_id": req.order_id,
+                "materials": [m.model_dump() for m in req.materials],
+            },
+        )
+        await db.commit()
+        result = ERPConfirmation(
+            success=True,
+            message="ERP system unreachable — report queued for retry",
+            metadata={"queued": True, "queue_item_id": item_id},
+        )
     return success_response(result.model_dump(mode="json"))
 
 
 @router.post("/report/scrap", response_model=dict)
-async def report_scrap(request: Request, req: ScrapRequest):
+async def report_scrap(
+    request: Request,
+    req: ScrapRequest,
+    db: AsyncSession = Depends(get_db_session),
+):
     """Report scrap to the ERP adapter."""
+    from .exceptions import ERPConnectionError
+    from .queue import ERPOutboundQueueService
+    from mes.adapters.erp.dtos import ERPConfirmation
     adapter = _get_erp_outbound(request)
-    result = await adapter.report_scrap(
-        order_id=req.order_id,
-        qty_scrapped=req.qty_scrapped,
-        reason_code=req.reason_code,
-    )
+    try:
+        result = await adapter.report_scrap(
+            order_id=req.order_id,
+            qty_scrapped=req.qty_scrapped,
+            reason_code=req.reason_code,
+        )
+    except ERPConnectionError:
+        item_id = await ERPOutboundQueueService.enqueue(
+            db,
+            report_type="scrap",
+            payload={
+                "order_id": req.order_id,
+                "qty_scrapped": req.qty_scrapped,
+                "reason_code": req.reason_code,
+            },
+        )
+        await db.commit()
+        result = ERPConfirmation(
+            success=True,
+            message="ERP system unreachable — report queued for retry",
+            metadata={"queued": True, "queue_item_id": item_id},
+        )
     return success_response(result.model_dump(mode="json"))
 
 

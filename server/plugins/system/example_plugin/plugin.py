@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from mes.framework.plugin.base import MESPlugin
+from mes.framework.events.schema import MESEvent
 
 logger = logging.getLogger("mes.plugins.example_dispatch")
 
@@ -63,9 +64,9 @@ class ExampleDispatchPlugin(MESPlugin):
 
     # ── Event handler ────────────────────────────────────────
 
-    async def _on_unit_moved(self, event: dict[str, Any]) -> None:
+    async def _on_unit_moved(self, event: MESEvent) -> None:
         self._events_received += 1
-        logger.debug("priority_weighted saw wip.unit.moved: %s", event.get("unit_id"))
+        logger.debug("priority_weighted saw wip.unit.moved: %s", event.payload.get("unit_id"))
 
     # ── Strategy logic (callable from dispatch service) ──────
 

@@ -23,7 +23,7 @@ interface ConsumptionLine {
 }
 
 export default function ConsumptionPage() {
-  const { health } = useERPType();
+  const { erpType, erpLabel, health } = useERPType();
   const adapterUnavailable = health !== null && !health.outbound.available;
   const [orders, setOrders] = useState<DBProductionOrder[]>([]);
   const [orderId, setOrderId] = useState("");
@@ -140,7 +140,7 @@ export default function ConsumptionPage() {
   return (
     <div className="max-w-2xl space-y-4">
       <p className="text-sm text-gray-600">
-        Post a goods movement 261 (material consumption) to SAP.
+        Post a {erpType === "sap" ? "goods movement 261 (material consumption)" : "material consumption (WIP Issue)"} to {erpLabel}.
       </p>
       {adapterUnavailable && (
         <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
