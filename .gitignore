@@ -67,3 +67,5 @@ server/pgdata/
 /docs/clients_server.jpg
 /docs/USER_GUIDE.md
 /server/test_results.txt
+/dt-service.conf
+/rt-service.conf
