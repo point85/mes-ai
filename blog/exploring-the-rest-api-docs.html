@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Three Ways to Explore the MES AI REST API — Blog</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+
+<nav>
+  <span class="logo">MES <span>AI</span></span>
+  <a href="../index.html">Home</a>
+  <a href="../index.html#architecture">Architecture</a>
+  <a href="../index.html#stack">Stack</a>
+  <a href="index.html" class="active nav-blog">Blog</a>
+  <a href="https://github.com/point85/mes-ai" target="_blank" rel="noopener">GitHub ↗</a>
+</nav>
+
+<main>
+<article class="article">
+  <h1>Three Ways to Explore the MES AI REST API</h1>
+  <div class="article-meta">May 24, 2026 &nbsp;·&nbsp; Development &nbsp;·&nbsp; <a href="index.html">← Back to blog</a></div>
+
+  <p>MES AI exposes a versioned REST API under <code>/api/v1/</code> that covers every domain the platform manages — WIP tracking, inventory, equipment, dispatch, ERP integration, plugins, and more. Before writing a client, building an integration, or testing a new endpoint, it helps to know exactly what the server is offering. FastAPI generates live, accurate API documentation from the code itself, so the docs are always in sync with the running server.</p>
+
+  <p>There are three ways to access that documentation, and each one serves a different purpose.</p>
+
+  <h2>1. Swagger UI — Interactive Exploration</h2>
+
+  <p>The Swagger UI is the fastest way to understand and experiment with the API. With the MES AI server running, open a browser and navigate to:</p>
+
+  <pre><code>http://localhost:8082/api/v1/docs</code></pre>
+
+  <p>The page lists every endpoint, grouped by domain tag — Physical Model, WIP Tracking, Inventory, Performance Analysis, and so on. Each endpoint can be expanded to see its HTTP method, path, path and query parameters, and the full request and response schemas derived from the Pydantic models in the server code.</p>
+
+  <p>The key feature of Swagger UI is the <strong>Try it out</strong> button. Clicking it on any endpoint opens an inline form where you can fill in parameters and a request body, then execute the call directly from the browser. The page shows the full curl command, the request URL, the HTTP response code, and the response body. This makes it practical for:</p>
+
+  <ul>
+    <li>Verifying that an endpoint behaves as expected after a code change.</li>
+    <li>Checking what a response payload looks like before writing deserialization code.</li>
+    <li>Exploring unfamiliar endpoints without leaving the browser.</li>
+    <li>Testing authentication flows — paste a JWT into the <strong>Authorize</strong> dialog and all subsequent requests include it.</li>
+  </ul>
+
+  <p>Note that most endpoints require a valid JWT. Use the <code>POST /api/v1/auth/local/login</code> endpoint first to obtain an access token, then click <strong>Authorize</strong> at the top of the page and paste it in as a Bearer token.</p>
+
+  <h2>2. ReDoc — Readable Reference Documentation</h2>
+
+  <p>ReDoc renders the same OpenAPI specification as a clean, three-panel reference document:</p>
+
+  <pre><code>http://localhost:8082/api/v1/redoc</code></pre>
+
+  <p>The left panel shows a collapsible table of contents organized by tag. The center panel shows the selected endpoint's description, parameters, and request/response schemas. The right panel shows example payloads.</p>
+
+  <p>Unlike Swagger UI, ReDoc is read-only — there is no way to execute requests from the page. What it offers instead is a better reading experience for longer sessions. The schema presentation is more compact, deeply nested objects are rendered clearly, and the fixed navigation makes it easy to jump between domains without losing context. ReDoc is well-suited for:</p>
+
+  <ul>
+    <li>Onboarding a new developer to the API surface.</li>
+    <li>Reviewing the full set of fields on a complex schema like a WIP unit or a production order.</li>
+    <li>Generating printed or PDF API reference documentation from a browser print dialog.</li>
+    <li>Sharing a link to a specific endpoint with a colleague.</li>
+  </ul>
+
+  <h2>3. OpenAPI JSON — Machine-Readable Specification</h2>
+
+  <p>The raw OpenAPI 3.1 specification is available as JSON at:</p>
+
+  <pre><code>http://localhost:8082/api/v1/openapi.json</code></pre>
+
+  <p>This endpoint returns the complete specification document that both Swagger UI and ReDoc use as their data source. Accessing it directly is useful when you need to work with the spec programmatically rather than through a browser:</p>
+
+  <ul>
+    <li><strong>Client generation</strong> — tools like <code>openapi-generator</code> or <code>openapi-typescript-codegen</code> can consume this file and produce typed client libraries in TypeScript, Python, Go, or other languages. The MES AI React clients use hand-written API modules, but a generated client is a viable starting point for new integrations.</li>
+    <li><strong>Postman and Insomnia</strong> — both tools can import an OpenAPI JSON file to create a full collection of requests with pre-populated parameters and schemas. Point either tool at the URL or download the file and import it directly.</li>
+    <li><strong>Linting and contract testing</strong> — tools like <code>spectral</code> can validate the spec against a style guide, and contract-testing frameworks can use it to verify that the running server conforms to a committed spec snapshot.</li>
+    <li><strong>Documentation pipelines</strong> — the JSON file can be fed into documentation generators or published to a developer portal alongside other API specifications in a multi-service environment.</li>
+  </ul>
+
+  <p>To download the file, use <code>curl</code> or any HTTP client:</p>
+
+  <pre><code>curl http://localhost:8082/api/v1/openapi.json -o mes_ai_openapi.json</code></pre>
+
+  <h2>Which One to Use</h2>
+
+  <p>All three views are generated from the same source of truth — the Pydantic schemas and FastAPI route decorators in the server code — so they are always consistent with the running server. The right view depends on what you are doing:</p>
+
+  <ul>
+    <li>Use <strong>Swagger UI</strong> when you want to run a quick test or explore behavior interactively.</li>
+    <li>Use <strong>ReDoc</strong> when you want to read the API as a reference document or share it with a colleague.</li>
+    <li>Use the <strong>OpenAPI JSON</strong> when you need to import the spec into a tool, generate client code, or automate contract validation.</li>
+  </ul>
+
+  <p>Please send any comments or suggestions to <a href="mailto:point85.apps@gmail.com">point85.apps@gmail.com</a>.</p>
+
+</article>
+</main>
+
+<footer>
+  <p>MES AI &copy; 2026 <a href="https://github.com/point85" target="_blank" rel="noopener">Point 85</a> &nbsp;·&nbsp; Released under the MIT License &nbsp;·&nbsp; <a href="https://github.com/point85/mes-ai" target="_blank" rel="noopener">GitHub</a></p>
+</footer>
+
+</body>
+</html>
