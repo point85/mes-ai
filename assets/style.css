@@ -90,6 +90,8 @@ nav a.nav-blog:hover { background: #2563eb; text-decoration: none; }
 .btn-primary:hover { background: #e0e7ff; text-decoration: none; }
 .btn-outline  { border: 2px solid rgba(255,255,255,.6); color: #fff; margin-left: .75rem; }
 .btn-outline:hover { border-color: #fff; text-decoration: none; }
+.btn-download { border: 2px solid #6ee7b7; color: #6ee7b7; margin-left: .75rem; }
+.btn-download:hover { background: rgba(110,231,183,.15); border-color: #a7f3d0; text-decoration: none; }
 
 /* ── Badges ─────────────────────────────────────────────────── */
 .badges { display: flex; gap: .5rem; justify-content: center; margin-top: 1.25rem; flex-wrap: wrap; }
