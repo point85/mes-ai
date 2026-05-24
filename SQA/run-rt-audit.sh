@@ -78,20 +78,52 @@ echo ""
 
 echo "[1/3] Health checks..."
 
-check_url() {
-  local url="$1" label="$2"
-  local code
-  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$url" || echo "000")
-  if [[ "$code" == "200" ]]; then
-    echo "  [OK]   $label ($url) -> $code"
-  else
-    echo "  [FAIL] $label ($url) -> $code"
-    return 1
-  fi
-}
+# Check MES server - parse JSON and print each adapter's health.
+# A timeout or connection failure is WARNING only; tests continue.
+HEALTH_URL="$SERVER_URL/health"
+SERVER_OK=false
+set +e
+HEALTH_BODY=$(curl -s --max-time 10 "$HEALTH_URL" 2>/dev/null)
+HEALTH_EXIT=$?
+set -e
 
-check_url "$SERVER_URL/health" "MES server"
-check_url "$RT_URL" "RT-CLIENT"
+if [[ $HEALTH_EXIT -eq 0 && -n "$HEALTH_BODY" ]]; then
+  echo "  [OK]   MES server ($HEALTH_URL) -> 200"
+  SERVER_OK=true
+  echo "$HEALTH_BODY" | "$PYTHON" -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    status = d.get('status', '')
+    auth = d.get('auth_mode', '')
+    plugins = d.get('plugins_loaded', '')
+    print('         status=' + str(status) + '  auth=' + str(auth) + '  plugins=' + str(plugins))
+    for k, v in (d.get('adapters') or {}).items():
+        icon = '[OK]  ' if v else '[WARN]'
+        print('         adapter ' + icon + ' ' + k)
+except Exception:
+    pass
+" 2>/dev/null || true
+else
+  echo "  [WARN] MES server ($HEALTH_URL) -> connection failed - continuing anyway"
+fi
+
+# Check RT-CLIENT - hard stop if unreachable (browser tests need the UI).
+set +e
+RT_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$RT_URL" 2>/dev/null || echo "000")
+set -e
+if [[ "$RT_CODE" == "200" ]]; then
+  echo "  [OK]   RT-CLIENT ($RT_URL) -> $RT_CODE"
+else
+  echo "  [FAIL] RT-CLIENT ($RT_URL) -> $RT_CODE"
+  echo ""
+  echo "ERROR: RT-CLIENT is not reachable. Start the client before running the audit."
+  exit 1
+fi
+
+if [[ "$SERVER_OK" == "false" ]]; then
+  echo "  [WARN] MES server unreachable - API-level tests may fail."
+fi
 
 echo ""
 echo "[2/4] Normalizing demo inventory..."

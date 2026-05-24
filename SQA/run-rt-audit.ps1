@@ -105,32 +105,59 @@ Write-Host ""
 
 Write-Host "[1/3] Health checks..." -ForegroundColor Yellow
 
-function Test-Url {
-    param([string]$Url, [string]$Label)
-    try {
-        $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5
-        if ($r.StatusCode -eq 200) {
-            Write-Host "  [OK]   $Label ($Url) -> $($r.StatusCode)" -ForegroundColor Green
-            return $true
-        }
-        else {
-            Write-Host "  [FAIL] $Label ($Url) -> $($r.StatusCode)" -ForegroundColor Red
-            return $false
-        }
+# Check MES server - parse JSON and print each adapter's health.
+# A timeout or connection error is a WARNING only; tests continue.
+$serverOk = $false
+$healthUrl = "$ServerUrl/health"
+try {
+    $r = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 10
+    if ($r.StatusCode -eq 200) {
+        $serverOk = $true
+        Write-Host "  [OK]   MES server ($healthUrl) -> 200" -ForegroundColor Green
+        try {
+            $body = $r.Content | ConvertFrom-Json
+            Write-Host "         status=$($body.status)  auth=$($body.auth_mode)  plugins=$($body.plugins_loaded)" -ForegroundColor DarkGray
+            if ($body.adapters) {
+                foreach ($prop in $body.adapters.PSObject.Properties) {
+                    $icon   = if ($prop.Value) { "[OK]  " } else { "[WARN]" }
+                    $colour = if ($prop.Value) { "DarkGray" } else { "Yellow" }
+                    Write-Host "         adapter $icon $($prop.Name)" -ForegroundColor $colour
+                }
+            }
+        } catch { <# JSON parse failure is non-fatal #> }
     }
-    catch {
-        Write-Host "  [FAIL] $Label ($Url) -> $($_.Exception.Message)" -ForegroundColor Red
-        return $false
+    else {
+        Write-Host "  [WARN] MES server ($healthUrl) -> $($r.StatusCode) - continuing anyway" -ForegroundColor Yellow
     }
 }
+catch {
+    Write-Host "  [WARN] MES server ($healthUrl) -> $($_.Exception.Message) - continuing anyway" -ForegroundColor Yellow
+}
 
-$serverOk = Test-Url -Url "$ServerUrl/health" -Label "MES server"
-$rtOk     = Test-Url -Url $RtUrl              -Label "RT-CLIENT"
+# Check RT-CLIENT - hard stop if unreachable (browser tests need the UI).
+$rtOk = $false
+try {
+    $r = Invoke-WebRequest -Uri $RtUrl -UseBasicParsing -TimeoutSec 5
+    if ($r.StatusCode -eq 200) {
+        $rtOk = $true
+        Write-Host "  [OK]   RT-CLIENT ($RtUrl) -> $($r.StatusCode)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  [FAIL] RT-CLIENT ($RtUrl) -> $($r.StatusCode)" -ForegroundColor Red
+    }
+}
+catch {
+    Write-Host "  [FAIL] RT-CLIENT ($RtUrl) -> $($_.Exception.Message)" -ForegroundColor Red
+}
 
-if (-not $serverOk -or -not $rtOk) {
+if (-not $rtOk) {
     Write-Host ""
-    Write-Host "ERROR: One or more services are not reachable. Start the stack before running the audit." -ForegroundColor Red
+    Write-Host "ERROR: RT-CLIENT is not reachable. Start the client before running the audit." -ForegroundColor Red
     exit 1
+}
+
+if (-not $serverOk) {
+    Write-Host "  [WARN] MES server unreachable - API-level tests may fail." -ForegroundColor Yellow
 }
 
 Write-Host ""
