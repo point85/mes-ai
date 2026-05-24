@@ -70,3 +70,4 @@ server/pgdata/
 /dt-service.conf
 /rt-service.conf
 /erp-service.conf
+/equipment-service.conf
