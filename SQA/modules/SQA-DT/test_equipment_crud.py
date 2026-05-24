@@ -198,7 +198,7 @@ async def _open_capability_page(page: Page, *, wc_id: str, equipment_code: str) 
     await _open_equipment_page(page, wc_id=wc_id)
     row = page.locator("tr").filter(has_text=equipment_code)
     await expect(row).to_be_visible(timeout=8_000)
-    await row.get_by_title("Capabilities").click()
+    await row.get_by_title("Capabilities", exact=True).click()
     await expect(page.get_by_role("heading", name="Equipment Capabilities")).to_be_visible(timeout=10_000)
 
 

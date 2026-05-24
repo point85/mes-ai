@@ -62,7 +62,7 @@ export default function EquipmentMaterialPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Material Capabilities</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Material Setups</h1>
           <p className="text-sm text-gray-500 mt-1">
             Define design speed, reject UoM, and target OEE for each material
             this equipment can produce.
@@ -73,7 +73,7 @@ export default function EquipmentMaterialPage() {
           className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors"
         >
           <PlusIcon className="h-4 w-4" />
-          Add Material Capability
+          Add Material Setup
         </button>
       </div>
 
@@ -87,17 +87,17 @@ export default function EquipmentMaterialPage() {
           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-72"
         />
         <span className="text-xs text-gray-400">
-          {filtered.length !== 1 ? `${filtered.length} capabilities` : "1 capability"}
+          {filtered.length !== 1 ? `${filtered.length} setups` : "1 setup"}
         </span>
       </div>
 
       {/* Loading / error */}
       {isLoading && (
-        <p className="text-sm text-gray-500">Loading material capabilities…</p>
+        <p className="text-sm text-gray-500">Loading material setups…</p>
       )}
       {error && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-          Failed to load material capabilities.
+          Failed to load material setups.
         </div>
       )}
 
@@ -167,7 +167,7 @@ export default function EquipmentMaterialPage() {
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm("Delete this material capability?")) {
+                            if (confirm("Delete this material setup?")) {
                               deleteMut.mutate(em.id);
                             }
                           }}
@@ -187,7 +187,7 @@ export default function EquipmentMaterialPage() {
                     colSpan={7}
                     className="px-4 py-8 text-center text-sm text-gray-400"
                   >
-                    No material capabilities found.
+                    No material setups found.
                   </td>
                 </tr>
               )}

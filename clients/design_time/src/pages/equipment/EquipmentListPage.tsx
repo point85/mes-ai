@@ -173,7 +173,7 @@ export default function EquipmentListPage() {
                       <button
                         onClick={() => navigate(`/equipment/${eq.id}/materials`)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                        title="Material Capabilities"
+                        title="Material Setups"
                       >
                         <Cog6ToothIcon className="h-4 w-4" />
                       </button>
