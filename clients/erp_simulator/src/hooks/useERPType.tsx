@@ -27,6 +27,10 @@ export function ERPProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<ERPHealth | null>(null);
 
   useEffect(() => {
+    document.title = `${labelFor(erpType)} ERP Simulator`;
+  }, [erpType]);
+
+  useEffect(() => {
     // Resolve the simulator plugin id first so the health check targets it.
     getSimulatorOptions()
       .then((opts) => {
