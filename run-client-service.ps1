@@ -409,7 +409,13 @@ if ($existing -ne "not-installed") {
 # Register with NSSM
 Write-Step "Installing service '$svcName'..."
 
-$viteArgs = "`"$viteBin`" --host $bindHost --port $port"
+# Use the Node wrapper so stdout/stderr in NSSM logs are stripped of ANSI
+# escape codes and non-ASCII characters (e.g. Vite's banner arrow).
+$wrapper = Join-Path $ScriptRoot "vite-service-wrapper.cjs"
+if (-not (Test-Path $wrapper)) {
+    Write-Fatal "vite-service-wrapper.cjs not found at: $wrapper"
+}
+$viteArgs = "`"$wrapper`" `"$viteBin`" --host $bindHost --port $port"
 
 & $nssm install $svcName $nodeExe
 & $nssm set     $svcName AppParameters  $viteArgs
@@ -417,8 +423,8 @@ $viteArgs = "`"$viteBin`" --host $bindHost --port $port"
 & $nssm set     $svcName DisplayName    $svcDisplay
 & $nssm set     $svcName Description    $svcDesc
 
-# Environment
-& $nssm set $svcName AppEnvironmentExtra "MES_SERVER_URL=$serverUrl"
+# Environment (NO_COLOR / FORCE_COLOR / TERM further discourage colour output)
+& $nssm set $svcName AppEnvironmentExtra "MES_SERVER_URL=$serverUrl`0NO_COLOR=1`0FORCE_COLOR=0`0TERM=dumb"
 
 # Logging
 & $nssm set $svcName AppStdout         (Join-Path $logDir "${svcName}-stdout.log")

@@ -346,6 +346,12 @@ if [[ -z "$NODE_EXE" ]]; then
     write_fatal "Node.js not found on PATH.  Install Node.js 20+ and re-run."
 fi
 
+# Wrapper script that strips ANSI escape codes / non-ASCII from Vite output
+WRAPPER="$SCRIPT_DIR/vite-service-wrapper.cjs"
+if [[ ! -f "$WRAPPER" ]]; then
+    write_fatal "vite-service-wrapper.cjs not found at: $WRAPPER"
+fi
+
 # Read config values
 SVC_NAME="$(cfg_value ServiceName        mes-ai-rt-client)"
 SVC_DISPLAY="$(cfg_value ServiceDisplayName "MES AI $CLIENT_LABEL")"
@@ -409,8 +415,11 @@ Group=$SVC_GROUP
 WorkingDirectory=$CLIENT_DIR
 
 Environment="MES_SERVER_URL=$SERVER_URL"
+Environment="NO_COLOR=1"
+Environment="FORCE_COLOR=0"
+Environment="TERM=dumb"
 
-ExecStart=$NODE_EXE $VITE_BIN --host $BIND_HOST --port $PORT
+ExecStart=$NODE_EXE $WRAPPER $VITE_BIN --host $BIND_HOST --port $PORT
 
 StandardOutput=append:$LOG_DIR/${SVC_NAME}-stdout.log
 StandardError=append:$LOG_DIR/${SVC_NAME}-stderr.log
