@@ -33,7 +33,9 @@ nav {
   padding: .75rem 2rem;
   display: flex;
   align-items: center;
-  gap: 2rem;
+  gap: 1.5rem;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 nav .logo {
@@ -51,6 +53,16 @@ nav a {
 }
 
 nav a:hover, nav a.active { color: #fff; text-decoration: none; }
+
+nav a.nav-blog {
+  background: var(--blue-lt);
+  color: #fff;
+  padding: .3rem .85rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+nav a.nav-blog:hover { background: #2563eb; text-decoration: none; }
 
 /* ── Hero ────────────────────────────────────────────────────── */
 .hero {
