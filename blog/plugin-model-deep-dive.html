@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deep Dive: The MES AI Plugin Model — Blog</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+
+<nav>
+  <span class="logo">MES <span>AI</span></span>
+  <a href="../index.html">Home</a>
+  <a href="../index.html#architecture">Architecture</a>
+  <a href="../index.html#stack">Stack</a>
+  <a href="index.html" class="active">Blog</a>
+  <a href="https://github.com/point85/mes-ai" target="_blank" rel="noopener">GitHub ↗</a>
+</nav>
+
+<main>
+<article class="article">
+  <h1>Deep Dive: The MES AI Plugin Model</h1>
+  <div class="article-meta">May 24, 2026 &nbsp;·&nbsp; Plugins &nbsp;·&nbsp; <a href="index.html">← Back to blog</a></div>
+
+  <p>The plugin model is the architectural decision that most distinguishes MES AI from a conventional MES codebase. Rather than hard-coding integrations and site-specific behaviors into the core, MES AI delegates them to plugins that the platform discovers, loads, and manages at runtime. This post walks through how that system works from a technical standpoint.</p>
+
+  <h2>Why Plugins?</h2>
+
+  <p>Every manufacturing site is different. The ERP system might be SAP, Oracle, or a custom in-house system. Equipment might speak OPC UA, Modbus, MQTT, or a proprietary protocol. Dispatch priority rules vary by plant type and business process. Storing all of these variations in the core codebase creates a maintenance burden and makes upgrades risky. Plugins move the variation to the edges, where it belongs.</p>
+
+  <h2>Plugin Structure</h2>
+
+  <p>Each plugin lives in its own directory under <code>server/plugins/</code>. A plugin directory contains:</p>
+
+  <ul>
+    <li>A <code>manifest.yaml</code> — declares the plugin's identity, category, version, configuration schema, and the extension points it provides.</li>
+    <li>A <code>plugin.py</code> — implements the <code>MESPlugin</code> base class with <code>initialize</code>, <code>start</code>, <code>stop</code>, and <code>health_check</code> lifecycle methods.</li>
+    <li>Adapter classes, route modules, or event handlers as needed for the plugin's functionality.</li>
+  </ul>
+
+  <p>A minimal manifest looks like this:</p>
+
+  <pre><code>id: oracle-erp-simulator
+name: Oracle ERP Simulator
+version: 1.0.0
+category: erp
+extension_points:
+  - type: erp_inbound
+    class: oracle_erp_simulator_inbound
+  - type: erp_outbound
+    class: oracle_erp_simulator_outbound</code></pre>
+
+  <h2>The Plugin Manager</h2>
+
+  <p>The <code>PluginManager</code> is the central runtime coordinator. At server startup it scans the system and user plugin directories, parses each manifest, and instantiates the corresponding plugin class. It then calls <code>initialize</code> and <code>start</code> in sequence, passing the configuration values from the manifest (or from the database if the plugin has been configured through the design-time UI).</p>
+
+  <p>The manager tracks each plugin's state — whether it is loaded, running, or faulted — and exposes that state through the <code>/health</code> endpoint and the design-time plugins page.</p>
+
+  <h2>Adapter Resolution</h2>
+
+  <p>When a server-side service or a route handler needs an ERP or equipment adapter, it asks the plugin manager rather than holding a direct reference to a plugin. The manager resolves the request by iterating running plugins in priority order:</p>
+
+  <ol>
+    <li><strong>Preferred</strong> — a plugin whose ID matches the <code>X-MES-ERP-PLUGIN</code> request header.</li>
+    <li><strong>Primary</strong> — running plugins that provide the requested adapter type and are not simulators.</li>
+    <li><strong>Simulator</strong> — running plugins in the simulator bucket (ERP plugins whose ID ends in <code>-simulator</code>).</li>
+  </ol>
+
+  <p>This ordering means a real ERP adapter takes precedence over a simulator when both are running, but a simulator is used automatically in development environments where no real adapter is configured. The <code>/erp/simulator/options</code> endpoint explicitly resolves against the simulator bucket, so the ERP simulator client app always talks to a simulator regardless of what other adapters are loaded.</p>
+
+  <h2>Lifecycle and Health Checks</h2>
+
+  <p>Each plugin implements <code>health_check() -&gt; bool</code>. The platform calls this on a background schedule and surfaces the results on the <code>/health</code> endpoint. A plugin can fail its health check without being unloaded — the platform marks it as degraded and continues serving requests that do not depend on it. This is important in production, where a temporary ERP connectivity issue should not take down the entire MES server.</p>
+
+  <h2>Adding a Plugin</h2>
+
+  <p>Adding a new plugin does not require changes to the core. A developer creates a new directory under <code>server/plugins/user/</code>, writes a manifest and a plugin class, and restarts the server. The plugin manager picks it up automatically. If the plugin provides ERP adapters, the design-time plugins page will show it immediately; enabling it registers the adapters into the running pool.</p>
+
+  <p>This extensibility is what makes MES AI viable as a shared foundation for teams with different integration requirements. The core handles the universal concerns; the plugins handle the rest.</p>
+
+</article>
+</main>
+
+<footer>
+  <p>MES AI &copy; 2026 <a href="https://github.com/point85" target="_blank" rel="noopener">Point 85</a> &nbsp;·&nbsp; Released under the MIT License &nbsp;·&nbsp; <a href="https://github.com/point85/mes-ai" target="_blank" rel="noopener">GitHub</a></p>
+</footer>
+
+</body>
+</html>

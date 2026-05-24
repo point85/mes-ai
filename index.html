@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MES AI — Open-Source Manufacturing Execution System</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<nav>
+  <span class="logo">MES <span>AI</span></span>
+  <a href="index.html" class="active">Home</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#stack">Stack</a>
+  <a href="blog/index.html">Blog</a>
+  <a href="https://github.com/point85/mes-ai" target="_blank" rel="noopener">GitHub ↗</a>
+</nav>
+
+<!-- Hero -->
+<header class="hero">
+  <h1>Manufacturing Execution<br/><span>Your Way</span></h1>
+  <p>MES AI is an open-source Manufacturing Execution System framework you can extend with your own domain logic, plugins, and AI-assisted workflows — without adapting your business to a fixed vendor product.</p>
+  <div>
+    <a class="btn btn-primary" href="https://github.com/point85/mes-ai" target="_blank" rel="noopener">View on GitHub</a>
+    <a class="btn btn-outline" href="blog/index.html">Read the Blog</a>
+  </div>
+  <div class="badges">
+    <span class="badge badge-blue">Python 3.12+</span>
+    <span class="badge badge-blue">FastAPI</span>
+    <span class="badge badge-blue">React 19</span>
+    <span class="badge badge-blue">TypeScript 5</span>
+    <span class="badge badge-green">Open Source</span>
+    <span class="badge badge-green">Plugin-Driven</span>
+    <span class="badge badge-green">AI-Assisted</span>
+  </div>
+</header>
+
+<!-- Introduction -->
+<main>
+<div class="container">
+
+<section id="intro">
+  <h2>Introduction</h2>
+  <p>MES AI is an open-source Manufacturing Execution System framework for teams that want to tailor MES workflows, integrations, and user experiences to their own operations. Instead of adapting your business to a fixed vendor product, MES AI provides a foundation you can extend with your own domain logic, plugins, and AI-assisted engineering workflows.</p>
+  <ul>
+    <li><strong>Reduced dependence</strong> on vendor licensing and proprietary roadmaps</li>
+    <li><strong>Adaptable workflows</strong> and integrations specific to your plant and business processes</li>
+    <li><strong>AI-assisted development</strong> and testing to accelerate delivery</li>
+    <li><strong>Greater control</strong> over release timing, feature priorities, and operational data</li>
+  </ul>
+</section>
+
+<!-- System at a Glance -->
+<section id="system">
+  <h2>System at a Glance</h2>
+  <p>At the center of the system is the MES server under <code>server/src/mes</code>, which exposes a versioned REST API and WebSocket event stream. Around that core are several browser-based applications in <code>clients/</code> that support different user roles and development workflows:</p>
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">🎨</div>
+      <h3>Design-Time Client</h3>
+      <p>Configure products, routes, dispositions, equipment, plugins, and other master data.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚙️</div>
+      <h3>Runtime Client</h3>
+      <p>Create and process WIP, dispatch work, record inventory activity, and handle shop-floor execution.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔗</div>
+      <h3>ERP Simulator</h3>
+      <p>Exercise inbound planning and order-release scenarios without requiring a real ERP connection.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🤖</div>
+      <h3>Equipment Simulator</h3>
+      <p>Mimic equipment interactions in development environments for fast feedback on equipment-facing workflows.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section id="architecture">
+  <h2>High-Level Architecture</h2>
+  <p>The architecture follows a client-server model with clear separation between core execution logic, user interfaces, and integration points.</p>
+  <ol style="margin:0 0 1.5rem 1.5rem;">
+    <li>The <strong>FastAPI MES server</strong> owns the domain model, persistence, business rules, API surface, and event publication.</li>
+    <li>The <strong>Vite applications</strong> provide focused user experiences for engineering, operations, and simulation.</li>
+    <li><strong>Plugins</strong> extend the platform without requiring direct modification of the core.</li>
+    <li><strong>PostgreSQL, SQL Server, and Oracle</strong> databases are supported via SQLAlchemy and Alembic.</li>
+  </ol>
+
+  <img class="arch-img" src="assets/architecture_part1.png" alt="Client and MES server architecture overview" />
+  <p class="arch-caption">Figure 1 — Clients and MES server architecture</p>
+
+  <img class="arch-img" src="assets/architecture_part2.png" alt="Plugin architecture overview" />
+  <p class="arch-caption">Figure 2 — Plugin architecture</p>
+
+  <img class="arch-img" src="assets/architecture_part3.png" alt="Backend architecture overview" />
+  <p class="arch-caption">Figure 3 — Backend architecture</p>
+</section>
+
+<!-- FastAPI Server -->
+<section id="server">
+  <h2>FastAPI MES Server</h2>
+  <p>The MES server is the core of the platform, implemented with FastAPI and organized into domain-focused modules under <code>server/src/mes/core</code>. These modules cover operations requests, WIP, dispatch, material management, physical model, product definition, performance, authentication, and plugins.</p>
+  <p>Key responsibilities include:</p>
+  <ul>
+    <li>Exposing REST endpoints for configuration, execution, inventory, dispatch, and reporting workflows.</li>
+    <li>Managing lots, units, operations requests, material lots, inventory balances, and equipment state.</li>
+    <li>Publishing domain events through an internal async event bus and surfacing selected events to clients over WebSocket.</li>
+    <li>Running plugin lifecycle management so built-in and user plugins can register routes, event handlers, and integration behavior.</li>
+    <li>Enforcing authentication and role-based access control across both API and UI-backed workflows.</li>
+  </ul>
+</section>
+
+<!-- Extension Model -->
+<section id="plugins">
+  <h2>Extension Model</h2>
+  <p>One of the defining architectural choices in MES AI is the plugin model. Rather than treating integrations and custom workflows as hard-coded special cases, the system uses a plugin framework that can load built-in and user-defined plugins. Plugins can contribute REST endpoints, event handlers, equipment behavior, dispatch strategies, and other extension logic.</p>
+  <p>This matters because manufacturing implementations are rarely identical. Site-specific behavior, ERP mappings, equipment protocols, and workflow rules can be introduced through plugins while the core platform stays stable.</p>
+</section>
+
+<!-- Technology Stack -->
+<section id="stack">
+  <h2>Technology Stack</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>Backend</h3>
+      <div class="pills">
+        <span class="pill">Python 3.12+</span>
+        <span class="pill">FastAPI</span>
+        <span class="pill">SQLAlchemy 2</span>
+        <span class="pill">Alembic</span>
+        <span class="pill">Pydantic v2</span>
+        <span class="pill">PostgreSQL</span>
+        <span class="pill">Uvicorn</span>
+        <span class="pill">PyJWT</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Frontend</h3>
+      <div class="pills">
+        <span class="pill">React 19</span>
+        <span class="pill">TypeScript 5</span>
+        <span class="pill">Vite 6</span>
+        <span class="pill">React Router</span>
+        <span class="pill">TanStack Query</span>
+        <span class="pill">Axios</span>
+        <span class="pill">Tailwind CSS 4</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Quality &amp; Tooling</h3>
+      <div class="pills">
+        <span class="pill">Pytest</span>
+        <span class="pill">pytest-asyncio</span>
+        <span class="pill">Playwright</span>
+        <span class="pill">Ruff</span>
+        <span class="pill">Pyright</span>
+        <span class="pill">ESLint</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Development Approach -->
+<section id="development">
+  <h2>Development Approach</h2>
+  <p>MES AI was developed as an experiment in AI-assisted software delivery for industrial applications. The goal was to create a free and open-source MES framework that could be extended by end users with the help of modern coding agents and standard developer tools.</p>
+  <p>The implementation was built iteratively: expected MES capabilities were researched first, the architecture and technology stack were selected to support extensibility, and features were added in reviewable steps with human feedback guiding scope and direction.</p>
+  <p>AI-assisted testing was part of that process from the beginning. The project includes broad server-side unit test coverage along with end-to-end SQA coverage for key design-time and runtime workflows.</p>
+  <p>Please send any comments or suggestions to <a href="mailto:point85.apps@gmail.com">point85.apps@gmail.com</a>.</p>
+</section>
+
+<!-- Blog teaser -->
+<section id="blog-teaser">
+  <h2>From the Blog</h2>
+  <ul class="post-list">
+    <li class="post-item">
+      <div class="post-meta">May 24, 2026 &nbsp;·&nbsp; Architecture <span class="post-tag">Featured</span></div>
+      <h3><a href="blog/introducing-mes-ai.html">Introducing MES AI: An Open-Source MES Framework</a></h3>
+      <p>Why we built an open, plugin-driven Manufacturing Execution System and what makes its architecture different from traditional MES products.</p>
+    </li>
+    <li class="post-item">
+      <div class="post-meta">May 24, 2026 &nbsp;·&nbsp; Development</div>
+      <h3><a href="blog/ai-assisted-mes-development.html">AI-Assisted Development for Industrial Software</a></h3>
+      <p>How modern AI coding agents accelerated the delivery of MES AI — from architecture decisions and test coverage to plugin scaffolding and debugging.</p>
+    </li>
+    <li class="post-item">
+      <div class="post-meta">May 24, 2026 &nbsp;·&nbsp; Plugins</div>
+      <h3><a href="blog/plugin-model-deep-dive.html">Deep Dive: The MES AI Plugin Model</a></h3>
+      <p>A technical walkthrough of how the plugin framework resolves adapters, manages lifecycle, and lets teams add site-specific behavior without forking the core.</p>
+    </li>
+  </ul>
+  <p><a href="blog/index.html">View all posts →</a></p>
+</section>
+
+</div><!-- /container -->
+</main>
+
+<footer>
+  <p>MES AI &copy; 2026 <a href="https://github.com/point85" target="_blank" rel="noopener">Point 85</a> &nbsp;·&nbsp; Released under the MIT License &nbsp;·&nbsp; <a href="https://github.com/point85/mes-ai" target="_blank" rel="noopener">GitHub</a></p>
+</footer>
+
+</body>
+</html>

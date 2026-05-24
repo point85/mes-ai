@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Introducing MES AI — Blog</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+
+<nav>
+  <span class="logo">MES <span>AI</span></span>
+  <a href="../index.html">Home</a>
+  <a href="../index.html#architecture">Architecture</a>
+  <a href="../index.html#stack">Stack</a>
+  <a href="index.html" class="active">Blog</a>
+  <a href="https://github.com/point85/mes-ai" target="_blank" rel="noopener">GitHub ↗</a>
+</nav>
+
+<main>
+<article class="article">
+  <h1>Introducing MES AI: An Open-Source MES Framework</h1>
+  <div class="article-meta">May 24, 2026 &nbsp;·&nbsp; Architecture &nbsp;·&nbsp; <a href="index.html">← Back to blog</a></div>
+
+  <p>Manufacturing Execution Systems have a reputation for being expensive, rigid, and slow to change. Vendor products lock teams into proprietary data models, charge per-module licensing fees, and move on vendor timelines rather than plant timelines. MES AI started as a question: what would an MES look like if it were built the way modern software is built — open, composable, and AI-friendly?</p>
+
+  <h2>The Core Idea</h2>
+
+  <p>MES AI is not a monolith pretending to be a platform. It is a framework: a well-defined core with explicit extension points, designed so that the interesting site-specific parts live in plugins rather than in forked copies of the main codebase. The core handles the universal concerns — WIP tracking, inventory, equipment state, dispatch, ERP integration surfaces, and authentication. Plugins handle the parts that differ from site to site.</p>
+
+  <p>This distinction matters. When the core and the custom logic are separated, upgrading the core does not require re-validating every integration. Teams can contribute plugins independently without understanding the full platform.</p>
+
+  <h2>What the System Covers</h2>
+
+  <p>A typical ISA-95 Level 3 MES needs to answer a set of recurring questions: What work is authorized? What is in progress? What has been completed, and with what quality result? Where are materials? What is equipment doing right now? MES AI provides server-side services and REST endpoints for all of these, organized into domain modules:</p>
+
+  <ul>
+    <li><strong>Operations requests</strong> — create, release, and close ERP-originated work orders.</li>
+    <li><strong>WIP management</strong> — lots, units, step processing, genealogy, holds, and dispositions.</li>
+    <li><strong>Dispatch</strong> — work-cell queues, priority strategies, and equipment assignment.</li>
+    <li><strong>Inventory</strong> — material lots, balances, adjustments, transfers, and consumption.</li>
+    <li><strong>Equipment and physical model</strong> — sites, areas, work cells, equipment, and material setups.</li>
+    <li><strong>Performance</strong> — OEE, availability, throughput, and state-change recording.</li>
+    <li><strong>ERP integration</strong> — inbound sync from ERP and outbound reporting of completions, scrap, and consumption.</li>
+  </ul>
+
+  <h2>The Client Applications</h2>
+
+  <p>Rather than one monolithic UI, MES AI uses four focused Vite/React applications. Each serves a different audience and can be deployed independently:</p>
+
+  <ul>
+    <li>The <strong>design-time client</strong> is for engineers and administrators setting up master data.</li>
+    <li>The <strong>runtime client</strong> is for operators processing WIP on the floor.</li>
+    <li>The <strong>ERP simulator</strong> is for testing ERP integration flows without a real ERP system.</li>
+    <li>The <strong>equipment simulator</strong> is for validating equipment-facing behavior during development.</li>
+  </ul>
+
+  <p>This split keeps each UI fast and focused. Runtime operators do not need to navigate around engineering configuration screens. Engineers do not need to share a session with operators whose actions could disturb the data they are editing.</p>
+
+  <h2>Deployment Philosophy</h2>
+
+  <p>MES AI runs on Linux, macOS, or Windows. The default persistence model is PostgreSQL, with SQL Server and Oracle also supported. In development, the server and each client run independently against a shared database. In production, clients can be registered as Windows services or Linux systemd units using the included service management scripts.</p>
+
+  <p>The architecture does not require Kubernetes, a service mesh, or a container orchestrator to get started. A single PostgreSQL instance and a Python virtual environment are enough to run the full stack locally. Teams can containerize if they want to, but the platform does not impose that cost.</p>
+
+  <h2>Why Open Source</h2>
+
+  <p>Proprietary MES products are hard to evaluate honestly before you are already locked in. Open source makes the trade-offs visible. Teams can read the code, run it against their own data, and form an informed view of whether the platform fits their requirements before committing. They can contribute fixes, add plugins, and build on a foundation they understand.</p>
+
+  <p>MES AI is released under the MIT License. Please send any comments or suggestions to <a href="mailto:point85.apps@gmail.com">point85.apps@gmail.com</a>.</p>
+
+</article>
+</main>
+
+<footer>
+  <p>MES AI &copy; 2026 <a href="https://github.com/point85" target="_blank" rel="noopener">Point 85</a> &nbsp;·&nbsp; Released under the MIT License &nbsp;·&nbsp; <a href="https://github.com/point85/mes-ai" target="_blank" rel="noopener">GitHub</a></p>
+</footer>
+
+</body>
+</html>
