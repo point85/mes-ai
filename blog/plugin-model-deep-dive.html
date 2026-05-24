@@ -22,11 +22,11 @@
   <h1>Deep Dive: The MES AI Plugin Model</h1>
   <div class="article-meta">May 24, 2026 &nbsp;·&nbsp; Plugins &nbsp;·&nbsp; <a href="index.html">← Back to blog</a></div>
 
-  <p>The plugin model is the architectural decision that most distinguishes MES AI from a conventional MES codebase. Rather than hard-coding integrations and site-specific behaviors into the core, MES AI delegates them to plugins that the platform discovers, loads, and manages at runtime. This post walks through how that system works from a technical standpoint.</p>
+  <p>The plugin model is the architectural decision that most distinguishes MES AI from a conventional MES codebase. Rather than hard-coding integrations and site-specific behaviors into a monolithic core, MES AI delegates them to plugins that the platform discovers, loads, and manages at runtime. This post walks through how that system works from a technical standpoint.</p>
 
   <h2>Why Plugins?</h2>
 
-  <p>Every manufacturing site is different. The ERP system might be SAP, Oracle, or a custom in-house system. Equipment might speak OPC UA, Modbus, MQTT, or a proprietary protocol. Dispatch priority rules vary by plant type and business process. Storing all of these variations in the core codebase creates a maintenance burden and makes upgrades risky. Plugins move the variation to the edges, where it belongs.</p>
+  <p>Every manufacturing site is different. The ERP system might be SAP, Oracle, or a custom in-house system. Equipment might speak OPC UA, Modbus, MQTT, Kafka, or a proprietary protocol. Dispatch priority rules vary by plant type and business process. Storing all of these variations in the core codebase with complex configurations creates a maintenance burden and makes upgrades risky. Plugins move the variation to the edges, where it belongs.</p>
 
   <h2>Plugin Structure</h2>
 

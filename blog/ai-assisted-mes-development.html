@@ -22,18 +22,18 @@
   <h1>AI-Assisted Development for Industrial Software</h1>
   <div class="article-meta">May 24, 2026 &nbsp;·&nbsp; Development &nbsp;·&nbsp; <a href="index.html">← Back to blog</a></div>
 
-  <p>MES AI was built as an experiment: could a modern AI coding agent meaningfully accelerate the delivery of a non-trivial industrial software platform? Not a toy project, but a real multi-tier system with a domain model, a versioned REST API, multiple frontend applications, a plugin framework, database migrations, and end-to-end tests. The answer is yes — with important caveats about where AI helps most and where human judgment remains essential.</p>
+  <p>MES AI was built as an experiment: could a modern AI coding agent meaningfully accelerate the delivery of a non-trivial industrial software platform? Not a conceptual project, but a real multi-tier system with a domain model, a versioned REST API, multiple frontend applications, a plugin framework, database migrations, and end-to-end tests. The answer is yes — with important caveats about where AI helps most and where human judgment remains essential.</p>
 
   <h2>What AI-Assisted Development Looks Like in Practice</h2>
 
-  <p>The process was not "describe the system and receive working code." It was closer to working with a knowledgeable colleague who can draft large amounts of consistent, idiomatic code quickly but needs careful review and direction on design decisions.</p>
+  <p>The process was not "describe the system and receive working code." It was closer to working with a domain knowledgeable colleague who can draft large amounts of consistent, idiomatic code quickly but needs careful review and direction on design decisions.</p>
 
   <p>Concretely, the workflow looked like this:</p>
 
   <ul>
     <li><strong>Architecture first, code second.</strong> The domain model, module boundaries, and extension points were designed by a human before significant code was generated. AI is good at implementing a well-specified design; it is much weaker at originating one.</li>
     <li><strong>Iterative generation with immediate review.</strong> Features were built in small chunks — a service, a route module, a React page — reviewed, corrected, and integrated before moving on.</li>
-    <li><strong>AI-generated tests ran alongside AI-generated production code.</strong> The test suite was not an afterthought. Unit tests and integration tests were written in the same sessions as the code they cover, which caught mistakes that would otherwise have compounded.</li>
+    <li><strong>AI-generated tests ran alongside AI-generated production code.</strong> The test suite was not an afterthought. Unit tests and UI integration tests were written in the same sessions as the code they cover, which caught mistakes that would otherwise have compounded.</li>
     <li><strong>Human-guided debugging.</strong> When a failing test or a runtime error pointed to a real design problem, a human made the architectural call. The AI implemented the fix.</li>
   </ul>
 
@@ -43,7 +43,7 @@
   <p>A multi-domain MES has a lot of structurally similar code: service classes, route modules, Pydantic schemas, React pages, TanStack Query hooks, Zod validators. An experienced developer knows how each of these should look; writing twenty of them correctly and consistently is tedious. AI handles this well when given clear patterns and a good example to follow.</p>
 
   <h3>Test coverage breadth</h3>
-  <p>The MES AI server has over 1,800 unit tests. Generating that breadth of coverage by hand in parallel with feature development would have been impractical. AI-generated tests required review and occasional correction, but they consistently covered the obvious cases and many of the edge cases.</p>
+  <p>The MES AI server has about 1,900 unit tests and 90 Playwright UI tests. Generating that breadth of coverage by hand in parallel with feature development would have been impractical. AI-generated tests required review and occasional correction, but they consistently covered the obvious cases and many of the edge cases.  They can be run after every significant Git submission as part of a Continuous Integration workflow.</p>
 
   <h3>Cross-cutting consistency</h3>
   <p>Things like error response shapes, authentication header propagation, and database session management need to be consistent across dozens of route handlers. AI, when shown the correct pattern once, applies it consistently — a significant advantage over a team of humans where conventions drift over time.</p>
@@ -61,7 +61,7 @@
 
   <h2>What This Means for Industrial Software Teams</h2>
 
-  <p>The practical takeaway is not that AI replaces engineers on industrial software projects. It is that a skilled engineer with good AI tooling can cover significantly more ground in a given timeframe than without it — provided the engineer maintains design authority and reviews generated code critically. MES AI would have taken several times longer to build without AI assistance.</p>
+  <p>The practical takeaway is not that AI replaces engineers on industrial software projects. It is that a business analyst with a skilled engineer with good AI tooling can cover significantly more ground in a given timeframe than without it — provided the engineer maintains design authority and reviews generated code critically. MES AI would have taken several times longer to build without AI assistance.</p>
 
   <p>For teams evaluating whether to use AI on MES or SCADA customization projects, the question is not whether AI can do it, but whether your team has the domain knowledge and engineering discipline to direct it effectively. If the answer is yes, the productivity gain is real.</p>
 
