@@ -69,3 +69,4 @@ server/pgdata/
 /server/test_results.txt
 /dt-service.conf
 /rt-service.conf
+/erp-service.conf

@@ -557,8 +557,25 @@ class MaterialUpdateRequest(BaseModel):
 
 @router.get("/simulator/options", response_model=dict)
 async def simulator_options(request: Request):
-    """Return dropdown options for material types and UOMs, plus ERP type."""
-    adapter = _get_erp_inbound(request)
+    """Return dropdown options for material types and UOMs, plus ERP type.
+
+    This endpoint deliberately resolves against the *simulator* bucket so the
+    erp_simulator client app always talks to a simulator plugin, never a real
+    ERP adapter that happens to also be running.
+    """
+    from mes.main import plugin_manager
+    sim_plugin = plugin_manager.get_simulator_adapter_plugin(
+        "erp_inbound",
+        plugin_id=_requested_plugin_id(request),
+    )
+    if sim_plugin is None or sim_plugin.instance is None:
+        from mes.framework.api.exceptions import ServiceUnavailableException
+        raise ServiceUnavailableException(
+            message="No ERP simulator plugin is running. Install and enable an ERP simulator plugin.",
+            details={"error_code": "ERP_SIMULATOR_UNAVAILABLE"},
+        )
+    raw = sim_plugin.instance.get_adapter()
+    adapter = raw.get("erp_inbound") if isinstance(raw, dict) else raw
     erp_type = getattr(adapter, "erp_type", "unknown")
     if hasattr(adapter, "material_type_options"):
         material_types = adapter.material_type_options()
@@ -566,6 +583,7 @@ async def simulator_options(request: Request):
         material_types = []
     return success_response({
         "erp_type": erp_type,
+        "plugin_id": sim_plugin.manifest.id,
         "material_types": material_types,
         "uom_options": _SIMULATOR_UOM_OPTIONS,
     })

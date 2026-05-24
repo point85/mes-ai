@@ -1,4 +1,4 @@
-import api from "./client";
+import api, { setErpPluginId } from "./client";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -434,12 +434,17 @@ export interface UOMOption {
 
 export interface SimulatorOptions {
   erp_type: "sap" | "oracle" | string;
+  plugin_id: string;
   material_types: MaterialTypeOption[];
   uom_options: UOMOption[];
 }
 
 export async function getSimulatorOptions(): Promise<SimulatorOptions> {
-  return unwrapData(await api.get("/erp/simulator/options"));
+  const opts = unwrapData<SimulatorOptions>(await api.get("/erp/simulator/options"));
+  // Bootstrap the ERP plugin id from the server so every subsequent request
+  // targets the resolved simulator plugin, not a real ERP adapter.
+  setErpPluginId(opts.plugin_id);
+  return opts;
 }
 
 // ── Simulator Material CRUD ───────────────────────────────────────────────

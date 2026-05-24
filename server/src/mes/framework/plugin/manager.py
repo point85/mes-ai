@@ -499,6 +499,31 @@ class PluginManager:
             return info
         return None
 
+    def get_simulator_adapter_plugin(
+        self,
+        adapter_type: str,
+        plugin_id: str | None = None,
+    ) -> "PluginInfo | None":
+        """Return a running ERP-simulator plugin that provides ``adapter_type``.
+
+        If ``plugin_id`` matches a running simulator plugin, that one is
+        returned; otherwise the first running simulator plugin providing the
+        adapter type is returned. Non-simulator plugins are ignored.
+        """
+        match: PluginInfo | None = None
+        for info in self._plugins.values():
+            if not info.is_running or info.instance is None:
+                continue
+            if not self._is_erp_simulator_plugin(info):
+                continue
+            if not any(ep.type == adapter_type for ep in info.manifest.extension_points):
+                continue
+            if plugin_id and info.manifest.id == plugin_id:
+                return info
+            if match is None:
+                match = info
+        return match
+
     def _iter_adapter_plugins(
         self,
         adapter_type: str,

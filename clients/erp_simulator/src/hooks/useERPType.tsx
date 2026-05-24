@@ -27,11 +27,13 @@ export function ERPProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<ERPHealth | null>(null);
 
   useEffect(() => {
+    // Resolve the simulator plugin id first so the health check targets it.
     getSimulatorOptions()
-      .then((opts) => setErpType(opts.erp_type))
-      .catch(() => {});
-    getERPHealth()
-      .then(setHealth)
+      .then((opts) => {
+        setErpType(opts.erp_type);
+        return getERPHealth();
+      })
+      .then((h) => { if (h) setHealth(h); })
       .catch(() => {});
   }, []);
 
