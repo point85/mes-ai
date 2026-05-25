@@ -87,11 +87,11 @@ The equipment simulator is a React and Vite application used to mimic equipment 
 - SQLAlchemy 2 async ORM for persistence
 - Alembic for migrations
 - Pydantic v2 and `pydantic-settings` for schemas and configuration
-- PostgreSQL as a lightweight default database
+- PostgreSQL as the default database
 - Uvicorn and `asyncio` for the ASGI runtime
 - PyJWT-based token handling for authentication flows
 
-The Python package also defines optional dependencies for protocol and integration scenarios such as OPC UA, MQTT, SAP, SQL Server, Oracle, Modbus, Redis, STOMP, and AVEVA-related integration work.
+The Python package also defines optional dependencies for protocol and integration scenarios such as OPC UA, MQTT, SAP, SQL Server, Oracle, Modbus, Redis, STOMP, and AVEVA historian integration work.
 
 ### Frontend
 
@@ -103,7 +103,7 @@ The Python package also defines optional dependencies for protocol and integrati
 - Axios
 - Tailwind CSS 4
 
-The design-time app additionally uses Headless UI, Heroicons, Zod, React Hook Form, Mermaid, and the React Hook Form resolver package to support richer authoring and visualization workflows.
+The design-time, runtime, and ERP simulator apps use Headless UI and Heroicons for component styling. The design-time app additionally uses Zod, React Hook Form, Mermaid, and the React Hook Form resolver package to support richer authoring and visualization workflows.
 
 ### Quality and Developer Tooling
 
@@ -121,7 +121,7 @@ This matters because manufacturing implementations are rarely identical. Site-sp
 
 ## Deployment and Operating Model
 
-MES AI is developed as a multi-application workspace. The server runs as a FastAPI service, and each client runs as its own Vite application during development. In local workflows, simulators and operator clients can be launched independently against the same server instance. This makes it straightforward to test design-time configuration, runtime execution, ERP release flows, and equipment-facing behavior side by side.
+MES AI is developed as a multi-application workspace. The server runs as a FastAPI service, and each client runs as its own Vite application during development. In local workflows, simulators and user clients can be launched independently against the same server instance. This makes it straightforward to test design-time configuration, runtime execution, ERP release flows, and equipment-facing behavior side by side.
 
 The default persistence model is PostgreSQL, with schema management handled through Alembic migrations and environment-driven configuration on the server side. SQL Server and Oracle are also supported for teams that need those platforms.
 

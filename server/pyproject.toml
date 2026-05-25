@@ -39,15 +39,6 @@ oracle = [
 modbus = [
     "pymodbus>=3.6.0",
 ]
-kafka = [
-    "aiokafka>=0.10.0",
-]
-nats = [
-    "nats-py>=2.7.0",
-]
-rabbitmq = [
-    "aio-pika>=9.4.0",
-]
 redis = [
     "redis[hiredis]>=5.0.0",
 ]
@@ -58,7 +49,7 @@ aveva = [
     "httpx-ntlm>=1.4.0",
 ]
 all = [
-    "mes-ai[opcua,mqtt,sap,mssql,oracle,modbus,kafka,nats,rabbitmq,redis,stomp,aveva]",
+    "mes-ai[opcua,mqtt,sap,mssql,oracle,modbus,redis,stomp,aveva]",
 ]
 dev = [
     "pytest>=8.1.1",
