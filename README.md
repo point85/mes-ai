@@ -8,7 +8,7 @@ Key advantages include:
 - AI-assisted development and testing to accelerate delivery
 - Greater control over release timing, feature priorities, and operational data
 
-For setup and usage instructions, see [docs/MES AI User Guide.pdf](User Guide).  Details of the architecture can be found in [docs/ARCHITECTURE.md](Architecture).
+For setup and usage instructions, see [User Guide](docs/MES%20AI%20User%20Guide.pdf).  Details of the architecture can be found in [Architecture](docs/ARCHITECTURE.md).
 
 ## MES AI Architecture Overview
 
