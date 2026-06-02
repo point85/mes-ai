@@ -23,8 +23,15 @@ const KEYS = {
 
 // ─── Plugin list ──────────────────────────────────────────────────────
 
+/** Poll every 10 s so the status column stays in sync with server state. */
+const PLUGIN_POLL_INTERVAL = 10_000;
+
 export function usePlugins() {
-  return useQuery({ queryKey: KEYS.plugins, queryFn: fetchPlugins });
+  return useQuery({
+    queryKey: KEYS.plugins,
+    queryFn: fetchPlugins,
+    refetchInterval: PLUGIN_POLL_INTERVAL,
+  });
 }
 
 export function usePlugin(pluginId: string) {
@@ -32,6 +39,7 @@ export function usePlugin(pluginId: string) {
     queryKey: KEYS.pluginDetail(pluginId),
     queryFn: () => fetchPlugin(pluginId),
     enabled: !!pluginId,
+    refetchInterval: PLUGIN_POLL_INTERVAL,
   });
 }
 

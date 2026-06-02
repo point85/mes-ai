@@ -11,6 +11,7 @@ Handles:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import logging
@@ -27,6 +28,11 @@ from sqlalchemy.orm import selectinload
 from mes.config import settings
 
 from .models import Permission, Role, User, UserRole
+
+# Serialises concurrent seed_default_roles calls within the same process.
+# The second caller waits for the first to commit, then finds all roles
+# already present and skips every insert — no database-specific behaviour needed.
+_seed_roles_lock = asyncio.Lock()
 
 logger = logging.getLogger("mes.auth")
 
@@ -356,27 +362,33 @@ class AuthService:
         """
         Create default roles and permissions if they don't exist.
         Called during application startup.
+        Idempotent and race-safe: the module-level asyncio.Lock serialises
+        concurrent calls within the same process so that only one coroutine
+        performs inserts at a time.  The second caller waits for the first
+        to commit, then finds every role already present and skips cleanly.
+        Works identically on PostgreSQL, SQL Server, and Oracle.
         """
-        for role_name, role_def in DEFAULT_ROLES.items():
-            existing = await session.execute(select(Role).where(Role.name == role_name))
-            if existing.scalar_one_or_none() is not None:
-                continue
+        async with _seed_roles_lock:
+            for role_name, role_def in DEFAULT_ROLES.items():
+                existing = await session.execute(select(Role).where(Role.name == role_name))
+                if existing.scalar_one_or_none() is not None:
+                    continue
 
-            role = Role(
-                name=role_name,
-                description=role_def["description"],
-                is_system=True,
-            )
-            session.add(role)
-            await session.flush()  # Get role.id
+                role = Role(
+                    name=role_name,
+                    description=role_def["description"],
+                    is_system=True,
+                )
+                session.add(role)
+                await session.flush()  # Get role.id
 
-            for perm_str in role_def["permissions"]:
-                perm = Permission(role_id=role.id, permission=perm_str)
-                session.add(perm)
+                for perm_str in role_def["permissions"]:
+                    perm = Permission(role_id=role.id, permission=perm_str)
+                    session.add(perm)
 
-            logger.info("Seeded default role: %s", role_name)
+                logger.info("Seeded default role: %s", role_name)
 
-        await session.commit()
+            await session.commit()
 
 
 def _wildcard_match(pattern_parts: list[str], value_parts: list[str]) -> bool:

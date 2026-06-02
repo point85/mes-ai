@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     # --- Database (DATA-LAYER) ---
+    # PostgreSQL (default — async runtime):
+    #   postgresql+asyncpg://user:password@host:5432/mes_ai
+    # SQL Server (sync only — requires pyodbc):
+    #   mssql+pyodbc://user:password@host/mes_ai?driver=ODBC+Driver+18+for+SQL+Server
+    # Oracle (sync only — requires oracledb):
+    #   oracle+oracledb://user:password@host:1521/?service_name=mes_ai
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/mes_ai"
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = 20
