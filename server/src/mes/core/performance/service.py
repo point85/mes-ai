@@ -142,6 +142,25 @@ class EquipmentStateService:
         session.add(log)
         await session.flush()
 
+        # Enforce 500-row cap: delete the oldest row(s) when exceeded
+        _MAX_STATE_LOG_ROWS = 500
+        count_result = await session.execute(select(func.count()).select_from(EquipmentStateLog))
+        total_rows = count_result.scalar_one()
+        if total_rows > _MAX_STATE_LOG_ROWS:
+            excess = total_rows - _MAX_STATE_LOG_ROWS
+            oldest_stmt = (
+                select(EquipmentStateLog.id)
+                .order_by(EquipmentStateLog.started_at.asc())
+                .limit(excess)
+            )
+            oldest_result = await session.execute(oldest_stmt)
+            oldest_ids = [row[0] for row in oldest_result]
+            if oldest_ids:
+                from sqlalchemy import delete
+                await session.execute(
+                    delete(EquipmentStateLog).where(EquipmentStateLog.id.in_(oldest_ids))
+                )
+
         # Emit state changed event
         await event_bus.publish(equipment_state_changed(
             equipment_id=str(equipment_id),

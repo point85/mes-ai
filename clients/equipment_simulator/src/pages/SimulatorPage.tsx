@@ -34,7 +34,7 @@ export default function SimulatorPage() {
   const [, setModels] = useState<StateModel[]>([]);
   const [loadingEquip, setLoadingEquip] = useState(false);
   const [running, setRunning] = useState(false);
-  const [intervalSec, setIntervalSec] = useState(5);
+  const [intervalSec, setIntervalSec] = useState(60);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [totalTransitions, setTotalTransitions] = useState(0);
   const [totalErrors, setTotalErrors] = useState(0);
