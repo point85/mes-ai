@@ -10,6 +10,14 @@ Key advantages include:
 
 For setup and usage instructions, see [User Guide](docs/MES%20AI%20User%20Guide.pdf).  Details of the architecture can be found in [Architecture](docs/ARCHITECTURE.md).
 
+Test drive the MES applications here (no authentication is required):
+[Design Time](http://134.199.238.219:5173)
+[Runtime](http://134.199.238.219:5176)
+[ERP Simulator](http://134.199.238.219:5174)
+[Equipment Simulator](http://134.199.238.219:5175) 
+
+Please email comments or issues to point85.apps@gmail.com
+
 ## MES AI Architecture Overview
 
 MES AI is built around a FastAPI server, multiple Vite-based web clients, and a plugin-oriented extension model. The platform is designed to support ISA-95-style manufacturing workflows while staying practical for iterative development, simulation, and AI-assisted customization.  MES AI can be run on Linux, MacOS or Windows operating systems.

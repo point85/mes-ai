@@ -115,7 +115,7 @@ STEPS PERFORMED
   1. Verify Python 3.12+ (install via winget if missing)
   2. Verify Node.js 20+  (install via winget if missing, unless -SkipClients)
   3. Create Python virtual environment      (.venv/)
-  4. Install Python server dependencies     (pip install -e ".[dev]")
+  4. Install Python server dependencies     (pip install -e ".[<driver>,dev]")
   5. Create server/.env configuration file  (skipped if already present)
     6. Prepare database                       (auto-create for PostgreSQL only)
   7. Run Alembic schema migrations          (skipped with -SkipMigrations)
@@ -372,11 +372,19 @@ if (Test-Path $VenvDir) {
 # --- Step 4: Python dependencies --------------------------------------------
 Write-Step "Step 4/8 - Installing Python server dependencies"
 
+# Determine the database driver extra that matches the chosen provider.
+$dbDriverExtra = switch ($dbType) {
+    "postgresql" { "postgres" }
+    "mssql"      { "mssql"   }
+    "oracle"     { "oracle"  }
+    default      { "postgres" }
+}
+
 Push-Location $ServerDir
 try {
     & $VenvPip install --upgrade pip --quiet
-    & $VenvPip install -e ".[dev]" --quiet
-    Write-Ok "Python packages installed (mes-ai + dev extras)."
+    & $VenvPip install -e ".[${dbDriverExtra},dev]" --quiet
+    Write-Ok "Python packages installed (mes-ai + $dbDriverExtra driver + dev extras)."
 } finally {
     Pop-Location
 }

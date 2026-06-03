@@ -47,7 +47,7 @@ STEPS PERFORMED
    1. Verify Python 3.12+ (install via apt/brew/dnf if missing)
    2. Verify Node.js 20+  (install via apt/brew/dnf if missing, unless --skip-clients)
    3. Create Python virtual environment     (.venv/)
-   4. Install Python server dependencies    (pip install -e ".[dev]")
+   4. Install Python server dependencies    (pip install -e ".[<driver>,dev]")
    5. Create server/.env configuration      (skipped if already present)
      6. Prepare database                      (auto-create for PostgreSQL only)
    7. Run Alembic schema migrations         (skipped with --skip-migrations)
@@ -382,12 +382,20 @@ fi
 # ─── Step 4: Python dependencies ────────────────────────────────────────────────
 step "Step 4/8 — Installing Python server dependencies"
 
+# Determine the database driver extra that matches the chosen provider.
+case "$DB_TYPE_LOWER" in
+    postgresql) DB_DRIVER_EXTRA="postgres" ;;
+    mssql)      DB_DRIVER_EXTRA="mssql"    ;;
+    oracle)     DB_DRIVER_EXTRA="oracle"   ;;
+    *)          DB_DRIVER_EXTRA="postgres" ;;
+esac
+
 pushd "$SERVER_DIR" > /dev/null
 "$VENV_PYTHON" -m pip install --upgrade pip --quiet
-"$VENV_PYTHON" -m pip install -e ".[dev]" --quiet
+"$VENV_PYTHON" -m pip install -e ".[${DB_DRIVER_EXTRA},dev]" --quiet
 popd > /dev/null
 
-ok "Python packages installed (mes-ai + dev extras)."
+ok "Python packages installed (mes-ai + ${DB_DRIVER_EXTRA} driver + dev extras)."
 
 if [[ "$DB_TYPE_LOWER" == "postgresql" ]]; then
     step "Step 4/8 - Checking PostgreSQL role prerequisites"

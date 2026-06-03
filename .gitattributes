@@ -1,0 +1,40 @@
+# Normalize line endings in Git's object store to LF.
+# On checkout: Windows gets CRLF for text files, Unix/macOS get LF.
+* text=auto
+
+# Shell scripts must always use LF — CRLF breaks the shebang line on Linux.
+*.sh text eol=lf
+
+# PowerShell scripts: CRLF on all platforms is fine.
+*.ps1 text eol=crlf
+
+# Python, config, and web source files: LF everywhere.
+*.py  text eol=lf
+*.ts  text eol=lf
+*.tsx text eol=lf
+*.js  text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.ini  text eol=lf
+*.cfg  text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.md   text eol=lf
+*.env  text eol=lf
+*.conf text eol=lf
+*.mako text eol=lf
+*.mmd  text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+
+# Binary files — no line-ending conversion.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
