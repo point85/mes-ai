@@ -11,8 +11,8 @@ Key advantages include:
 For setup and usage instructions, see [User Guide](docs/MES%20AI%20User%20Guide.pdf).  Details of the architecture can be found in [Architecture](docs/ARCHITECTURE.md).
 
 Test drive the MES applications here (no authentication is required):
-- [Design Time](http://134.199.238.219:5173)
-- [Runtime](http://134.199.238.219:5176)
+- <a href="http://134.199.238.219:5173" target="_blank">Design Time</a>
+- <a href="http://134.199.238.219:5176" target="_blank">Runtime</a>
 - [ERP Simulator](http://134.199.238.219:5174)
 - [Equipment Simulator](http://134.199.238.219:5175) 
 
