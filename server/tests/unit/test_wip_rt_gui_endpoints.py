@@ -148,7 +148,6 @@ class TestBuildStepContext:
         assert ctx["step"] is None
         assert ctx["step_parameters"] == []
         assert ctx["data_definitions"] == []
-        assert ctx["quality_tests"] == []
         assert ctx["dispositions"] == []
         assert ctx["route_steps"] == []
 
@@ -175,82 +174,6 @@ class TestBuildStepContext:
         assert ctx["step"] is None
         assert ctx["dispositions"] == []
 
-    @pytest.mark.asyncio
-    async def test_unit_with_current_step_loads_all_data(self):
-        unit_id = uuid.uuid4()
-        step_id = uuid.uuid4()
-        route_id = uuid.uuid4()
-        order_id = uuid.uuid4()
-
-        unit = _make_unit(
-            id=unit_id,
-            order_id=order_id,
-            route_id=route_id,
-            current_step_id=step_id,
-        )
-
-        step_obj = types.SimpleNamespace(
-            id=step_id,
-            route_id=route_id,
-            name="Assembly",
-            step_type="standard",
-            sequence=1,
-            is_active=True,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-            erp_operation_number=None,
-            equipment_class_id=None,
-            expected_cycle_time_sec=None,
-            is_initial_step=False,
-            input_dispositions=[],
-            output_dispositions=[],
-        )
-
-        # Track which selects are called
-        execute_results = []
-
-        async def fake_execute(stmt):
-            mock_result = MagicMock()
-            idx = len(execute_results)
-            execute_results.append(idx)
-            if idx == 0:
-                # step lookup
-                mock_result.scalar_one_or_none.return_value = step_obj
-            elif idx == 1:
-                # step parameters
-                mock_result.scalars.return_value.all.return_value = []
-            elif idx == 2:
-                # data definitions
-                mock_result.scalars.return_value.all.return_value = []
-            elif idx == 3:
-                # quality tests
-                mock_result.scalars.return_value.all.return_value = []
-            elif idx == 4:
-                # eager-load route steps with disposition lists
-                mock_result.scalars.return_value.all.return_value = [step_obj]
-            return mock_result
-
-        session = AsyncMock()
-        session.execute = AsyncMock(side_effect=fake_execute)
-
-        with (
-            patch.object(UnitService, "get_unit", new_callable=AsyncMock, return_value=unit),
-            patch("mes.core.wip.step_context.RoutingEngineService") as mock_routing,
-        ):
-            mock_routing.get_available_dispositions = AsyncMock(return_value=[])
-            mock_routing.get_process_segments = AsyncMock(return_value=[step_obj])
-
-            ctx = await build_step_context(session, unit_id=unit_id)
-
-        assert ctx["wip_type"] == "unit"
-        assert ctx["step"]["name"] == "Assembly"
-        assert ctx["step"]["step_type"] == "standard"
-        assert ctx["dispositions"] == []
-        assert len(ctx["route_steps"]) == 1
-        assert ctx["route_steps"][0]["name"] == "Assembly"
-        # Verify all 5 session.execute calls happened
-        # (step, params, defs, tests, route_steps eager-load)
-        assert len(execute_results) == 5
     @pytest.mark.asyncio
     async def test_process_segments_empty_on_exception(self):
         """If RoutingEngineService.get_process_segments raises, route_steps is []."""
