@@ -234,7 +234,7 @@ export default function DataDefFormDialog({ definition, onClose }: Props) {
                 >
                   <option value="">— Select route —</option>
                   {routes.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
+                    <option key={r.id} value={r.id}>{r.name} ({r.version})</option>
                   ))}
                 </select>
               </div>

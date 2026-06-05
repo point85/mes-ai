@@ -57,7 +57,6 @@ export default function SiteFormDialog({ site, onClose }: Props) {
     handleSubmit,
     reset,
     setValue,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<SiteFormData>({
     resolver: zodResolver(siteSchema),
@@ -70,8 +69,6 @@ export default function SiteFormDialog({ site, onClose }: Props) {
       work_schedule_id: null,
     },
   });
-
-  const currentTimezone = watch("timezone");
 
   useEffect(() => {
     if (site) {

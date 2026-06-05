@@ -132,7 +132,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   });
 
   // Fetch the current PackML / E10 state of the assigned equipment (in_process)
-  const { data: assignedEquipState } = useQuery<EquipmentCurrentState>({
+  useQuery<EquipmentCurrentState>({
     queryKey: ["equipment-current-state", wip.current_equipment_id],
     queryFn: () => fetchEquipmentCurrentState(wip.current_equipment_id!),
     enabled: !!wip.current_equipment_id && wip.status === "in_process",
@@ -434,7 +434,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
               stepName: rs?.name ?? "Unknown",
               started: new Date(h.entered_at).toLocaleString(),
               completed: h.exited_at ? new Date(h.exited_at).toLocaleString() : "—",
-              result: h.result ?? "",
+              result: "result" in h ? (h.result ?? "") : "",
             };
           });
 

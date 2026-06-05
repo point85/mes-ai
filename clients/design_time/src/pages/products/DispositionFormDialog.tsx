@@ -15,6 +15,7 @@ import {
 import type { Disposition } from "../../types";
 
 const schema = z.object({
+  code: z.string().min(1, "Code is required").max(50),
   name: z.string().min(1, "Name is required").max(100),
   description: z.string().max(500).nullable().optional(),
   category: z.enum(["route", "hold", "scrap", "release"]),
@@ -23,13 +24,11 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 interface Props {
-  stepId: string;
   disposition: Disposition | null;
   onClose: () => void;
 }
 
 export default function DispositionFormDialog({
-  stepId,
   disposition,
   onClose,
 }: Props) {
@@ -46,6 +45,7 @@ export default function DispositionFormDialog({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(schema) as any,
     defaultValues: {
+      code: "",
       name: "",
       description: "",
       category: "route",
@@ -55,6 +55,7 @@ export default function DispositionFormDialog({
   useEffect(() => {
     if (disposition) {
       reset({
+        code: disposition.code,
         name: disposition.name,
         description: disposition.description ?? "",
         category: disposition.category as FormData["category"],
@@ -67,7 +68,7 @@ export default function DispositionFormDialog({
       if (isEdit) {
         await updateMut.mutateAsync({ id: disposition!.id, ...data });
       } else {
-        await createMut.mutateAsync({ stepId, ...data });
+        await createMut.mutateAsync(data);
       }
       onClose();
     } catch {

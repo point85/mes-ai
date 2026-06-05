@@ -118,7 +118,7 @@ export default function InventoryPage() {
         <BalancesPanel locationMap={locationMap} lotMap={lotMap} materialMap={materialMap} />
       )}
       {tab === "log" && (
-        <TransactionLog locationMap={locationMap} lotMap={lotMap} locName={locName} lotLabel={lotLabel} />
+        <TransactionLog locationMap={locationMap} locName={locName} lotLabel={lotLabel} />
       )}
       {tab === "lots" && (
         <LotsPanel />
@@ -532,12 +532,10 @@ function BalancesPanel({
 
 function TransactionLog({
   locationMap,
-  lotMap,
   locName,
   lotLabel,
 }: {
   locationMap: Map<string, StorageLocation>;
-  lotMap: Map<string, MaterialLot>;
   locName: (id: string | null) => string;
   lotLabel: (id: string) => string;
 }) {

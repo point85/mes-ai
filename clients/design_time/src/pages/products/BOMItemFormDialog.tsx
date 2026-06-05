@@ -26,7 +26,7 @@ import type { BOMItem, RouteStep, Material } from "../../types";
 const schema = z.object({
   material_code: z.string().min(1, "Material is required"),
   quantity: z
-    .number({ invalid_type_error: "Quantity required" })
+    .number({ message: "Quantity required" })
     .positive("Must be > 0"),
   uom_id: z.string().min(1, "UoM is required"),
   position: z.number().int().min(0).optional(),

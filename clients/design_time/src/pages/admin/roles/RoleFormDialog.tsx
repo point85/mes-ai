@@ -26,7 +26,7 @@ export default function RoleFormDialog({ role, onClose, onSaved }: Props) {
   const [description, setDescription] = useState(role?.description ?? "");
 
   // Permissions management (edit mode only)
-  const [existingPerms, setExistingPerms] = useState<string[]>(role?.permissions ?? []);
+  const [existingPerms] = useState<string[]>(role?.permissions ?? []);
   const [removedPerms, setRemovedPerms] = useState<Set<string>>(new Set());
   const [addedPerms, setAddedPerms] = useState<string[]>([]);
   const [newPerm, setNewPerm] = useState("");

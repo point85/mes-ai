@@ -31,7 +31,8 @@ const equipSchema = z.object({
     }),
 });
 
-type EquipFormData = z.infer<typeof equipSchema>;
+type EquipFormData = z.output<typeof equipSchema>;
+type EquipFormInput = z.input<typeof equipSchema>;
 
 interface Props {
   equipment: Equipment | null;
@@ -52,7 +53,7 @@ export default function EquipmentFormDialog({ equipment, wcId, onClose }: Props)
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<EquipFormData>({
+  } = useForm<EquipFormInput, unknown, EquipFormData>({
     resolver: zodResolver(equipSchema),
     defaultValues: {
       name: "",

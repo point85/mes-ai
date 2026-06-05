@@ -187,7 +187,7 @@ export async function syncMaterials(): Promise<MaterialDefinition[]> {
 }
 
 export async function readMaterials(): Promise<MaterialDefinition[]> {
-  const rows = unwrapData(await api.get("/materials", { params: { limit: 200 } }));
+  const rows = unwrapData<any[]>(await api.get("/materials", { params: { limit: 200 } }));
   // The /materials endpoint returns uom_symbol (not uom); normalise to the
   // MaterialDefinition shape used throughout the ERP simulator.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -215,7 +215,7 @@ export interface DBProduct {
 }
 
 export async function readProducts(): Promise<DBProduct[]> {
-  const rows = unwrapData(await api.get("/products", { params: { limit: 200 } }));
+  const rows = unwrapData<any[]>(await api.get("/products", { params: { limit: 200 } }));
   // The /products endpoint returns uom_symbol (not uom); normalise to DBProduct shape.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return rows.map((r: any) => ({ ...r, uom: r.uom ?? r.uom_symbol ?? "" }));
@@ -254,6 +254,7 @@ export interface DBBomItem {
   quantity: number;
   uom_id: string;
   uom_symbol: string;
+  uom: string;
   position: number;
   process_segment_id: string | null;
   is_active: boolean;
@@ -264,7 +265,7 @@ export async function readProductBoms(productId: string): Promise<DBBom[]> {
 }
 
 export async function readBomItems(bomId: string): Promise<DBBomItem[]> {
-  const rows = unwrapData(await api.get(`/boms/${encodeURIComponent(bomId)}/items`, { params: { limit: 200 } }));
+  const rows = unwrapData<any[]>(await api.get(`/boms/${encodeURIComponent(bomId)}/items`, { params: { limit: 200 } }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return rows.map((r: any) => ({ ...r, uom: r.uom ?? r.uom_symbol ?? "" }));
 }

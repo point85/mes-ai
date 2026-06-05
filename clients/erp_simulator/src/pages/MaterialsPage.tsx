@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  syncMaterials,
   readMaterials,
   createMaterial,
   updateMaterial,

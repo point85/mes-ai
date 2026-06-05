@@ -1,15 +1,19 @@
 ﻿<#
 .SYNOPSIS
-    Manage a MES AI Vite client application as a Windows service using NSSM.
+    Manage a MES AI Vite client production build as a Windows service using NSSM.
 
 .DESCRIPTION
     Installs, uninstalls, starts, stops, restarts, or queries the status of
     a MES AI Vite client (dt-client, rt-client, erp-sim, or equipment-sim)
-    as a native Windows service.  NSSM is checked for and installed
-    automatically when needed.
+    as a native Windows service, serving the production dist/ build via
+    'vite preview'.  NSSM is checked for and installed automatically when needed.
 
     All runtime parameters are read from a configuration file so that
     nothing sensitive appears on the command line.
+
+    The dist/ folder must exist before installing.  Run 'npm run build' in
+    the client directory first, or use run-client-production.ps1 -Build to
+    produce it.
 
 .PARAMETER Action
     Required.  One of: install | uninstall | start | stop | restart | status
@@ -20,17 +24,17 @@
     See rt-service.conf for the full list of keys.
 
 .EXAMPLE
-    # Install the RT-client service:
-    .\run-client-service.ps1 install
+    # Install the RT-client production service:
+    .\run-client-service-production.ps1 install
 
 .EXAMPLE
     # Use a custom config file (e.g. for the DT client):
-    .\run-client-service.ps1 install -ConfigFile .\dt-service.conf
+    .\run-client-service-production.ps1 install -ConfigFile .\dt-service.conf
 
 .EXAMPLE
-    .\run-client-service.ps1 status
-    .\run-client-service.ps1 restart
-    .\run-client-service.ps1 uninstall
+    .\run-client-service-production.ps1 status
+    .\run-client-service-production.ps1 restart
+    .\run-client-service-production.ps1 uninstall
 #>
 
 [CmdletBinding()]
@@ -58,12 +62,12 @@ if ($ConfigFile -eq "") {
     $ConfigFile = Join-Path $ScriptRoot "rt-service.conf"
 }
 
-# ── Client directory map ──────────────────────────────────────────────────────
+# ── Client directory map (production ports: 4xxx) ─────────────────────────────
 $ClientMap = @{
-    "dt-client"      = @{ Dir = "clients\design_time";        DefaultPort = 5173; Label = "Design-Time Client" }
-    "rt-client"      = @{ Dir = "clients\run_time";           DefaultPort = 5176; Label = "Run-Time Client" }
-    "erp-sim"        = @{ Dir = "clients\erp_simulator";      DefaultPort = 5174; Label = "ERP Simulator" }
-    "equipment-sim"  = @{ Dir = "clients\equipment_simulator"; DefaultPort = 5175; Label = "Equipment Simulator" }
+    "dt-client"      = @{ Dir = "clients\design_time";         DefaultPort = 4173; Label = "Design-Time Client" }
+    "rt-client"      = @{ Dir = "clients\run_time";            DefaultPort = 4176; Label = "Run-Time Client" }
+    "erp-sim"        = @{ Dir = "clients\erp_simulator";       DefaultPort = 4174; Label = "ERP Simulator" }
+    "equipment-sim"  = @{ Dir = "clients\equipment_simulator"; DefaultPort = 4175; Label = "Equipment Simulator" }
 }
 
 # ── Config parsing ────────────────────────────────────────────────────────────
@@ -216,16 +220,16 @@ function Resolve-ClientInfo {
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 Write-Host ""
-Write-Host "MES AI Client Service Manager" -ForegroundColor White
-Write-Host "=============================" -ForegroundColor White
+Write-Host "MES AI Client Production Service Manager" -ForegroundColor White
+Write-Host "========================================" -ForegroundColor White
 
 if ($Action -eq "") {
     Write-Host ""
     Write-Host "USAGE" -ForegroundColor Yellow
-    Write-Host "  .\run-client-service.ps1 <action> [-ConfigFile <path>]"
+    Write-Host "  .\run-client-service-production.ps1 <action> [-ConfigFile <path>]"
     Write-Host ""
     Write-Host "ACTIONS" -ForegroundColor Yellow
-    Write-Host "  install    Register the Vite client as a Windows service (requires Admin)"
+    Write-Host "  install    Register the production client as a Windows service (requires Admin)"
     Write-Host "  uninstall  Remove the Windows service (requires Admin)"
     Write-Host "  start      Start the service (requires Admin)"
     Write-Host "  stop       Stop the service (requires Admin)"
@@ -235,12 +239,17 @@ if ($Action -eq "") {
     Write-Host "OPTIONS" -ForegroundColor Yellow
     Write-Host "  -ConfigFile <path>   Path to config file (default: rt-service.conf)"
     Write-Host ""
+    Write-Host "NOTES" -ForegroundColor Yellow
+    Write-Host "  The client dist/ folder must exist before installing."
+    Write-Host "  Build it first:  .\run-client-production.ps1 <client> -Build"
+    Write-Host "  Default ports are offset by -1000 from dev (4173/4174/4175/4176)."
+    Write-Host ""
     Write-Host "EXAMPLES" -ForegroundColor Yellow
-    Write-Host "  .\run-client-service.ps1 install"
-    Write-Host "  .\run-client-service.ps1 install -ConfigFile .\dt-service.conf"
-    Write-Host "  .\run-client-service.ps1 start"
-    Write-Host "  .\run-client-service.ps1 status"
-    Write-Host "  .\run-client-service.ps1 uninstall"
+    Write-Host "  .\run-client-service-production.ps1 install"
+    Write-Host "  .\run-client-service-production.ps1 install -ConfigFile .\dt-service.conf"
+    Write-Host "  .\run-client-service-production.ps1 start"
+    Write-Host "  .\run-client-service-production.ps1 status"
+    Write-Host "  .\run-client-service-production.ps1 uninstall"
     Write-Host ""
     Write-Host "  See rt-service.conf for all available configuration keys."
     Write-Host ""
@@ -250,20 +259,20 @@ if ($Action -eq "") {
 $validActions = @("install", "uninstall", "start", "stop", "restart", "status")
 if ($Action.ToLower() -notin $validActions) {
     Write-Host "ERROR: Unknown action '$Action'.  Valid actions: $($validActions -join ', ')" -ForegroundColor Red
-    Write-Host "Run .\run-client-service.ps1 with no arguments to see usage."
+    Write-Host "Run .\run-client-service-production.ps1 with no arguments to see usage."
     exit 1
 }
 
 # ── STATUS ───────────────────────────────────────────────────────────────────
 if ($Action -ieq "status") {
     $cfg    = Read-Config $ConfigFile
-    $name   = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient"
+    $name   = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient-Prod"
     $info   = Resolve-ClientInfo $cfg
     $status = Get-ServiceStatus $name
     $colour = if ($status -eq "running") { "Green" }
               elseif ($status -eq "not-installed") { "Yellow" }
               else { "Red" }
-    Write-Host "  Client   : $($info.Label)"
+    Write-Host "  Client   : $($info.Label) (production)"
     Write-Host "  Service  : $name"
     Write-Host "  Status   : $status" -ForegroundColor $colour
     exit 0
@@ -273,7 +282,7 @@ if ($Action -ieq "status") {
 if ($Action -ieq "stop") {
     Assert-Admin
     $cfg    = Read-Config $ConfigFile
-    $name   = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient"
+    $name   = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient-Prod"
     $nssm   = Get-NssmPath
     $status = Get-ServiceStatus $name
     if ($status -eq "not-installed") { Write-Warn "Service '$name' is not installed."; exit 0 }
@@ -288,10 +297,10 @@ if ($Action -ieq "stop") {
 if ($Action -ieq "start") {
     Assert-Admin
     $cfg    = Read-Config $ConfigFile
-    $name   = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient"
+    $name   = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient-Prod"
     $nssm   = Get-NssmPath
     $status = Get-ServiceStatus $name
-    if ($status -eq "not-installed") { Write-Fatal "Service '$name' is not installed.  Run: .\run-client-service.ps1 install" }
+    if ($status -eq "not-installed") { Write-Fatal "Service '$name' is not installed.  Run: .\run-client-service-production.ps1 install" }
     if ($status -eq "running")       { Write-Warn "Service '$name' is already running."; exit 0 }
     Write-Step "Starting service '$name'..."
     & $nssm start $name
@@ -303,10 +312,10 @@ if ($Action -ieq "start") {
 if ($Action -ieq "restart") {
     Assert-Admin
     $cfg  = Read-Config $ConfigFile
-    $name = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient"
+    $name = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient-Prod"
     $nssm = Get-NssmPath
     if ((Get-ServiceStatus $name) -eq "not-installed") {
-        Write-Fatal "Service '$name' is not installed.  Run: .\run-client-service.ps1 install"
+        Write-Fatal "Service '$name' is not installed.  Run: .\run-client-service-production.ps1 install"
     }
     Write-Step "Restarting service '$name'..."
     & $nssm restart $name
@@ -318,7 +327,7 @@ if ($Action -ieq "restart") {
 if ($Action -ieq "uninstall") {
     Assert-Admin
     $cfg    = Read-Config $ConfigFile
-    $name   = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient"
+    $name   = Get-CfgValue $cfg "ServiceName" "MesAI-RtClient-Prod"
     $nssm   = Get-NssmPath
     $status = Get-ServiceStatus $name
     if ($status -eq "not-installed") { Write-Warn "Service '$name' is not installed."; exit 0 }
@@ -341,12 +350,19 @@ $cfg = Read-Config $ConfigFile
 $clientKey  = (Get-CfgValue $cfg "Client" "rt-client").ToLower()
 $info       = Resolve-ClientInfo $cfg
 $clientDir  = Join-Path $ScriptRoot $info.Dir
+$distDir    = Join-Path $clientDir "dist"
 
 if (-not (Test-Path $clientDir)) {
     Write-Fatal "Client directory not found: $clientDir"
 }
 
-# Ensure node_modules is present
+# Ensure dist/ exists - production build must be present
+if (-not (Test-Path $distDir)) {
+    Write-Fatal "Production dist/ folder not found: $distDir`nBuild it first:`n  .\run-client-production.ps1 $clientKey -Build"
+}
+Write-OK "Production dist/ folder found: $distDir"
+
+# Ensure node_modules is present (needed for vite preview)
 $nodeModules = Join-Path $clientDir "node_modules"
 if (-not (Test-Path $nodeModules)) {
     Write-Step "node_modules not found - running npm install in $clientDir ..."
@@ -371,10 +387,11 @@ if (-not $nodeExe) {
 
 $nssm = Get-NssmPath
 
-# Read config values
-$svcName    = Get-CfgValue $cfg "ServiceName"        "MesAI-RtClient"
-$svcDisplay = Get-CfgValue $cfg "ServiceDisplayName" "MES AI $($info.Label)"
-$svcDesc    = Get-CfgValue $cfg "ServiceDescription" "MES AI $($info.Label) Vite server"
+# Read config values - default service name uses -Prod suffix to avoid
+# colliding with the dev service that may also be installed
+$svcName    = Get-CfgValue $cfg "ServiceName"        "MesAI-RtClient-Prod"
+$svcDisplay = Get-CfgValue $cfg "ServiceDisplayName" "MES AI $($info.Label) (Production)"
+$svcDesc    = Get-CfgValue $cfg "ServiceDescription" "MES AI $($info.Label) production dist/ server"
 $port       = Get-CfgValue $cfg "Port"               $info.DefaultPort.ToString()
 $bindHost   = Get-CfgValue $cfg "BindHost"           "0.0.0.0"
 $serverUrl  = Get-CfgValue $cfg "ServerUrl"          "http://localhost:8082"
@@ -393,13 +410,19 @@ if (Test-Path $pkgJson) {
         $buildVersion = $pkg.version
     } catch { }
 }
+$distIndex = Join-Path $distDir "index.html"
+$buildTimestamp = if (Test-Path $distIndex) {
+    (Get-Item $distIndex).LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
+} else { "unknown" }
 
 # Summary
 Write-Host ""
 Write-Host "  Client     : $($info.Label)  ($clientKey)"
 Write-Host "  Version    : $buildVersion"
+Write-Host "  Built      : $buildTimestamp"
 Write-Host "  Service    : $svcName"
 Write-Host "  Display    : $svcDisplay"
+Write-Host "  Dist       : $distDir"
 Write-Host "  URL        : http://${bindHost}:${port}"
 Write-Host "  MES Server : $serverUrl"
 Write-Host "  Start Type : $startType"
@@ -417,16 +440,15 @@ if ($existing -ne "not-installed") {
     Write-OK "Old service removed."
 }
 
-# Register with NSSM
+# Register with NSSM using 'vite preview' (serves dist/) via the wrapper
 Write-Step "Installing service '$svcName'..."
 
-# Use the Node wrapper so stdout/stderr in NSSM logs are stripped of ANSI
-# escape codes and non-ASCII characters (e.g. Vite's banner arrow).
 $wrapper = Join-Path $ScriptRoot "vite-service-wrapper.cjs"
 if (-not (Test-Path $wrapper)) {
     Write-Fatal "vite-service-wrapper.cjs not found at: $wrapper"
 }
-$viteArgs = "`"$wrapper`" `"$viteBin`" --host $bindHost --port $port"
+# Pass 'preview' as the first vite argument to serve the dist/ build
+$viteArgs = "`"$wrapper`" `"$viteBin`" preview --host $bindHost --port $port"
 
 & $nssm install $svcName $nodeExe
 & $nssm set     $svcName AppParameters  $viteArgs
@@ -434,10 +456,8 @@ $viteArgs = "`"$wrapper`" `"$viteBin`" --host $bindHost --port $port"
 & $nssm set     $svcName DisplayName    $svcDisplay
 & $nssm set     $svcName Description    $svcDesc
 
-# Environment (NO_COLOR / FORCE_COLOR / TERM further discourage colour output)
 & $nssm set $svcName AppEnvironmentExtra "MES_SERVER_URL=$serverUrl`0NO_COLOR=1`0FORCE_COLOR=0`0TERM=dumb"
 
-# Logging
 & $nssm set $svcName AppStdout         (Join-Path $logDir "${svcName}-stdout.log")
 & $nssm set $svcName AppStderr         (Join-Path $logDir "${svcName}-stderr.log")
 & $nssm set $svcName AppRotateFiles    1
@@ -445,12 +465,10 @@ $viteArgs = "`"$wrapper`" `"$viteBin`" --host $bindHost --port $port"
 & $nssm set $svcName AppRotateSeconds  86400
 & $nssm set $svcName AppRotateBytes    10485760
 
-# Restart on failure
 & $nssm set $svcName AppExit         Default Restart
 & $nssm set $svcName AppRestartDelay 5000
 & $nssm set $svcName AppThrottle     0
 
-# Start type
 $nssmStart = switch ($startType.ToLower()) {
     "auto"          { "SERVICE_AUTO_START" }
     "delayed-auto"  { "SERVICE_DELAYED_AUTO_START" }
@@ -465,8 +483,8 @@ Write-Host ""
 Write-Host "  Client URL : http://localhost:${port}"
 Write-Host "  Logs       : $logDir"
 Write-Host ""
-Write-Host "  Start now  : .\run-client-service.ps1 start  -ConfigFile `"$ConfigFile`""
-Write-Host "  Stop       : .\run-client-service.ps1 stop   -ConfigFile `"$ConfigFile`""
-Write-Host "  Status     : .\run-client-service.ps1 status -ConfigFile `"$ConfigFile`""
-Write-Host "  Uninstall  : .\run-client-service.ps1 uninstall -ConfigFile `"$ConfigFile`""
+Write-Host "  Start now  : .\run-client-service-production.ps1 start  -ConfigFile `"$ConfigFile`""
+Write-Host "  Stop       : .\run-client-service-production.ps1 stop   -ConfigFile `"$ConfigFile`""
+Write-Host "  Status     : .\run-client-service-production.ps1 status -ConfigFile `"$ConfigFile`""
+Write-Host "  Uninstall  : .\run-client-service-production.ps1 uninstall -ConfigFile `"$ConfigFile`""
 Write-Host ""

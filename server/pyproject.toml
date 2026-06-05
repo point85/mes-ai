@@ -1,6 +1,6 @@
 [project]
 name = "mes-ai"
-version = "1.1.0"
+version = "1.2.0"
 description = "Open-source Manufacturing Execution System framework with plugin architecture"
 readme = "README.md"
 requires-python = ">=3.12"

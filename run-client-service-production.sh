@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
-# run-client-service.sh — Manage a MES AI Vite client as a systemd service.
+# run-client-service-production.sh — Manage a MES AI client production build
+# as a systemd service, serving the dist/ folder via 'vite preview'.
 #
 # Installs, uninstalls, starts, stops, restarts, or queries the status of
 # a MES AI Vite client (dt-client, rt-client, erp-sim, or equipment-sim)
 # as a systemd unit. All runtime parameters are read from a configuration
 # file so that nothing sensitive appears on the command line.
 #
-# Usage:
-#   ./run-client-service.sh <action> [--config <path>]
+# The client dist/ folder must exist before installing.  Build it first:
+#   ./run-client-production.sh <client> --build
 #
-# Run  ./run-client-service.sh  with no arguments for full help.
+# Default ports are offset by -1000 from dev (4173/4174/4175/4176).
+#
+# Usage:
+#   ./run-client-service-production.sh <action> [--config <path>]
+#
+# Run  ./run-client-service-production.sh  with no arguments for full help.
 
 set -euo pipefail
 
@@ -37,10 +43,10 @@ show_help() {
     cat <<'EOF'
 
 USAGE
-  ./run-client-service.sh <action> [--config <path>]
+  ./run-client-service-production.sh <action> [--config <path>]
 
 ACTIONS
-  install    Register and configure the Vite client systemd service (requires root/sudo)
+  install    Register and configure the production systemd service (requires root/sudo)
   uninstall  Remove the systemd service (requires root/sudo)
   start      Start the service (requires root/sudo)
   stop       Stop the service (requires root/sudo)
@@ -50,12 +56,17 @@ ACTIONS
 OPTIONS
   --config <path>   Path to config file (default: rt-service.conf)
 
+NOTES
+  The client dist/ folder must exist before installing.
+  Build it first:  ./run-client-production.sh <client> --build
+  Default ports are offset by -1000 from dev (4173/4174/4175/4176).
+
 EXAMPLES
-  sudo ./run-client-service.sh install
-  sudo ./run-client-service.sh install --config ./dt-service.conf
-  sudo ./run-client-service.sh start
-       ./run-client-service.sh status
-  sudo ./run-client-service.sh uninstall
+  sudo ./run-client-service-production.sh install
+  sudo ./run-client-service-production.sh install --config ./dt-service.conf
+  sudo ./run-client-service-production.sh start
+       ./run-client-service-production.sh status
+  sudo ./run-client-service-production.sh uninstall
 
   See rt-service.conf for all available configuration keys.
 
@@ -70,8 +81,8 @@ CONFIG_FILE=""
 
 if [[ $# -eq 0 ]]; then
     echo ""
-    echo "${C_WHITE}MES AI Client Service Manager${C_RESET}"
-    echo "${C_WHITE}=============================${C_RESET}"
+    echo "${C_WHITE}MES AI Client Production Service Manager${C_RESET}"
+    echo "${C_WHITE}========================================${C_RESET}"
     show_help
     exit 0
 fi
@@ -86,7 +97,7 @@ while [[ $# -gt 0 ]]; do
             show_help; exit 0 ;;
         *)
             echo "${C_RED}ERROR: Unknown argument: $1${C_RESET}" >&2
-            echo "Run ./run-client-service.sh with no arguments to see usage."
+            echo "Run ./run-client-service-production.sh with no arguments to see usage."
             exit 1 ;;
     esac
 done
@@ -137,29 +148,29 @@ cfg_value() {
 }
 
 # ---------------------------------------------------------------------------
-# Client directory map
+# Client directory map (production ports: 4xxx)
 # ---------------------------------------------------------------------------
 resolve_client() {
     local client_key="${1,,}"
     case "$client_key" in
         dt-client)
             CLIENT_DIR="$SCRIPT_DIR/clients/design_time"
-            DEFAULT_PORT=5173
+            DEFAULT_PORT=4173
             CLIENT_LABEL="Design-Time Client"
             ;;
         rt-client)
             CLIENT_DIR="$SCRIPT_DIR/clients/run_time"
-            DEFAULT_PORT=5176
+            DEFAULT_PORT=4176
             CLIENT_LABEL="Run-Time Client"
             ;;
         erp-sim)
             CLIENT_DIR="$SCRIPT_DIR/clients/erp_simulator"
-            DEFAULT_PORT=5174
+            DEFAULT_PORT=4174
             CLIENT_LABEL="ERP Simulator"
             ;;
         equipment-sim)
             CLIENT_DIR="$SCRIPT_DIR/clients/equipment_simulator"
-            DEFAULT_PORT=5175
+            DEFAULT_PORT=4175
             CLIENT_LABEL="Equipment Simulator"
             ;;
         *)
@@ -202,8 +213,8 @@ get_service_status() {
 # Header
 # ---------------------------------------------------------------------------
 echo ""
-echo "${C_WHITE}MES AI Client Service Manager${C_RESET}"
-echo "${C_WHITE}=============================${C_RESET}"
+echo "${C_WHITE}MES AI Client Production Service Manager${C_RESET}"
+echo "${C_WHITE}========================================${C_RESET}"
 
 require_systemd
 
@@ -212,7 +223,7 @@ require_systemd
 # ---------------------------------------------------------------------------
 if [[ "$ACTION" == "status" ]]; then
     read_config "$CONFIG_FILE"
-    NAME="$(cfg_value ServiceName mes-ai-rt-client)"
+    NAME="$(cfg_value ServiceName mes-ai-rt-client-prod)"
     CLIENT_KEY="$(cfg_value Client rt-client)"
     resolve_client "$CLIENT_KEY"
     STATUS="$(get_service_status "$NAME")"
@@ -221,7 +232,7 @@ if [[ "$ACTION" == "status" ]]; then
         not-installed)  COLOUR="$C_YELLOW" ;;
         *)              COLOUR="$C_RED" ;;
     esac
-    echo "  Client   : $CLIENT_LABEL"
+    echo "  Client   : $CLIENT_LABEL (production)"
     echo "  Service  : $NAME"
     echo "  Status   : ${COLOUR}${STATUS}${C_RESET}"
     if [[ "$STATUS" != "not-installed" ]]; then
@@ -237,7 +248,7 @@ fi
 if [[ "$ACTION" == "stop" ]]; then
     assert_root
     read_config "$CONFIG_FILE"
-    NAME="$(cfg_value ServiceName mes-ai-rt-client)"
+    NAME="$(cfg_value ServiceName mes-ai-rt-client-prod)"
     STATUS="$(get_service_status "$NAME")"
     if [[ "$STATUS" == "not-installed" ]]; then
         write_warn "Service '$NAME' is not installed."; exit 0
@@ -257,10 +268,10 @@ fi
 if [[ "$ACTION" == "start" ]]; then
     assert_root
     read_config "$CONFIG_FILE"
-    NAME="$(cfg_value ServiceName mes-ai-rt-client)"
+    NAME="$(cfg_value ServiceName mes-ai-rt-client-prod)"
     STATUS="$(get_service_status "$NAME")"
     if [[ "$STATUS" == "not-installed" ]]; then
-        write_fatal "Service '$NAME' is not installed.  Run: sudo ./run-client-service.sh install"
+        write_fatal "Service '$NAME' is not installed.  Run: sudo ./run-client-service-production.sh install"
     fi
     if [[ "$STATUS" == "running" ]]; then
         write_warn "Service '$NAME' is already running."; exit 0
@@ -277,9 +288,9 @@ fi
 if [[ "$ACTION" == "restart" ]]; then
     assert_root
     read_config "$CONFIG_FILE"
-    NAME="$(cfg_value ServiceName mes-ai-rt-client)"
+    NAME="$(cfg_value ServiceName mes-ai-rt-client-prod)"
     if [[ "$(get_service_status "$NAME")" == "not-installed" ]]; then
-        write_fatal "Service '$NAME' is not installed.  Run: sudo ./run-client-service.sh install"
+        write_fatal "Service '$NAME' is not installed.  Run: sudo ./run-client-service-production.sh install"
     fi
     write_step "Restarting service '$NAME'..."
     systemctl restart "$NAME"
@@ -293,7 +304,7 @@ fi
 if [[ "$ACTION" == "uninstall" ]]; then
     assert_root
     read_config "$CONFIG_FILE"
-    NAME="$(cfg_value ServiceName mes-ai-rt-client)"
+    NAME="$(cfg_value ServiceName mes-ai-rt-client-prod)"
     STATUS="$(get_service_status "$NAME")"
     if [[ "$STATUS" == "not-installed" ]]; then
         write_warn "Service '$NAME' is not installed."; exit 0
@@ -326,7 +337,16 @@ if [[ ! -d "$CLIENT_DIR" ]]; then
     write_fatal "Client directory not found: $CLIENT_DIR"
 fi
 
-# Ensure node_modules is present
+# Ensure dist/ exists — production build must be present
+DIST_DIR="$CLIENT_DIR/dist"
+if [[ ! -d "$DIST_DIR" ]]; then
+    write_fatal "Production dist/ folder not found: $DIST_DIR
+Build it first:
+  ./run-client-production.sh $CLIENT_KEY --build"
+fi
+write_ok "Production dist/ folder found: $DIST_DIR"
+
+# Ensure node_modules is present (needed for vite preview)
 NODE_MODULES="$CLIENT_DIR/node_modules"
 if [[ ! -d "$NODE_MODULES" ]]; then
     write_step "node_modules not found — running npm install in $CLIENT_DIR ..."
@@ -346,16 +366,16 @@ if [[ -z "$NODE_EXE" ]]; then
     write_fatal "Node.js not found on PATH.  Install Node.js 20+ and re-run."
 fi
 
-# Wrapper script that strips ANSI escape codes / non-ASCII from Vite output
 WRAPPER="$SCRIPT_DIR/vite-service-wrapper.cjs"
 if [[ ! -f "$WRAPPER" ]]; then
     write_fatal "vite-service-wrapper.cjs not found at: $WRAPPER"
 fi
 
-# Read config values
-SVC_NAME="$(cfg_value ServiceName        mes-ai-rt-client)"
-SVC_DISPLAY="$(cfg_value ServiceDisplayName "MES AI $CLIENT_LABEL")"
-SVC_DESC="$(cfg_value ServiceDescription "MES AI $CLIENT_LABEL Vite server")"
+# Read config values — default service name uses -prod suffix to avoid
+# colliding with the dev service that may also be installed
+SVC_NAME="$(cfg_value ServiceName        mes-ai-rt-client-prod)"
+SVC_DISPLAY="$(cfg_value ServiceDisplayName "MES AI $CLIENT_LABEL (Production)")"
+SVC_DESC="$(cfg_value ServiceDescription "MES AI $CLIENT_LABEL production dist/ server")"
 PORT="$(cfg_value Port "$DEFAULT_PORT")"
 BIND_HOST="$(cfg_value BindHost   "0.0.0.0")"
 SERVER_URL="$(cfg_value ServerUrl  "http://localhost:8082")"
@@ -375,17 +395,28 @@ chown -R "$SVC_USER:$SVC_GROUP" "$LOG_DIR" 2>/dev/null || true
 
 # Build version from package.json
 BUILD_VERSION="unknown"
+BUILD_TIMESTAMP="unknown"
 if [[ -f "$CLIENT_DIR/package.json" ]]; then
     BUILD_VERSION="$(sed -n 's/.*"version"\s*:\s*"\([^"]*\)".*/\1/p' "$CLIENT_DIR/package.json" | head -1)"
     BUILD_VERSION="${BUILD_VERSION:-unknown}"
+fi
+DIST_INDEX="$DIST_DIR/index.html"
+if [[ -f "$DIST_INDEX" ]]; then
+    if stat --version &>/dev/null 2>&1; then
+        BUILD_TIMESTAMP="$(stat -c '%y' "$DIST_INDEX" | cut -c1-19)"
+    else
+        BUILD_TIMESTAMP="$(stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S' "$DIST_INDEX")"
+    fi
 fi
 
 # Summary
 echo ""
 echo "  Client     : $CLIENT_LABEL  ($CLIENT_KEY)"
 echo "  Version    : $BUILD_VERSION"
+echo "  Built      : $BUILD_TIMESTAMP"
 echo "  Service    : $SVC_NAME"
 echo "  Display    : $SVC_DISPLAY"
+echo "  Dist       : $DIST_DIR"
 echo "  URL        : http://${BIND_HOST}:${PORT}"
 echo "  MES Server : $SERVER_URL"
 echo "  Start Type : $START_TYPE"
@@ -407,6 +438,7 @@ if [[ "$EXISTING" != "not-installed" ]]; then
 fi
 
 # Write systemd unit file
+# 'vite preview' is passed as the first vite argument to serve dist/
 UNIT_FILE="$(unit_path "$SVC_NAME")"
 write_step "Writing systemd unit: $UNIT_FILE"
 
@@ -427,7 +459,7 @@ Environment="NO_COLOR=1"
 Environment="FORCE_COLOR=0"
 Environment="TERM=dumb"
 
-ExecStart=$NODE_EXE $WRAPPER $VITE_BIN --host $BIND_HOST --port $PORT
+ExecStart=$NODE_EXE $WRAPPER $VITE_BIN preview --host $BIND_HOST --port $PORT
 
 StandardOutput=append:$LOG_DIR/${SVC_NAME}-stdout.log
 StandardError=append:$LOG_DIR/${SVC_NAME}-stderr.log
@@ -446,7 +478,6 @@ EOF
 chmod 644 "$UNIT_FILE"
 systemctl daemon-reload
 
-# Start type → enable/disable behaviour
 case "${START_TYPE,,}" in
     auto|delayed-auto)
         systemctl enable "$SVC_NAME" >/dev/null
@@ -473,8 +504,8 @@ echo "  Client URL : http://localhost:${PORT}"
 echo "  Logs       : $LOG_DIR"
 echo "  Journal    : journalctl -u $SVC_NAME -f"
 echo ""
-echo "  Start now  : sudo ./run-client-service.sh start  --config \"$CONFIG_FILE\""
-echo "  Stop       : sudo ./run-client-service.sh stop   --config \"$CONFIG_FILE\""
-echo "  Status     :      ./run-client-service.sh status --config \"$CONFIG_FILE\""
-echo "  Uninstall  : sudo ./run-client-service.sh uninstall --config \"$CONFIG_FILE\""
+echo "  Start now  : sudo ./run-client-service-production.sh start  --config \"$CONFIG_FILE\""
+echo "  Stop       : sudo ./run-client-service-production.sh stop   --config \"$CONFIG_FILE\""
+echo "  Status     :      ./run-client-service-production.sh status --config \"$CONFIG_FILE\""
+echo "  Uninstall  : sudo ./run-client-service-production.sh uninstall --config \"$CONFIG_FILE\""
 echo ""

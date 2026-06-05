@@ -654,8 +654,6 @@ function ParameterArrayField({
 
 // ─── Modbus-specific Parameter Form ──────────────────────────────────
 
-const MODBUS_TCP_PARAMS = new Set(["host", "port"]);
-const MODBUS_RTU_PARAMS = new Set(["serial_port", "baudrate", "bytesize", "parity", "stopbits"]);
 const PARITY_OPTIONS = [
   { value: "N", label: "N — None" },
   { value: "E", label: "E — Even" },

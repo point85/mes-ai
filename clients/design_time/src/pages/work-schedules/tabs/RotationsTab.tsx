@@ -144,7 +144,6 @@ export default function RotationsTab({ scheduleId, rotations, shifts }: Props) {
       <div className="space-y-2">
         {rotations.map((rotation) => {
           const expanded = expandedId === rotation.id;
-          const nextSeq = Math.max(0, ...rotation.segments.map((s) => s.sequence)) + 1;
           return (
             <div key={rotation.id} className="rounded-lg border border-gray-200 bg-white shadow-sm">
               <div className="flex items-center gap-3 px-4 py-3">

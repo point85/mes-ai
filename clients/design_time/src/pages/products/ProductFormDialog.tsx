@@ -21,7 +21,7 @@ const productSchema = z.object({
     .refine((s) => !s.includes(" "), "Code must not contain spaces"),
   version: z.string().max(50).optional(),
   description: z.string().nullable().optional(),
-  uom_id: z.string().min(1, "UoM is required").optional(),
+  uom_id: z.string().min(1, "UoM is required"),
   product_type: z.enum(["discrete", "process", "semi_finished", "configurable"]),
 });
 
