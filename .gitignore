@@ -67,3 +67,4 @@ server/pgdata/
 /docs/clients_server.jpg
 /docs/USER_GUIDE.md
 /server/test_results.txt
+/git-pull.sh
