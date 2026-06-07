@@ -83,14 +83,14 @@ Each domain module follows the same layout:
 | `routes.py` | FastAPI router |
 | `events.py` | Typed event factory functions |
 
-Domain modules: `wip`, `operations`, `dispatch`, `material`, `physical_model`, `product_definition`, `performance`, `quality`, `data_collection`, `inventory`, `genealogy`.
+Domain modules: `wip`, `operations`, `dispatch`, `material`, `physical_model`, `product_def`, `performance`, `quality`, `data_collection`, `inventory`, `genealogy`, `uom`, `work_schedule`, `dashboard`, `demo`, `routing` (service-only, no REST routes).
 
 ### 3.2 Framework Modules (`server/src/mes/framework/`)
 
 | Module | Purpose |
 |--------|---------|
 | `auth/` | Authentication, JWT, RBAC (see §11) |
-| `db.py` | SQLAlchemy async engine and session factory |
+| `db/` | SQLAlchemy async engine and session factory |
 | `events/` | Internal pub/sub event bus and WebSocket gateway (see §8) |
 | `plugin/` | Plugin lifecycle management |
 | `admin/` | Server configuration API |
@@ -120,7 +120,7 @@ Mimics equipment interactions for development and integration testing of equipme
 
 ## 5. Database Layer
 
-- **ORM**: SQLAlchemy 2 async with `asyncpg` (PostgreSQL), `aiomysql` (MySQL), or appropriate drivers for MSSQL / Oracle.
+- **ORM**: SQLAlchemy 2 async with `asyncpg` (PostgreSQL), or appropriate drivers for MSSQL / Oracle.
 - **Migrations**: Alembic, managed via `alembic upgrade head` on server start (or manually).
 - **Session**: One `AsyncSession` per request via a FastAPI dependency (`get_db_session`).
 - **Supported engines**: PostgreSQL (default), SQL Server, Oracle.
@@ -140,14 +140,22 @@ All routes are versioned under `/api/v1/`. The OpenAPI spec is available at `/do
 | `/api/v1/admin/config` | Server configuration (admin only) |
 | `/api/v1/units/` | WIP units |
 | `/api/v1/lots/` | WIP lots |
-| `/api/v1/orders/` | Operations requests |
+| `/api/v1/operations-requests/` | Operations requests |
 | `/api/v1/dispatch/` | Dispatch strategies and evaluation |
-| `/api/v1/equipment/` | Equipment and physical model |
-| `/api/v1/materials/` | Material definitions and lots |
-| `/api/v1/inventory/` | Inventory balances and transactions |
+| `/api/v1/sites/`, `/api/v1/areas/`, `/api/v1/work-cells/`, `/api/v1/equipment/`, `/api/v1/equipment-classes/` | Physical model and equipment |
+| `/api/v1/materials/` | Material definitions |
+| `/api/v1/storage-locations/`, `/api/v1/inventory/` | Inventory balances and transactions |
+| `/api/v1/uom/` | Units of measure |
+| `/api/v1/dispositions/`, `/api/v1/operations-definitions/`, `/api/v1/process-segments/` | Product definitions and routings |
+| `/api/v1/quality/` | Quality tests and results |
+| `/api/v1/data/` | Data collection |
+| `/api/v1/performance/` | Equipment performance and OEE |
+| `/api/v1/work-schedules/` | Work schedules and shifts |
+| `/api/v1/dashboard/` | Dashboard metrics |
 | `/api/v1/erp/` | ERP adapter inbound/outbound |
 | `/api/v1/plugins/` | Plugin management |
-| `/api/v1/ws/events` | WebSocket event stream |
+| `/api/v1/events/ws` | WebSocket event stream |
+| `/api/v1/demo/` | Demo data seeding (development only) |
 | `/health` | Server health and current auth mode |
 
 ### 6.2 Response Envelope
@@ -184,7 +192,7 @@ Defined in `server/src/mes/framework/auth/routes.py`. See §11 for full authenti
 
 ## 7. WebSocket Event Stream
 
-The server exposes a WebSocket endpoint at `/api/v1/ws/events`. On connect, all server-side `MESEvent` objects are forwarded as JSON to every connected client.
+The server exposes a WebSocket endpoint at `/api/v1/events/ws`. On connect, all server-side `MESEvent` objects are forwarded as JSON to every connected client.
 
 **Client-side filtering**: After connecting, a client may send a subscribe message to receive only matching topics:
 
