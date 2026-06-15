@@ -16,6 +16,10 @@ import {
   TrashIcon,
   PlusIcon,
   XMarkIcon,
+  WrenchScrewdriverIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  BeakerIcon,
 } from "@heroicons/react/24/outline";
 import {
   usePlugin,
@@ -24,6 +28,9 @@ import {
   useUpdatePluginConfig,
   useEnablePlugin,
   useDisablePlugin,
+  useKafkaBridgeStatus,
+  usePrepareKafkaBridge,
+  useKafkaTestConnection,
 } from "../../hooks/usePlugins";
 import { useAllEquipment } from "../../hooks/usePhysicalModel";
 import { useStateModels } from "../../hooks/usePerformance";
@@ -54,6 +61,12 @@ export default function PluginDetailPage() {
   const updateConfigMut = useUpdatePluginConfig();
   const enableMut = useEnablePlugin();
   const disableMut = useDisablePlugin();
+
+  // Kafka Java Bridge — build-status polling and prepare mutation (only active for that plugin)
+  const isKafkaBridge = pluginId === "kafka-java-bridge";
+  const { data: kafkaStatus, isLoading: kafkaStatusLoading } = useKafkaBridgeStatus();
+  const prepareMut = usePrepareKafkaBridge();
+  const testMut = useKafkaTestConnection();
 
   // Reference data for dropdowns
   const { data: equipmentResp } = useAllEquipment();
@@ -217,6 +230,17 @@ export default function PluginDetailPage() {
             >
               <TrashIcon className="h-3.5 w-3.5" /> Uninstall
             </button>
+            {isKafkaBridge && plugin.is_running && (
+              <button
+                onClick={() => testMut.mutate()}
+                disabled={testMut.isPending}
+                className="inline-flex items-center gap-1 rounded-md border border-indigo-300 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+                title="Publish a test message and verify it is received back through the bridge"
+              >
+                <BeakerIcon className="h-3.5 w-3.5" />
+                {testMut.isPending ? "Testing…" : "Test"}
+              </button>
+            )}
           </>
         )}
       </div>
@@ -247,6 +271,119 @@ export default function PluginDetailPage() {
           </div>
         );
       })()}
+
+      {/* Kafka test result banner */}
+      {isKafkaBridge && testMut.isSuccess && (
+        <div className="rounded-md bg-green-50 p-3 text-sm text-green-700">
+          <strong>Test passed.</strong> Topic: <code className="font-mono text-xs bg-green-100 px-1 rounded">{testMut.data.topic}</code>
+          &nbsp;&mdash; sent and received: <code className="font-mono text-xs bg-green-100 px-1 rounded">{testMut.data.sent}</code>
+        </div>
+      )}
+      {isKafkaBridge && testMut.isError && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+          <strong>Test failed:</strong>{" "}
+          {formatApiError(testMut.error, "Connectivity test failed — see server log for details.")}
+        </div>
+      )}
+
+      {/* Kafka Java Bridge — Prerequisites card */}
+      {isKafkaBridge && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
+            <WrenchScrewdriverIcon className="h-4 w-4" />
+            Build Prerequisites
+          </h2>
+          <p className="text-xs text-amber-700">
+            The Kafka bridge requires a Java fat-jar (Maven build) and generated Python gRPC stubs.
+            Both must be present before the plugin can be installed and enabled.
+          </p>
+          <p className="text-xs text-amber-600">
+            <strong>After updating library versions in pom.xml</strong> (grpc.version,
+            protobuf.version, kafka.version), click <strong>Rebuild</strong> to force a
+            clean Maven build and regenerate the stubs — then Uninstall → Install → Enable
+            the plugin so the new jar is picked up.
+          </p>
+
+          {/* Status rows */}
+          {kafkaStatusLoading ? (
+            <p className="text-xs text-amber-600">Checking status…</p>
+          ) : kafkaStatus ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs">
+                {kafkaStatus.jar_exists
+                  ? <CheckCircleIcon className="h-4 w-4 text-green-600 shrink-0" />
+                  : <ExclamationCircleIcon className="h-4 w-4 text-red-500 shrink-0" />}
+                <span className={kafkaStatus.jar_exists ? "text-green-700" : "text-red-600"}>
+                  Java fat-jar: {kafkaStatus.jar_exists ? "built" : "not built"}
+                </span>
+                {kafkaStatus.jar_exists && (
+                  <span className="text-gray-400 font-mono truncate max-w-xs" title={kafkaStatus.jar_path}>
+                    {kafkaStatus.jar_path.split(/[\\/]/).slice(-3).join("/")}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {kafkaStatus.stubs_exist
+                  ? <CheckCircleIcon className="h-4 w-4 text-green-600 shrink-0" />
+                  : <ExclamationCircleIcon className="h-4 w-4 text-red-500 shrink-0" />}
+                <span className={kafkaStatus.stubs_exist ? "text-green-700" : "text-red-600"}>
+                  Python gRPC stubs: {kafkaStatus.stubs_exist ? "generated" : "not generated"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {kafkaStatus.mvn_path
+                  ? <CheckCircleIcon className="h-4 w-4 text-green-600 shrink-0" />
+                  : <ExclamationCircleIcon className="h-4 w-4 text-red-500 shrink-0" />}
+                <span className={kafkaStatus.mvn_path ? "text-green-700" : "text-red-600"}>
+                  Maven: {kafkaStatus.mvn_path
+                    ? <span className="font-mono text-gray-500">{kafkaStatus.mvn_path}</span>
+                    : "not found — set MAVEN_HOME or add mvn to server PATH"}
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Buttons — always rendered once status is loaded */}
+          {kafkaStatus && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Primary: Build & Generate — shown when something is missing */}
+              {(!kafkaStatus.jar_exists || !kafkaStatus.stubs_exist) && (
+                <button
+                  onClick={() => prepareMut.mutate({ force: false })}
+                  disabled={prepareMut.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-amber-500 transition-colors disabled:opacity-50"
+                >
+                  <WrenchScrewdriverIcon className="h-4 w-4" />
+                  {prepareMut.isPending ? "Building…" : "Build & Generate"}
+                </button>
+              )}
+              {/* Secondary: Rebuild — always available for version-bump rebuilds */}
+              <button
+                onClick={() => prepareMut.mutate({ force: true })}
+                disabled={prepareMut.isPending}
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                title="Force rebuild: run mvn clean package and regenerate stubs even if both already exist. Use after updating pom.xml versions."
+              >
+                <WrenchScrewdriverIcon className="h-4 w-4" />
+                {prepareMut.isPending ? "Rebuilding…" : "Rebuild"}
+              </button>
+            </div>
+          )}
+
+          {prepareMut.error && (
+            <div className="rounded-md bg-red-50 p-2 text-xs text-red-700">
+              {formatApiError(prepareMut.error, "Prepare step failed — check server logs.")}
+            </div>
+          )}
+          {prepareMut.isSuccess && (
+            <div className="rounded-md bg-green-50 p-2 text-xs text-green-700">
+              {prepareMut.data.jar_built && "Java fat-jar built. "}
+              {prepareMut.data.stubs_generated && "Python stubs generated. "}
+              {!prepareMut.data.jar_built && !prepareMut.data.stubs_generated && "All prerequisites already up to date."}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Info grid */}
       <div className="grid grid-cols-2 gap-4">
@@ -290,6 +427,8 @@ export default function PluginDetailPage() {
           <div className="space-y-3">
             {plugin.parameters
               .filter((param: ParameterSchema) => {
+                // bridge_jar is auto-computed server-side for kafka-java-bridge
+                if (isKafkaBridge && param.name === "bridge_jar") return false;
                 // Only show token_url when OAuth2 auth is selected
                 if (param.name === "token_url") {
                   const authType = String(paramValues["auth_type"] ?? "oauth2");

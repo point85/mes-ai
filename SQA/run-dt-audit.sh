@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MES AI - DT SQA Audit runner
-# Usage: ./run-dt-audit.sh --scope uom|users-and-groups|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all [--headed] [--server URL] [--dt URL]
+# Usage: ./run-dt-audit.sh --scope uom|users-and-groups|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|plugins|all [--headed] [--server URL] [--dt URL]
 
 set -euo pipefail
 
@@ -11,7 +11,7 @@ DT_URL="http://localhost:5173"
 
 show_usage() {
   echo "Usage:"
-  echo "  ./run-dt-audit.sh --scope <uom|users-and-groups|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|all> [--headed] [--server URL] [--dt URL]"
+  echo "  ./run-dt-audit.sh --scope <uom|users-and-groups|reasons|physical-model|data-definitions|storage-locations|materials|routes|equipment|products|work-schedule|plugins|all> [--headed] [--server URL] [--dt URL]"
   echo
   echo "Scopes:"
   echo "  uom            Run Units of Measure DT tests only"
@@ -25,6 +25,7 @@ show_usage() {
   echo "  equipment      Run Equipment DT tests only"
   echo "  products       Run Products and BOM DT tests only"
   echo "  work-schedule  Run Work Schedule DT tests only"
+  echo "  plugins        Run all plugin UI tests"
   echo "  all            Run the full DT SQA suite"
   echo
   echo "Examples:"
@@ -39,6 +40,8 @@ show_usage() {
   echo "  ./run-dt-audit.sh --scope equipment"
   echo "  ./run-dt-audit.sh --scope products"
   echo "  ./run-dt-audit.sh --scope work-schedule --headed"
+  echo "  ./run-dt-audit.sh --scope plugins"
+  echo "  ./run-dt-audit.sh --scope plugins --headed"
   echo "  ./run-dt-audit.sh --scope all --server http://localhost:8082 --dt http://localhost:5173"
 }
 
@@ -108,12 +111,15 @@ case "$SCOPE" in
       "$(dirname "$0")/modules/SQA-DT/test_work_schedule_queries.py"
     )
     ;;
+  plugins)
+    TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT/test_kafka_plugin_ui.py")
+    ;;
   all)
     TEST_TARGETS=("$(dirname "$0")/modules/SQA-DT")
     ;;
   *)
     echo "Invalid scope: $SCOPE"
-    echo "Expected one of: uom, users-and-groups, reasons, physical-model, data-definitions, storage-locations, materials, routes, equipment, products, work-schedule, all"
+    echo "Expected one of: uom, users-and-groups, reasons, physical-model, data-definitions, storage-locations, materials, routes, equipment, products, work-schedule, plugins, all"
     exit 2
     ;;
 esac

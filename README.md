@@ -52,6 +52,16 @@ The architecture follows a client-server model with clear separation between cor
 
 In practice, a typical flow looks like this: engineering users define products, process segments, equipment requirements, material requirements, and dispositions in the design-time client; an ERP-facing flow creates and releases operations requests; runtime users create or process lots and units against released work; server-side services update inventory, genealogy, dispatch queues, and event streams; and simulator applications make it possible to exercise the platform without external systems.
 
+### Native SDK Bridge Sidecar
+
+Some industrial systems — Apache Kafka, OPC-UA servers, proprietary historians, and certain ERP systems — are only accessible through vendor SDKs that are written in Java, C++, C#, or Go, with no production-quality Python bindings available. To integrate these systems without forking the MES server into a polyglot monolith, the platform uses a **native SDK bridge sidecar** pattern.
+
+In this design the MES Python server spawns a small out-of-process helper — the sidecar — as a child subprocess on startup. The sidecar is implemented in whatever language the target SDK requires, exposes a minimal gRPC service over a loopback TCP port, and handles all SDK-specific concerns internally. The gRPC contract is language-neutral and consists of three operations: `HealthCheck` (polled by the server during startup to confirm readiness), `Publish` (called by the server to send a message or command to the external system), and `Subscribe` (a server-streaming RPC through which the sidecar pushes inbound records to the server as they arrive). The Python plugin translates each incoming record into a typed `MESEvent` and publishes it onto the internal event bus so any other part of the platform can react without knowing that a sidecar is involved.
+
+The diagram below illustrates the general sidecar design:
+
+![Native SDK Bridge Sidecar](docs/native_sdk_bridge_design.png)
+
 ## FastAPI MES Server
 
 The MES server is the core of the platform. It is implemented with FastAPI and organized into domain-focused modules under `server/src/mes/core`. These modules cover areas such as operations requests, WIP, dispatch, material management, physical model, product definition, performance, authentication, and plugins.

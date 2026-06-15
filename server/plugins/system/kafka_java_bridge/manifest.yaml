@@ -1,0 +1,116 @@
+id: kafka-java-bridge
+name: Kafka Java SDK Bridge
+version: "1.0.0"
+description: >
+  Connects the MES to Apache Kafka using the official Kafka Java SDK
+  (org.apache.kafka:kafka-clients).  A Java fat-jar sidecar process
+  wraps the SDK and exposes a gRPC service on localhost; this plugin
+  manages that process and translates incoming Kafka records into MES
+  events on the internal event bus.
+
+  Designed for factory data sources that only provide a Java SDK and
+  have no HTTP or Python API.  Implements the native_sdk_bridge
+  extension point pattern described in ARCHITECTURE.md.
+author: MES AI Contributors
+comment: >
+  Prerequisites:
+    Python: pip install grpcio grpcio-tools
+            python proto/generate_stubs.py
+    Java:   mvn -f bridge/pom.xml clean package -q
+            (produces bridge/target/kafka-bridge-1.0.0-shaded.jar)
+  Java 17+ and Maven 3.8+ must be on the PATH of the MES server host.
+category: equipment
+origin: system
+min_mes_version: "1.0.0"
+pip_dependencies:
+  - "grpcio>=1.60.0"
+
+parameters:
+  # ── Java bridge ────────────────────────────────────────────────────────────
+  - name: java_home
+    type: string
+    description: >
+      Optional path to a Java 17+ JDK/JRE home directory
+      (the folder that contains bin/java or bin/java.exe).
+      Resolution order: (1) this parameter, (2) JAVA_HOME environment variable,
+      (3) java on the system PATH.
+      Use this only when the system PATH java is too old and JAVA_HOME is not set.
+      Example (Windows): C:\dev_support\jdk21.0.5-64
+      Example (Linux):   /usr/lib/jvm/temurin-21
+    required: false
+    default: ""
+
+  - name: bridge_jar
+    type: string
+    description: >
+      Absolute path to the Kafka bridge fat-jar.
+      Example: /opt/mes/plugins/kafka_java_bridge/bridge/target/kafka-bridge-1.0.0-shaded.jar
+    required: true
+
+  - name: bridge_port
+    type: integer
+    description: >
+      gRPC port the Java bridge listens on (loopback only).
+      Must not conflict with other native-SDK bridge plugins.
+    required: false
+    default: 50051
+
+  - name: startup_timeout_sec
+    type: number
+    description: >
+      Seconds to wait for the Java bridge to become healthy after launch.
+      Increase on slow JVM hosts.
+    required: false
+    default: 60
+
+  # ── Kafka connection ───────────────────────────────────────────────────────
+  - name: bootstrap_servers
+    type: string
+    description: >
+      Kafka bootstrap.servers — comma-separated list of host:port pairs.
+      Example: broker1:9092,broker2:9092
+    required: false
+    default: "localhost:9092"
+
+  # ── Consumer ───────────────────────────────────────────────────────────────
+  - name: topics
+    type: string
+    description: >
+      JSON array of Kafka topic names to subscribe to.
+      Example: ["equipment.events","quality.results","oee.counters"]
+      Leave empty (or "[]") for publish-only mode.
+    required: false
+    default: "[]"
+
+  - name: consumer_group
+    type: string
+    description: Kafka consumer group ID used by the bridge.
+    required: false
+    default: "mes-kafka-bridge"
+
+  - name: poll_timeout_ms
+    type: integer
+    description: >
+      Milliseconds the Java KafkaConsumer.poll() call blocks per iteration.
+    required: false
+    default: 1000
+
+  # ── MES event mapping ──────────────────────────────────────────────────────
+  - name: mes_event_type
+    type: string
+    description: >
+      MES event bus topic published for each incoming Kafka record.
+      Other plugins or core modules subscribe to this topic to consume the data.
+      Common choices: data.collected, equipment.state.changed, quality.test.result
+    required: false
+    default: "data.collected"
+
+permissions: []
+required_core_permissions: []
+
+extension_points:
+  - type: native_sdk_bridge
+    name: kafka_java_bridge
+
+event_subscriptions: []
+dependencies: []

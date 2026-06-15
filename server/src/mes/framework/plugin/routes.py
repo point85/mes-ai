@@ -17,8 +17,11 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -362,6 +365,14 @@ async def install_plugin(
     param_values = body.parameter_values if body else {}
     notes = body.notes if body else None
 
+    # Kafka Java Bridge: auto-inject bridge_jar from the known build output path
+    # so the user never has to type a filesystem path in the DT-CLIENT form.
+    if plugin_id == _KAFKA_BRIDGE_ID and not param_values.get("bridge_jar"):
+        plugin_dir = _kafka_bridge_plugin_dir()
+        if plugin_dir is not None:
+            computed_jar = plugin_dir / _KAFKA_BRIDGE_JAR_REL
+            param_values = {**param_values, "bridge_jar": str(computed_jar.resolve())}
+
     # Auto-install Python dependencies declared in manifest
     pip_deps = info.manifest.pip_dependencies
     if pip_deps:
@@ -507,9 +518,13 @@ async def enable_plugin_route(
     try:
         await plugin_manager.enable_plugin(plugin_id, effective_values)
     except Exception as exc:
-        info.error = str(exc)
-        logger.error("Failed to enable plugin '%s': %s", plugin_id, exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        detail = str(exc) or repr(exc)
+        info.error = detail
+        logger.error(
+            "Failed to enable plugin '%s': %s",
+            plugin_id, detail, exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=detail)
 
     # Cascade enable to plugin-type companions
     companions_enabled = await _cascade_enable_companions(
@@ -556,6 +571,222 @@ async def disable_plugin_route(
     if companions_disabled:
         result["companions_disabled"] = companions_disabled
     return success_response(result)
+
+
+def _find_mvn() -> str | None:
+    """
+    Locate the mvn executable.
+
+    Search order:
+      1. shutil.which with the current PATH
+      2. MAVEN_HOME / M2_HOME environment variables
+      3. Common Windows installation prefixes (C:\\dev_support, Program Files, etc.)
+      4. /usr/local/bin, /opt/maven/bin on Linux/macOS
+    """
+    # 1. Standard PATH lookup (works when the server is started from a shell
+    #    that already has Maven on PATH)
+    mvn = shutil.which("mvn") or shutil.which("mvn.cmd")
+    if mvn:
+        return mvn
+
+    # 2. Well-known environment variables set by Maven installers
+    for env_var in ("MAVEN_HOME", "M2_HOME"):
+        home = os.environ.get(env_var)
+        if home:
+            for candidate in (Path(home) / "bin" / "mvn", Path(home) / "bin" / "mvn.cmd"):
+                if candidate.is_file():
+                    return str(candidate)
+
+    # 3. Scan common installation roots on Windows and POSIX
+    common_roots: list[Path] = []
+    if sys.platform == "win32":
+        for root in ("C:\\dev_support", "C:\\Program Files", "C:\\Program Files (x86)",
+                     "C:\\tools", str(Path.home())):
+            common_roots.append(Path(root))
+    else:
+        for root in ("/usr/local", "/opt", "/usr", str(Path.home())):
+            common_roots.append(Path(root))
+
+    for root in common_roots:
+        if not root.exists():
+            continue
+        for child in sorted(root.iterdir(), reverse=True):
+            if child.is_dir() and "maven" in child.name.lower():
+                for name in ("bin/mvn", "bin/mvn.cmd"):
+                    candidate = child / name
+                    if candidate.is_file():
+                        return str(candidate)
+                # One level deeper (e.g. root/maven/bin)
+                for grandchild in child.iterdir():
+                    if grandchild.is_dir():
+                        for name in ("bin/mvn", "bin/mvn.cmd"):
+                            candidate = grandchild / name
+                            if candidate.is_file():
+                                return str(candidate)
+
+    return None
+
+
+# ─── Kafka Java Bridge: prepare (build jar + generate stubs) ─────────────
+
+_KAFKA_BRIDGE_ID = "kafka-java-bridge"
+_KAFKA_BRIDGE_JAR_REL = "bridge/target/kafka-bridge-1.0.0-shaded.jar"
+_KAFKA_BRIDGE_STUB_REL = "proto/kafka_bridge_pb2.py"
+_KAFKA_BRIDGE_POM_REL  = "bridge/pom.xml"
+_KAFKA_BRIDGE_GEN_REL  = "proto/generate_stubs.py"
+
+
+def _kafka_bridge_plugin_dir() -> Path | None:
+    """Resolve the kafka_java_bridge plugin directory from the PluginManager."""
+    from mes.main import plugin_manager
+    info = plugin_manager.get_plugin(_KAFKA_BRIDGE_ID)
+    if info is not None:
+        return info.path
+    # Fallback: locate relative to this file (server/src/mes/framework/plugin/routes.py)
+    here = Path(__file__).resolve()
+    candidate = here.parents[4] / "plugins" / "system" / "kafka_java_bridge"
+    return candidate if candidate.is_dir() else None
+
+
+class KafkaPrepareResponse(BaseModel):
+    jar_path: str
+    jar_existed: bool
+    jar_built: bool
+    stubs_existed: bool
+    stubs_generated: bool
+
+
+@router.post("/kafka-java-bridge/prepare")
+async def prepare_kafka_bridge(force: bool = False):
+    """
+    Build the Kafka Java fat-jar and generate Python gRPC stubs.
+
+    By default (force=False) each step is skipped if the artifact already
+    exists — safe to call repeatedly.  Pass force=true to force a clean
+    rebuild and stub regeneration regardless of whether files exist; use this
+    after updating library versions in pom.xml.
+
+    Returns the absolute path to the fat-jar so the DT-CLIENT can display it
+    and the install step can inject it automatically into bridge_jar.
+    """
+    plugin_dir = _kafka_bridge_plugin_dir()
+    if plugin_dir is None:
+        raise HTTPException(status_code=404, detail="kafka-java-bridge plugin directory not found")
+
+    jar_path   = plugin_dir / _KAFKA_BRIDGE_JAR_REL
+    stub_path  = plugin_dir / _KAFKA_BRIDGE_STUB_REL
+    pom_path   = plugin_dir / _KAFKA_BRIDGE_POM_REL
+    gen_script = plugin_dir / _KAFKA_BRIDGE_GEN_REL
+
+    jar_existed   = jar_path.exists()
+    stubs_existed = stub_path.exists()
+    jar_built     = False
+    stubs_generated = False
+
+    # ── Step 1: Build fat-jar ─────────────────────────────────────────────
+    if not jar_existed or force:
+        if not pom_path.exists():
+            raise HTTPException(status_code=500, detail=f"Maven pom.xml not found: {pom_path}")
+        logger.info("Building Kafka bridge fat-jar via Maven…")
+        mvn_exe = _find_mvn()
+        if mvn_exe is None:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "mvn not found. Set MAVEN_HOME or M2_HOME, or add Maven's bin/ "
+                    "directory to the PATH of the process that starts the MES server."
+                ),
+            )
+        logger.info("Using mvn: %s", mvn_exe)
+        try:
+            subprocess.check_call(
+                [mvn_exe, "-f", str(pom_path), "clean", "package", "-q"],
+                timeout=300,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            raise HTTPException(status_code=500, detail=f"Maven build failed: {exc}")
+        if not jar_path.exists():
+            raise HTTPException(status_code=500, detail="Maven build succeeded but jar not found at expected path")
+        jar_built = True
+        logger.info("Kafka bridge jar built: %s", jar_path)
+
+    # ── Step 2: Generate Python gRPC stubs ────────────────────────────────
+    if not stubs_existed or force:
+        if not gen_script.exists():
+            raise HTTPException(status_code=500, detail=f"Stub generator not found: {gen_script}")
+        logger.info("Generating Python gRPC stubs…")
+        try:
+            subprocess.check_call(
+                [sys.executable, str(gen_script)],
+                timeout=120,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            raise HTTPException(status_code=500, detail=f"Stub generation failed: {exc}")
+        if not stub_path.exists():
+            raise HTTPException(status_code=500, detail="Stub generation succeeded but pb2 file not found")
+        stubs_generated = True
+        logger.info("Kafka bridge stubs generated in %s", plugin_dir / "proto")
+
+    return success_response(KafkaPrepareResponse(
+        jar_path=str(jar_path.resolve()),
+        jar_existed=jar_existed,
+        jar_built=jar_built,
+        stubs_existed=stubs_existed,
+        stubs_generated=stubs_generated,
+    ).model_dump())
+
+
+@router.get("/kafka-java-bridge/status")
+async def kafka_bridge_status():
+    """Return current build status of the Kafka bridge jar and Python stubs."""
+    plugin_dir = _kafka_bridge_plugin_dir()
+    if plugin_dir is None:
+        raise HTTPException(status_code=404, detail="kafka-java-bridge plugin directory not found")
+    jar_path  = plugin_dir / _KAFKA_BRIDGE_JAR_REL
+    stub_path = plugin_dir / _KAFKA_BRIDGE_STUB_REL
+    return success_response({
+        "jar_exists": jar_path.exists(),
+        "jar_path": str(jar_path.resolve()),
+        "stubs_exist": stub_path.exists(),
+        "mvn_path": _find_mvn(),
+    })
+
+
+class KafkaTestResult(BaseModel):
+    topic: str
+    sent: str
+    received: str
+    match: bool
+
+
+@router.post("/kafka-java-bridge/test")
+async def kafka_bridge_test():
+    """
+    Round-trip Kafka connectivity test.
+
+    Requires the kafka-java-bridge plugin to be running.  The test:
+      1. Subscribes to a uniquely-named throw-away topic.
+      2. Publishes a text message to that topic.
+      3. Consumes the message via the same bridge.
+      4. Validates that the received value matches the sent value.
+
+    Returns the topic name, sent value, received value, and a match flag.
+    """
+    from mes.main import plugin_manager
+
+    info = plugin_manager.get_plugin(_KAFKA_BRIDGE_ID)
+    if info is None or not info.is_running or info.instance is None:
+        raise HTTPException(
+            status_code=503,
+            detail="kafka-java-bridge plugin is not running — enable it before running the test",
+        )
+
+    try:
+        result = await info.instance.run_connectivity_test(timeout_sec=35.0)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    return success_response(KafkaTestResult(**result).model_dump())
 
 
 @router.put("/{plugin_id}/config")

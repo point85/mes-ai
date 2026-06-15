@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     # --- General ---
     PROJECT_NAME: str = "MES AI"
-    VERSION: str = "1.2.0"
+    VERSION: str = "1.3.0"
     API_V1_STR: str = "/api/v1"
 
     # --- Database (DATA-LAYER) ---

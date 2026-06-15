@@ -15,6 +15,12 @@ This document is the authoritative technical reference for the MES AI platform. 
 7. [WebSocket Event Stream](#7-websocket-event-stream)
 8. [Event Bus](#8-event-bus)
 9. [Plugin System](#9-plugin-system)
+   - 9.1 [Plugin Discovery and Lifecycle](#91-plugin-discovery-and-lifecycle)
+   - 9.2 [Manifest Format](#92-manifest-format)
+   - 9.3 [Extension Point Types](#93-extension-point-types)
+   - 9.4 [Built-in Protocol Plugins](#94-built-in-protocol-plugins)
+   - 9.5 [Native SDK Bridge Pattern](#95-native-sdk-bridge-pattern)
+   - 9.6 [Kafka Java Bridge — Reference Implementation](#96-kafka-java-bridge--reference-implementation)
 10. [Logging](#10-logging)
 11. [Authentication and Authorization](#11-authentication-and-authorization)
 12. [Configuration Reference](#12-configuration-reference)
@@ -282,9 +288,302 @@ Plugins are managed through the dt-client **Admin → Plugins** page or via the 
 ```
 python -m mes.cli plugin list
 python -m mes.cli plugin install <plugin_id>
+python -m mes.cli plugin enable <plugin_id>
+python -m mes.cli plugin disable <plugin_id>
 ```
 
 Plugin directories are configurable via `MES_PLUGIN_DIR` and `MES_PLUGIN_USER_DIR`.
+
+---
+
+### 9.1 Plugin Discovery and Lifecycle
+
+The `PluginManager` (`server/src/mes/framework/plugin/manager.py`) runs through the following stages on server start:
+
+```
+discover → validate manifest → load module → initialize(config) → start() → [running]
+                                                                                 │
+                                                               disable / shutdown ↓
+                                                                              stop() → unload
+```
+
+| Stage | Description |
+|-------|-------------|
+| **discover** | Scan plugin directories for `manifest.yaml` files |
+| **validate** | Parse and Pydantic-validate the manifest; check `min_mes_version` |
+| **load** | Import `plugin.py` as an isolated module namespace |
+| **initialize** | Call `plugin.initialize(config)` — validate config, create resources |
+| **start** | Call `plugin.start()` — open connections, start background tasks |
+| **running** | Plugin handles events, serves routes, drives equipment |
+| **stop** | Call `plugin.stop()` — cancel tasks, close connections |
+
+Only plugins with `enabled: true` in their stored config are started. Plugins that fail `initialize` or `start` are marked as errored but do not prevent other plugins from loading.
+
+The `PluginManager` clears `PluginInfo.error` before each enable attempt and after a successful load/start, so a previously errored plugin that is re-enabled shows a clean state.
+
+---
+
+### 9.2 Manifest Format
+
+Every plugin directory must contain a `manifest.yaml`. Required fields:
+
+```yaml
+id: my-plugin              # kebab-case, unique across all plugins
+name: My Plugin            # human-readable display name
+version: "1.0.0"           # SemVer
+description: >             # shown in the dt-client plugins list
+  What this plugin does.
+author: MES AI Contributors
+category: equipment        # equipment | erp | historian | test | utility
+origin: system             # system | user
+min_mes_version: "0.1.0"
+
+pip_dependencies:          # installed automatically on plugin enable
+  - "some-library>=1.0"
+
+parameters:                # each becomes a configurable setting in dt-client
+  - name: host
+    type: string           # string | integer | number | boolean
+    description: Hostname or IP of the target system
+    required: true
+  - name: port
+    type: integer
+    required: false
+    default: 502
+
+extension_points:
+  - type: equipment_driver # see §9.3
+    name: my_plugin
+
+permissions: []
+required_core_permissions: []
+event_subscriptions: []
+dependencies: []           # other plugin IDs that must be started first
+```
+
+Parameter values are stored in the database and merged with manifest defaults at `initialize()` time. Plugins must not read environment variables for configuration — all config flows through the `config` dict passed to `initialize()`.
+
+---
+
+### 9.3 Extension Point Types
+
+Defined in `ExtensionPointType` (`server/src/mes/framework/plugin/base.py`):
+
+| Extension Point | Constant | Description |
+|----------------|----------|-------------|
+| `equipment_driver` | `EQUIPMENT_DRIVER` | Reads/writes tags and equipment state via a protocol (OPC-UA, Modbus, MQTT, …) |
+| `equipment_state_model` | `EQUIPMENT_STATE_MODEL` | Defines a state machine (e.g. PackML, SEMI E10) and transition rules |
+| `erp_inbound` | `ERP_INBOUND` | Ingests production orders, materials, BOMs from an ERP |
+| `erp_outbound` | `ERP_OUTBOUND` | Reports completions, consumption, and quality to an ERP |
+| `test_equipment` | `TEST_EQUIPMENT` | Receives test results from lab or inline test systems |
+| `dispatch_strategy` | `DISPATCH_STRATEGY` | Custom WIP routing / dispatch algorithm |
+| `operation_hook` | `OPERATION_HOOK` | Pre/post hooks around WIP step transitions |
+| `data_processor` | `DATA_PROCESSOR` | Transforms or enriches raw data collection records |
+| `report_generator` | `REPORT_GENERATOR` | Produces scheduled or on-demand reports |
+| `rest_endpoint` | `REST_ENDPOINT` | Contributes additional FastAPI routes to the server |
+| `event_handler` | `EVENT_HANDLER` | Reacts to internal MES events via the event bus |
+| `native_sdk_bridge` | `NATIVE_SDK_BRIDGE` | Bridges a native-language SDK (C++, C#, Java) via a gRPC sidecar process — see §9.5 |
+
+A plugin may declare multiple extension points in its manifest when it fulfils more than one role (e.g. an ERP plugin that registers both `erp_inbound` and `erp_outbound`).
+
+---
+
+### 9.4 Built-in Protocol Plugins
+
+System plugins are in `server/plugins/system/`:
+
+| Plugin ID | Protocol / SDK | Extension Point |
+|-----------|---------------|-----------------|
+| `opcua-equipment` | OPC-UA | `equipment_driver` |
+| `modbus-equipment` | Modbus TCP / RTU | `equipment_driver` |
+| `mqtt-equipment` | MQTT | `equipment_driver` |
+| `mqtt-counters` | MQTT production counters | `data_processor` |
+| `stomp-jms` | STOMP → JMS broker | `equipment_driver` |
+| `aveva-historian` | AVEVA Historian REST | `equipment_driver` |
+| `mock-equipment` | In-memory simulation | `equipment_driver` |
+| `packml-availability` | PackML state model | `equipment_state_model` |
+| `semi-e10-availability` | SEMI E10 state model | `equipment_state_model` |
+| `packml-opcua-counters` | OPC-UA + PackML counters | `data_processor` |
+| `sap-s4hana-erp` | SAP S/4HANA OData | `erp_inbound`, `erp_outbound` |
+| `oracle-cloud-erp` | Oracle Cloud Fusion REST | `erp_inbound`, `erp_outbound` |
+| `file-drop-test-results` | File-drop test results | `test_equipment` |
+| `kafka-java-bridge` | Apache Kafka Java SDK | `native_sdk_bridge` |
+
+---
+
+### 9.5 Native SDK Bridge Pattern
+
+Some factory data sources only ship a vendor SDK written in C++, C#, or Java with no HTTP or Python API. The **native SDK bridge** pattern solves this without forcing a Python re-implementation of the SDK.
+
+#### Architecture
+
+A thin bridge process is written in the native language. It wraps the vendor SDK and exposes a gRPC service on loopback (`127.0.0.1`). The MES Python plugin is a gRPC client that manages the bridge subprocess lifetime and translates bridge messages into MES events.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  MES Server Host                                                     │
+│                                                                      │
+│  ┌─────────────────────────┐    gRPC (127.0.0.1:<port>)             │
+│  │  Python Plugin          │ ◄─────────────────────────┐            │
+│  │  (MESPlugin subclass)   │                           │            │
+│  │  asyncio + grpcio-aio   │                    ┌──────┴──────────┐ │
+│  └──────────┬──────────────┘                    │ Bridge Process  │ │
+│             │ event_bus.publish()               │ C++ / C# / Java │ │
+│             ▼                                    │ (vendor SDK)    │ │
+│  ┌──────────────────────┐                       └──────┬──────────┘ │
+│  │  MES Event Bus       │                              │            │
+│  └──────────────────────┘                     vendor protocol       │
+└──────────────────────────────────────────────────────┼─────────────┘
+                                                        │
+                                                   Factory Equipment
+```
+
+The bridge process is launched as a **child subprocess** by the plugin's `start()` call via `asyncio.create_subprocess_exec`. Its stdout and stderr are piped back to the MES Python logger. If the bridge exits unexpectedly it is restarted automatically. The gRPC channel binds to `127.0.0.1` only — it is never reachable from outside the host.
+
+#### `NativeSdkBridgePlugin` base class
+
+`server/src/mes/framework/plugin/base.py` provides `NativeSdkBridgePlugin`, an intermediate abstract base class between `MESPlugin` and concrete bridge plugins:
+
+| Method / Property | Purpose |
+|-------------------|---------|
+| `bridge_command() → list[str]` | **Abstract.** Returns the command + args to start the bridge (e.g. `["java", "-jar", "…"]`) |
+| `bridge_address → str` | gRPC target, default `127.0.0.1:50051`. Override to match `bridge_command()` `--port` |
+| `bridge_startup_timeout_sec → float` | Seconds to wait for bridge health (default 30). Override for slow JVM/CLR startup |
+| `_start_bridge()` | Protected. Launches the subprocess; starts stdout/stderr drain + monitor task |
+| `_stop_bridge()` | Protected. Cancels monitor task; sends SIGTERM then SIGKILL if needed |
+| `_monitor_bridge()` | Internal coroutine. Logs bridge output; auto-restarts on non-zero exit code |
+
+Concrete plugins call `_start_bridge()` / `_stop_bridge()` from their own `start()` / `stop()` implementations and add the gRPC channel + business logic around those calls.
+
+#### Proto contract
+
+Both the Python plugin and the native bridge implement the same `.proto` file, which is the single source of truth for the RPC interface. The file lives in the plugin's `proto/` directory and is copied into the Maven/CMake source tree for compilation.
+
+Python stubs are generated once via:
+
+```bash
+pip install grpcio-tools
+python proto/generate_stubs.py
+```
+
+Java stubs are generated automatically during `mvn package` via the `protobuf-maven-plugin`.
+
+#### Decision guide
+
+| Scenario | Recommended approach |
+|----------|---------------------|
+| C / C++ SDK with a C-ABI `.dll` / `.so` | `ctypes` or `cffi` in-process — no sidecar needed |
+| C# / .NET SDK with business logic | gRPC sidecar (`bridge_command = ["dotnet", "MyBridge.dll", …]`) |
+| Java SDK (any) | gRPC sidecar (`bridge_command = ["java", "-jar", "bridge.jar", …]`) |
+| Fire-and-forget telemetry only | Re-use existing `mqtt-equipment` or `stomp-jms` — add a thin forwarder in the native language |
+
+---
+
+### 9.6 Kafka Java Bridge — Reference Implementation
+
+`server/plugins/system/kafka_java_bridge/` is the reference implementation of the native SDK bridge pattern. It connects the MES to Apache Kafka using the **official Apache Kafka Java SDK** (`org.apache.kafka:kafka-clients`).
+
+#### Directory layout
+
+```
+kafka_java_bridge/
+├── __init__.py
+├── manifest.yaml               # plugin declaration
+├── plugin.py                   # Python gRPC client (KafkaJavaBridgePlugin)
+├── proto/
+│   ├── kafka_bridge.proto      # gRPC service contract (source of truth)
+│   ├── generate_stubs.py       # generates kafka_bridge_pb2*.py
+│   ├── __init__.py
+│   ├── kafka_bridge_pb2.py     # generated — do not edit
+│   └── kafka_bridge_pb2_grpc.py# generated — do not edit
+└── bridge/                     # Java Maven project
+    ├── pom.xml
+    └── src/main/
+        ├── proto/
+        │   └── kafka_bridge.proto  # Maven copy for protobuf-maven-plugin
+        └── java/com/point85/mes/bridge/
+            ├── KafkaBridgeServer.java      # entry point, gRPC Netty server
+            └── KafkaBridgeServiceImpl.java # Subscribe / Publish / HealthCheck RPCs
+```
+
+#### gRPC service contract
+
+```protobuf
+service KafkaBridge {
+  rpc Subscribe   (SubscribeRequest) returns (stream KafkaMessage);
+  rpc Publish     (PublishRequest)   returns (PublishResponse);
+  rpc HealthCheck (HealthRequest)    returns (HealthResponse);
+}
+```
+
+| RPC | Type | Description |
+|-----|------|-------------|
+| `Subscribe` | Server-streaming | Opens a `KafkaConsumer`, streams every record as a `KafkaMessage` |
+| `Publish` | Unary | Produces one message via `KafkaProducer`, returns partition + offset |
+| `HealthCheck` | Unary | Verifies broker connectivity; used by Python plugin during startup polling |
+
+#### Data flow
+
+```
+Kafka broker
+    │  KafkaConsumer.poll()  (Java, apache kafka-clients SDK)
+    ▼
+KafkaBridgeServiceImpl.subscribe()
+    │  proto KafkaMessage (topic, partition, offset, key, value, headers)
+    ▼  gRPC server-streaming on 127.0.0.1:50051
+KafkaJavaBridgePlugin._consume_loop()
+    │  MESEvent(event_type=<mes_event_type>, source="kafka_java_bridge:<topic>",
+    │           payload={topic, partition, offset, key, value, headers})
+    ▼
+event_bus.publish()
+    │
+    ├─► WebSocket gateway  →  browser clients
+    └─► subscribed MES plugins / core handlers
+```
+
+The `mes_event_type` parameter (default `data.collected`) controls which MES event topic is used, so the same plugin can feed equipment state, quality results, or production counts depending on configuration.
+
+#### Build and install
+
+```bash
+# 1 — Build the Java fat-jar (requires Java 17+ and Maven 3.8+)
+mvn -f server/plugins/system/kafka_java_bridge/bridge/pom.xml clean package -q
+# Output: bridge/target/kafka-bridge-1.0.0-shaded.jar
+
+# 2 — Generate Python gRPC stubs (once per proto change)
+pip install grpcio-tools
+python server/plugins/system/kafka_java_bridge/proto/generate_stubs.py
+
+# 3 — Install and enable the plugin
+python -m mes.cli plugin install kafka-java-bridge \
+    --param bridge_jar=/opt/mes/.../kafka-bridge-1.0.0-shaded.jar \
+    --param bootstrap_servers=broker1:9092,broker2:9092 \
+    --param topics='["equipment.events","quality.results"]' \
+    --param consumer_group=mes-factory-floor \
+    --param mes_event_type=data.collected
+
+python -m mes.cli plugin enable kafka-java-bridge
+```
+
+#### Runtime behaviour
+
+- The plugin's `start()` launches `java -jar kafka-bridge.jar --port 50051 --bootstrap-servers …` as a child process.
+- It polls `HealthCheck` every 0.75 s (up to `startup_timeout_sec`, default 60) until the JVM and `KafkaConsumer` are ready.
+- A `Subscribe` streaming RPC is opened; each received Kafka record is published on the MES event bus.
+- If the stream drops (network blip, broker restart), the Python consumer loop reconnects automatically after 5 s.
+- If the Java process exits unexpectedly, `NativeSdkBridgePlugin._monitor_bridge()` restarts it after 3 s.
+- `stop()` cancels the consumer task, closes the gRPC channel, then terminates the Java process.
+
+#### Adapting for other Java or C# SDKs
+
+To use a different vendor SDK:
+
+1. Replace `KafkaBridgeServiceImpl.java` with a class that wraps the vendor SDK.
+2. Extend or replace the `.proto` service definition to match the vendor's data model.
+3. Regenerate stubs on both sides.
+4. In `plugin.py`, override `bridge_command()` and adapt `_on_kafka_message()` to the new message type.
+
+The `NativeSdkBridgePlugin` base class, subprocess monitor, and health-poll logic require no changes.
 
 ---
 

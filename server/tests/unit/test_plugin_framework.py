@@ -132,6 +132,7 @@ class TestExtensionPointType:
             "erp_inbound",
             "erp_outbound",
             "test_equipment",
+            "native_sdk_bridge",
         }
         actual = {e.value for e in ExtensionPointType}
         assert actual == expected

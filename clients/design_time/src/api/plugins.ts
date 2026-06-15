@@ -78,3 +78,45 @@ export async function fetchAdapterCatalog(): Promise<ApiListResponse<AdapterInfo
   const { data } = await api.get<ApiListResponse<AdapterInfo>>("/plugins/catalog");
   return data;
 }
+// ─── Kafka Java Bridge: build status + prepare ─────────────────────────────
+
+export interface KafkaBridgeStatus {
+  jar_exists: boolean;
+  jar_path: string;
+  stubs_exist: boolean;
+  mvn_path: string | null;
+}
+
+export interface KafkaPrepareResult {
+  jar_path: string;
+  jar_existed: boolean;
+  jar_built: boolean;
+  stubs_existed: boolean;
+  stubs_generated: boolean;
+}
+
+export async function fetchKafkaBridgeStatus(): Promise<KafkaBridgeStatus> {
+  const { data } = await api.get<ApiResponse<KafkaBridgeStatus>>("/plugins/kafka-java-bridge/status");
+  return data.data;
+}
+
+export async function prepareKafkaBridge(force = false): Promise<KafkaPrepareResult> {
+  const { data } = await api.post<ApiResponse<KafkaPrepareResult>>(
+    `/plugins/kafka-java-bridge/prepare?force=${force}`,
+  );
+  return data.data;
+}
+
+export interface KafkaTestResult {
+  topic: string;
+  sent: string;
+  received: string;
+  match: boolean;
+}
+
+export async function kafkaTestConnection(): Promise<KafkaTestResult> {
+  const { data } = await api.post<ApiResponse<KafkaTestResult>>(
+    "/plugins/kafka-java-bridge/test",
+  );
+  return data.data;
+}

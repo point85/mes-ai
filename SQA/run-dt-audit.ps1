@@ -42,7 +42,7 @@
     .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173
 #>
 param(
-    [ValidateSet("uom", "users-and-groups", "reasons", "physical-model", "data-definitions", "storage-locations", "materials", "routes", "equipment", "products", "work-schedule", "all")]
+    [ValidateSet("uom", "users-and-groups", "reasons", "physical-model", "data-definitions", "storage-locations", "materials", "routes", "equipment", "products", "work-schedule", "plugins", "all")]
     [string]$Scope,
     [switch]$Headed,
     [switch]$Help,
@@ -73,8 +73,7 @@ function Show-Usage {
     Write-Host "  routes         Run Standalone Route Editor DT tests only"
     Write-Host "  equipment      Run Equipment DT tests only"
     Write-Host "  products       Run Products and BOM DT tests only"
-    Write-Host "  work-schedule  Run Work Schedule DT tests only"
-    Write-Host "  all            Run the full DT SQA suite"
+    Write-Host "  work-schedule  Run Work Schedule DT tests only"    Write-Host "  kafka-plugin   Run Kafka Java Bridge plugin UI tests only"    Write-Host "  all            Run the full DT SQA suite"
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Yellow
     Write-Host "  .\run-dt-audit.ps1 -Scope uom"
@@ -88,6 +87,8 @@ function Show-Usage {
     Write-Host "  .\run-dt-audit.ps1 -Scope equipment"
     Write-Host "  .\run-dt-audit.ps1 -Scope products"
     Write-Host "  .\run-dt-audit.ps1 -Scope work-schedule -Headed"
+    Write-Host "  .\run-dt-audit.ps1 -Scope plugins"
+    Write-Host "  .\run-dt-audit.ps1 -Scope plugins -Headed"
     Write-Host "  .\run-dt-audit.ps1 -Scope all -ServerUrl http://localhost:8082 -DtUrl http://localhost:5173"
 }
 
@@ -165,6 +166,11 @@ function Resolve-TestTargets {
                 (Join-Path $PSScriptRoot "modules\SQA-DT\test_work_schedule_team_crud.py"),
                 (Join-Path $PSScriptRoot "modules\SQA-DT\test_work_schedule_non_working_period_crud.py"),
                 (Join-Path $PSScriptRoot "modules\SQA-DT\test_work_schedule_queries.py")
+            )
+        }
+        "plugins" {
+            return @(
+                (Join-Path $PSScriptRoot "modules\SQA-DT\test_kafka_plugin_ui.py")
             )
         }
         default {

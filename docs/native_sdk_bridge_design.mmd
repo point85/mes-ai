@@ -1,0 +1,29 @@
+flowchart TB
+    PY["MES Python Server\n(FastAPI)"]
+    DB[("PostgreSQL\n(plugin config)")]
+    BUS["MES Event Bus"]
+
+    subgraph SIDECAR["Native SDK Bridge Sidecar"]
+        direction TB
+        LANG["any language\nJava · C++ · C# · Go · Rust …"]
+        GRPC["gRPC Service\n─ HealthCheck\n─ Publish\n─ Subscribe (streaming)"]
+        SDK["Native SDK\n(vendor library)"]
+        LANG --> GRPC
+        GRPC --> SDK
+    end
+
+    EXT["External System\n(Kafka · OPC-UA · Historian · ERP …)"]
+
+    PY <--> DB
+    PY -- "publish event" --> BUS
+    PY -- "subprocess launch\n+ gRPC loopback" --> GRPC
+    GRPC -- "Subscribe stream" --> PY
+    SDK -- "native protocol" --> EXT
+    EXT -- "data / events" --> SDK
+
+    style PY      fill:#faf5ff,stroke:#9333ea
+    style SIDECAR fill:#fff7ed,stroke:#ea580c
+    style EXT     fill:#f0fdf4,stroke:#16a34a
+    style DB      fill:#f8fafc,stroke:#94a3b8
+    style BUS     fill:#fdf4ff,stroke:#a855f7
+    style LANG    fill:#ffedd5,stroke:#ea580c,color:#9a3412

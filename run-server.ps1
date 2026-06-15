@@ -337,7 +337,7 @@ Write-Host ""
 
 Push-Location $serverDir
 try {
-    uvicorn mes.main:app --reload --host 0.0.0.0 --port $UvicornPort
+    uvicorn mes.main:app --reload --host 0.0.0.0 --port $UvicornPort --loop asyncio
 } finally {
     Pop-Location
 }

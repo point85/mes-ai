@@ -12,6 +12,9 @@ import {
   disablePlugin,
   updatePluginConfig,
   fetchAdapterCatalog,
+  fetchKafkaBridgeStatus,
+  prepareKafkaBridge,
+  kafkaTestConnection,
 } from "../api/plugins";
 import type { PluginInstallRequest, PluginConfigUpdate } from "../types";
 
@@ -99,4 +102,25 @@ export function useUpdatePluginConfig() {
 
 export function useAdapterCatalog() {
   return useQuery({ queryKey: KEYS.catalog, queryFn: fetchAdapterCatalog });
+}
+// ─── Kafka Java Bridge ────────────────────────────────────────────────────
+
+export function useKafkaBridgeStatus() {
+  return useQuery({
+    queryKey: ["kafka-bridge-status"] as const,
+    queryFn: fetchKafkaBridgeStatus,
+    refetchInterval: 15_000,
+  });
+}
+
+export function usePrepareKafkaBridge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ force = false }: { force?: boolean } = {}) => prepareKafkaBridge(force),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["kafka-bridge-status"] }),
+  });
+}
+
+export function useKafkaTestConnection() {
+  return useMutation({ mutationFn: kafkaTestConnection });
 }
