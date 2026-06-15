@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "mermaid": "^11.14.0"
+  },
+  "overrides": {
+    "dompurify": "^3.4.10"
   }
 }
