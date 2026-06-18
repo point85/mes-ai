@@ -1,7 +1,7 @@
 {
   "name": "equipment-simulator",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -20,7 +20,8 @@
     "@vitejs/plugin-react": "^4.5.2",
     "tailwindcss": "^4.1.7",
     "typescript": "~5.8.3",
-    "vite": "^6.4.2"
+    "vite": "^6.4.2",
+    "vite-plugin-pwa": "^1.3.0"
   },
   "overrides": {
     "form-data": "^4.0.6"

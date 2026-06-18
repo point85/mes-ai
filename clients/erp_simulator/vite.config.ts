@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
@@ -34,7 +35,48 @@ function erpDetectPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), erpDetectPlugin()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    erpDetectPlugin(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      devOptions: {
+        enabled: true,
+      },
+      includeAssets: ['vite.svg'],
+      manifest: {
+        name: 'MES AI ERP Simulator',
+        short_name: 'MES ERP',
+        description: 'ERP simulator client for MES AI',
+        theme_color: '#111827',
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
+        icons: [
+          {
+            src: 'icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'icon-512x512-maskable.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+    }),
+  ],
   define: {
     __MES_VERSION__: JSON.stringify(mesConfig.mesVersion),
     __MES_RELEASE_DATE__: JSON.stringify(mesConfig.releaseDate),
