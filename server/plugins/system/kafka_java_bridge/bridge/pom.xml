@@ -32,7 +32,7 @@
     <!-- Keep these three versions aligned -->
     <grpc.version>1.71.0</grpc.version>
     <protobuf.version>3.25.5</protobuf.version>
-    <kafka.version>3.9.0</kafka.version>
+    <kafka.version>3.9.2</kafka.version>
   </properties>
 
   <dependencies>
