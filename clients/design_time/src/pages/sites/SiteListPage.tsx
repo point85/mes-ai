@@ -10,19 +10,23 @@ import {
   TrashIcon,
   PencilSquareIcon,
   ChevronRightIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
-import { useSites, useDeleteSite } from "../../hooks/usePhysicalModel";
+import { useSites, useDeleteSite, useCreateSite } from "../../hooks/usePhysicalModel";
 import type { Site } from "../../types";
 import SiteFormDialog from "./SiteFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 export default function SiteListPage() {
   const navigate = useNavigate();
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<Site | null>(null);
   const [search, setSearch] = useState("");
 
   const { data, isLoading, error } = useSites();
   const deleteMut = useDeleteSite();
+  const createMut = useCreateSite();
 
   const sites = data?.data ?? [];
 
@@ -39,6 +43,19 @@ export default function SiteListPage() {
   const handleDelete = (site: Site) => {
     if (!confirm(`Delete site "${site.name}"?`)) return;
     deleteMut.mutate(site.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const s = cloneTarget!;
+    await createMut.mutateAsync({
+      name: s.name,
+      code: newCode,
+      description: s.description,
+      timezone: s.timezone,
+      address: s.address,
+      work_schedule_id: s.work_schedule_id,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -146,6 +163,13 @@ export default function SiteListPage() {
                         <ChevronRightIcon className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setCloneTarget(site)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditingSite(site)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                         title="Edit"
@@ -186,6 +210,17 @@ export default function SiteListPage() {
             setShowCreate(false);
             setEditingSite(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Site — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

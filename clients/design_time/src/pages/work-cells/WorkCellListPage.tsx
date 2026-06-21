@@ -9,11 +9,13 @@ import {
   PencilSquareIcon,
   TrashIcon,
   ChevronRightIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
-import { useLine, useArea, useSite, useWorkCells, useDeleteWorkCell } from "../../hooks/usePhysicalModel";
+import { useLine, useArea, useSite, useWorkCells, useDeleteWorkCell, useCreateWorkCell } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
 import type { WorkCell } from "../../types";
 import WorkCellFormDialog from "./WorkCellFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 interface LocationState {
   siteName?: string;
@@ -31,6 +33,7 @@ export default function WorkCellListPage() {
 
   const [editingWC, setEditingWC] = useState<WorkCell | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<WorkCell | null>(null);
   const [search, setSearch] = useState("");
 
   const { data: line } = useLine(lineId!);
@@ -38,6 +41,7 @@ export default function WorkCellListPage() {
   const { data: site } = useSite(area?.site_id ?? locState.siteId ?? "");
   const { data, isLoading, error } = useWorkCells(lineId!);
   const deleteMut = useDeleteWorkCell();
+  const createMut = useCreateWorkCell();
 
   const siteName = site?.name ?? locState.siteName ?? "…";
   const siteId = site?.id ?? area?.site_id ?? locState.siteId ?? "";
@@ -57,6 +61,20 @@ export default function WorkCellListPage() {
   const handleDelete = (wc: WorkCell) => {
     if (!confirm(`Delete work cell "${wc.name}"?`)) return;
     deleteMut.mutate(wc.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const wc = cloneTarget!;
+    await createMut.mutateAsync({
+      lineId: lineId!,
+      name: wc.name,
+      code: newCode,
+      description: wc.description,
+      work_schedule_id: wc.work_schedule_id,
+      default_dispatch_strategy: wc.default_dispatch_strategy,
+      custom_strategy_prompt: wc.custom_strategy_prompt,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -145,6 +163,13 @@ export default function WorkCellListPage() {
                         <ChevronRightIcon className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setCloneTarget(wc)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditingWC(wc)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                         title="Edit"
@@ -183,6 +208,17 @@ export default function WorkCellListPage() {
             setShowCreate(false);
             setEditingWC(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Work Cell — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

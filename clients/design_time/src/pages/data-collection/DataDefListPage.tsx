@@ -8,13 +8,16 @@ import {
   PlusIcon,
   TrashIcon,
   PencilSquareIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 import {
   useDataDefinitions,
   useDeleteDataDefinition,
+  useCreateDataDefinition,
 } from "../../hooks/useDataCollection";
 import type { DataDefinition } from "../../types";
 import DataDefFormDialog from "./DataDefFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 const DATA_TYPES = ["numeric", "string", "boolean", "enum"];
 const DATA_SOURCES = ["manual", "equipment", "sensor"];
@@ -22,11 +25,13 @@ const DATA_SOURCES = ["manual", "equipment", "sensor"];
 export default function DataDefListPage() {
   const [editing, setEditing] = useState<DataDefinition | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<DataDefinition | null>(null);
   const [typeFilter, setTypeFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
 
   const { data, isLoading, error } = useDataDefinitions();
   const deleteMut = useDeleteDataDefinition();
+  const createMut = useCreateDataDefinition();
 
   const defs = data?.data ?? [];
 
@@ -41,6 +46,24 @@ export default function DataDefListPage() {
   const handleDelete = (d: DataDefinition) => {
     if (!confirm(`Delete definition "${d.code}"?`)) return;
     deleteMut.mutate(d.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const d = cloneTarget!;
+    await createMut.mutateAsync({
+      name: d.name,
+      code: newCode,
+      description: d.description,
+      data_type: d.data_type,
+      uom_id: d.uom_id,
+      step_id: d.step_id,
+      source: d.source,
+      is_required: d.is_required,
+      enum_values: d.enum_values,
+      lower_limit: d.lower_limit,
+      upper_limit: d.upper_limit,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -208,6 +231,13 @@ export default function DataDefListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
+                        onClick={() => setCloneTarget(d)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditing(d)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                         title="Edit"
@@ -248,6 +278,17 @@ export default function DataDefListPage() {
             setShowCreate(false);
             setEditing(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Definition — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

@@ -25,7 +25,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import Boolean, CheckConstraint, Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, Date, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -44,9 +44,12 @@ class Disposition(BaseModel):
     """
 
     __tablename__ = "dispositions"
+    __table_args__ = (
+        Index("ix_dispositions_code", "code", unique=True, postgresql_where=text("is_active = TRUE")),
+    )
 
     code: Mapped[str] = mapped_column(
-        String(50), nullable=False, unique=True, index=True,
+        String(50), nullable=False,
         comment="Short unique code (e.g. 'PASS', 'QC-FAIL')",
     )
     name: Mapped[str] = mapped_column(

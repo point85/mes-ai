@@ -9,11 +9,13 @@ import {
   PencilSquareIcon,
   TrashIcon,
   ChevronRightIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
-import { useSite, useAreas, useDeleteArea } from "../../hooks/usePhysicalModel";
+import { useSite, useAreas, useDeleteArea, useCreateArea } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
 import type { Area } from "../../types";
 import AreaFormDialog from "./AreaFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 interface LocationState {
   siteName?: string;
@@ -27,11 +29,13 @@ export default function AreaListPage() {
 
   const [editingArea, setEditingArea] = useState<Area | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<Area | null>(null);
   const [search, setSearch] = useState("");
 
   const { data: site } = useSite(siteId!);
   const { data, isLoading, error } = useAreas(siteId!);
   const deleteMut = useDeleteArea();
+  const createMut = useCreateArea();
 
   const siteName = site?.name ?? locState.siteName ?? "…";
   const areas: Area[] = data?.data ?? [];
@@ -47,6 +51,18 @@ export default function AreaListPage() {
   const handleDelete = (area: Area) => {
     if (!confirm(`Delete area "${area.name}"?`)) return;
     deleteMut.mutate(area.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const a = cloneTarget!;
+    await createMut.mutateAsync({
+      siteId: siteId!,
+      name: a.name,
+      code: newCode,
+      description: a.description,
+      work_schedule_id: a.work_schedule_id,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -133,6 +149,13 @@ export default function AreaListPage() {
                         <ChevronRightIcon className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setCloneTarget(area)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditingArea(area)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                         title="Edit"
@@ -171,6 +194,17 @@ export default function AreaListPage() {
             setShowCreate(false);
             setEditingArea(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Area — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

@@ -10,15 +10,18 @@ import {
   PlusIcon,
   TrashIcon,
   PencilSquareIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 import {
   useStorageLocations,
   useDeleteStorageLocation,
+  useCreateStorageLocation,
 } from "../../hooks/useInventory";
 import { useSites } from "../../hooks/usePhysicalModel";
 import type { StorageLocation, LocationType } from "../../types";
 import { LOCATION_TYPES } from "../../types/inventory";
 import LocationFormDialog from "./LocationFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 /* ── type badge colours ───────────────────────────────────────────── */
 const TYPE_COLORS: Record<LocationType, string> = {
@@ -40,12 +43,14 @@ const TYPE_LABELS: Record<LocationType, string> = {
 export default function StorageLocationListPage() {
   const [editingLoc, setEditingLoc] = useState<StorageLocation | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<StorageLocation | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("");
 
   const { data, isLoading, error } = useStorageLocations();
   const { data: sitesData } = useSites();
   const deleteMut = useDeleteStorageLocation();
+  const createMut = useCreateStorageLocation();
 
   const locations = data?.data ?? [];
   const sites = sitesData?.data ?? [];
@@ -76,6 +81,23 @@ export default function StorageLocationListPage() {
   const handleDelete = (loc: StorageLocation) => {
     if (!confirm(`Delete location "${loc.code}" — ${loc.name}?`)) return;
     deleteMut.mutate(loc.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const loc = cloneTarget!;
+    await createMut.mutateAsync({
+      name: loc.name,
+      code: newCode,
+      description: loc.description,
+      location_type: loc.location_type,
+      aisle: loc.aisle,
+      bay: loc.bay,
+      tier: loc.tier,
+      site_id: loc.site_id,
+      capacity: loc.capacity,
+      capacity_uom_id: loc.capacity_uom_id,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -200,7 +222,9 @@ export default function StorageLocationListPage() {
                       {loc.site_id ? (siteMap.get(loc.site_id) ?? loc.site_id) : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-sm text-gray-500">
-                      {loc.capacity != null ? loc.capacity : "—"}
+                      {loc.capacity != null
+                        ? `${loc.capacity}${loc.capacity_uom_symbol ? ` ${loc.capacity_uom_symbol}` : ""}`
+                        : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       {loc.is_active ? (
@@ -213,8 +237,13 @@ export default function StorageLocationListPage() {
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setEditingLoc(loc)}
+                        <button                            onClick={() => setCloneTarget(loc)}
+                            className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                            title="Clone"
+                          >
+                            <DocumentDuplicateIcon className="h-4 w-4" />
+                          </button>
+                          <button                          onClick={() => setEditingLoc(loc)}
                           className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                           title="Edit"
                         >
@@ -255,6 +284,17 @@ export default function StorageLocationListPage() {
             setShowCreate(false);
             setEditingLoc(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Location — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

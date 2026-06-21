@@ -7,20 +7,24 @@ import {
   PlusIcon,
   TrashIcon,
   PencilSquareIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
-import { useMaterials, useDeleteMaterial } from "../../hooks/useMaterial";
+import { useMaterials, useDeleteMaterial, useCreateMaterial } from "../../hooks/useMaterial";
 import type { Material } from "../../types";
 import MaterialFormDialog from "./MaterialFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 const MATERIAL_TYPES = ["raw", "intermediate", "finished"];
 
 export default function MaterialListPage() {
   const [editing, setEditing] = useState<Material | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<Material | null>(null);
   const [typeFilter, setTypeFilter] = useState("");
 
   const { data, isLoading, error } = useMaterials();
   const deleteMut = useDeleteMaterial();
+  const createMut = useCreateMaterial();
 
   const materials = data?.data ?? [];
 
@@ -32,6 +36,19 @@ export default function MaterialListPage() {
   const handleDelete = (m: Material) => {
     if (!confirm(`Delete material "${m.code}"?`)) return;
     deleteMut.mutate(m.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const m = cloneTarget!;
+    await createMut.mutateAsync({
+      name: m.name,
+      code: newCode,
+      description: m.description,
+      material_type: m.material_type,
+      uom_id: m.uom_id,
+      shelf_life_days: m.shelf_life_days,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -145,6 +162,13 @@ export default function MaterialListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
+                        onClick={() => setCloneTarget(m)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditing(m)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                         title="Edit"
@@ -185,6 +209,17 @@ export default function MaterialListPage() {
             setShowCreate(false);
             setEditing(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Material — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

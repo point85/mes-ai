@@ -5,7 +5,7 @@
 
 import { useState, useMemo } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { PlusIcon, PencilSquareIcon, TrashIcon, Cog6ToothIcon, BoltIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PencilSquareIcon, TrashIcon, Cog6ToothIcon, BoltIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
 import {
   useWorkCell,
   useLine,
@@ -14,10 +14,12 @@ import {
   useEquipment,
   useEquipmentClasses,
   useDeleteEquipment,
+  useCreateEquipment,
 } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
 import type { Equipment } from "../../types";
 import EquipmentFormDialog from "./EquipmentFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 interface LocationState {
   siteName?: string;
@@ -37,6 +39,7 @@ export default function EquipmentListPage() {
 
   const [editingEquip, setEditingEquip] = useState<Equipment | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<Equipment | null>(null);
   const [search, setSearch] = useState("");
 
   const { data: wc } = useWorkCell(wcId!);
@@ -46,6 +49,7 @@ export default function EquipmentListPage() {
   const { data, isLoading, error } = useEquipment(wcId!);
   const { data: classesResp } = useEquipmentClasses();
   const deleteMut = useDeleteEquipment();
+  const createMut = useCreateEquipment();
 
   const classMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -75,6 +79,20 @@ export default function EquipmentListPage() {
   const handleDelete = (eq: Equipment) => {
     if (!confirm(`Delete equipment "${eq.name}"?`)) return;
     deleteMut.mutate(eq.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const eq = cloneTarget!;
+    await createMut.mutateAsync({
+      wcId: wcId!,
+      name: eq.name,
+      code: newCode,
+      description: eq.description,
+      equipment_class_id: eq.equipment_class_id,
+      state_model_id: eq.state_model_id,
+      max_queue_depth: eq.max_queue_depth,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -178,6 +196,13 @@ export default function EquipmentListPage() {
                         <Cog6ToothIcon className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setCloneTarget(eq)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditingEquip(eq)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                         title="Edit"
@@ -216,6 +241,17 @@ export default function EquipmentListPage() {
             setShowCreate(false);
             setEditingEquip(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Equipment — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

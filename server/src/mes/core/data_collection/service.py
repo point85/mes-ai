@@ -98,6 +98,7 @@ class DataDefinitionService:
         existing = await session.execute(
             select(DataDefinition).where(
                 DataDefinition.code == kwargs["code"],
+                DataDefinition.is_active.is_(True),
             )
         )
         if existing.scalar_one_or_none() is not None:
@@ -106,6 +107,7 @@ class DataDefinitionService:
         defn = DataDefinition(**kwargs)
         session.add(defn)
         await session.flush()
+        await session.refresh(defn, attribute_names=["uom_rel", "step_rel"])
 
         await event_bus.publish(
             data_definition_created(str(defn.id), defn.code, defn.data_type)
@@ -130,6 +132,7 @@ class DataDefinitionService:
                 select(DataDefinition).where(
                     DataDefinition.code == new_code,
                     DataDefinition.id != definition_id,
+                    DataDefinition.is_active.is_(True),
                 )
             )
             if existing.scalar_one_or_none() is not None:
@@ -141,6 +144,7 @@ class DataDefinitionService:
                 continue
             setattr(defn, key, value)
         await session.flush()
+        await session.refresh(defn, attribute_names=["uom_rel", "step_rel"])
 
         logger.info("Updated data definition %s (%s)", defn.id, defn.code)
         return defn

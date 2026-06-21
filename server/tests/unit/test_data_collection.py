@@ -120,8 +120,14 @@ class TestDataDefinitionModel:
             assert col in col_names, f"Missing '{col}'"
 
     def test_code_column_is_unique(self):
-        col = DataDefinition.__table__.c.code
-        assert col.unique is True
+        # Uniqueness is enforced via a partial index (WHERE is_active = TRUE)
+        # stored in __table_args__, not as col.unique on the column itself.
+        idx = next(
+            (i for i in DataDefinition.__table__.indexes if i.name == "ix_data_definitions_code"),
+            None,
+        )
+        assert idx is not None, "Partial unique index ix_data_definitions_code not found"
+        assert idx.unique is True
 
     def test_data_points_relationship(self):
         rels = {r.key for r in DataDefinition.__mapper__.relationships}

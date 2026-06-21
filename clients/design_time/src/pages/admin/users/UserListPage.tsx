@@ -5,9 +5,10 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlusIcon, PencilSquareIcon, TrashIcon, UserCircleIcon } from "@heroicons/react/24/outline";
-import { listUsers, deleteUser, listRoles, type UserRead } from "../../../api/auth";
+import { PlusIcon, PencilSquareIcon, TrashIcon, UserCircleIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
+import { listUsers, deleteUser, listRoles, createUser, assignRole, type UserRead } from "../../../api/auth";
 import UserFormDialog from "./UserFormDialog";
+import CloneDialog from "../../../components/CloneDialog";
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -21,6 +22,7 @@ function formatDate(iso: string | null) {
 export default function UserListPage() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<UserRead | null | undefined>(undefined); // undefined = closed
+  const [cloneTarget, setCloneTarget] = useState<UserRead | null>(null);
 
   const { data: users = [], isLoading, error } = useQuery({
     queryKey: ["auth-users"],
@@ -41,6 +43,23 @@ export default function UserListPage() {
     if (confirm(`Delete user "${user.username}"? This cannot be undone.`)) {
       deleteMut.mutate(user.id);
     }
+  }
+
+  async function handleCloneUser(newUsername: string, password?: string) {
+    const source = cloneTarget!;
+    const newUser = await createUser({
+      username: newUsername,
+      email: source.email ?? undefined,
+      full_name: source.full_name ?? undefined,
+      password: password ?? "",
+    });
+    // Copy roles from source user
+    for (const roleName of source.roles) {
+      const role = roles.find((r) => r.name === roleName);
+      if (role) await assignRole(newUser.id, role.id);
+    }
+    qc.invalidateQueries({ queryKey: ["auth-users"] });
+    setCloneTarget(null);
   }
 
   function handleSaved() {
@@ -134,6 +153,13 @@ export default function UserListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="inline-flex items-center gap-1">
                       <button
+                        onClick={() => setCloneTarget(user)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditing(user)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-indigo-600 transition-colors"
                         title="Edit"
@@ -164,6 +190,18 @@ export default function UserListPage() {
           roles={roles}
           onClose={() => setEditing(undefined)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* Clone dialog — requires new username + password */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone User — ${cloneTarget.username}`}
+          label="New Username"
+          initialValue={cloneTarget.username}
+          secondaryField={{ key: "password", label: "Password", type: "password", placeholder: "Set a password for the new user" }}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleCloneUser}
         />
       )}
     </div>

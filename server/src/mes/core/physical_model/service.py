@@ -67,7 +67,7 @@ class PhysicalModelService:
         """Create a new site. Raises DuplicateCodeException if code exists."""
         # Check uniqueness
         existing = await session.execute(
-            select(Site).where(Site.code == kwargs["code"])
+            select(Site).where(Site.code == kwargs["code"], Site.is_active.is_(True))
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateCodeException("Site", kwargs["code"])
@@ -142,7 +142,7 @@ class PhysicalModelService:
         await PhysicalModelService.get_site(session, site_id)
 
         existing = await session.execute(
-            select(Area).where(Area.code == kwargs["code"])
+            select(Area).where(Area.code == kwargs["code"], Area.is_active.is_(True))
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateCodeException("Area", kwargs["code"])
@@ -216,7 +216,7 @@ class PhysicalModelService:
         await PhysicalModelService.get_area(session, area_id)
 
         existing = await session.execute(
-            select(ProductionLine).where(ProductionLine.code == kwargs["code"])
+            select(ProductionLine).where(ProductionLine.code == kwargs["code"], ProductionLine.is_active.is_(True))
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateCodeException("ProductionLine", kwargs["code"])
@@ -332,7 +332,7 @@ class PhysicalModelService:
         area = await PhysicalModelService.get_area(session, line.area_id)
 
         existing = await session.execute(
-            select(WorkCell).where(WorkCell.code == kwargs["code"])
+            select(WorkCell).where(WorkCell.code == kwargs["code"], WorkCell.is_active.is_(True))
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateCodeException("WorkCell", kwargs["code"])
@@ -473,7 +473,7 @@ class PhysicalModelService:
         await PhysicalModelService.get_work_cell(session, wc_id)
 
         existing = await session.execute(
-            select(Equipment).where(Equipment.code == kwargs["code"])
+            select(Equipment).where(Equipment.code == kwargs["code"], Equipment.is_active.is_(True))
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateCodeException("Equipment", kwargs["code"])
@@ -753,7 +753,7 @@ class PhysicalModelService:
         session: AsyncSession, **kwargs: Any
     ) -> EquipmentClass:
         existing = await session.execute(
-            select(EquipmentClass).where(EquipmentClass.code == kwargs["code"])
+            select(EquipmentClass).where(EquipmentClass.code == kwargs["code"], EquipmentClass.is_active.is_(True))
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateCodeException("EquipmentClass", kwargs["code"])

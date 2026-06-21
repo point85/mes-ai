@@ -16,3 +16,16 @@ class DuplicateProductException(MESException):
             message=f"Product with code '{code}' version '{version}' already exists",
             details={"code": code, "version": version},
         )
+
+
+class DuplicateDispositionCodeException(MESException):
+    """Raised when a disposition code already exists."""
+
+    status_code = 409
+    error_code = "DUPLICATE_DISPOSITION_CODE"
+
+    def __init__(self, code: str) -> None:
+        super().__init__(
+            message=f"Disposition with code '{code}' already exists",
+            details={"code": code},
+        )

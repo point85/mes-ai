@@ -4,13 +4,15 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlusIcon, PencilSquareIcon, TrashIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
-import { listRoles, deleteRole, type RoleRead } from "../../../api/auth";
+import { PlusIcon, PencilSquareIcon, TrashIcon, ShieldCheckIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
+import { listRoles, deleteRole, createRole, type RoleRead } from "../../../api/auth";
 import RoleFormDialog from "./RoleFormDialog";
+import CloneDialog from "../../../components/CloneDialog";
 
 export default function RoleListPage() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<RoleRead | null | undefined>(undefined); // undefined = closed
+  const [cloneTarget, setCloneTarget] = useState<RoleRead | null>(null);
 
   const { data: roles = [], isLoading, error } = useQuery({
     queryKey: ["auth-roles"],
@@ -31,6 +33,13 @@ export default function RoleListPage() {
   function handleSaved() {
     setEditing(undefined);
     qc.invalidateQueries({ queryKey: ["auth-roles"] });
+  }
+
+  async function handleClone(newName: string) {
+    const r = cloneTarget!;
+    await createRole({ name: newName, description: r.description ?? undefined });
+    qc.invalidateQueries({ queryKey: ["auth-roles"] });
+    setCloneTarget(null);
   }
 
   return (
@@ -106,6 +115,14 @@ export default function RoleListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="inline-flex items-center gap-1">
                       <button
+                        onClick={() => setCloneTarget(role)}
+                        disabled={role.is_system}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={role.is_system ? "System roles cannot be cloned" : "Clone"}
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditing(role)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-indigo-600 transition-colors"
                         title="View / Edit"
@@ -135,6 +152,17 @@ export default function RoleListPage() {
           role={editing}
           onClose={() => setEditing(undefined)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Role — ${cloneTarget.name}`}
+          label="New Name"
+          initialValue={cloneTarget.name}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

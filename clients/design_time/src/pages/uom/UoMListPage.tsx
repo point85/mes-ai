@@ -4,12 +4,13 @@
  */
 
 import { useState, useMemo } from "react";
-import { PlusIcon, TrashIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
-import { useUoMs, useDeleteUoM } from "../../hooks/useUoM";
+import { PlusIcon, TrashIcon, PencilSquareIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
+import { useUoMs, useDeleteUoM, useCreateUoM } from "../../hooks/useUoM";
 import type { UoM } from "../../types";
 import { UOM_TYPES } from "../../types";
 import UoMFormDialog from "./UoMFormDialog";
 import UoMConvertPanel from "./UoMConvertPanel";
+import CloneDialog from "../../components/CloneDialog";
 
 const TYPE_LABELS: Record<string, string> = {
   mass: "Mass",
@@ -45,9 +46,11 @@ export default function UoMListPage() {
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [editingUoM, setEditingUoM] = useState<UoM | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<UoM | null>(null);
 
   const { data, isLoading, error } = useUoMs();
   const deleteMut = useDeleteUoM();
+  const createMut = useCreateUoM();
 
   const uoms = data?.data ?? [];
 
@@ -61,6 +64,23 @@ export default function UoMListPage() {
     if (uom.is_builtin) return;
     if (!confirm(`Delete unit "${uom.symbol}"?`)) return;
     deleteMut.mutate(uom.id);
+  };
+
+  const handleClone = async (newSymbol: string) => {
+    const u = cloneTarget!;
+    await createMut.mutateAsync({
+      symbol: newSymbol,
+      name: u.name,
+      description: u.description,
+      uom_type: u.uom_type,
+      uom_class: u.uom_class,
+      multiplier: u.multiplier,
+      offset: u.offset,
+      left_uom_symbol: u.left_uom_symbol,
+      right_uom_symbol: u.right_uom_symbol,
+      exponent: u.exponent,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -198,6 +218,13 @@ export default function UoMListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
+                        onClick={() => setCloneTarget(uom)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditingUoM(uom)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                         title="Edit"
@@ -239,6 +266,17 @@ export default function UoMListPage() {
             setShowCreate(false);
             setEditingUoM(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Unit — ${cloneTarget.symbol}`}
+          label="New Symbol"
+          initialValue={cloneTarget.symbol}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

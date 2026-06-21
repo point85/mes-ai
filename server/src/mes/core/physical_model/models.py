@@ -26,7 +26,7 @@ from __future__ import annotations
 import datetime as _dt
 import uuid
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Uuid, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, Uuid, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -44,9 +44,12 @@ class Site(BaseModel):
     """
 
     __tablename__ = "sites"
+    __table_args__ = (
+        Index("ix_sites_code", "code", unique=True, postgresql_where=text("is_active = TRUE")),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     timezone: Mapped[str | None] = mapped_column(
         String(50), nullable=True,
@@ -78,9 +81,12 @@ class Area(BaseModel):
     """
 
     __tablename__ = "areas"
+    __table_args__ = (
+        Index("ix_areas_code", "code", unique=True, postgresql_where=text("is_active = TRUE")),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     site_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("sites.id"), nullable=False, index=True,
@@ -113,9 +119,12 @@ class ProductionLine(BaseModel):
     """
 
     __tablename__ = "production_lines"
+    __table_args__ = (
+        Index("ix_production_lines_code", "code", unique=True, postgresql_where=text("is_active = TRUE")),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     area_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("areas.id"), nullable=False, index=True,
@@ -147,9 +156,12 @@ class WorkCell(BaseModel):
     """
 
     __tablename__ = "work_cells"
+    __table_args__ = (
+        Index("ix_work_cells_code", "code", unique=True, postgresql_where=text("is_active = TRUE")),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     line_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("production_lines.id"), nullable=False, index=True,
@@ -203,9 +215,12 @@ class Equipment(BaseModel):
     """
 
     __tablename__ = "equipment"
+    __table_args__ = (
+        Index("ix_equipment_code", "code", unique=True, postgresql_where=text("is_active = TRUE")),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     work_cell_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("work_cells.id"), nullable=False, index=True,
@@ -355,9 +370,12 @@ class EquipmentClass(BaseModel):
     """
 
     __tablename__ = "equipment_classes"
+    __table_args__ = (
+        Index("ix_equipment_classes_code", "code", unique=True, postgresql_where=text("is_active = TRUE")),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships

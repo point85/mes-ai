@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, Uuid
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
@@ -38,12 +38,15 @@ class DataDefinition(BaseModel):
     """
 
     __tablename__ = "data_definitions"
+    __table_args__ = (
+        Index("ix_data_definitions_code", "code", unique=True, postgresql_where=text("is_active = TRUE")),
+    )
 
     name: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True,
     )
     code: Mapped[str] = mapped_column(
-        String(50), unique=True, nullable=False, index=True,
+        String(50), nullable=False,
         comment="Unique definition code (e.g. TEMP-OVEN-1, TORQUE-BOLT-A)",
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

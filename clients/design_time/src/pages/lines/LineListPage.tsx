@@ -9,11 +9,13 @@ import {
   PencilSquareIcon,
   TrashIcon,
   ChevronRightIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
-import { useArea, useSite, useLines, useDeleteLine } from "../../hooks/usePhysicalModel";
+import { useArea, useSite, useLines, useDeleteLine, useCreateLine } from "../../hooks/usePhysicalModel";
 import { Breadcrumb } from "../../components/layout";
 import type { ProductionLine } from "../../types";
 import LineFormDialog from "./LineFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 interface LocationState {
   siteName?: string;
@@ -29,12 +31,14 @@ export default function LineListPage() {
 
   const [editingLine, setEditingLine] = useState<ProductionLine | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<ProductionLine | null>(null);
   const [search, setSearch] = useState("");
 
   const { data: area } = useArea(areaId!);
   const { data: site } = useSite(area?.site_id ?? locState.siteId ?? "");
   const { data, isLoading, error } = useLines(areaId!);
   const deleteMut = useDeleteLine();
+  const createMut = useCreateLine();
 
   const siteName = site?.name ?? locState.siteName ?? "…";
   const siteId = site?.id ?? area?.site_id ?? locState.siteId ?? "";
@@ -52,6 +56,18 @@ export default function LineListPage() {
   const handleDelete = (line: ProductionLine) => {
     if (!confirm(`Delete production line "${line.name}"?`)) return;
     deleteMut.mutate(line.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const l = cloneTarget!;
+    await createMut.mutateAsync({
+      areaId: areaId!,
+      name: l.name,
+      code: newCode,
+      description: l.description,
+      work_schedule_id: l.work_schedule_id,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -139,6 +155,13 @@ export default function LineListPage() {
                         <ChevronRightIcon className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setCloneTarget(line)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditingLine(line)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                         title="Edit"
@@ -177,6 +200,17 @@ export default function LineListPage() {
             setShowCreate(false);
             setEditingLine(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Line — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

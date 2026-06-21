@@ -9,6 +9,7 @@ import {
   useUpdateStorageLocation,
 } from "../../hooks/useInventory";
 import { useSites } from "../../hooks/usePhysicalModel";
+import { useUoMs } from "../../hooks/useUoM";
 import type { StorageLocation, StorageLocationCreate } from "../../types";
 import { LOCATION_TYPES } from "../../types/inventory";
 
@@ -30,6 +31,11 @@ export default function LocationFormDialog({ location, onClose }: Props) {
   const updateMut = useUpdateStorageLocation();
   const { data: sitesData } = useSites();
   const sites = sitesData?.data ?? [];
+  const { data: uomData } = useUoMs();
+  const CAPACITY_UOM_TYPES = new Set(["mass", "length", "count", "custom"]);
+  const uoms = (uomData?.data ?? []).filter(
+    (u) => CAPACITY_UOM_TYPES.has(u.uom_type) && u.uom_class === "scalar",
+  );
 
   const {
     register,
@@ -47,6 +53,7 @@ export default function LocationFormDialog({ location, onClose }: Props) {
       tier: location?.tier ?? "",
       site_id: location?.site_id ?? undefined,
       capacity: location?.capacity ?? undefined,
+      capacity_uom_id: location?.capacity_uom_id ?? undefined,
     },
   });
 
@@ -61,6 +68,7 @@ export default function LocationFormDialog({ location, onClose }: Props) {
       tier: location?.tier ?? "",
       site_id: location?.site_id ?? undefined,
       capacity: location?.capacity ?? undefined,
+      capacity_uom_id: location?.capacity_uom_id ?? undefined,
     });
   }, [location, reset]);
 
@@ -73,6 +81,7 @@ export default function LocationFormDialog({ location, onClose }: Props) {
       tier: data.tier || null,
       site_id: data.site_id || null,
       capacity: data.capacity ? Number(data.capacity) : null,
+      capacity_uom_id: data.capacity_uom_id || null,
     };
     if (location) {
       await updateMut.mutateAsync({ id: location.id, ...payload });
@@ -212,26 +221,44 @@ export default function LocationFormDialog({ location, onClose }: Props) {
             </div>
           </div>
 
-          {/* Capacity */}
-          <div className="w-1/3">
-            <label className="block text-sm font-medium text-gray-700">
-              Capacity
-            </label>
-            <input
-              {...register("capacity", {
-                validate: (v) =>
-                  !v || Number(v) > 0 || "Capacity must be positive",
-              })}
-              type="number"
-              step="any"
-              min="0"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            />
-            {errors.capacity && (
-              <p className="mt-1 text-xs text-red-600">
-                {errors.capacity.message}
-              </p>
-            )}
+          {/* Capacity + UoM */}
+          <div className="flex gap-3 items-end">
+            <div className="w-1/3">
+              <label className="block text-sm font-medium text-gray-700">
+                Capacity
+              </label>
+              <input
+                {...register("capacity", {
+                  validate: (v) =>
+                    !v || Number(v) > 0 || "Capacity must be positive",
+                })}
+                type="number"
+                step="any"
+                min="0"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+              {errors.capacity && (
+                <p className="mt-1 text-xs text-red-600">
+                  {errors.capacity.message}
+                </p>
+              )}
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Capacity UoM
+              </label>
+              <select
+                {...register("capacity_uom_id")}
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">— None —</option>
+                {uoms.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.symbol}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Actions */}

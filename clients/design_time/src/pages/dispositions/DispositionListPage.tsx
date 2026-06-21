@@ -10,13 +10,16 @@ import {
   PlusIcon,
   PencilSquareIcon,
   TrashIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 import {
   useDispositions,
   useDeleteDisposition,
+  useCreateDisposition,
 } from "../../hooks/useProductDef";
 import type { Disposition } from "../../types";
 import DispositionFormDialog from "./DispositionFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 /* ── category colour badges ───────────────────────────────────────── */
 const CATEGORY_COLORS: Record<string, string> = {
@@ -31,10 +34,12 @@ const CATEGORIES = ["route", "hold", "scrap", "release"] as const;
 export default function DispositionListPage() {
   const { data: listResp, isLoading } = useDispositions();
   const deleteMut = useDeleteDisposition();
+  const createMut = useCreateDisposition();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Disposition | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [cloneTarget, setCloneTarget] = useState<Disposition | null>(null);
 
   const dispositions = useMemo(() => {
     const sorted = (listResp?.data ?? []).slice().sort((a, b) => a.code.localeCompare(b.code));
@@ -54,6 +59,17 @@ export default function DispositionListPage() {
   const handleDelete = async (d: Disposition) => {
     if (!window.confirm(`Delete disposition ${d.code} — ${d.name}?`)) return;
     await deleteMut.mutateAsync(d.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const d = cloneTarget!;
+    await createMut.mutateAsync({
+      code: newCode,
+      name: d.name,
+      description: d.description,
+      category: d.category,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -136,6 +152,13 @@ export default function DispositionListPage() {
                   </td>
                   <td className="whitespace-nowrap py-2 px-2 text-right text-sm">
                     <button
+                      title="Clone"
+                      onClick={() => setCloneTarget(d)}
+                      className="mr-1 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-indigo-600"
+                    >
+                      <DocumentDuplicateIcon className="h-4 w-4" />
+                    </button>
+                    <button
                       title="Edit"
                       onClick={() => openEdit(d)}
                       className="mr-1 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-indigo-600"
@@ -161,6 +184,17 @@ export default function DispositionListPage() {
         <DispositionFormDialog
           disposition={editing}
           onClose={() => setDialogOpen(false)}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Disposition — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

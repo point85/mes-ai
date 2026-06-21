@@ -22,7 +22,7 @@ from mes.framework.api.pagination import PaginationParams, paginate_query
 from mes.framework.events import event_bus
 
 from .events import bom_created, product_created, route_created
-from .exceptions import DuplicateProductException
+from .exceptions import DuplicateProductException, DuplicateDispositionCodeException
 from .models import (
     BillOfMaterial,
     BOMItem,
@@ -84,6 +84,7 @@ class ProductDefService:
             select(ProductDefinition).where(
                 ProductDefinition.code == kwargs["code"],
                 ProductDefinition.version == kwargs.get("version", "1.0"),
+                ProductDefinition.is_active.is_(True),
             )
         )
         if existing.scalar_one_or_none() is not None:
@@ -894,7 +895,15 @@ class ProductDefService:
 
     @staticmethod
     async def create_disposition(session: AsyncSession, **kwargs: Any) -> Disposition:
-        """Create a new disposition."""
+        """Create a new disposition. Raises DuplicateDispositionCodeException if code exists."""
+        existing = await session.execute(
+            select(Disposition).where(
+                Disposition.code == kwargs["code"],
+                Disposition.is_active.is_(True),
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise DuplicateDispositionCodeException(kwargs["code"])
         disposition = Disposition(**kwargs)
         session.add(disposition)
         await session.flush()

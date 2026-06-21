@@ -25,6 +25,8 @@ export interface StorageLocation {
   tier: string | null;
   site_id: string | null;
   capacity: number | null;
+  capacity_uom_id: string | null;
+  capacity_uom_symbol: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -40,6 +42,7 @@ export interface StorageLocationCreate {
   tier?: string | null;
   site_id?: string | null;
   capacity?: number | null;
+  capacity_uom_id?: string | null;
 }
 
 export interface StorageLocationUpdate {
@@ -52,6 +55,7 @@ export interface StorageLocationUpdate {
   tier?: string | null;
   site_id?: string | null;
   capacity?: number | null;
+  capacity_uom_id?: string | null;
 }
 
 // ─── Inventory Balance ────────────────────────────────────────────────

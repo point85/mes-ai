@@ -37,6 +37,7 @@ class StorageLocationCreate(BaseModel):
     tier: str | None = Field(None, max_length=20)
     site_id: UUID | None = None
     capacity: float | None = Field(None, gt=0)
+    capacity_uom_id: UUID | None = None
 
     @field_validator("code")
     @classmethod
@@ -66,6 +67,8 @@ class StorageLocationRead(BaseModel):
     tier: str | None = None
     site_id: UUID | None = None
     capacity: float | None = None
+    capacity_uom_id: UUID | None = None
+    capacity_uom_symbol: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -85,6 +88,7 @@ class StorageLocationUpdate(BaseModel):
     tier: str | None = Field(None, max_length=20)
     site_id: UUID | None = None
     capacity: float | None = Field(None, gt=0)
+    capacity_uom_id: UUID | None = None
 
     @field_validator("code")
     @classmethod

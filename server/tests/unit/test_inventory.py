@@ -141,8 +141,14 @@ class TestStorageLocationModel:
             assert col in col_names, f"Missing '{col}'"
 
     def test_code_column_is_unique(self):
-        col = StorageLocation.__table__.c.code
-        assert col.unique is True
+        # Uniqueness is enforced via a partial index (WHERE is_active = TRUE)
+        # stored in __table_args__, not as col.unique on the column itself.
+        idx = next(
+            (i for i in StorageLocation.__table__.indexes if i.name == "ix_storage_locations_code"),
+            None,
+        )
+        assert idx is not None, "Partial unique index ix_storage_locations_code not found"
+        assert idx.unique is True
 
     def test_balances_relationship(self):
         rels = {r.key for r in StorageLocation.__mapper__.relationships}

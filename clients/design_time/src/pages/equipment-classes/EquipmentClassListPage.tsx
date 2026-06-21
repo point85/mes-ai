@@ -9,21 +9,26 @@ import {
   PencilSquareIcon,
   TrashIcon,
   WrenchScrewdriverIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 import {
   useEquipmentClasses,
   useDeleteEquipmentClass,
+  useCreateEquipmentClass,
 } from "../../hooks/usePhysicalModel";
 import type { EquipmentClass } from "../../types";
 import EquipmentClassFormDialog from "./EquipmentClassFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 export default function EquipmentClassListPage() {
   const navigate = useNavigate();
   const { data, isLoading, error } = useEquipmentClasses();
   const deleteMut = useDeleteEquipmentClass();
+  const createMut = useCreateEquipmentClass();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<EquipmentClass | null>(null);
+  const [cloneTarget, setCloneTarget] = useState<EquipmentClass | null>(null);
 
   const classes = data?.data ?? [];
 
@@ -35,6 +40,16 @@ export default function EquipmentClassListPage() {
   function handleDelete(ec: EquipmentClass) {
     if (!confirm(`Delete equipment class "${ec.name}"?`)) return;
     deleteMut.mutate(ec.id);
+  }
+
+  async function handleClone(newCode: string) {
+    const ec = cloneTarget!;
+    await createMut.mutateAsync({
+      name: ec.name,
+      code: newCode,
+      description: ec.description,
+    });
+    setCloneTarget(null);
   }
 
   if (isLoading) return <p className="p-6 text-gray-500">Loading…</p>;
@@ -85,6 +100,13 @@ export default function EquipmentClassListPage() {
                       <WrenchScrewdriverIcon className="h-4 w-4" />
                     </button>
                     <button
+                      onClick={() => setCloneTarget(ec)}
+                      title="Clone"
+                      className="p-1.5 rounded hover:bg-indigo-100 text-indigo-600"
+                    >
+                      <DocumentDuplicateIcon className="h-4 w-4" />
+                    </button>
+                    <button
                       onClick={() => handleEdit(ec)}
                       title="Edit"
                       className="p-1.5 rounded hover:bg-gray-200 text-gray-600"
@@ -111,6 +133,17 @@ export default function EquipmentClassListPage() {
         <EquipmentClassFormDialog
           existing={editing}
           onClose={() => { setFormOpen(false); setEditing(null); }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Equipment Class — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

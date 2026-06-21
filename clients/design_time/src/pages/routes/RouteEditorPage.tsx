@@ -13,6 +13,7 @@ import {
   PlusIcon,
   PencilSquareIcon,
   TrashIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 import {
   useAllRoutes,
@@ -27,6 +28,7 @@ import {
   useAssignProductToRoute,
   useUnassignProductFromRoute,
   useValidateRoute,
+  useCreateStandaloneRoute,
 } from "../../hooks/useProductDef";
 import { useMaterials } from "../../hooks/useMaterial";
 import { useAllWorkCells, useEquipmentClasses, useAllEquipment } from "../../hooks/usePhysicalModel";
@@ -35,6 +37,8 @@ import RouteFormDialog from "./RouteFormDialog";
 import StepFormDialog from "../products/StepFormDialog";
 import StepEquipReqCountBadge from "../products/StepEquipReqCountBadge";
 import RouteFlowDiagram from "./RouteFlowDiagram";
+import CloneDialog from "../../components/CloneDialog";
+import { fetchRouteSteps, createRouteStep } from "../../api/productDef";
 
 const PRODUCT_TYPES = ["discrete", "process", "semi_finished", "configurable"] as const;
 const MATERIAL_TYPES = ["raw", "intermediate", "finished", "semi", "consumable", "packaging", "spare"] as const;
@@ -43,6 +47,7 @@ export default function RouteEditorPage() {
   const [selectedRoute, setSelectedRoute] = useState<ProcessRoute | null>(null);
   const [showRouteForm, setShowRouteForm] = useState(false);
   const [editingRoute, setEditingRoute] = useState<ProcessRoute | null>(null);
+  const [cloneRouteTarget, setCloneRouteTarget] = useState<ProcessRoute | null>(null);
   const [showStepForm, setShowStepForm] = useState(false);
   const [editingStep, setEditingStep] = useState<RouteStep | null>(null);
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
@@ -129,6 +134,7 @@ export default function RouteEditorPage() {
 
   const deleteRouteMut = useDeleteRoute();
   const deleteStepMut = useDeleteStep();
+  const createRouteMut = useCreateStandaloneRoute();
   const assignMaterialMut = useAssignMaterialToRoute();
   const unassignMaterialMut = useUnassignMaterialFromRoute();
   const assignProductMut = useAssignProductToRoute();
@@ -191,6 +197,13 @@ export default function RouteEditorPage() {
                     <span className="text-xs text-gray-500">v{r.version}</span>
                   </button>
                   <div className="flex items-center gap-0.5 pr-2 shrink-0">
+                    <button
+                      onClick={() => setCloneRouteTarget(r)}
+                      className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                      title="Clone route"
+                    >
+                      <DocumentDuplicateIcon className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => {
                         setEditingRoute(r);
@@ -717,6 +730,44 @@ export default function RouteEditorPage() {
           onClose={() => {
             setShowRouteForm(false);
             setEditingRoute(null);
+          }}
+        />
+      )}
+      {cloneRouteTarget && (
+        <CloneDialog
+          title={`Clone Route — ${cloneRouteTarget.name}`}
+          label="New Name"
+          initialValue={cloneRouteTarget.name}
+          onClose={() => setCloneRouteTarget(null)}
+          onConfirm={async (newName) => {
+            const r = cloneRouteTarget;
+            // 1. Create the new route
+            const newRoute = await createRouteMut.mutateAsync({
+              name: newName,
+              version: r.version,
+              description: r.description,
+              is_default: false,
+            });
+            // 2. Fetch steps from the source route
+            const stepsResp = await fetchRouteSteps(r.id);
+            const sourceSteps = (stepsResp.data ?? []).slice().sort(
+              (a, b) => a.sequence - b.sequence,
+            );
+            // 3. Re-create each step (with disposition IDs) in the new route
+            for (const s of sourceSteps) {
+              await createRouteStep(newRoute.id, {
+                sequence: s.sequence,
+                name: s.name,
+                step_type: s.step_type,
+                equipment_class_id: s.equipment_class_id,
+                expected_cycle_time_sec: s.expected_cycle_time_sec,
+                erp_operation_number: s.erp_operation_number,
+                is_initial_step: s.is_initial_step,
+                input_disposition_ids: s.input_dispositions.map((d) => d.id),
+                output_disposition_ids: s.output_dispositions.map((d) => d.id),
+              });
+            }
+            setCloneRouteTarget(null);
           }}
         />
       )}

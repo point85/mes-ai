@@ -10,13 +10,16 @@ import {
   PlusIcon,
   PencilSquareIcon,
   TrashIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 import {
   useReasons,
   useDeleteReason,
+  useCreateReason,
 } from "../../hooks/usePerformance";
 import type { Reason } from "../../types";
 import ReasonFormDialog from "./ReasonFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 /* ── bucket colour badges ─────────────────────────────────────────── */
 const BUCKET_COLORS: Record<string, string> = {
@@ -64,9 +67,10 @@ interface RowProps {
   onEdit: (r: Reason) => void;
   onDelete: (r: Reason) => void;
   onAddChild: (parentId: string) => void;
+  onClone: (r: Reason) => void;
 }
 
-function TreeRow({ node, depth, onEdit, onDelete, onAddChild }: RowProps) {
+function TreeRow({ node, depth, onEdit, onDelete, onAddChild, onClone }: RowProps) {
   return (
     <>
       <tr className="hover:bg-gray-50">
@@ -96,6 +100,13 @@ function TreeRow({ node, depth, onEdit, onDelete, onAddChild }: RowProps) {
             <PlusIcon className="h-4 w-4" />
           </button>
           <button
+            title="Clone"
+            onClick={() => onClone(node)}
+            className="mr-1 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-indigo-600"
+          >
+            <DocumentDuplicateIcon className="h-4 w-4" />
+          </button>
+          <button
             title="Edit"
             onClick={() => onEdit(node)}
             className="mr-1 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-indigo-600"
@@ -119,6 +130,7 @@ function TreeRow({ node, depth, onEdit, onDelete, onAddChild }: RowProps) {
           onEdit={onEdit}
           onDelete={onDelete}
           onAddChild={onAddChild}
+          onClone={onClone}
         />
       ))}
     </>
@@ -129,10 +141,12 @@ function TreeRow({ node, depth, onEdit, onDelete, onAddChild }: RowProps) {
 export default function ReasonListPage() {
   const { data: reasons, isLoading } = useReasons();
   const deleteMut = useDeleteReason();
+  const createMut = useCreateReason();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Reason | null>(null);
   const [addChildParentId, setAddChildParentId] = useState<string | null>(null);
+  const [cloneTarget, setCloneTarget] = useState<Reason | null>(null);
 
   const tree = useMemo(() => buildTree(reasons ?? []), [reasons]);
 
@@ -157,6 +171,18 @@ export default function ReasonListPage() {
   const handleDelete = async (r: Reason) => {
     if (!window.confirm(`Delete reason ${r.code} — ${r.name}?`)) return;
     await deleteMut.mutateAsync(r.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const r = cloneTarget!;
+    await createMut.mutateAsync({
+      code: newCode,
+      name: r.name,
+      description: r.description,
+      oee_bucket: r.oee_bucket,
+      parent_id: r.parent_id,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -211,6 +237,7 @@ export default function ReasonListPage() {
                   onEdit={openEdit}
                   onDelete={handleDelete}
                   onAddChild={openAddChild}
+                  onClone={setCloneTarget}
                 />
               ))}
             </tbody>
@@ -223,6 +250,17 @@ export default function ReasonListPage() {
           reason={editing}
           parentId={addChildParentId}
           onClose={() => setDialogOpen(false)}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Reason — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

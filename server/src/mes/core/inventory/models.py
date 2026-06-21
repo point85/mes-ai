@@ -12,12 +12,13 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, Uuid, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, Uuid, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from mes.framework.db import BaseModel
 from mes.core.physical_model.models import Site  # noqa: F401 — needed for relationship
 from mes.core.material.models import MaterialLot  # noqa: F401 — needed for relationship
+from mes.core.uom.models import UnitOfMeasure  # noqa: F401 — needed for relationship
 
 
 class StorageLocation(BaseModel):
@@ -33,12 +34,15 @@ class StorageLocation(BaseModel):
     """
 
     __tablename__ = "storage_locations"
+    __table_args__ = (
+        Index("ix_storage_locations_code", "code", unique=True, postgresql_where=text("is_active = TRUE")),
+    )
 
     name: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True,
     )
     code: Mapped[str] = mapped_column(
-        String(50), unique=True, nullable=False, index=True,
+        String(50), nullable=False,
         comment="Unique location code (e.g. RECV-01, A-03-B-02)",
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -67,11 +71,23 @@ class StorageLocation(BaseModel):
         Float, nullable=True,
         comment="Maximum storage capacity (in base UoM of stored material)",
     )
+    capacity_uom_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("units_of_measure.id"),
+        nullable=True,
+        comment="Unit of measure for the capacity value",
+    )
 
     # ── Relationships ───────────────────────────────────────────────
     site: Mapped["Site | None"] = relationship(
         "Site", lazy="selectin",
     )
+    capacity_uom_rel: Mapped["UnitOfMeasure | None"] = relationship(
+        "UnitOfMeasure", foreign_keys=[capacity_uom_id], lazy="selectin",
+    )
+
+    @property
+    def capacity_uom_symbol(self) -> str | None:
+        return self.capacity_uom_rel.symbol if self.capacity_uom_rel else None
     balances: Mapped[list["InventoryBalance"]] = relationship(
         "InventoryBalance", back_populates="location",
         cascade="all, delete-orphan",

@@ -4,15 +4,25 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PlusIcon, TrashIcon, PencilSquareIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon, PencilSquareIcon, ChevronRightIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
 import {
   useWorkSchedules,
   useCreateWorkSchedule,
   useUpdateWorkSchedule,
   useDeleteWorkSchedule,
 } from "../../hooks/useWorkSchedule";
+import {
+  fetchWorkSchedule,
+  createShift,
+  addBreak,
+  createRotation,
+  addRotationSegment,
+  createTeam,
+  createNonWorkingPeriod,
+} from "../../api/workSchedule";
 import type { WorkScheduleSummary, WorkScheduleCreate } from "../../types";
 import WorkScheduleFormDialog from "./WorkScheduleFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 export default function WorkScheduleListPage() {
   const navigate = useNavigate();
@@ -23,6 +33,7 @@ export default function WorkScheduleListPage() {
 
   const [editing, setEditing] = useState<WorkScheduleSummary | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<WorkScheduleSummary | null>(null);
 
   const schedules = data?.data ?? [];
 
@@ -37,6 +48,77 @@ export default function WorkScheduleListPage() {
     } else {
       createMut.mutate(body, { onSuccess: () => setShowCreate(false) });
     }
+  };
+
+  const handleClone = async (newName: string) => {
+    const s = cloneTarget!;
+
+    // 1. Fetch full schedule (shifts, rotations, teams, non-working periods)
+    const source = await fetchWorkSchedule(s.id);
+
+    // 2. Create the new schedule
+    const newSchedule = await createMut.mutateAsync({ name: newName, description: s.description });
+    const newId = newSchedule.id;
+
+    // 3. Clone shifts + breaks; build old→new shift ID map
+    const shiftIdMap: Record<string, string> = {};
+    for (const shift of source.shifts) {
+      const newShift = await createShift(newId, {
+        name: shift.name,
+        description: shift.description,
+        start_time: shift.start_time,
+        duration_seconds: shift.duration_seconds,
+      });
+      shiftIdMap[shift.id] = newShift.id;
+      for (const brk of shift.breaks ?? []) {
+        await addBreak(newId, newShift.id, {
+          name: brk.name,
+          description: brk.description,
+          start_time: brk.start_time,
+          duration_seconds: brk.duration_seconds,
+        });
+      }
+    }
+
+    // 4. Clone rotations + segments; build old→new rotation ID map
+    const rotationIdMap: Record<string, string> = {};
+    for (const rotation of source.rotations) {
+      const newRotation = await createRotation(newId, {
+        name: rotation.name,
+        description: rotation.description,
+      });
+      rotationIdMap[rotation.id] = newRotation.id;
+      for (const seg of rotation.segments ?? []) {
+        await addRotationSegment(newId, newRotation.id, {
+          shift_id: shiftIdMap[seg.shift_id] ?? seg.shift_id,
+          days_on: seg.days_on,
+          days_off: seg.days_off,
+          sequence: seg.sequence,
+        });
+      }
+    }
+
+    // 5. Clone teams (re-map rotation IDs)
+    for (const team of source.teams) {
+      await createTeam(newId, {
+        name: team.name,
+        description: team.description,
+        rotation_id: rotationIdMap[team.rotation_id] ?? team.rotation_id,
+        rotation_start: team.rotation_start,
+      });
+    }
+
+    // 6. Clone non-working periods
+    for (const nwp of source.non_working_periods) {
+      await createNonWorkingPeriod(newId, {
+        name: nwp.name,
+        description: nwp.description,
+        start_datetime: nwp.start_datetime,
+        duration_seconds: nwp.duration_seconds,
+      });
+    }
+
+    setCloneTarget(null);
   };
 
   return (
@@ -105,6 +187,13 @@ export default function WorkScheduleListPage() {
                         <ChevronRightIcon className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setCloneTarget(s)}
+                        className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditing(s)}
                         className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
                         title="Edit"
@@ -133,6 +222,17 @@ export default function WorkScheduleListPage() {
           onSave={handleSave}
           onClose={() => { setShowCreate(false); setEditing(null); }}
           saving={createMut.isPending || updateMut.isPending}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Schedule — ${cloneTarget.name}`}
+          label="New Name"
+          initialValue={cloneTarget.name}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
 

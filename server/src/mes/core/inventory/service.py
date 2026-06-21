@@ -94,7 +94,10 @@ class StorageLocationService:
     ) -> StorageLocation:
         """Create a new storage location. Raises DuplicateLocationCodeException if code exists."""
         existing = await session.execute(
-            select(StorageLocation).where(StorageLocation.code == kwargs["code"]),
+            select(StorageLocation).where(
+                StorageLocation.code == kwargs["code"],
+                StorageLocation.is_active.is_(True),
+            ),
         )
         if existing.scalar_one_or_none() is not None:
             raise DuplicateLocationCodeException(kwargs["code"])

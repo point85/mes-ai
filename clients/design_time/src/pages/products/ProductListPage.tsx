@@ -9,18 +9,22 @@ import {
   PlusIcon,
   TrashIcon,
   PencilSquareIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
-import { useProducts, useDeleteProduct } from "../../hooks/useProductDef";
+import { useProducts, useDeleteProduct, useCreateProduct } from "../../hooks/useProductDef";
 import type { Product } from "../../types";
 import ProductFormDialog from "./ProductFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 export default function ProductListPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<Product | null>(null);
   const [typeFilter, setTypeFilter] = useState("");
 
   const { data, isLoading, error } = useProducts();
   const deleteMut = useDeleteProduct();
+  const createMut = useCreateProduct();
   const products = data?.data ?? [];
 
   const types = useMemo(() => {
@@ -35,6 +39,19 @@ export default function ProductListPage() {
   const handleDelete = (p: Product) => {
     if (!confirm(`Delete product "${p.code}" — ${p.name}?`)) return;
     deleteMut.mutate(p.id);
+  };
+
+  const handleClone = async (newCode: string) => {
+    const p = cloneTarget!;
+    await createMut.mutateAsync({
+      name: p.name,
+      code: newCode,
+      version: p.version,
+      description: p.description,
+      uom_id: p.uom_id,
+      product_type: p.product_type,
+    });
+    setCloneTarget(null);
   };
 
   return (
@@ -144,6 +161,13 @@ export default function ProductListPage() {
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
+                        onClick={() => setCloneTarget(p)}
+                        className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        title="Clone"
+                      >
+                        <DocumentDuplicateIcon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setEditing(p)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                         title="Edit"
@@ -184,6 +208,17 @@ export default function ProductListPage() {
             setShowCreate(false);
             setEditing(null);
           }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Product — ${cloneTarget.code}`}
+          label="New Code"
+          initialValue={cloneTarget.code}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={handleClone}
         />
       )}
     </div>

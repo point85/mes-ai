@@ -11,10 +11,12 @@ import { useState, useMemo } from "react";
 import {
   PlusIcon,
   PencilSquareIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
-import { useMaterialLots, useMaterials } from "../../hooks/useMaterial";
+import { useMaterialLots, useMaterials, useCreateMaterialLot } from "../../hooks/useMaterial";
 import type { MaterialLot } from "../../types";
 import MaterialLotFormDialog from "./MaterialLotFormDialog";
+import CloneDialog from "../../components/CloneDialog";
 
 const LOT_STATUSES = ["available", "reserved", "consumed", "expired"];
 
@@ -41,6 +43,7 @@ function statusBadgeClass(status: string): string {
 export default function MaterialLotListPage() {
   const [editing, setEditing] = useState<MaterialLot | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [cloneTarget, setCloneTarget] = useState<MaterialLot | null>(null);
   const [materialFilter, setMaterialFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
@@ -58,6 +61,7 @@ export default function MaterialLotListPage() {
     statusFilter || undefined,
   );
   const lots = data?.data ?? [];
+  const createMut = useCreateMaterialLot();
 
   return (
     <div className="space-y-6">
@@ -198,6 +202,13 @@ export default function MaterialLotListPage() {
                     <td className="px-4 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
+                          onClick={() => setCloneTarget(lot)}
+                          className="rounded p-1 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                          title="Clone"
+                        >
+                          <DocumentDuplicateIcon className="h-4 w-4" />
+                        </button>
+                        <button
                           onClick={() => setEditing(lot)}
                           className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                           title="Edit"
@@ -232,6 +243,28 @@ export default function MaterialLotListPage() {
           onClose={() => {
             setShowCreate(false);
             setEditing(null);
+          }}
+        />
+      )}
+
+      {/* Clone dialog */}
+      {cloneTarget && (
+        <CloneDialog
+          title={`Clone Lot — ${cloneTarget.lot_number}`}
+          label="New Lot Number"
+          initialValue={cloneTarget.lot_number}
+          onClose={() => setCloneTarget(null)}
+          onConfirm={async (newLotNumber) => {
+            const l = cloneTarget;
+            await createMut.mutateAsync({
+              material_id: l.material_id,
+              lot_number: newLotNumber,
+              quantity_on_hand: l.quantity_on_hand,
+              received_date: l.received_date ?? undefined,
+              expiry_date: l.expiry_date ?? undefined,
+              supplier: l.supplier ?? undefined,
+            });
+            setCloneTarget(null);
           }}
         />
       )}
