@@ -320,13 +320,20 @@ fi
 echo "Running Alembic migrations..."
 cd "$SERVER_DIR"
 
-# Auto-detect empty database: if alembic_version does not exist, stamp first
-# so upgrade head runs from a clean baseline rather than failing on a missing revision.
+# Auto-detect a database that has existing application tables but is missing the
+# alembic_version tracking table (e.g. after a migration consolidation).  Stamp to
+# head so "upgrade head" does not try to re-run already-applied DDL.
+# For a truly empty database do NOT stamp — let "upgrade head" run all migrations
+# from scratch and create every table.
 if [[ "$STAMP" != true && "$DB_TYPE_LOWER" == "postgresql" ]] && command -v psql &>/dev/null; then
     av_exists=$(PGPASSWORD="$PASSWORD" psql -U "$USERNAME" -h "$DB_HOST" -p "$DB_PORT" -d "$DB_NAME" \
         -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version'" 2>/dev/null || true)
-    if [[ "$(echo "$av_exists" | tr -d '[:space:]')" != "1" ]]; then
-        echo "  Empty database detected — stamping to current head before upgrade."
+    table_count=$(PGPASSWORD="$PASSWORD" psql -U "$USERNAME" -h "$DB_HOST" -p "$DB_PORT" -d "$DB_NAME" \
+        -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null || echo "0")
+    has_alembic="$(echo "$av_exists" | tr -d '[:space:]')"
+    has_tables="$(echo "$table_count" | tr -d '[:space:]')"
+    if [[ "$has_alembic" != "1" && "$has_tables" -gt 0 ]]; then
+        echo "  Existing schema without alembic_version detected — stamping to current head before upgrade."
         STAMP=true
     fi
 fi

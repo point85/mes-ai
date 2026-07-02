@@ -290,17 +290,25 @@ if ($dbType -eq "postgresql") {
 # ---------------------------------------------------------------------------
 Write-Host "Running Alembic migrations..."
 
-# Auto-detect empty database: if alembic_version does not exist, stamp first
-# so upgrade head runs from a clean baseline rather than failing on a missing revision.
+# Auto-detect a database that has existing application tables but is missing the
+# alembic_version tracking table (e.g. after a migration consolidation).  In that
+# case stamp to head so that "upgrade head" does not try to re-run already-applied
+# DDL.  For a truly empty database do NOT stamp — just let "upgrade head" run all
+# migrations from scratch and create every table.
 if (-not $Stamp -and $dbType -eq "postgresql" -and (Get-Command psql -ErrorAction SilentlyContinue)) {
     $bstrChk        = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
     $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstrChk)
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstrChk)
     $avExists = & psql -U $Username -h $dbHost -p $dbPort -d $DbName -tAc `
         "SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version'" 2>&1
+    # Count user-created tables (exclude pg_catalog / information_schema)
+    $tableCount = & psql -U $Username -h $dbHost -p $dbPort -d $DbName -tAc `
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'" 2>&1
     $env:PGPASSWORD = ""
-    if (($avExists -join "").Trim() -ne "1") {
-        Write-Host "  Empty database detected - stamping to current head before upgrade."
+    $hasAlembic = ($avExists -join "").Trim() -eq "1"
+    $hasTables  = ([int]($tableCount -join "").Trim()) -gt 0
+    if (-not $hasAlembic -and $hasTables) {
+        Write-Host "  Existing schema without alembic_version detected - stamping to current head before upgrade."
         $Stamp = $true
     }
 }
