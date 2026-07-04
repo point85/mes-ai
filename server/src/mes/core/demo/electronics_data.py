@@ -22,7 +22,7 @@ MATERIALS: list[dict] = [
     {"code": "RM-SOLDER-PST", "name": "Solder Paste Cartridge",      "material_type": "raw",           "uom": "g"},
     {"code": "RM-FLUX",       "name": "Flux Solution",               "material_type": "raw",           "uom": "mL"},
     {"code": "RM-CONFORMAL",  "name": "Conformal Coating",           "material_type": "raw",           "uom": "mL"},
-    {"code": "SF-POP-PCB",    "name": "Populated PCB Assembly",      "material_type": "semi_finished", "uom": "EA"},
+    {"code": "SF-POP-PCB",    "name": "Populated PCB Assembly",      "material_type": "semi", "uom": "EA"},
     {"code": "PKG-ESD-BAG",   "name": "ESD Protective Bag",          "material_type": "packaging",     "uom": "EA"},
     {"code": "FG-ECB-100",    "name": "Electronic Controller Board v1", "material_type": "finished",   "uom": "EA"},
 ]
@@ -272,18 +272,18 @@ DATA_DEFS: dict[int, list[dict]] = {
         {"code": "ECB-FCT-VLT", "name": "Supply Voltage",        "data_type": "numeric", "source": "equipment", "lower_limit": 4.9,  "upper_limit": 5.1,  "uom": "V",  "is_required": True},
     ],
     70: [  # Rework Station
-        {"code": "ECB-RWK-ACT",  "name": "Rework Action",   "data_type": "enum",    "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
-        {"code": "ECB-RWK-NTS",  "name": "Rework Notes",    "data_type": "string",  "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
-        {"code": "ECB-RWK-TIME", "name": "Rework Duration", "data_type": "numeric", "source": "operator", "lower_limit": 0.0,  "upper_limit": None, "uom": "s",  "is_required": False},
+        {"code": "ECB-RWK-ACT",  "name": "Rework Action",   "data_type": "enum",    "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-RWK-NTS",  "name": "Rework Notes",    "data_type": "string",  "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-RWK-TIME", "name": "Rework Duration", "data_type": "numeric", "source": "manual", "lower_limit": 0.0,  "upper_limit": None, "uom": "s",  "is_required": False},
     ],
     80: [  # MRB Review
-        {"code": "ECB-MRB-DISP", "name": "Disposition",   "data_type": "enum",   "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
-        {"code": "ECB-MRB-NTS",  "name": "Review Notes",  "data_type": "string", "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
-        {"code": "ECB-MRB-RVWR", "name": "Reviewer ID",   "data_type": "string", "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-MRB-DISP", "name": "Disposition",   "data_type": "enum",   "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-MRB-NTS",  "name": "Review Notes",  "data_type": "string", "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-MRB-RVWR", "name": "Reviewer ID",   "data_type": "string", "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
     ],
     90: [  # Final Packaging & Labeling
-        {"code": "ECB-PKG-LBL", "name": "Label Verified",  "data_type": "boolean", "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
-        {"code": "ECB-PKG-ESD", "name": "ESD Bag Applied", "data_type": "boolean", "source": "operator", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-PKG-LBL", "name": "Label Verified",  "data_type": "boolean", "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
+        {"code": "ECB-PKG-ESD", "name": "ESD Bag Applied", "data_type": "boolean", "source": "manual", "lower_limit": None, "upper_limit": None, "uom": None, "is_required": True},
     ],
 }
 

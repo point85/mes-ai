@@ -12,3 +12,4 @@ export * from "./dispatch";
 export * from "./plugins";
 export * from "./inventory";
 export * from "./adminConfig";
+export * from "./workSchedule";

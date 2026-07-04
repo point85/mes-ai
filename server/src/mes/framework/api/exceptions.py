@@ -86,6 +86,26 @@ class ServiceUnavailableException(MESException):
     error_code = "SERVICE_UNAVAILABLE"
 
 
+def _sanitise_pydantic_errors(errors: list[Any]) -> list[Any]:
+    """
+    Pydantic v2 error dicts can contain a ``ctx`` field whose values are the
+    original exception objects (e.g. ``{'error': ValueError(...)}``).
+    These are not JSON-serialisable and will crash JSONResponse.  Convert any
+    non-primitive ctx value to its string representation before serialising.
+    """
+    _primitives = (str, int, float, bool, type(None))
+    sanitised = []
+    for err in errors:
+        err = dict(err)
+        if isinstance(err.get("ctx"), dict):
+            err["ctx"] = {
+                k: v if isinstance(v, _primitives) else str(v)
+                for k, v in err["ctx"].items()
+            }
+        sanitised.append(err)
+    return sanitised
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """
     Register global exception handlers on the FastAPI app.
@@ -94,7 +114,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
-        errors = exc.errors()
+        errors = _sanitise_pydantic_errors(exc.errors())
         logger.warning("Request validation failed: %s", errors)
         return JSONResponse(
             status_code=422,

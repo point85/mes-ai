@@ -51,8 +51,8 @@ class UoMCreate(BaseModel):
     @field_validator("symbol")
     @classmethod
     def symbol_no_whitespace(cls, v: str) -> str:
-        if " " in v:
-            raise ValueError("symbol must not contain spaces")
+        if v != v.strip():
+            raise ValueError("symbol must not have leading or trailing spaces")
         return v
 
     @field_validator("uom_type")
@@ -161,8 +161,8 @@ class UoMUpdate(BaseModel):
     @field_validator("symbol")
     @classmethod
     def symbol_no_whitespace(cls, v: str | None) -> str | None:
-        if v is not None and " " in v:
-            raise ValueError("symbol must not contain spaces")
+        if v is not None and v != v.strip():
+            raise ValueError("symbol must not have leading or trailing spaces")
         return v
 
     @field_validator("uom_type")

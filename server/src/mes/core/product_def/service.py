@@ -1294,6 +1294,9 @@ class ProductDefService:
         req = SegmentMaterialRequirement(step_id=step_id, **kwargs)
         session.add(req)
         await session.flush()
+        # Eagerly reload relationships so Pydantic can access uom_symbol and
+        # material attributes synchronously during response serialization.
+        await session.refresh(req, attribute_names=["uom_rel", "material"])
         logger.info("Created material requirement %s for step %s", req.id, step_id)
         return req
 
@@ -1314,6 +1317,7 @@ class ProductDefService:
             if value is not None:
                 setattr(req, key, value)
         await session.flush()
+        await session.refresh(req, attribute_names=["uom_rel", "material"])
         return req
 
     @staticmethod

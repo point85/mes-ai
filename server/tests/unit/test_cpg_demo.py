@@ -42,7 +42,7 @@ class TestCPGDataMaterials:
 
     def test_material_types_valid(self):
         from mes.core.demo.cpg_data import MATERIALS
-        valid_types = {"raw", "semi_finished", "finished", "packaging"}
+        valid_types = {"raw", "semi", "finished", "packaging"}
         for m in MATERIALS:
             assert m["material_type"] in valid_types, f"{m['code']} has invalid type"
 

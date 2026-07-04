@@ -143,8 +143,14 @@ class TestUoMCreateSchema:
             UoMCreate(symbol="", name="empty", uom_type="mass")
 
     def test_symbol_no_whitespace(self):
+        # Internal spaces are valid (e.g. "fl oz"); only leading/trailing spaces are rejected
         with pytest.raises(ValidationError, match="spaces"):
-            UoMCreate(symbol="fl oz", name="fluid ounce", uom_type="volume")
+            UoMCreate(symbol=" kg", name="kilogram", uom_type="mass")
+
+    def test_symbol_internal_space_valid(self):
+        # "fl oz" (fluid ounce) is a standard symbol that contains an internal space
+        uom = UoMCreate(symbol="fl oz", name="fluid ounce", uom_type="length")
+        assert uom.symbol == "fl oz"
 
     def test_name_required(self):
         with pytest.raises(ValidationError):
@@ -204,8 +210,9 @@ class TestUoMUpdateSchema:
         assert s.symbol is None
 
     def test_symbol_no_whitespace(self):
+        # Only leading/trailing spaces are rejected, not internal spaces
         with pytest.raises(ValidationError, match="spaces"):
-            UoMUpdate(symbol="bad symbol")
+            UoMUpdate(symbol="kg ")
 
 
 class TestConversionSchemas:

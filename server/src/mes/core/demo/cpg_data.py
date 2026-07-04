@@ -19,7 +19,7 @@ MATERIALS: list[dict] = [
     {"code": "RM-SUGAR",       "name": "Cane Sugar",               "material_type": "raw",           "uom": "kg"},
     {"code": "RM-CITRIC",      "name": "Citric Acid",              "material_type": "raw",           "uom": "kg"},
     {"code": "RM-VITC",        "name": "Vitamin C Powder",         "material_type": "raw",           "uom": "kg"},
-    {"code": "SF-JUICE-BLEND", "name": "Blended Juice",            "material_type": "semi_finished", "uom": "L"},
+    {"code": "SF-JUICE-BLEND", "name": "Blended Juice",            "material_type": "semi", "uom": "L"},
     {"code": "PKG-BOTTLE-1L",  "name": "PET Bottle 1 L",          "material_type": "packaging",     "uom": "EA"},
     {"code": "PKG-CAP",        "name": "Bottle Cap",               "material_type": "packaging",     "uom": "EA"},
     {"code": "PKG-LABEL",      "name": "Product Label",            "material_type": "packaging",     "uom": "EA"},

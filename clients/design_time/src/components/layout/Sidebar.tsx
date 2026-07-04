@@ -27,14 +27,20 @@ import {
   UsersIcon,
   ArrowRightOnRectangleIcon,
   CpuChipIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
 } from "@heroicons/react/24/outline";
 import HelpDialog, { type HelpTopic } from "../HelpDialog";
 import AboutDialog from "../AboutDialog";
+import ExportDialog from "../ExportDialog";
+import ImportDialog from "../ImportDialog";
 import { useAuth } from "../../contexts/AuthContext";
 
+/** Nav item that either navigates (`to`) or triggers an action (`onClick`). */
 interface NavItem {
   label: string;
-  to: string;
+  to?: string;
+  onClick?: () => void;
   icon: React.ElementType;
   helpTopic?: HelpTopic;
 }
@@ -44,86 +50,89 @@ interface NavSection {
   items: NavItem[];
 }
 
-const sections: NavSection[] = [
-  {
-    title: "Plant Model",
-    items: [
-      { label: "Sites", to: "/sites", icon: BuildingOffice2Icon, helpTopic: "sites" as HelpTopic },
-      {
-        label: "Equipment Classes",
-        to: "/equipment-classes",
-        icon: WrenchScrewdriverIcon,
-        helpTopic: "equipmentClasses" as HelpTopic,
-      },
-      {
-        label: "Storage Locations",
-        to: "/storage-locations",
-        icon: ArchiveBoxIcon,
-        helpTopic: "storageLocations" as HelpTopic,
-      },
-    ],
-  },
-  {
-    title: "Products",
-    items: [
-      { label: "Products", to: "/products", icon: CubeIcon, helpTopic: "products" as HelpTopic },
-      { label: "Routes", to: "/routes", icon: QueueListIcon, helpTopic: "routes" as HelpTopic },
-      { label: "Dispositions", to: "/dispositions", icon: TagIcon, helpTopic: "dispositions" as HelpTopic },
-      { label: "Materials", to: "/materials", icon: BeakerIcon, helpTopic: "materials" as HelpTopic },
-    ],
-  },
-  {
-    title: "Definitions",
-    items: [
-      { label: "Units of Measure", to: "/uom", icon: ScaleIcon, helpTopic: "uom" as HelpTopic },
-      {
-        label: "Work Schedules",
-        to: "/work-schedules",
-        icon: CalendarDaysIcon,
-        helpTopic: "workSchedules" as HelpTopic,
-      },
-      {
-        label: "Data Definitions",
-        to: "/data-definitions",
-        icon: ClipboardDocumentListIcon,
-        helpTopic: "dataDefinitions" as HelpTopic,
-      },
-      {
-        label: "Reason Codes",
-        to: "/reasons",
-        icon: ExclamationTriangleIcon,
-        helpTopic: "reasonCodes" as HelpTopic,
-      },
-    ],
-  },
-
-  {
-    title: "Admin",
-    items: [
-      { label: "Users", to: "/admin/users", icon: UsersIcon, helpTopic: "users" as HelpTopic },
-      { label: "Roles", to: "/admin/roles", icon: ShieldCheckIcon, helpTopic: "roles" as HelpTopic },
-      { label: "Plugins", to: "/plugins", icon: PuzzlePieceIcon, helpTopic: "plugins" as HelpTopic },
-      { label: "Settings", to: "/admin/settings", icon: Cog6ToothIcon, helpTopic: "settings" as HelpTopic },
-    ],
-  },
-  {
-    title: "Demos",
-    items: [
-      { label: "CPG Demo", to: "/demos/cpg", icon: BeakerIcon, helpTopic: "cpgDemo" as HelpTopic },
-      {
-        label: "Electronics Demo",
-        to: "/demos/electronics",
-        icon: CpuChipIcon,
-        helpTopic: "electronicsDemo" as HelpTopic,
-      },
-    ],
-  },
-];
-
 export default function Sidebar() {
   const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null);
   const [showAbout, setShowAbout] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const { authMode, currentUser, logout } = useAuth();
+
+  const sections: NavSection[] = [
+    {
+      title: "Plant Model",
+      items: [
+        { label: "Sites", to: "/sites", icon: BuildingOffice2Icon, helpTopic: "sites" as HelpTopic },
+        {
+          label: "Equipment Classes",
+          to: "/equipment-classes",
+          icon: WrenchScrewdriverIcon,
+          helpTopic: "equipmentClasses" as HelpTopic,
+        },
+        {
+          label: "Storage Locations",
+          to: "/storage-locations",
+          icon: ArchiveBoxIcon,
+          helpTopic: "storageLocations" as HelpTopic,
+        },
+      ],
+    },
+    {
+      title: "Products",
+      items: [
+        { label: "Products", to: "/products", icon: CubeIcon, helpTopic: "products" as HelpTopic },
+        { label: "Routes", to: "/routes", icon: QueueListIcon, helpTopic: "routes" as HelpTopic },
+        { label: "Dispositions", to: "/dispositions", icon: TagIcon, helpTopic: "dispositions" as HelpTopic },
+        { label: "Materials", to: "/materials", icon: BeakerIcon, helpTopic: "materials" as HelpTopic },
+      ],
+    },
+    {
+      title: "Definitions",
+      items: [
+        { label: "Units of Measure", to: "/uom", icon: ScaleIcon, helpTopic: "uom" as HelpTopic },
+        {
+          label: "Work Schedules",
+          to: "/work-schedules",
+          icon: CalendarDaysIcon,
+          helpTopic: "workSchedules" as HelpTopic,
+        },
+        {
+          label: "Data Definitions",
+          to: "/data-definitions",
+          icon: ClipboardDocumentListIcon,
+          helpTopic: "dataDefinitions" as HelpTopic,
+        },
+        {
+          label: "Reason Codes",
+          to: "/reasons",
+          icon: ExclamationTriangleIcon,
+          helpTopic: "reasonCodes" as HelpTopic,
+        },
+      ],
+    },
+    {
+      title: "Admin",
+      items: [
+        { label: "Users", to: "/admin/users", icon: UsersIcon, helpTopic: "users" as HelpTopic },
+        { label: "Roles", to: "/admin/roles", icon: ShieldCheckIcon, helpTopic: "roles" as HelpTopic },
+        { label: "Plugins", to: "/plugins", icon: PuzzlePieceIcon, helpTopic: "plugins" as HelpTopic },
+        { label: "Settings", to: "/admin/settings", icon: Cog6ToothIcon, helpTopic: "settings" as HelpTopic },
+        { label: "Export", icon: ArrowDownTrayIcon, onClick: () => setShowExport(true) },
+        { label: "Import", icon: ArrowUpTrayIcon, onClick: () => setShowImport(true) },
+      ],
+    },
+    {
+      title: "Demos",
+      items: [
+        { label: "CPG Demo", to: "/demos/cpg", icon: BeakerIcon, helpTopic: "cpgDemo" as HelpTopic },
+        {
+          label: "Electronics Demo",
+          to: "/demos/electronics",
+          icon: CpuChipIcon,
+          helpTopic: "electronicsDemo" as HelpTopic,
+        },
+      ],
+    },
+  ];
 
   return (
     <aside className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col">
@@ -149,20 +158,30 @@ export default function Sidebar() {
             </span>
             <ul className="mt-0.5 mb-1 space-y-0.5">
               {section.items.map((item) => (
-                <li key={item.to} className="flex items-center">
-                  <NavLink
-                    to={item.to}
-                    className={({ isActive }) =>
-                      `flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
-                        isActive
-                          ? "bg-indigo-50 text-indigo-700"
-                          : "text-gray-700 hover:bg-gray-100"
-                      }`
-                    }
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.label}
-                  </NavLink>
+                <li key={item.to ?? item.label} className="flex items-center">
+                  {item.to ? (
+                    <NavLink
+                      to={item.to}
+                      className={({ isActive }) =>
+                        `flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                          isActive
+                            ? "bg-indigo-50 text-indigo-700"
+                            : "text-gray-700 hover:bg-gray-100"
+                        }`
+                      }
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </NavLink>
+                  ) : (
+                    <button
+                      onClick={item.onClick}
+                      className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors text-left"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </button>
+                  )}
                   {item.helpTopic && (
                     <button
                       onClick={() => setHelpTopic(item.helpTopic!)}
@@ -184,6 +203,12 @@ export default function Sidebar() {
       )}
       {showAbout && (
         <AboutDialog onClose={() => setShowAbout(false)} />
+      )}
+      {showExport && (
+        <ExportDialog onClose={() => setShowExport(false)} />
+      )}
+      {showImport && (
+        <ImportDialog onClose={() => setShowImport(false)} />
       )}
 
       {/* Footer — current user + About */}
