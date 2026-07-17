@@ -459,21 +459,6 @@ class UnitService:
             )
             await session.flush()
 
-        # Item C: auto-create NonConformance when the step fails
-        if result == "fail":
-            from mes.core.quality.service import NonConformanceService
-            description = failure_mode or f"Step failed: {unit.current_step_id}"
-            await NonConformanceService.create_nc(
-                session,
-                unit_id=unit_id,
-                step_id=unit.current_step_id,
-                nc_type="defect",
-                description=description,
-                disposition=None,  # left open for QA to assign controlled value
-                status="open",
-            )
-            await session.flush()
-
         await event_bus.publish(
             unit_completed(str(unit.id), str(unit.current_step_id), result)
         )
