@@ -228,15 +228,39 @@ async def _fill_step_parameters(page: Page, step_parameters: list[dict]) -> None
 async def _fill_data_collection(page: Page, data_definitions: list[dict]) -> None:
     for definition in data_definitions:
         label = definition["name"]
+        label_node = page.locator("label", has_text=label).first
+        if await label_node.count() == 0:
+            # Some contexts may return definitions that are not rendered as editable controls.
+            continue
+        field_container = label_node.locator("xpath=ancestor::div[1]")
+
         if definition["data_type"] == "boolean":
-            await page.locator(f"label:has-text('{label}') ~ select:visible").select_option("true")
+            select = field_container.locator("select:visible").first
+            if await select.count() > 0:
+                await select.select_option("true")
+            else:
+                input_field = field_container.locator("input:visible").first
+                if await input_field.count() > 0:
+                    await input_field.fill("true")
         elif definition["data_type"] == "enum":
-            select = page.locator(f"label:has-text('{label}') ~ select:visible")
-            await select.select_option(index=1)
+            select = field_container.locator("select:visible").first
+            if await select.count() > 0:
+                option_count = await select.locator("option").count()
+                # Index 0 is typically the placeholder option.
+                if option_count > 1:
+                    await select.select_option(index=1)
+                elif option_count == 1:
+                    await select.select_option(index=0)
+            else:
+                enum_values = definition.get("enum_values") or ""
+                first_enum = next((v.strip() for v in enum_values.split(",") if v.strip()), f"SQA {label}")
+                input_field = field_container.locator("input:visible").first
+                if await input_field.count() > 0:
+                    await input_field.fill(first_enum)
         else:
-            await page.locator(f"label:has-text('{label}') ~ input:visible").fill(
-                _pick_numeric_value(definition)
-            )
+            input_field = field_container.locator("input:visible").first
+            if await input_field.count() > 0:
+                await input_field.fill(_pick_numeric_value(definition))
 
 
 async def _consume_bom_items(
