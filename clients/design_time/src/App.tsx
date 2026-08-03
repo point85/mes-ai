@@ -31,6 +31,7 @@ import { WorkScheduleListPage, WorkScheduleDetailPage } from "./pages/work-sched
 import SettingsPage from "./pages/SettingsPage";
 import DemoCpgPage from "./pages/DemoCpgPage";
 import DemoElectronicsPage from "./pages/DemoElectronicsPage";
+import DemoPharmaPage from "./pages/DemoPharmaPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -90,6 +91,7 @@ export default function App() {
               {/* Demos */}
               <Route path="/demos/cpg" element={<DemoCpgPage />} />
               <Route path="/demos/electronics" element={<DemoElectronicsPage />} />
+              <Route path="/demos/pharma" element={<DemoPharmaPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Route>

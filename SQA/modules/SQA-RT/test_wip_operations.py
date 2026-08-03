@@ -215,16 +215,6 @@ def _cleanup_sqa_artifacts(api) -> None:
         assert resp.status_code == 204, f"Could not delete stale test order {order['order_number']}: {resp.text}"
 
 
-async def _fill_step_parameters(page: Page, step_parameters: list[dict]) -> None:
-    for param in step_parameters:
-        row = page.locator("tr", has_text=param["name"]).first
-        if param["data_type"] == "boolean":
-            await row.locator("select").select_option("true")
-        else:
-            value = _pick_numeric_value(param) if param["data_type"] == "numeric" else f"SQA {param['name']}"
-            await row.locator("input").fill(value)
-
-
 async def _fill_data_collection(page: Page, data_definitions: list[dict]) -> None:
     for definition in data_definitions:
         label = definition["name"]
@@ -317,7 +307,6 @@ async def _process_current_step(
     assert ctx["wip"]["status"] == "in_process"
 
     await _fill_data_collection(page, ctx["data_definitions"])
-    await _fill_step_parameters(page, ctx["step_parameters"])
     await _consume_bom_items(
         page,
         api,
@@ -331,17 +320,19 @@ async def _process_current_step(
         if await result_select.count() > 0:
             await result_select.select_option(result)
     if disposition_contains is not None:
-        disposition_select = page.locator("label:has-text('Disposition') ~ select:visible")
-        if await disposition_select.count() > 0:
-            options = disposition_select.locator("option")
-            matched_value = None
-            for index in range(await options.count()):
-                option = options.nth(index)
-                if disposition_contains in await option.inner_text():
-                    matched_value = await option.get_attribute("value")
-                    break
-            assert matched_value is not None, f"No disposition option contains '{disposition_contains}'"
-            await disposition_select.select_option(matched_value)
+        matching_dispositions = [
+            disposition for disposition in ctx["dispositions"]
+            if disposition_contains in disposition["name"]
+        ]
+        assert matching_dispositions, (
+            f"No server disposition contains '{disposition_contains}'. "
+            f"Dispositions: {[d['name'] for d in ctx['dispositions']]}"
+        )
+        if len(ctx["dispositions"]) > 1:
+            complete_card = page.locator("h4", has_text="Complete Step").locator("xpath=..")
+            disposition_select = complete_card.locator("label:has-text('Disposition') ~ select")
+            await expect(disposition_select).to_be_visible(timeout=10_000)
+            await disposition_select.select_option(matching_dispositions[0]["name"])
 
     qty_out = ctx["wip"].get("quantity")
     if qty_out is not None:
@@ -381,7 +372,6 @@ async def _process_current_unit_step(
     assert ctx["wip"]["status"] == "in_process"
 
     await _fill_data_collection(page, ctx["data_definitions"])
-    await _fill_step_parameters(page, ctx["step_parameters"])
     await _consume_bom_items(page, api, ctx["step"]["id"], materials_by_code)
 
     if result is not None:
@@ -389,17 +379,19 @@ async def _process_current_unit_step(
         if await result_select.count() > 0:
             await result_select.select_option(result)
     if disposition_contains is not None:
-        disposition_select = page.locator("label:has-text('Disposition') ~ select:visible")
-        if await disposition_select.count() > 0:
-            options = disposition_select.locator("option")
-            matched_value = None
-            for index in range(await options.count()):
-                option = options.nth(index)
-                if disposition_contains in await option.inner_text():
-                    matched_value = await option.get_attribute("value")
-                    break
-            assert matched_value is not None, f"No disposition option contains '{disposition_contains}'"
-            await disposition_select.select_option(matched_value)
+        matching_dispositions = [
+            disposition for disposition in ctx["dispositions"]
+            if disposition_contains in disposition["name"]
+        ]
+        assert matching_dispositions, (
+            f"No server disposition contains '{disposition_contains}'. "
+            f"Dispositions: {[d['name'] for d in ctx['dispositions']]}"
+        )
+        if len(ctx["dispositions"]) > 1:
+            complete_card = page.locator("h4", has_text="Complete Step").locator("xpath=..")
+            disposition_select = complete_card.locator("label:has-text('Disposition') ~ select")
+            await expect(disposition_select).to_be_visible(timeout=10_000)
+            await disposition_select.select_option(matching_dispositions[0]["name"])
 
     await page.get_by_label("Transition State").check()
     await page.get_by_role("button", name="Complete").click()

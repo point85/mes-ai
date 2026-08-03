@@ -130,6 +130,12 @@ export default function Sidebar() {
           icon: CpuChipIcon,
           helpTopic: "electronicsDemo" as HelpTopic,
         },
+        {
+          label: "Pharma Demo",
+          to: "/demos/pharma",
+          icon: BeakerIcon,
+          helpTopic: "pharmaDemo" as HelpTopic,
+        },
       ],
     },
   ];

@@ -18,6 +18,7 @@ from mes.framework.auth.service import AuthService
 
 from .service import seed_erp_data, seed_plant_data
 from .service import seed_electronics_erp_data, seed_electronics_plant_data
+from .service import seed_pharma_erp_data, seed_pharma_plant_data
 
 logger = logging.getLogger("mes.demo")
 
@@ -84,3 +85,37 @@ async def seed_electronics_plant(session: AsyncSession = Depends(get_db_session)
     await AuthService.seed_demo_users(session)
     summary["demo_users_seeded"] = True
     return success_response(summary)
+
+
+@router.post("/seed-pharma-erp")
+async def seed_pharma_erp(session: AsyncSession = Depends(get_db_session)):
+    """
+    One-click seed: create all ERP-side Pharma demo data.
+
+    Creates materials, product definition, BOM, process route with
+    12 steps (dispensing → wet granulation → drying → milling → blending →
+    compression → IPC check → film coating → release testing → packaging,
+    plus rework and MRB branches), step parameters (CPP/CQA recipe specs),
+    data collection definitions, and a batch-release quality test.
+    """
+    summary = await seed_pharma_erp_data(session)
+    return success_response(summary)
+
+
+@router.post("/seed-pharma-plant")
+async def seed_pharma_plant(session: AsyncSession = Depends(get_db_session)):
+    """
+    One-click seed: create the ISA-95 physical hierarchy for the Pharma demo.
+
+    Creates site, area, production line, 10 work cells, 12 equipment pieces
+    (dual bin blenders and dual tablet presses for dispatch demonstration),
+    equipment classes, capabilities, storage locations (including API vault
+    and FG quarantine), and initial inventory transactions.
+    Requires ERP data to be seeded first.
+    """
+    summary = await seed_pharma_plant_data(session)
+    await AuthService.seed_default_roles(session)
+    await AuthService.seed_demo_users(session)
+    summary["demo_users_seeded"] = True
+    return success_response(summary)
+

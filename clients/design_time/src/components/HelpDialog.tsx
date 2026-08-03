@@ -19,6 +19,7 @@ export type HelpTopic =
   | "settings"
   | "cpgDemo"
   | "electronicsDemo"
+  | "pharmaDemo"
   | "products"
   | "materials"
   | "routes"
@@ -425,6 +426,55 @@ const HELP_CONTENT: Record<HelpTopic, { title: string; body: React.ReactNode }> 
         <p>
           Use this demo when you want a discrete-manufacturing example for serial or
           unit-based production, inspection, and rework-oriented flows.
+        </p>
+      </div>
+    ),
+  },
+  pharmaDemo: {
+    title: "Pharma Demo",
+    body: (
+      <div className="space-y-3 text-sm text-gray-700 leading-relaxed">
+        <p>
+          The <strong>Pharma Demo</strong> seeds a pharmaceutical solid-dose tablet
+          manufacturing example: <em>Ibuprofen 200 mg Film-Coated Tablets (30-pack blister)</em>.
+          It demonstrates cGMP-compliant, lot-tracked process manufacturing with a
+          12-step route, in-process control checks, and an MRB escalation path.
+        </p>
+        <p>
+          Running this demo seeds both ERP-side master data and the plant-side ISA-95
+          physical model so the scenario is usable end to end.
+        </p>
+
+        <h4 className="font-semibold text-gray-900 pt-1">Process Route</h4>
+        <ol className="list-decimal list-inside space-y-1 text-gray-600 text-xs">
+          <li>Dispensing &#8594; 2. Wet Granulation &#8594; 3. Fluid Bed Drying &#8594; 4. Milling</li>
+          <li value={5}>Blending &#8594; 6. Tablet Compression &#8594; 7. In-Process Control (IPC)</li>
+          <li value={8}>Film Coating &#8594; 9. QC Release Testing &#8594; 10. Blister Packaging</li>
+          <li value={11}>Tablet Rework (IPC fail path) &#8594; 12. MRB Review (escalation path)</li>
+        </ol>
+
+        <h4 className="font-semibold text-gray-900 pt-1">What It Creates</h4>
+        <ul className="list-disc list-inside space-y-1 text-gray-600">
+          <li><strong>Plant model</strong> — site, 10 work cells, 12 equipment pieces including dual bin blenders and dual tablet presses for dispatch demonstration.</li>
+          <li><strong>Equipment classes &amp; capabilities</strong> — granulator, fluid bed dryer, tablet press, film coater, blister packer, and more (ISA-95 Part 2).</li>
+          <li><strong>Storage locations</strong> — API controlled substance vault, excipient warehouse, FG quarantine, and line-side RIP locations.</li>
+          <li><strong>Recipe specification</strong> — step parameters (CPPs/CQAs per ICH Q8) covering impeller speed, compression force, tablet weight, dissolution, assay, and more.</li>
+          <li><strong>Data collection definitions</strong> — EBR-traceable codes for every measurement collected at execution time.</li>
+          <li><strong>Initial inventory</strong> — material lots received and put away for all API, excipients, and packaging.</li>
+        </ul>
+
+        <h4 className="font-semibold text-gray-900 pt-1">Regulatory Context</h4>
+        <p className="text-gray-600">
+          Data is modelled to reflect cGMP requirements (21 CFR Part 211, EU GMP) and
+          ICH Q8 quality-by-design principles. Recipe specifications are separated from
+          executed batch record measurements so the design-time MBR and runtime EBR
+          remain distinct.
+        </p>
+
+        <p>
+          Use this demo when you want a pharmaceutical or regulated-industry example
+          featuring lot-based batch tracking, multi-step quality checks, rework loops,
+          and batch-release workflows.
         </p>
       </div>
     ),

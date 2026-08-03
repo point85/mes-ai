@@ -26,3 +26,9 @@ export async function seedElectronicsPlantData(): Promise<PlantSeedSummary> {
   const { data } = await api.post<{ data: PlantSeedSummary }>("/demo/seed-electronics-plant");
   return data.data;
 }
+
+export async function seedPharmaPlantData(): Promise<PlantSeedSummary> {
+  await api.post("/demo/seed-pharma-erp");
+  const { data } = await api.post<{ data: PlantSeedSummary }>("/demo/seed-pharma-plant");
+  return data.data;
+}

@@ -27,7 +27,7 @@ from mes.core.material.models import MaterialDefinition, MaterialLot
 from mes.core.material.service import MaterialLotService, MaterialService
 from mes.core.product_def.models import (
     BillOfMaterial, BOMItem, OperationsDefinition,
-    OperationsDefinitionProductAssignment, ProcessSegment,
+    OperationsDefinitionProductAssignment, ProcessSegment, SegmentParameter,
 )
 from mes.core.product_def.models import Disposition
 from mes.core.product_def.service import ProductDefService
@@ -56,6 +56,7 @@ from mes.framework.api.exceptions import MESException, ValidationException
 
 from . import cpg_data as D
 from . import electronics_data as E
+from . import pharma_data as P
 
 logger = logging.getLogger("mes.demo")
 
@@ -954,6 +955,441 @@ async def seed_electronics_plant_data(session: AsyncSession) -> dict[str, Any]:
     return summary
 
 
+# ===========================================================================
+# Pharma Demo — Solid-Dose Tablet Manufacturing
+# ===========================================================================
+
+async def _purge_step_params_for_no_param_segments(
+    session: AsyncSession,
+    route_name: str,
+    seqs_with_no_params: set[int],
+) -> int:
+    """
+    Soft-delete SegmentParameter rows for segments that intentionally have no
+    recipe-level parameters (e.g. Dispensing, Tablet Rework, MRB Review).
+
+    Called during re-seeding so that any parameters persisted by an earlier
+    version of the seed data are cleaned up automatically.  Idempotent.
+    Returns the number of parameters deactivated.
+    """
+    if not seqs_with_no_params:
+        return 0
+
+    # Find the route
+    route_result = await session.execute(
+        select(OperationsDefinition.id).where(
+            OperationsDefinition.name == route_name,
+            OperationsDefinition.is_active.is_(True),
+        )
+    )
+    route_id = route_result.scalar_one_or_none()
+    if route_id is None:
+        return 0
+
+    # Find matching segments
+    seg_result = await session.execute(
+        select(ProcessSegment.id).where(
+            ProcessSegment.route_id == route_id,
+            ProcessSegment.sequence.in_(seqs_with_no_params),
+            ProcessSegment.is_active.is_(True),
+        )
+    )
+    seg_ids = [row[0] for row in seg_result.all()]
+    if not seg_ids:
+        return 0
+
+    # Soft-delete their active parameters
+    param_result = await session.execute(
+        select(SegmentParameter).where(
+            SegmentParameter.step_id.in_(seg_ids),
+            SegmentParameter.is_active.is_(True),
+        )
+    )
+    params = param_result.scalars().all()
+    for p in params:
+        p.is_active = False
+    if params:
+        await session.flush()
+    return len(params)
+
+
+async def seed_pharma_erp_data(session: AsyncSession) -> dict[str, Any]:
+    """
+    Create all ERP-side master data for the Pharma demo.
+
+    Covers: materials, product definition, BOM, process route with
+    graph-based step transitions (IPC rework loop, MRB escalation),
+    step parameters (CPP/CQA recipe specs), data collection definitions,
+    quality test, and reason hierarchy.
+
+    Returns a summary dict with counts.
+    """
+    summary: dict[str, Any] = {
+        "materials": 0, "product": None, "bom_items": 0,
+        "process_segments": 0,
+        "input_disposition_links": 0,
+        "output_disposition_links": 0,
+        "segment_parameters": 0, "data_definitions": 0,
+        "reasons": 0,
+        "material_lots": 0,
+        "dispositions": 0,
+        "segment_material_requirements": 0,
+        "route_material_assignments": 0,
+    }
+
+    await _ensure_seed_uoms(session)
+    uom_ids = await _uom_id_map(session)
+
+    # ── 1. Materials ──────────────────────────────────────────────────
+    mat_ids: dict[str, UUID] = {}
+    for m in P.MATERIALS:
+        mat = await _get_or_create_material(session, _inject_uom_id(m, uom_ids))
+        mat_ids[m["code"]] = mat.id
+        summary["materials"] += 1
+
+    # ── 1b. Material Lots (initial inventory) ─────────────────────────
+    for ml in P.MATERIAL_LOTS:
+        mat_id = mat_ids.get(ml["material_code"])
+        if mat_id:
+            created = await _get_or_create_material_lot(
+                session,
+                material_id=mat_id,
+                lot_number=ml["lot_number"],
+                quantity_on_hand=ml["quantity_on_hand"],
+                supplier=ml.get("supplier"),
+                received_date=ml.get("received_date"),
+                expiry_date=ml.get("expiry_date"),
+            )
+            if created:
+                summary["material_lots"] += 1
+
+    # ── 2. Product ────────────────────────────────────────────────────
+    product = await _get_or_create_product(session, _inject_uom_id(P.PRODUCT, uom_ids))
+    summary["product"] = str(product.id)
+
+    # ── 3. Route ──────────────────────────────────────────────────────
+    route, route_created = await _get_or_create_route(
+        session, product.id,
+        name=P.ROUTE_NAME, version="1.0", is_default=True,
+    )
+
+    # ── 4. Dispositions ───────────────────────────────────────────────
+    disp_by_code: dict[str, Any] = {}
+    for d in P.DISPOSITIONS:
+        disp = await _get_or_create_disposition(session, d)
+        disp_by_code[d["code"]] = disp
+        summary["dispositions"] += 1
+
+    # ── 5. Steps ──────────────────────────────────────────────────────
+    step_by_seq: dict[int, Any] = {}
+    for s in P.STEPS:
+        step_kwargs: dict[str, Any] = {
+            "name": s["name"],
+            "step_type": s["step_type"],
+            "expected_cycle_time_sec": s.get("expected_cycle_time_sec"),
+            "erp_operation_number": s.get("erp_operation_number"),
+            "is_initial_step": bool(s.get("is_initial_step", False)),
+        }
+        step, created = await _get_or_create_step(
+            session, route.id, sequence=s["sequence"], **step_kwargs,
+        )
+        step_by_seq[s["sequence"]] = step
+        if created:
+            summary["process_segments"] += 1
+        in_codes = s.get("input_disposition_codes", [])
+        out_codes = s.get("output_disposition_codes", [])
+        in_ids  = [disp_by_code[c].id for c in in_codes  if c in disp_by_code]
+        out_ids = [disp_by_code[c].id for c in out_codes if c in disp_by_code]
+        await ProductDefService.set_step_input_dispositions(session, step.id, in_ids)
+        summary["input_disposition_links"] += len(in_ids)
+        await ProductDefService.set_step_output_dispositions(session, step.id, out_ids)
+        summary["output_disposition_links"] += len(out_ids)
+
+    # ── 6. BOM ────────────────────────────────────────────────────────
+    bom, bom_created = await _get_or_create_bom(session, product.id, version="1.0")
+    if bom_created:
+        for item in P.BOM_ITEMS:
+            item_kwargs = {k: v for k, v in _inject_uom_id(item, uom_ids).items() if k != "step_sequence"}
+            step_seq = item.get("step_sequence")
+            if step_seq and step_seq in step_by_seq:
+                item_kwargs["process_segment_id"] = step_by_seq[step_seq].id
+            await ProductDefService.create_bom_item(session, bom.id, **item_kwargs)
+            summary["bom_items"] += 1
+    else:
+        result = await session.execute(
+            select(BOMItem).where(BOMItem.bom_id == bom.id, BOMItem.is_active.is_(True))
+        )
+        existing_items = {bi.material_code: bi for bi in result.scalars().all()}
+        for item in P.BOM_ITEMS:
+            bi = existing_items.get(item["material_code"])
+            step_seq = item.get("step_sequence")
+            if bi and step_seq and step_seq in step_by_seq and bi.process_segment_id is None:
+                bi.process_segment_id = step_by_seq[step_seq].id
+
+    # ── 7. Step Parameters ────────────────────────────────────────────
+    # First, clean up any stale parameters on segments that intentionally
+    # have none in this version of the seed data (e.g. Dispensing seq=10,
+    # Tablet Rework seq=110, MRB Review seq=120). This is idempotent and
+    # ensures re-seeding after a pharma_data.py change produces a clean DB.
+    no_param_seqs = set(step_by_seq.keys()) - set(P.STEP_PARAMS.keys())
+    purged = await _purge_step_params_for_no_param_segments(
+        session, P.ROUTE_NAME, no_param_seqs,
+    )
+    if purged:
+        logger.info("Pharma seed: purged %d stale step parameters", purged)
+
+    if route_created:
+        for seq, params in P.STEP_PARAMS.items():
+            step = step_by_seq[seq]
+            for p in params:
+                await ProductDefService.create_step_parameter(
+                    session, step.id, **_inject_uom_id(p, uom_ids)
+                )
+                summary["segment_parameters"] += 1
+
+    # ── 8. Data Collection Definitions ────────────────────────────────
+    for seq, defs in P.DATA_DEFS.items():
+        step = step_by_seq[seq]
+        for d in defs:
+            dd = _inject_uom_id(d, uom_ids)
+            dd["step_id"] = step.id
+            if await _get_or_create_data_def(session, **dd):
+                summary["data_definitions"] += 1
+
+    # ── 9. Reason Hierarchy ──────────────────────────────────────────
+    summary["reasons"] += await _seed_demo_reason_hierarchy(session)
+
+    # ── 10. Segment Material Requirements ────────────────────────────
+    for req in P.SEGMENT_MATERIAL_REQUIREMENTS:
+        step = step_by_seq.get(req["step_sequence"])
+        mat_id = mat_ids.get(req["material_code"])
+        if step is None or mat_id is None:
+            continue
+        if await _get_or_create_segment_material_requirement(
+            session,
+            step_id=step.id,
+            material_id=mat_id,
+            quantity=req["quantity"],
+            uom_id=uom_ids[req["uom"]],
+            material_use=req["material_use"],
+            position=req.get("position", 0),
+            description=req.get("description"),
+        ):
+            summary["segment_material_requirements"] += 1
+
+    # ── 11. Route ↔ Material assignments ─────────────────────────────
+    for code in P.ROUTE_MATERIAL_ASSIGNMENTS:
+        mat_id = mat_ids.get(code)
+        if mat_id is None:
+            continue
+        if await _get_or_create_route_material_assignment(
+            session, route_id=route.id, material_id=mat_id,
+        ):
+            summary["route_material_assignments"] += 1
+
+    await session.commit()
+    logger.info("Pharma ERP demo data seeded: %s", summary)
+    return summary
+
+
+async def seed_pharma_plant_data(session: AsyncSession) -> dict[str, Any]:
+    """
+    Create the ISA-95 physical hierarchy for the Pharma demo.
+
+    Creates site, area, production line, work cells, equipment with
+    state models (PackML / SEMI E10), equipment-material assignments,
+    equipment classes/capabilities, storage locations, and initial
+    inventory transactions.
+
+    Returns a summary dict with counts.
+    """
+    await _require_erp_seed(
+        session,
+        scenario="Pharma",
+        route_name=P.ROUTE_NAME,
+        erp_endpoint="/api/v1/demo/seed-pharma-erp",
+    )
+
+    summary: dict[str, Any] = {
+        "sites": 0, "areas": 0,
+        "production_lines": 0, "work_cells": 0,
+        "equipment": 0, "equipment_materials": 0,
+        "segment_equipment_class_assignments": 0,
+        "segment_equipment_requirements": 0,
+        "equipment_capabilities": 0,
+        "storage_locations": 0,
+        "inventory_received": 0,
+    }
+
+    await _ensure_seed_uoms(session)
+    uom_ids = await _uom_id_map(session)
+
+    # ── 1. Site → Area → Line ─────────────────────────────────────────
+    site = await _get_or_create_site(session, **P.SITE)
+    summary["sites"] += 1
+
+    area = await _get_or_create_area(session, site.id, **P.AREA)
+    summary["areas"] += 1
+
+    line = await _get_or_create_line(session, area.id, **P.LINE)
+    summary["production_lines"] += 1
+
+    # ── 2. Work Cells ─────────────────────────────────────────────────
+    wc_map: dict[str, UUID] = {}
+    for wc in P.WORK_CELLS:
+        cell = await _get_or_create_work_cell(session, line.id, **wc)
+        wc_map[wc["code"]] = cell.id
+        summary["work_cells"] += 1
+
+    # ── 3. Equipment ──────────────────────────────────────────────────
+    equip_map: dict[str, UUID] = {}
+    for eq in P.EQUIPMENT:
+        wc_id = wc_map[eq["work_cell_code"]]
+        equip = await _get_or_create_equipment(
+            session, wc_id,
+            code=eq["code"],
+            name=eq["name"],
+            state_model_id=eq.get("state_model"),
+            max_queue_depth=eq.get("max_queue_depth"),
+        )
+        equip_map[eq["code"]] = equip.id
+        summary["equipment"] += 1
+
+    # ── 4. Equipment–Material assignments ─────────────────────────────
+    mat_ids = await _material_id_map(session)
+
+    for em in P.EQUIPMENT_MATERIALS:
+        equip_id = equip_map[em["equipment_code"]]
+        mat_id = mat_ids.get(em["material_code"])
+        if mat_id is None:
+            logger.warning(
+                "Material %s not found — skipping equipment-material setup for %s",
+                em["material_code"], em["equipment_code"],
+            )
+            continue
+        created = await _get_or_create_equipment_material(
+            session, equip_id,
+            material_id=mat_id,
+            design_speed=em["design_speed"],
+            design_speed_uom_id=uom_ids[em["design_speed_uom"]],
+            reject_uom_id=uom_ids[em["reject_uom"]],
+            target_oee=em["target_oee"],
+        )
+        if created:
+            summary["equipment_materials"] += 1
+
+    # ── 4b. Equipment Classes (ISA-95 Part 2) ─────────────────────────
+    ec_counts = await _seed_equipment_classes(session, P, equip_map)
+    summary.update(ec_counts)
+
+    class_map = await _equipment_class_id_map(session)
+
+    # ── 4c. Back-fill ProcessSegment.equipment_class_id ───────────────
+    if hasattr(P, "STEP_EQUIPMENT_CLASS"):
+        summary["segment_equipment_class_assignments"] = (
+            await _assign_segment_equipment_classes(
+                session,
+                route_name=P.ROUTE_NAME,
+                step_class_map=P.STEP_EQUIPMENT_CLASS,
+                class_id_map=class_map,
+            )
+        )
+
+    # ── 4d. Segment Equipment Requirements ────────────────────────────
+    if hasattr(P, "SEGMENT_EQUIPMENT_REQUIREMENTS"):
+        step_by_seq = await _segments_by_sequence(session, P.ROUTE_NAME)
+        for req in P.SEGMENT_EQUIPMENT_REQUIREMENTS:
+            step = step_by_seq.get(req["step_sequence"])
+            if step is None:
+                continue
+            equip_code = req.get("equipment_code")
+            class_code = req.get("equipment_class_code")
+            equip_id = equip_map.get(equip_code) if equip_code else None
+            class_id = class_map.get(class_code) if class_code else None
+            if equip_id is None and class_id is None:
+                continue
+            if await _get_or_create_segment_equipment_requirement(
+                session,
+                step_id=step.id,
+                equipment_id=equip_id,
+                equipment_class_id=class_id,
+                use_type=req.get("use_type", "preferred"),
+                description=req.get("description"),
+            ):
+                summary["segment_equipment_requirements"] += 1
+
+    # ── 4e. Equipment Capabilities ────────────────────────────────────
+    if hasattr(P, "EQUIPMENT_CAPABILITIES"):
+        prop_lookup = await _equipment_class_property_lookup(session)
+        for cap in P.EQUIPMENT_CAPABILITIES:
+            equip_id = equip_map.get(cap["equipment_code"])
+            class_id = class_map.get(cap["equipment_class_code"])
+            if equip_id is None or class_id is None:
+                continue
+            class_props = prop_lookup.get(cap["equipment_class_code"], {})
+            properties: list[dict[str, Any]] = []
+            for prop in cap.get("properties", []):
+                cp_id = class_props.get(prop["property_name"])
+                if cp_id is not None:
+                    properties.append({"class_property_id": cp_id, "value": prop["value"]})
+            if await _get_or_create_equipment_capability(
+                session,
+                equipment_id=equip_id,
+                equipment_class_id=class_id,
+                capability_type=cap.get("capability_type", "available"),
+                reason=cap.get("reason"),
+                properties=properties,
+            ):
+                summary["equipment_capabilities"] += 1
+
+    # ── 5. Storage Locations ──────────────────────────────────────────
+    loc_map: dict[str, UUID] = {}
+    for loc in P.STORAGE_LOCATIONS:
+        sl = await _get_or_create_storage_location(session, site.id, **loc)
+        loc_map[loc["code"]] = sl.id
+        summary["storage_locations"] += 1
+
+    # ── 6. Receive material lots into warehouse storage ───────────────
+    recv_loc_id = loc_map.get("PHX-RECV-01")
+    if recv_loc_id:
+        lot_rows = await _material_lot_list(session)
+        for lot in lot_rows:
+            mat_code = lot["material_code"]
+            storage_code = P.MATERIAL_STORAGE_MAP.get(mat_code)
+            if storage_code is None or lot["quantity_on_hand"] <= 0:
+                continue
+            storage_loc_id = loc_map.get(storage_code)
+            if storage_loc_id is None:
+                continue
+            if await _inventory_already_received(session, lot["lot_id"], storage_loc_id):
+                continue
+            qty = lot["quantity_on_hand"]
+            await InventoryTransactionService.receive(
+                session,
+                material_lot_id=lot["lot_id"],
+                to_location_id=recv_loc_id,
+                quantity=qty,
+                reason="Pharma demo seed — initial goods receipt",
+            )
+            await InventoryTransactionService.putaway(
+                session,
+                material_lot_id=lot["lot_id"],
+                from_location_id=recv_loc_id,
+                to_location_id=storage_loc_id,
+                quantity=qty,
+                reason="Pharma demo seed — initial putaway",
+            )
+            summary["inventory_received"] += 1
+
+    # ── 7. Work Schedule ──────────────────────────────────────────────
+    ws_counts = await _seed_four_twelves_schedule(session)
+    summary.update(ws_counts)
+
+    await session.commit()
+    logger.info("Pharma plant demo data seeded: %s", summary)
+    return summary
+
+
 # ---------------------------------------------------------------------------
 # Helpers — all get-or-create to ensure idempotency
 # ---------------------------------------------------------------------------
@@ -1335,6 +1771,10 @@ _DEMO_UOMS: list[tuple[str, str, str, float, float]] = [
     ("RPM",    "revolutions per minute",      "other",  1.0 / 60.0, 0.0),
     ("bottle/min", "bottles per minute",      "other",  1.0,        0.0),
     ("label/min",  "labels per minute",       "other",  1.0,        0.0),
+    # Pharma-specific
+    ("kN",         "kilonewton",               "force",  1000.0,     0.0),
+    ("%",          "percent",                  "count",  0.01,       0.0),
+    ("CFU/g",      "colony-forming units per gram", "count", 1.0,    0.0),
 ]
 
 

@@ -152,6 +152,6 @@ The implementation was built iteratively: expected MES capabilities were researc
 AI-assisted testing was part of that process from the beginning. The project includes broad server-side unit test coverage along with end-to-end SQA coverage for key design-time and runtime workflows. The aim is not to claim that AI replaces engineering judgment, but to show that AI can materially improve the speed and reach of implementation, testing, and customization work.
 
 ## What's New
-Version 1.6.1 is a maintenance release.  Added runtime indexes for queries and reporting views and fixed migration issue with non-conformances.
+Version 1.6.2 is a maintenance release. Added a pharmaceutical solid-dose tablet manufacturing example and fixed Dependabot alerts.
 
 Please send any comments or suggestions to point85.apps@gmail.com.
