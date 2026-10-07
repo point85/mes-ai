@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 # ── Valid constants ──────────────────────────────────────────────────
 
 LOCATION_TYPES = {"receiving", "storage", "rip", "staging", "shipping"}
-TRANSACTION_TYPES = {"receive", "putaway", "pick", "move", "consume", "adjust"}
+TRANSACTION_TYPES = {"receive", "transfer", "pick", "move", "consume", "adjust"}
 REFERENCE_TYPES = {"operations_request", "unit", "lot"}
 
 

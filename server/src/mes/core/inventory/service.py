@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mes.framework.api.exceptions import NotFoundException
@@ -200,8 +200,24 @@ class InventoryBalanceService:
                 quantity_reserved=0.0,
             )
             session.add(balance)
-            await session.flush()
         return balance
+
+    @staticmethod
+    async def sync_lot_total(session: AsyncSession, material_lot_id: UUID) -> None:
+        """Set the lot's quantity_on_hand to the sum of its location balances."""
+        from mes.core.material.models import MaterialLot
+
+        await session.flush()
+        total = (await session.execute(
+            select(func.coalesce(func.sum(InventoryBalance.quantity_on_hand), 0.0)).where(
+                InventoryBalance.material_lot_id == material_lot_id,
+                InventoryBalance.is_active.is_(True),
+            )
+        )).scalar_one()
+        lot = await session.get(MaterialLot, material_lot_id)
+        if lot is not None:
+            lot.quantity_on_hand = float(total)
+            await session.flush()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -278,6 +294,7 @@ class InventoryTransactionService:
         )
         session.add(txn)
         await session.flush()
+        await InventoryBalanceService.sync_lot_total(session, material_lot_id)
 
         await event_bus.publish(
             inventory_received(str(material_lot_id), str(to_location_id), quantity),
@@ -306,7 +323,7 @@ class InventoryTransactionService:
         """
         return await InventoryTransactionService._transfer(
             session,
-            transaction_type="putaway",
+            transaction_type="transfer",
             material_lot_id=material_lot_id,
             from_location_id=from_location_id,
             to_location_id=to_location_id,
@@ -438,7 +455,9 @@ class InventoryTransactionService:
                 lot_wip_id=reference_id if reference_type == "lot" else None,
                 step_id=step_id,
                 quantity_consumed=quantity,
+                sync_balances=False,
             )
+        await InventoryBalanceService.sync_lot_total(session, material_lot_id)
 
         await event_bus.publish(
             inventory_consumed(str(material_lot_id), str(from_location_id), quantity),
@@ -486,6 +505,7 @@ class InventoryTransactionService:
         )
         session.add(txn)
         await session.flush()
+        await InventoryBalanceService.sync_lot_total(session, material_lot_id)
 
         await event_bus.publish(
             inventory_adjusted(str(material_lot_id), str(location_id), old_qty, quantity),

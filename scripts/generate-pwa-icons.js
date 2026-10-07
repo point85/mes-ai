@@ -2,7 +2,7 @@
 /**
  * Generate PNG icons for PWA apps.
  * Creates 192x192, 512x512, and maskable icon variants with app-specific colors.
- * Usage: node scripts/generate-pwa-icons.js
+ * Usage: node scripts/generate-pwa-icons.js [app_name]
  */
 
 import sharp from 'sharp'
@@ -33,6 +33,11 @@ const apps = [
     name: 'equipment_simulator',
     label: 'EQ',
     color: '#F59E0B', // Amber
+  },
+  {
+    name: 'inv_client',
+    label: 'INV',
+    color: '#4F46E5', // Indigo (matches the manifest theme color)
   },
 ]
 
@@ -69,7 +74,9 @@ function adjustColor(hex, percent) {
 }
 
 async function main() {
+  const only = process.argv[2]
   for (const app of apps) {
+    if (only && app.name !== only) continue
     const publicDir = `${projectRoot}/clients/${app.name}/public`
 
     // Create public dir if it doesn't exist

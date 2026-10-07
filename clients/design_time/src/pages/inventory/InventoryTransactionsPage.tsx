@@ -15,7 +15,7 @@ import { TRANSACTION_TYPES } from "../../types/inventory";
 /* ── type badge colours ─────────────────────────────────────────── */
 const TXN_COLORS: Record<TransactionType, string> = {
   receive: "bg-blue-100 text-blue-800",
-  putaway: "bg-green-100 text-green-800",
+  transfer: "bg-green-100 text-green-800",
   pick: "bg-amber-100 text-amber-800",
   move: "bg-purple-100 text-purple-800",
   consume: "bg-red-100 text-red-800",
@@ -24,7 +24,7 @@ const TXN_COLORS: Record<TransactionType, string> = {
 
 const TXN_LABELS: Record<TransactionType, string> = {
   receive: "Receive",
-  putaway: "Put Away",
+  transfer: "Transfer",
   pick: "Pick",
   move: "Move",
   consume: "Consume",
@@ -88,7 +88,7 @@ export default function InventoryTransactionsPage() {
           Inventory Transactions
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Audit trail of all inventory movements — receives, putaways, picks,
+          Audit trail of all inventory movements — receives, transfers, picks,
           moves, consumes, and adjustments.
         </p>
       </div>

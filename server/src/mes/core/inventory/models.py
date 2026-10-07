@@ -155,7 +155,7 @@ class InventoryTransaction(BaseModel):
 
     transaction_type values:
         receive   — goods received from supplier into a receiving location
-        putaway   — moved from receiving to a storage location (aisle/bay/tier)
+        transfer  — moved between locations (recorded by the put-away endpoint)
         pick      — removed from storage for production use
         move      — transferred between locations (e.g. storage → RIP)
         consume   — consumed by WIP (links to MaterialConsumption)
@@ -166,7 +166,7 @@ class InventoryTransaction(BaseModel):
 
     transaction_type: Mapped[str] = mapped_column(
         String(20), nullable=False, index=True,
-        comment="Transaction type: receive, putaway, pick, move, consume, adjust",
+        comment="Transaction type: receive, transfer, pick, move, consume, adjust",
     )
     material_lot_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("material_lots.id"),

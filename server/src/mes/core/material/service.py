@@ -256,12 +256,17 @@ class MaterialLotService:
         lot_wip_id: UUID | None = None,
         step_id: UUID | None = None,
         quantity_consumed: float,
+        sync_balances: bool = True,
     ) -> MaterialConsumption:
         """
         Record material consumption from a material lot.
 
         Decrements quantity_on_hand, creates a MaterialConsumption record,
         and marks the lot as 'consumed' if on-hand reaches 0.
+
+        Unless *sync_balances* is False (the caller already decremented a
+        specific location), the quantity is also taken from the lot's
+        per-location inventory balances so they stay consistent with the lot.
         """
         lot = await MaterialLotService.get_lot(session, lot_id)
 
@@ -279,6 +284,11 @@ class MaterialLotService:
         if lot.quantity_on_hand <= 0:
             lot.quantity_on_hand = 0.0
             lot.status = "consumed"
+
+        if sync_balances:
+            await MaterialLotService._decrement_location_balances(
+                session, lot.id, quantity_consumed,
+            )
 
         # Create consumption record
         now = datetime.now(timezone.utc)
@@ -306,6 +316,34 @@ class MaterialLotService:
             quantity_consumed, lot.id, lot.lot_number, lot.quantity_on_hand,
         )
         return consumption
+
+    @staticmethod
+    async def _decrement_location_balances(
+        session: AsyncSession, lot_id: UUID, quantity: float,
+    ) -> None:
+        """Take *quantity* from the lot's location balances, RIP locations first."""
+        from mes.core.inventory.models import InventoryBalance, StorageLocation
+
+        rows = (await session.execute(
+            select(InventoryBalance, StorageLocation.location_type)
+            .join(StorageLocation, StorageLocation.id == InventoryBalance.location_id)
+            .where(
+                InventoryBalance.material_lot_id == lot_id,
+                InventoryBalance.is_active.is_(True),
+                InventoryBalance.quantity_on_hand > 0,
+            )
+        )).all()
+        rows = sorted(
+            rows, key=lambda r: (r[1] != "rip", -r[0].quantity_on_hand),
+        )
+
+        remaining = quantity
+        for balance, _location_type in rows:
+            if remaining <= 0:
+                break
+            taken = min(balance.quantity_on_hand, remaining)
+            balance.quantity_on_hand -= taken
+            remaining -= taken
 
     @staticmethod
     async def get_consumptions_for_unit(

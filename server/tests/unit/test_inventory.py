@@ -453,7 +453,7 @@ class TestConstants:
         assert LOCATION_TYPES == {"receiving", "storage", "rip", "staging", "shipping"}
 
     def test_transaction_types(self):
-        assert TRANSACTION_TYPES == {"receive", "putaway", "pick", "move", "consume", "adjust"}
+        assert TRANSACTION_TYPES == {"receive", "transfer", "pick", "move", "consume", "adjust"}
 
 
 # ═════════════════════════════════════════════════════════════════════

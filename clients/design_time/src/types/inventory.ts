@@ -75,7 +75,7 @@ export interface InventoryBalance {
 
 export const TRANSACTION_TYPES = [
   "receive",
-  "putaway",
+  "transfer",
   "pick",
   "move",
   "consume",

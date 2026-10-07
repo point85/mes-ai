@@ -15,7 +15,6 @@ Test drive the MES applications here, no authentication is required:
 - [Runtime](http://134.199.238.219:5176)
 - [ERP Simulator](http://134.199.238.219:5174)
 - [Equipment Simulator](http://134.199.238.219:5175) 
-- [WIP Client](http://134.199.238.219:5177) 
 
 To run in a new tab, Ctrl+Click (Windows/Linux) / Cmd+Click (Mac). Please email comments or issues to point85.apps@gmail.com.
 
@@ -32,6 +31,7 @@ At the center of the system is the MES server in `server/src/mes`, which exposes
 - `clients/erp_simulator`: a simulator used to create and release operations requests and exercise ERP-style inbound and outbound flows.
 - `clients/equipment_simulator`: a simulator used for equipment-centric development and testing.
 - `clients/wip_client`: a focused shop-floor client for scanning, starting, and completing WIP (lots and units) in a single-screen workflow.
+- `clients/inv_client`: a focused shop-floor client for executing inventory transactions
 
 These applications communicate with the MES server over a versioned HTTP API, and runtime-facing workflows can also consume WebSocket events for near-real-time updates.
 
@@ -154,6 +154,6 @@ The implementation was built iteratively: expected MES capabilities were researc
 AI-assisted testing was part of that process from the beginning. The project includes broad server-side unit test coverage along with end-to-end SQA coverage for key design-time and runtime workflows. The aim is not to claim that AI replaces engineering judgment, but to show that AI can materially improve the speed and reach of implementation, testing, and customization work.
 
 ## What's New
-Version 1.7.0 added a wip-client app focused on the WIP operator experience and fixed Dependabot alerts.
+Version 1.8.0 added an inv-client app focused on the inventory operator experience.  Also fixed Dependabot security vulnerabilities.
 
 Please send any comments or suggestions to point85.apps@gmail.com.

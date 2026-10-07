@@ -14,6 +14,7 @@
       erp-sim          ERP Simulator               (default port 5174)
       equipment-sim    Equipment Simulator         (default port 5175)
       wip-client       WIP Client                  (default port 5177)
+      inv-client       Inventory Client            (default port 5178)
 
 .PARAMETER Port
     Optional. Override the Vite dev server port.
@@ -39,6 +40,7 @@
     .\run-client.ps1 erp-sim
     .\run-client.ps1 equipment-sim -Port 5200
     .\run-client.ps1 wip-client -WIP lot
+    .\run-client.ps1 inv-client
     .\run-client.ps1 -Help
 #>
 
@@ -79,6 +81,7 @@ ARGUMENTS
                                      erp-sim         ERP Simulator          (port 5174)
                                      equipment-sim   Equipment Simulator    (port 5175)
                                     wip-client      WIP Client              (port 5177)
+                                    inv-client      Inventory Client        (port 5178)
 
 OPTIONS
   -Port       NUM   Override the Vite dev server port.
@@ -95,6 +98,7 @@ EXAMPLES
   .\run-client.ps1 erp-sim
   .\run-client.ps1 equipment-sim -Port 5200
     .\run-client.ps1 wip-client -WIP lot
+  .\run-client.ps1 inv-client
 
 "@
 }
@@ -113,11 +117,12 @@ $clientMap = @{
     "erp-sim"        = @{ Dir = "clients\erp_simulator";     DefaultPort = 5174; Label = "ERP Simulator" }
     "equipment-sim"  = @{ Dir = "clients\equipment_simulator"; DefaultPort = 5175; Label = "Equipment Simulator" }
     "wip-client"     = @{ Dir = "clients\wip_client";        DefaultPort = 5177; Label = "WIP Client" }
+    "inv-client"     = @{ Dir = "clients\inv_client";        DefaultPort = 5178; Label = "Inventory Client" }
 }
 
 $key = $Client.ToLower()
 if (-not $clientMap.ContainsKey($key)) {
-    Write-Error "Unknown client '$Client'.`nValid options: dt-client, rt-client, erp-sim, equipment-sim, wip-client`nRun .\run-client.ps1 -Help for usage."
+    Write-Error "Unknown client '$Client'.`nValid options: dt-client, rt-client, erp-sim, equipment-sim, wip-client, inv-client`nRun .\run-client.ps1 -Help for usage."
     exit 1
 }
 

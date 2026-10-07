@@ -806,7 +806,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_inventory_balances_location_id'), 'inventory_balances', ['location_id'], unique=False)
     op.create_index(op.f('ix_inventory_balances_material_lot_id'), 'inventory_balances', ['material_lot_id'], unique=False)
     op.create_table('inventory_transactions',
-    sa.Column('transaction_type', sa.String(length=20), nullable=False, comment='Transaction type: receive, putaway, pick, move, consume, adjust'),
+    sa.Column('transaction_type', sa.String(length=20), nullable=False, comment='Transaction type: receive, transfer, pick, move, consume, adjust'),
     sa.Column('material_lot_id', sa.Uuid(), nullable=False),
     sa.Column('from_location_id', sa.Uuid(), nullable=True, comment='Source location (null for receives)'),
     sa.Column('to_location_id', sa.Uuid(), nullable=True, comment='Destination location (null for consumes)'),

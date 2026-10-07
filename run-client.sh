@@ -35,6 +35,7 @@ ARGUMENTS
                                      erp-sim         ERP Simulator          (port 5174)
                                      equipment-sim   Equipment Simulator    (port 5175)
                                     wip-client      WIP Client              (port 5177)
+                                    inv-client      Inventory Client        (port 5178)
 
 OPTIONS
   --port       NUM   Override the Vite dev server port.
@@ -51,6 +52,7 @@ EXAMPLES
   ./run-client.sh erp-sim
   ./run-client.sh equipment-sim --port 5200
     ./run-client.sh wip-client --wip lot
+    ./run-client.sh inv-client
 
 EOF
 }
@@ -142,6 +144,11 @@ case "$CLIENT_LOWER" in
         DEFAULT_PORT=5177
         LABEL="WIP Client"
         ;;
+    inv-client)
+        CLIENT_DIR="$SCRIPT_DIR/clients/inv_client"
+        DEFAULT_PORT=5178
+        LABEL="Inventory Client"
+        ;;
     "")
         echo "Error: Client argument is required." >&2
         show_help
@@ -149,7 +156,7 @@ case "$CLIENT_LOWER" in
         ;;
     *)
         echo "Error: Unknown client '$CLIENT'." >&2
-        echo "Valid options: dt-client, rt-client, erp-sim, equipment-sim, wip-client" >&2
+        echo "Valid options: dt-client, rt-client, erp-sim, equipment-sim, wip-client, inv-client" >&2
         exit 1
         ;;
 esac

@@ -165,7 +165,7 @@ async def list_inventory_balances(
 async def list_inventory_transactions(
     material_lot_id: UUID | None = Query(None, description="Filter by material lot ID"),
     location_id: UUID | None = Query(None, description="Filter by location ID (source or destination)"),
-    transaction_type: str | None = Query(None, description="Filter by type: receive, putaway, pick, move, consume, adjust"),
+    transaction_type: str | None = Query(None, description="Filter by type: receive, transfer, pick, move, consume, adjust"),
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("inventory.read")),
