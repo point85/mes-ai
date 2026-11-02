@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from mes.framework.api.exceptions import NotFoundException
 
 from mes.core.wip.models import Unit, Lot, SegmentResponseUnit, SegmentResponseLot
+from mes.core.inventory.models import InventoryTransaction, StorageLocation
 from mes.core.material.models import MaterialConsumption, MaterialDefinition, MaterialLot
 from mes.core.data_collection.models import DataPoint, DataDefinition
 from mes.core.operations.models import OperationsRequest
@@ -25,6 +26,7 @@ from mes.core.physical_model.models import Equipment
 
 from .schemas import (
     GenealogyDataRecord,
+    GenealogyInventoryRecord,
     GenealogyMaterialRecord,
     GenealogyRecord,
     GenealogyStepRecord,
@@ -140,6 +142,10 @@ class GenealogyService:
             product_stmt = select(ProductDefinition.name).where(ProductDefinition.id == unit.product_id)
             product_name = (await session.execute(product_stmt)).scalar_one_or_none()
 
+        inventory = await GenealogyService._inventory_history(
+            session, unit.serial_number, unit.id,
+        )
+
         return GenealogyRecord(
             unit_id=unit.id,
             serial_number=unit.serial_number,
@@ -150,8 +156,63 @@ class GenealogyService:
             status=unit.status,
             steps=steps,
             materials=materials,
+            inventory_transactions=inventory,
             data_points=data_records,
         )
+
+    @staticmethod
+    async def _inventory_history(
+        session: AsyncSession, identifier: str, wip_id: UUID,
+    ) -> list[GenealogyInventoryRecord]:
+        """
+        Inventory transactions (transfer to inventory, move, ship, ...) of the
+        item created when this WIP was transferred off its route. The item
+        shares the WIP's serial/lot number and its receive transaction
+        references the WIP.
+        """
+        lot_stmt = (
+            select(MaterialLot.id)
+            .join(InventoryTransaction, InventoryTransaction.material_lot_id == MaterialLot.id)
+            .where(
+                MaterialLot.lot_number == identifier,
+                InventoryTransaction.reference_id == wip_id,
+            )
+            .limit(1)
+        )
+        material_lot_id = (await session.execute(lot_stmt)).scalar_one_or_none()
+        if material_lot_id is None:
+            return []
+
+        stmt = (
+            select(InventoryTransaction)
+            .where(InventoryTransaction.material_lot_id == material_lot_id)
+            .order_by(InventoryTransaction.performed_at)
+        )
+        txns = (await session.execute(stmt)).scalars().all()
+        loc_ids = {
+            i for t in txns for i in (t.from_location_id, t.to_location_id) if i
+        }
+        names: dict[UUID, str] = {}
+        if loc_ids:
+            loc_rows = await session.execute(
+                select(StorageLocation.id, StorageLocation.name)
+                .where(StorageLocation.id.in_(loc_ids)),
+            )
+            names = {i: n for i, n in loc_rows.all()}
+
+        return [
+            GenealogyInventoryRecord(
+                transaction_id=t.id,
+                transaction_type=t.transaction_type,
+                material_lot_id=t.material_lot_id,
+                quantity=t.quantity,
+                from_location=names.get(t.from_location_id) if t.from_location_id else None,
+                to_location=names.get(t.to_location_id) if t.to_location_id else None,
+                reason=t.reason,
+                performed_at=t.performed_at,
+            )
+            for t in txns
+        ]
 
     @staticmethod
     async def get_lot_genealogy(
@@ -256,6 +317,10 @@ class GenealogyService:
             product_stmt = select(ProductDefinition.name).where(ProductDefinition.id == lot.product_id)
             product_name = (await session.execute(product_stmt)).scalar_one_or_none()
 
+        inventory = await GenealogyService._inventory_history(
+            session, lot.lot_number, lot.id,
+        )
+
         return GenealogyRecord(
             lot_id=lot.id,
             lot_number=lot.lot_number,
@@ -266,5 +331,6 @@ class GenealogyService:
             status=lot.status,
             steps=steps,
             materials=materials,
+            inventory_transactions=inventory,
             data_points=data_records,
         )

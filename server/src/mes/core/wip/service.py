@@ -588,7 +588,7 @@ class UnitService:
     ) -> Unit:
         """Place a unit on hold."""
         unit = await UnitService.get_unit(session, unit_id)
-        if unit.status in ("completed", "scrapped"):
+        if unit.status in ("completed", "finished", "scrapped"):
             raise InvalidWIPTransitionException(
                 unit.serial_number, unit.status, "hold",
             )
@@ -628,7 +628,7 @@ class UnitService:
     ) -> Unit:
         """Scrap a unit. Persists scrap context and increments the order's scrapped count."""
         unit = await UnitService.get_unit(session, unit_id)
-        if unit.status in ("completed", "scrapped"):
+        if unit.status in ("completed", "finished", "scrapped"):
             raise InvalidWIPTransitionException(
                 unit.serial_number, unit.status, "scrap",
             )
@@ -1021,7 +1021,7 @@ class LotService:
     ) -> Lot:
         """Place a lot on hold."""
         lot = await LotService.get_lot(session, lot_id)
-        if lot.status in ("completed", "scrapped"):
+        if lot.status in ("completed", "finished", "scrapped"):
             raise InvalidWIPTransitionException(
                 lot.lot_number, lot.status, "hold",
             )
@@ -1061,7 +1061,7 @@ class LotService:
     ) -> Lot:
         """Scrap a lot. Persists scrap context and increments the order's scrapped count."""
         lot = await LotService.get_lot(session, lot_id)
-        if lot.status in ("completed", "scrapped"):
+        if lot.status in ("completed", "finished", "scrapped"):
             raise InvalidWIPTransitionException(
                 lot.lot_number, lot.status, "scrap",
             )

@@ -162,6 +162,7 @@ def _step_to_dict(step: ProcessSegment) -> dict:
         "expected_cycle_time_sec": step.expected_cycle_time_sec,
         "erp_operation_number": step.erp_operation_number,
         "is_initial_step": step.is_initial_step,
+        "transfer_location_id": step.transfer_location_id,
         "input_dispositions": [
             DispositionRead.model_validate(r.disposition).model_dump()
             for r in step.input_dispositions

@@ -98,6 +98,14 @@ The ERP simulator is a Vite app that exercises inbound planning and order-releas
 
 The equipment simulator is a React and Vite application used to mimic equipment interactions in development environments. It supports fast feedback when validating server behavior and equipment-facing workflows.
 
+### WIP Client
+
+The WIP client focuses on the operator experience when executing transactions on lots and units being processed on a route.
+
+### Inventory Client
+
+The Inventory client focuses on the operator experience when executing transactions on lots and units at storage locations.
+
 ## Technology Stack
 
 ### Backend
@@ -154,6 +162,12 @@ The implementation was built iteratively: expected MES capabilities were researc
 AI-assisted testing was part of that process from the beginning. The project includes broad server-side unit test coverage along with end-to-end SQA coverage for key design-time and runtime workflows. The aim is not to claim that AI replaces engineering judgment, but to show that AI can materially improve the speed and reach of implementation, testing, and customization work.
 
 ## What's New
-Version 1.8.0 added an inv-client app focused on the inventory operator experience.  Also fixed Dependabot security vulnerabilities.
+Version 1.9.0 focused on WIP and inventory compatibility:
+- Added unit-tracked inventory items
+- Added WIP transfer from a route step to a specified inventory location to finish it
+- Added a ship transaction for finished WIP as an inventory item
+- Created an inventory history report
+- Updated rt-client functionality with inv-client and wip-client changes
+- Fixed Dependabot vulnerabilities
 
 Please send any comments or suggestions to point85.apps@gmail.com.

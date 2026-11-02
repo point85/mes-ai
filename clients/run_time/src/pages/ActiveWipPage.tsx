@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowPathIcon, DocumentTextIcon, TruckIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, ArrowRightCircleIcon, DocumentTextIcon, TruckIcon } from "@heroicons/react/24/outline";
 import { fetchUnits, fetchLots, fetchUnitStepContext, fetchLotStepContext } from "../api/runtime";
 import { useState } from "react";
 import type { StepContext } from "../types";
@@ -112,6 +112,7 @@ export default function ActiveWipPage() {
             <option value="in_process">In Process</option>
             <option value="on_hold">On Hold</option>
             <option value="completed">Completed</option>
+            <option value="finished">Finished</option>
             <option value="scrapped">Scrapped</option>
           </select>
         </div>
@@ -145,9 +146,9 @@ export default function ActiveWipPage() {
                     <td className="py-2 px-3">{u.order_number ?? u.order_id.slice(0, 8)}</td>
                     <td className="py-2 px-3 text-xs text-gray-400">{new Date(u.created_at).toLocaleString()}</td>
                     <td className="py-2 px-3 flex items-center gap-2">
-                      <button onClick={() => openContext("unit", u.id)} className="text-indigo-600 text-xs hover:underline">
-                        Open
-                      </button>
+                      <button onClick={() => openContext("unit", u.id)} title="Open" aria-label="Open" className="inline-flex items-center rounded p-1 text-indigo-600 hover:bg-indigo-50">
+                         <ArrowRightCircleIcon className="h-4 w-4" />
+                       </button>
                       {u.status === "queued" && (
                         <button
                           onClick={() => setDispatchTarget({ wipType: "unit", wipId: u.id, wipLabel: u.serial_number })}
@@ -193,9 +194,9 @@ export default function ActiveWipPage() {
                     <td className="py-2 px-3">{l.order_number ?? l.order_id.slice(0, 8)}</td>
                     <td className="py-2 px-3 text-xs text-gray-400">{new Date(l.created_at).toLocaleString()}</td>
                     <td className="py-2 px-3 flex items-center gap-2">
-                      <button onClick={() => openContext("lot", l.id)} className="text-indigo-600 text-xs hover:underline">
-                        Open
-                      </button>
+                      <button onClick={() => openContext("lot", l.id)} title="Open" aria-label="Open" className="inline-flex items-center rounded p-1 text-indigo-600 hover:bg-indigo-50">
+                         <ArrowRightCircleIcon className="h-4 w-4" />
+                       </button>
                       {l.status === "queued" && (
                         <button
                           onClick={() => setDispatchTarget({ wipType: "lot", wipId: l.id, wipLabel: l.lot_number })}
@@ -245,9 +246,8 @@ function UnitReportButton({ id, serialNumber }: { id: string; serialNumber: stri
   };
   return (
     <button onClick={handleReport} disabled={busy} title="Print unit history report"
-      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-indigo-600 hover:bg-indigo-50 disabled:opacity-40">
-      <DocumentTextIcon className="h-3.5 w-3.5" />
-      {busy ? "Loading…" : "Report"}
+      aria-label="Report" className="inline-flex items-center rounded p-1 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40">
+      <DocumentTextIcon className="h-4 w-4" />
     </button>
   );
 }
@@ -267,9 +267,8 @@ function LotReportButton({ id, lotNumber }: { id: string; lotNumber: string }) {
   };
   return (
     <button onClick={handleReport} disabled={busy} title="Print lot history report"
-      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-indigo-600 hover:bg-indigo-50 disabled:opacity-40">
-      <DocumentTextIcon className="h-3.5 w-3.5" />
-      {busy ? "Loading…" : "Report"}
+      aria-label="Report" className="inline-flex items-center rounded p-1 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40">
+      <DocumentTextIcon className="h-4 w-4" />
     </button>
   );
 }
@@ -279,6 +278,7 @@ function StatusBadge({ status }: { status: string }) {
     queued: "bg-blue-100 text-blue-700",
     in_process: "bg-yellow-100 text-yellow-700",
     completed: "bg-green-100 text-green-700",
+    finished: "bg-teal-100 text-teal-700",
     scrapped: "bg-red-100 text-red-700",
     on_hold: "bg-orange-100 text-orange-700",
   };

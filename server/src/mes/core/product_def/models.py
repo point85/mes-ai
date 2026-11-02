@@ -265,6 +265,11 @@ class ProcessSegment(BaseModel):
         String(50), nullable=True,
         comment="ERP operation/step number for outbound reporting (e.g. '0010', '0020')",
     )
+    transfer_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("storage_locations.id"),
+        nullable=True,
+        comment="Storage location a WIP lot/unit completed from this step is transferred to",
+    )
     is_initial_step: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False,
         comment=(

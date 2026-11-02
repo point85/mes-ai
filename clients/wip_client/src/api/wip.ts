@@ -192,6 +192,26 @@ export const moveLot = (
   opts?: { target_step_id?: string; result?: string; disposition?: string },
 ) => api.post(`/lots/${id}/move`, opts ?? null).then(unwrap<Lot>);
 
+// ── Transfer a WIP unit/lot into inventory ───────────────────────
+
+export interface TransferInfo {
+  available: boolean;
+  transferred: boolean;
+  location_id: string | null;
+  location_code: string | null;
+  location_name: string | null;
+}
+
+const wipPath = (wipType: "unit" | "lot") => (wipType === "unit" ? "units" : "lots");
+
+export const fetchTransferInfo = (wipType: "unit" | "lot", id: string) =>
+  api.get(`/${wipPath(wipType)}/${id}/transfer-info`).then(unwrap<TransferInfo>);
+
+export const transferToInventory = (wipType: "unit" | "lot", id: string) =>
+  api
+    .post(`/${wipPath(wipType)}/${id}/transfer-to-inventory`)
+    .then(unwrap<{ material_lot_id: string; lot_number: string; quantity: number }>);
+
 // ── Products (name display on the info card) ─────────────────────
 
 export const fetchProducts = () =>
@@ -215,13 +235,19 @@ export const fetchMaterialLots = (materialId?: string, status?: string) =>
     })
     .then(unwrapList<MaterialLot>);
 
+export const fetchMaterialLotByNumber = (lotNumber: string) =>
+  api
+    .get("/material-lots", { params: { lot_number: lotNumber, limit: 1 } })
+    .then(unwrapList<MaterialLot>)
+    .then((lots) => lots[0] ?? null);
+
 export const consumeMaterial = (
   materialLotId: string,
   payload: {
     unit_id?: string;
     lot_id?: string;
     step_id?: string;
-    quantity_consumed: number;
+    quantity_consumed?: number;
   },
 ) =>
   api

@@ -76,6 +76,7 @@ while [[ $# -gt 0 ]]; do
         --port)
             if [[ -z "${2:-}" ]]; then
                 echo "Error: --port requires a value." >&2
+                show_help
                 exit 1
             fi
             PORT="$2"
@@ -84,6 +85,7 @@ while [[ $# -gt 0 ]]; do
         --server-url)
             if [[ -z "${2:-}" ]]; then
                 echo "Error: --server-url requires a value." >&2
+                show_help
                 exit 1
             fi
             SERVER_URL="$2"
@@ -92,6 +94,7 @@ while [[ $# -gt 0 ]]; do
         --wip)
             if [[ -z "${2:-}" ]]; then
                 echo "Error: --wip requires a value." >&2
+                show_help
                 exit 1
             fi
             TRACKING="$2"
@@ -157,6 +160,7 @@ case "$CLIENT_LOWER" in
     *)
         echo "Error: Unknown client '$CLIENT'." >&2
         echo "Valid options: dt-client, rt-client, erp-sim, equipment-sim, wip-client, inv-client" >&2
+        show_help
         exit 1
         ;;
 esac
@@ -186,6 +190,7 @@ case "$TRACKING_LOWER" in
     ""|lot|unit) ;;
     *)
         echo "Error: Invalid tracking '$TRACKING'. Valid values: lot, unit." >&2
+        show_help
         exit 1
         ;;
 esac

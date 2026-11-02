@@ -41,6 +41,19 @@ class GenealogyMaterialRecord(BaseModel):
     step_id: UUID | None = None
 
 
+class GenealogyInventoryRecord(BaseModel):
+    """An inventory transaction on the item created when the WIP left its route."""
+
+    transaction_id: UUID
+    transaction_type: str
+    material_lot_id: UUID
+    quantity: float
+    from_location: str | None = None
+    to_location: str | None = None
+    reason: str | None = None
+    performed_at: datetime
+
+
 class GenealogyDataRecord(BaseModel):
     """A data collection point associated with the unit/lot."""
 
@@ -86,5 +99,6 @@ class GenealogyRecord(BaseModel):
 
     steps: list[GenealogyStepRecord] = []
     materials: list[GenealogyMaterialRecord] = []
+    inventory_transactions: list[GenealogyInventoryRecord] = []
     test_results: list[GenealogyTestRecord] = []
     data_points: list[GenealogyDataRecord] = []

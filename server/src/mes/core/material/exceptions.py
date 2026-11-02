@@ -53,6 +53,19 @@ class InsufficientQuantityException(MESException):
         )
 
 
+class UnitTrackedRestrictionException(MESException):
+    """Raised when an operation is not allowed on a unit-tracked (serial number) lot."""
+
+    status_code = 422
+    error_code = "UNIT_TRACKED_RESTRICTION"
+
+    def __init__(self, lot_number: str, message: str) -> None:
+        super().__init__(
+            message=f"Unit-tracked '{lot_number}': {message}",
+            details={"lot_number": lot_number},
+        )
+
+
 class MaterialLotNotAvailableException(MESException):
     """Raised when a material lot is not in 'available' status."""
 

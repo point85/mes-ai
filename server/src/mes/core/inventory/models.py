@@ -160,13 +160,14 @@ class InventoryTransaction(BaseModel):
         move      — transferred between locations (e.g. storage → RIP)
         consume   — consumed by WIP (links to MaterialConsumption)
         adjust    — manual inventory adjustment (count correction)
+        ship      — finished WIP shipped out of inventory
     """
 
     __tablename__ = "inventory_transactions"
 
     transaction_type: Mapped[str] = mapped_column(
         String(20), nullable=False, index=True,
-        comment="Transaction type: receive, transfer, pick, move, consume, adjust",
+        comment="Transaction type: receive, transfer, pick, move, consume, adjust, ship",
     )
     material_lot_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("material_lots.id"),

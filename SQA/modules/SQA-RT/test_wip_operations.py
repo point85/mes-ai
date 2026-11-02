@@ -276,10 +276,27 @@ async def _consume_bom_items(
         chosen_lot = max(matching, key=lambda lot: float(lot["quantity_on_hand"]))
 
         row = page.locator("tr", has_text=item["material_code"]).first
-        await row.locator("select").select_option(chosen_lot["id"])
-        await row.locator("input").fill(f"{required_quantity:g}")
-        await row.get_by_role("button", name="Consume").click()
-        await expect(page.locator("div.bg-green-50", has_text=item["material_code"])).to_be_visible(timeout=10_000)
+        lot_input = row.get_by_label(
+            f"Lot or serial number for {item['material_code']}"
+        )
+        await lot_input.fill(chosen_lot["lot_number"])
+        quantity_input = row.locator("input[type='number']")
+        if chosen_lot.get("tracking_method") != "unit" or await quantity_input.count():
+            await quantity_input.fill(f"{required_quantity:g}")
+        consume_button = row.get_by_role("button", name="Consume")
+        await expect(consume_button).to_be_enabled(timeout=10_000)
+        await consume_button.click()
+        success = page.locator("div.bg-green-50", has_text=item["material_code"])
+        try:
+            await expect(success).to_be_visible(timeout=10_000)
+        except AssertionError:
+            error = page.locator("div.bg-red-50:visible").last
+            if await error.count():
+                pytest.fail(
+                    f"Material consumption failed for {item['material_code']}: "
+                    f"{await error.inner_text()}"
+                )
+            raise
 
 
 async def _process_current_step(

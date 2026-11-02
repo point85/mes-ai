@@ -8,6 +8,7 @@ import {
   fetchStepBomItems, fetchMaterials, fetchMaterialLots, consumeMaterial, fetchConsumedMaterials,
   fetchUnitHistory, fetchLotHistory, fetchDispositionCatalog,
   fetchEquipmentCurrentState, transitionEquipmentState,
+  fetchMaterialLotByNumber, fetchTransferInfo, transferToInventory,
 } from "../api/runtime";
 
 // State-model walker: drives a PackML / SEMI E10 equipment to the desired
@@ -116,7 +117,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   const [transitionOnComplete, setTransitionOnComplete] = useState(false);
 
   // Material consumption — per-BOM-item lot selection and quantity
-  const [lotSelections, setLotSelections] = useState<Record<string, string>>({});
+  const [lotInputs, setLotInputs] = useState<Record<string, string>>({});
   const [qtyInputs, setQtyInputs] = useState<Record<string, string>>({});
   const [consumeLoading, setConsumeLoading] = useState<string | null>(null);
 
@@ -153,8 +154,16 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
   // Fetch available material lots for consumption
   const { data: materialLots = [] } = useQuery<MaterialLot[]>({
     queryKey: ["material-lots-available"],
-    queryFn: () => fetchMaterialLots(undefined, "available"),
+    queryFn: () => fetchMaterialLots(),
     enabled: wip.status === "in_process",
+  });
+
+  // Transfer to inventory: offered when the step the WIP last completed
+  // defines a transfer location (configured in the route step editor).
+  const { data: transferInfo } = useQuery({
+    queryKey: ["transfer-info", wip_type, wip.id, wip.status, wip.current_step_id],
+    queryFn: () => fetchTransferInfo(wip_type, wip.id),
+    enabled: wip.status === "queued" || wip.status === "completed",
   });
 
   // Fetch already-consumed materials for this WIP
@@ -373,22 +382,48 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       "Scrapped",
     );
 
-  const handleConsumeLine = async (bomItem: BOMItem) => {
-    const lotId = lotSelections[bomItem.id];
+  const handleTransfer = () =>
+    runAction(
+      async () => {
+        await transferToInventory(wip_type, wip.id);
+        await queryClient.invalidateQueries({ queryKey: ["transfer-info"] });
+      },
+      `Transferred ${identifier} to ${transferInfo?.location_code ?? "inventory"}`,
+    );
+
+  const handleConsumeLine = async (bomItem: BOMItem, materialId?: string) => {
+    const lotNumber = lotInputs[bomItem.id]?.trim();
     const qty = qtyInputs[bomItem.id];
-    if (!lotId || !qty || parseFloat(qty) <= 0) return;
+    if (!lotNumber) return;
     setConsumeLoading(bomItem.id);
     setError(null);
     setSuccessMsg(null);
     try {
-      await consumeMaterial(lotId, {
+      // The operator scans or types a lot / serial number; resolve it to the material lot.
+      const materialLot = await fetchMaterialLotByNumber(lotNumber);
+      if (!materialLot || (materialId && materialLot.material_id !== materialId)) {
+        setError(`'${lotNumber}' is not a valid lot or serial number for ${bomItem.material_code}`);
+        return;
+      }
+      // Unit-tracked material is always consumed one at a time; no quantity is entered.
+      const isUnitTracked = materialLot.tracking_method === "unit";
+      if (!isUnitTracked && !(parseFloat(qty ?? "") > 0)) {
+        setError("Enter the quantity to consume");
+        return;
+      }
+      await consumeMaterial(materialLot.id, {
         ...(isUnit ? { unit_id: wip.id } : { lot_id: wip.id }),
         step_id: step?.id,
-        quantity_consumed: parseFloat(qty),
+        ...(isUnitTracked ? {} : { quantity_consumed: parseFloat(qty) }),
       });
-      setSuccessMsg(`Consumed ${qty} ${bomItem.uom_symbol ?? ""} of ${bomItem.material_code}`);
-      // Keep the selected lot so the operator can consume more from the
-      // same lot without re-selecting; only clear the quantity input.
+      setSuccessMsg(
+        isUnitTracked
+          ? `Consumed ${lotNumber} of ${bomItem.material_code}`
+          : `Consumed ${qty} ${bomItem.uom_symbol ?? ""} of ${bomItem.material_code}`,
+      );
+      // Keep the lot so the operator can consume more from it; a unit
+      // (serial number) is gone once consumed, so clear it.
+      if (isUnitTracked) setLotInputs((prev) => ({ ...prev, [bomItem.id]: "" }));
       setQtyInputs((prev) => ({ ...prev, [bomItem.id]: "" }));
       await refetchConsumed();
       await queryClient.invalidateQueries({ queryKey: ["material-lots-available"] });
@@ -492,6 +527,20 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       {/* Feedback Messages */}
       {error && <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
       {successMsg && <div className="p-3 bg-green-50 text-green-700 text-sm rounded-lg">{successMsg}</div>}
+
+      {transferInfo?.available && (
+        <div className="bg-white rounded-lg shadow p-5 flex items-center justify-between gap-4">
+          <div>
+            <h4 className="font-semibold text-gray-700">Transfer to Inventory</h4>
+            <p className="text-sm text-gray-500">
+              Moves this {wip_type} into {transferInfo.location_code}{transferInfo.location_name ? ` — ${transferInfo.location_name}` : ""} and ends its routing.
+            </p>
+          </div>
+          <button onClick={handleTransfer} disabled={actionLoading} className="btn-primary">
+            {actionLoading ? "Working…" : "Transfer"}
+          </button>
+        </div>
+      )}
 
       {/* Actions based on status */}
       {(wip.status === "queued") && (
@@ -728,7 +777,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                   <th className="py-1 px-2">Required</th>
                   <th className="py-1 px-2">UOM</th>
                   <th className="py-1 px-2">Consumed</th>
-                  <th className="py-1 px-2 min-w-[180px]">Material Lot</th>
+                  <th className="py-1 px-2 min-w-[180px]">Lot / Serial #</th>
                   <th className="py-1 px-2 w-28">Qty</th>
                   <th className="py-1 px-2"></th>
                 </tr>
@@ -738,17 +787,22 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                   // Find the material_id for this BOM item's material_code
                   const mat = materials.find((m) => m.code === bi.material_code);
                   const matId = mat?.id;
-                  // Filter lots to only those matching this material
+                  // All lots of the material total what was consumed; only available ones are suggested.
                   const matchingLots = matId
                     ? materialLots.filter((ml) => ml.material_id === matId)
                     : [];
+                  const suggestedLots = matchingLots.filter((ml) => ml.status === "available");
                   // Sum consumed quantity for this material at this step
                   const matchingLotIds = new Set(matchingLots.map((ml) => ml.id));
                   const totalConsumed = consumedMaterials
                     .filter((c) => matchingLotIds.has(c.material_lot_id))
                     .reduce((sum, c) => sum + c.quantity_consumed, 0);
-                  const selectedLotId = lotSelections[bi.id] ?? "";
+                  const typedNumber = (lotInputs[bi.id] ?? "").trim();
                   const qtyVal = qtyInputs[bi.id] ?? "";
+                  // Quantity is only asked for when the entered number is not a unit-tracked serial number.
+                  const isUnitTracked = suggestedLots.some(
+                    (ml) => ml.lot_number === typedNumber && ml.tracking_method === "unit",
+                  );
                   return (
                     <tr key={bi.id} className="border-b">
                       <td className="py-2 px-2 font-mono font-medium">{bi.material_code}</td>
@@ -758,34 +812,42 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                         {totalConsumed > 0 ? totalConsumed : "—"}
                       </td>
                       <td className="py-2 px-2">
-                        <select
-                          value={selectedLotId}
-                          onChange={(e) => setLotSelections({ ...lotSelections, [bi.id]: e.target.value })}
-                          className="input-field text-sm"
-                        >
-                          <option value="">Select lot…</option>
-                          {matchingLots.map((ml) => (
-                            <option key={ml.id} value={ml.id}>
-                              {ml.lot_number} (avail: {ml.quantity_on_hand})
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-2 px-2">
                         <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={qtyVal}
-                          onChange={(e) => setQtyInputs({ ...qtyInputs, [bi.id]: e.target.value })}
-                          placeholder={String(bi.quantity)}
+                          type="text"
+                          list={`lots-${bi.id}`}
+                          value={lotInputs[bi.id] ?? ""}
+                          onChange={(e) => setLotInputs({ ...lotInputs, [bi.id]: e.target.value })}
+                          placeholder="Scan or enter number"
+                          aria-label={`Lot or serial number for ${bi.material_code}`}
                           className="input-field text-sm w-full"
                         />
+                        <datalist id={`lots-${bi.id}`}>
+                          {suggestedLots.map((ml) => (
+                            <option
+                              key={ml.id}
+                              value={ml.lot_number}
+                              label={ml.tracking_method === "unit" ? undefined : `${ml.lot_number} (avail: ${ml.quantity_on_hand})`}
+                            />
+                          ))}
+                        </datalist>
+                      </td>
+                      <td className="py-2 px-2">
+                        {!isUnitTracked && (
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={qtyVal}
+                            onChange={(e) => setQtyInputs({ ...qtyInputs, [bi.id]: e.target.value })}
+                            placeholder={String(bi.quantity)}
+                            className="input-field text-sm w-full"
+                          />
+                        )}
                       </td>
                       <td className="py-2 px-2">
                         <button
-                          onClick={() => handleConsumeLine(bi)}
-                          disabled={consumeLoading === bi.id || !selectedLotId || !qtyVal || parseFloat(qtyVal) <= 0}
+                          onClick={() => handleConsumeLine(bi, matId)}
+                          disabled={consumeLoading === bi.id || !typedNumber || (!isUnitTracked && !(parseFloat(qtyVal) > 0))}
                           className="bg-amber-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
                         >
                           {consumeLoading === bi.id ? "…" : "Consume"}
@@ -804,7 +866,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="border-b text-left text-gray-500">
-                      <th className="py-1 px-2">Material Lot</th>
+                      <th className="py-1 px-2">Lot / Serial #</th>
                       <th className="py-1 px-2">Qty</th>
                       <th className="py-1 px-2">When</th>
                     </tr>
@@ -815,7 +877,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
                       return (
                         <tr key={c.id} className="border-b">
                           <td className="py-1 px-2 font-mono">{lot?.lot_number ?? c.material_lot_id.slice(0, 8)}</td>
-                          <td className="py-1 px-2 font-mono">{c.quantity_consumed}</td>
+                          <td className="py-1 px-2 font-mono">{lot?.tracking_method === "unit" ? "" : c.quantity_consumed}</td>
                           <td className="py-1 px-2 text-gray-500">{new Date(c.consumed_at).toLocaleString()}</td>
                         </tr>
                       );
@@ -938,7 +1000,7 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
         </div>
       )}
 
-      {wip.status !== "completed" && wip.status !== "scrapped" && wip.status !== "on_hold" && (
+      {wip.status !== "completed" && wip.status !== "finished" && wip.status !== "scrapped" && wip.status !== "on_hold" && (
         <div className="bg-white rounded-lg shadow p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Hold */}
           <div>
@@ -995,10 +1057,14 @@ export default function StepProcessingPanel({ context, onRefresh }: Props) {
       )}
 
       {/* Completed/Scrapped terminal states */}
-      {(wip.status === "completed" || wip.status === "scrapped") && (
+      {(wip.status === "completed" || wip.status === "finished" || wip.status === "scrapped") && (
         <div className="bg-white rounded-lg shadow p-5 text-center">
           <p className="text-lg font-semibold text-gray-500">
-            {wip.status === "completed" ? "✅ All steps completed" : "❌ Scrapped"}
+            {wip.status === "completed"
+              ? "✅ All steps completed"
+              : wip.status === "finished"
+                ? "📦 Finished — transferred to inventory"
+                : "❌ Scrapped"}
           </p>
         </div>
       )}
@@ -1081,6 +1147,7 @@ function WipStatusBadge({ status }: { status: string }) {
     queued: "bg-blue-100 text-blue-700",
     in_process: "bg-yellow-100 text-yellow-700",
     completed: "bg-green-100 text-green-700",
+    finished: "bg-teal-100 text-teal-700",
     scrapped: "bg-red-100 text-red-700",
     on_hold: "bg-orange-100 text-orange-700",
   };

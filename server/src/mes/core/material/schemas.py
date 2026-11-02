@@ -16,7 +16,8 @@ from pydantic import BaseModel, Field, field_validator
 # ── Valid constants ──────────────────────────────────────────────────
 
 MATERIAL_TYPES = {"raw", "intermediate", "finished", "semi", "consumable", "packaging", "spare"}
-MATERIAL_LOT_STATUSES = {"available", "reserved", "consumed", "expired"}
+TRACKING_VALUES = ("lot", "unit")
+MATERIAL_LOT_STATUSES = {"available", "reserved", "consumed", "expired", "finished", "shipped"}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -34,6 +35,7 @@ class MaterialCreate(BaseModel):
     uom_id: UUID = Field(..., description="UUID of the unit of measure")
     revision: str | None = Field(None, max_length=20, description="Material revision level")
     shelf_life_days: int | None = Field(None, gt=0)
+    tracking: str = Field("lot", description="lot or unit")
 
     @field_validator("code")
     @classmethod
@@ -49,6 +51,13 @@ class MaterialCreate(BaseModel):
             raise ValueError(f"material_type must be one of {MATERIAL_TYPES}")
         return v
 
+    @field_validator("tracking")
+    @classmethod
+    def validate_tracking(cls, v: str) -> str:
+        if v not in TRACKING_VALUES:
+            raise ValueError(f"tracking must be one of {TRACKING_VALUES}")
+        return v
+
 
 class MaterialRead(BaseModel):
     """Schema for returning a material definition."""
@@ -60,6 +69,8 @@ class MaterialRead(BaseModel):
     material_type: str
     uom_id: UUID
     uom_symbol: str | None = None
+    tracking: str = "lot"
+    tracking_method: str = "lot"
     revision: str | None = None
     shelf_life_days: int | None = None
     is_active: bool
@@ -79,6 +90,14 @@ class MaterialUpdate(BaseModel):
     uom_id: UUID | None = None
     revision: str | None = Field(None, max_length=20)
     shelf_life_days: int | None = Field(None, gt=0)
+    tracking: str | None = Field(None, description="lot or unit")
+
+    @field_validator("tracking")
+    @classmethod
+    def validate_tracking(cls, v: str | None) -> str | None:
+        if v is not None and v not in TRACKING_VALUES:
+            raise ValueError(f"tracking must be one of {TRACKING_VALUES}")
+        return v
 
     @field_validator("code")
     @classmethod
@@ -104,8 +123,10 @@ class MaterialLotCreate(BaseModel):
     """Schema for creating a new material lot."""
 
     material_id: UUID
-    lot_number: str = Field(..., min_length=1, max_length=200)
-    quantity_on_hand: float = Field(..., ge=0)
+    lot_number: str = Field(..., min_length=1, max_length=200, description="Lot number, or serial number for unit-tracked materials")
+    quantity_on_hand: float | None = Field(
+        None, ge=0, description="Initial quantity; ignored (always 1) for unit-tracked materials",
+    )
     received_date: date | None = None
     expiry_date: date | None = None
     supplier: str | None = Field(None, max_length=255)
@@ -117,6 +138,7 @@ class MaterialLotRead(BaseModel):
     id: UUID
     material_id: UUID
     lot_number: str
+    tracking_method: str = "lot"
     quantity_on_hand: float
     quantity_reserved: float
     status: str
@@ -159,12 +181,14 @@ class ConsumeRequest(BaseModel):
     unit_id: UUID | None = Field(None, description="WIP unit consuming the material")
     lot_id: UUID | None = Field(None, description="WIP lot consuming the material (for batch)")
     step_id: UUID | None = Field(None, description="Route step where consumption occurs")
-    quantity_consumed: float = Field(..., gt=0)
+    quantity_consumed: float | None = Field(
+        None, gt=0, description="Quantity to consume; omitted (always 1) for unit-tracked lots",
+    )
 
     @field_validator("quantity_consumed")
     @classmethod
-    def validate_quantity(cls, v: float) -> float:
-        if v <= 0:
+    def validate_quantity(cls, v: float | None) -> float | None:
+        if v is not None and v <= 0:
             raise ValueError("quantity_consumed must be positive")
         return v
 

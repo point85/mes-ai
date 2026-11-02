@@ -353,11 +353,11 @@ class TestActionSchemas:
 
 class TestWIPStatuses:
     def test_unit_statuses(self):
-        expected = {"queued", "in_process", "completed", "scrapped", "on_hold"}
+        expected = {"queued", "in_process", "completed", "finished", "scrapped", "on_hold"}
         assert UNIT_STATUSES == expected
 
     def test_lot_statuses(self):
-        expected = {"queued", "in_process", "completed", "scrapped", "on_hold"}
+        expected = {"queued", "in_process", "completed", "finished", "scrapped", "on_hold"}
         assert LOT_STATUSES == expected
 
 

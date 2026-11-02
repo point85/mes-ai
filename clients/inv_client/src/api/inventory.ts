@@ -158,6 +158,12 @@ export const consumeInventory = (payload: ConsumePayload) =>
 export const adjustInventory = (payload: AdjustPayload) =>
   api.post("/inventory/adjust", payload).then(unwrap<InventoryTransaction>);
 
+/**
+ * Ship a finished item (WIP transferred off its route) out of inventory.
+ */
+export const shipInventory = (payload: ShipPayload) =>
+  api.post("/inventory/ship", payload).then(unwrap<InventoryTransaction>);
+
 // ── Materials (reference data) ───────────────────────────────────────
 
 export const fetchMaterials = () =>

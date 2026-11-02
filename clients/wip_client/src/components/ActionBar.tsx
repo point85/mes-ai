@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { StepContext } from "../types";
 import {
   apiErrorMessage,
   completeLot,
   completeUnit,
+  fetchTransferInfo,
   moveLot,
   moveUnit,
   scrapUnit,
   startLot,
   startUnit,
+  transferToInventory,
 } from "../api/wip";
 
 export type CompleteResult = "pass" | "fail" | "rework";
@@ -136,6 +138,29 @@ export default function ActionBar({
       else await startLot(wip.id, equipmentOverride || undefined);
     }, "Started processing");
 
+  // Transfer to inventory: offered when the step the WIP last completed
+  // defines a transfer location (configured in the route step editor).
+  const isCompleted = wip.status === "completed";
+  const { data: transferInfo } = useQuery({
+    queryKey: ["transfer-info", wip_type, wip.id, wip.status, wip.current_step_id],
+    queryFn: () => fetchTransferInfo(wip_type, wip.id),
+    enabled: wip.status === "queued" || isCompleted,
+  });
+  const canTransfer = !!transferInfo?.available;
+
+  const handleTransfer = () => {
+    let msg = "Transferred to inventory";
+    return runAction(
+      async () => {
+        const result = await transferToInventory(wip_type, wip.id);
+        msg = `Transferred ${result.lot_number} to ${transferInfo?.location_code ?? "inventory"}`;
+        await queryClient.invalidateQueries({ queryKey: ["transfer-info"] });
+      },
+      msg,
+      () => setSuccessMsg(msg),
+    );
+  };
+
   /**
    * Runs the complete transaction.
    * qtyScrapped is passed explicitly so the modal can pre-populate its
@@ -247,7 +272,7 @@ export default function ActionBar({
     { value: "rework", label: "Rework", cond: "on_rework" },
   ].filter((o) => outgoing.includes(o.cond));
 
-  if (!step && wip.status !== "queued") return null;
+  if (!step && wip.status !== "queued" && !isCompleted) return null;
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4 space-y-3">
@@ -322,8 +347,18 @@ export default function ActionBar({
         >
           {loading ? "Working…" : "Complete"}
         </button>
+        {canTransfer && (
+          <button
+            onClick={handleTransfer}
+            disabled={loading}
+            className="btn-primary"
+          >
+            {loading ? "Working…" : "Transfer"}
+          </button>
+        )}
         <span className="text-xs text-gray-400">
           {wip.status === "completed" && "WIP is completed."}
+          {wip.status === "finished" && "WIP is finished and in inventory."}
           {wip.status === "scrapped" && "WIP is scrapped."}
           {wip.status === "on_hold" && "WIP is on hold."}
         </span>

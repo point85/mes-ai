@@ -16,15 +16,15 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 
 MATERIALS: list[dict] = [
-    {"code": "RM-PCB-BLANK",  "name": "Bare PCB Board",              "material_type": "raw",           "uom": "EA"},
-    {"code": "RM-SMD-KIT",    "name": "SMD Component Kit",           "material_type": "raw",           "uom": "EA"},
-    {"code": "RM-THRU-KIT",   "name": "Through-Hole Component Kit",  "material_type": "raw",           "uom": "EA"},
+    {"code": "RM-PCB-BLANK",  "name": "Bare PCB Board",                  "material_type": "raw",           "uom": "EA", "tracking": "unit"},
+        {"code": "RM-SMD-KIT",    "name": "SMD Component Kit",           "material_type": "raw",           "uom": "EA", "tracking": "unit"},
+        {"code": "RM-THRU-KIT",   "name": "Through-Hole Component Kit",  "material_type": "raw",           "uom": "EA", "tracking": "unit"},
     {"code": "RM-SOLDER-PST", "name": "Solder Paste Cartridge",      "material_type": "raw",           "uom": "g"},
     {"code": "RM-FLUX",       "name": "Flux Solution",               "material_type": "raw",           "uom": "mL"},
     {"code": "RM-CONFORMAL",  "name": "Conformal Coating",           "material_type": "raw",           "uom": "mL"},
-    {"code": "SF-POP-PCB",    "name": "Populated PCB Assembly",      "material_type": "semi", "uom": "EA"},
-    {"code": "PKG-ESD-BAG",   "name": "ESD Protective Bag",          "material_type": "packaging",     "uom": "EA"},
-    {"code": "FG-ECB-100",    "name": "Electronic Controller Board v1", "material_type": "finished",   "uom": "EA"},
+    {"code": "SF-POP-PCB",    "name": "Populated PCB Assembly",          "material_type": "semi", "uom": "EA", "tracking": "unit"},
+        {"code": "PKG-ESD-BAG",   "name": "ESD Protective Bag",          "material_type": "packaging",     "uom": "EA", "tracking": "unit"},
+        {"code": "FG-ECB-100",    "name": "Electronic Controller Board v1", "material_type": "finished",   "uom": "EA", "tracking": "unit"},
 ]
 
 # ---------------------------------------------------------------------------

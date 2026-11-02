@@ -639,7 +639,7 @@ class TestMaterialConstants:
         assert "reserved" in MATERIAL_LOT_STATUSES
         assert "consumed" in MATERIAL_LOT_STATUSES
         assert "expired" in MATERIAL_LOT_STATUSES
-        assert len(MATERIAL_LOT_STATUSES) == 4
+        assert len(MATERIAL_LOT_STATUSES) == 6
 
 
 # ═════════════════════════════════════════════════════════════════════

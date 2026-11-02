@@ -53,8 +53,8 @@ export function LotLocationsDialog({ lot, uomSymbol, open, onClose }: Props) {
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">On Hand</th></tr></thead>
-                  <tbody className="divide-y divide-gray-200">{balances.map((balance) => <tr key={balance.id}><td className="px-4 py-3 text-sm text-gray-900">{locationCodes.get(balance.location_id) ?? balance.location_id}</td><td className="px-4 py-3 text-sm text-right font-mono">{balance.quantity_on_hand.toLocaleString()}{uomSymbol ? ` ${uomSymbol}` : ""}</td></tr>)}</tbody>
+                  <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">                  Location</th>{lot?.tracking_method !== "unit" && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">On Hand</th>}</tr></thead>
+                                    <tbody className="divide-y divide-gray-200">{balances.map((balance) => <tr key={balance.id}><td className="px-4 py-3 text-sm text-gray-900">{locationCodes.get(balance.location_id) ?? balance.location_id}</td>{lot?.tracking_method !== "unit" && <td className="px-4 py-3 text-sm text-right font-mono">{balance.quantity_on_hand.toLocaleString()}{uomSymbol ? ` ${uomSymbol}` : ""}</td>}</tr>)}</tbody>
                 </table>
               </div>
             )}

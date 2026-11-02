@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 # ═══════════════════════════════════════════════════════════════════
 
 
-UNIT_STATUSES = {"queued", "in_process", "completed", "scrapped", "on_hold"}
+UNIT_STATUSES = {"queued", "in_process", "completed", "finished", "scrapped", "on_hold"}
 
 
 class UnitCreate(BaseModel):
@@ -65,7 +65,7 @@ class UnitRead(BaseModel):
 # ═══════════════════════════════════════════════════════════════════
 
 
-LOT_STATUSES = {"queued", "in_process", "completed", "scrapped", "on_hold"}
+LOT_STATUSES = {"queued", "in_process", "completed", "finished", "scrapped", "on_hold"}
 
 
 class LotCreate(BaseModel):
@@ -220,6 +220,12 @@ class HoldRequest(BaseModel):
     """Request to place a unit/lot on hold."""
 
     reason: str = Field(..., min_length=1, max_length=500)
+
+
+class TransferToInventoryRequest(BaseModel):
+    """Optional details for transferring a unit/lot into its step's transfer location."""
+
+    reason: str | None = Field(None, max_length=500)
 
 
 class ReleaseHoldRequest(BaseModel):

@@ -47,6 +47,7 @@ export default function MaterialListPage() {
       material_type: m.material_type,
       uom_id: m.uom_id,
       shelf_life_days: m.shelf_life_days,
+      tracking: m.tracking,
     });
     setCloneTarget(null);
   };
@@ -120,6 +121,9 @@ export default function MaterialListPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   UoM
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Tracking
+                </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Shelf Life (days)
                 </th>
@@ -156,6 +160,9 @@ export default function MaterialListPage() {
                   <td className="px-4 py-2.5 text-sm font-mono text-gray-600">
                     {m.uom_symbol}
                   </td>
+                  <td className="px-4 py-2.5 text-sm text-gray-700 capitalize">
+                    {m.tracking ?? "lot"}
+                  </td>
                   <td className="px-4 py-2.5 text-sm text-right font-mono text-gray-600">
                     {m.shelf_life_days ?? "—"}
                   </td>
@@ -189,7 +196,7 @@ export default function MaterialListPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-8 text-center text-sm text-gray-400"
                   >
                     No materials found.

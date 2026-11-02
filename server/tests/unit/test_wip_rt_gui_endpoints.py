@@ -217,6 +217,7 @@ class TestBuildStepContext:
             equipment_class_id=None,
             expected_cycle_time_sec=None,
             is_initial_step=False,
+            transfer_location_id=None,
             input_dispositions=[],
             output_dispositions=[],
         )

@@ -27,6 +27,7 @@ class Unit(BaseModel):
         queued       — created and waiting for first step
         in_process   — actively being processed at a step
         completed    — finished all route steps successfully
+        finished     — completed and transferred into inventory (off its route)
         scrapped     — removed from production permanently
         on_hold      — temporarily held (e.g. quality issue)
     """
@@ -62,7 +63,7 @@ class Unit(BaseModel):
     )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="queued",
-        comment="Unit status: queued, in_process, completed, scrapped, on_hold",
+        comment="Unit status: queued, in_process, completed, finished, scrapped, on_hold",
     )
     scrap_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True,
@@ -155,7 +156,7 @@ class Lot(BaseModel):
     )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="queued",
-        comment="Lot status: queued, in_process, completed, scrapped, on_hold",
+        comment="Lot status: queued, in_process, completed, finished, scrapped, on_hold",
     )
     scrap_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True,

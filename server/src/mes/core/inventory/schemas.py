@@ -159,7 +159,7 @@ class ReceiveRequest(BaseModel):
 
     material_lot_id: UUID
     to_location_id: UUID
-    quantity: float = Field(..., gt=0)
+    quantity: float | None = Field(None, gt=0, description="Required for lot-tracked material; omitted (always 1) for unit-tracked")
     reason: str | None = Field(None, max_length=255)
     reference_id: UUID | None = Field(None, description="Production order or PO reference")
     reference_type: str | None = None
@@ -178,7 +178,7 @@ class PutawayRequest(BaseModel):
     material_lot_id: UUID
     from_location_id: UUID
     to_location_id: UUID
-    quantity: float = Field(..., gt=0)
+    quantity: float | None = Field(None, gt=0, description="Required for lot-tracked material; omitted (always 1) for unit-tracked")
     reason: str | None = Field(None, max_length=255)
 
 
@@ -188,7 +188,7 @@ class PickRequest(BaseModel):
     material_lot_id: UUID
     from_location_id: UUID
     to_location_id: UUID
-    quantity: float = Field(..., gt=0)
+    quantity: float | None = Field(None, gt=0, description="Required for lot-tracked material; omitted (always 1) for unit-tracked")
     reference_id: UUID | None = Field(None, description="Production order or WIP reference")
     reference_type: str | None = None
     reason: str | None = Field(None, max_length=255)
@@ -207,7 +207,7 @@ class MoveRequest(BaseModel):
     material_lot_id: UUID
     from_location_id: UUID
     to_location_id: UUID
-    quantity: float = Field(..., gt=0)
+    quantity: float | None = Field(None, gt=0, description="Required for lot-tracked material; omitted (always 1) for unit-tracked")
     reason: str | None = Field(None, max_length=255)
     reference_id: UUID | None = None
     reference_type: str | None = None
@@ -225,7 +225,7 @@ class ConsumeInventoryRequest(BaseModel):
 
     material_lot_id: UUID
     from_location_id: UUID
-    quantity: float = Field(..., gt=0)
+    quantity: float | None = Field(None, gt=0, description="Required for lot-tracked material; omitted (always 1) for unit-tracked")
     reference_id: UUID | None = Field(None, description="WIP unit, lot, or production order reference")
     reference_type: str | None = None
     step_id: UUID | None = Field(None, description="Route step where consumption occurs (for genealogy)")
@@ -237,6 +237,14 @@ class ConsumeInventoryRequest(BaseModel):
         if v is not None and v not in REFERENCE_TYPES:
             raise ValueError(f"reference_type must be one of {REFERENCE_TYPES}")
         return v
+
+
+class ShipRequest(BaseModel):
+    """Ship a finished inventory item out of inventory."""
+
+    material_lot_id: UUID
+    from_location_id: UUID
+    reason: str | None = Field(None, max_length=255, description="Free-form shipping reference")
 
 
 class AdjustRequest(BaseModel):

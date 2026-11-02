@@ -75,3 +75,46 @@ class NoNextStepException(MESException):
                 "current_step_id": current_step_id,
             },
         )
+
+
+class NoOutputMaterialException(MESException):
+    """Raised when a route does not define a single output (finished) material."""
+
+    status_code = 422
+    error_code = "NO_OUTPUT_MATERIAL"
+
+    def __init__(self, identifier: str, route_name: str, found: int) -> None:
+        problem = "has no" if found == 0 else "has more than one"
+        super().__init__(
+            message=(
+                f"Cannot transfer '{identifier}' to inventory — route '{route_name}' "
+                f"{problem} output (finished) material defined"
+            ),
+            details={"identifier": identifier, "route": route_name},
+        )
+
+
+class AlreadyTransferredException(MESException):
+    """Raised when a WIP unit/lot already exists in inventory."""
+
+    status_code = 409
+    error_code = "ALREADY_IN_INVENTORY"
+
+    def __init__(self, identifier: str) -> None:
+        super().__init__(
+            message=f"'{identifier}' already exists in inventory and cannot be transferred again",
+            details={"identifier": identifier},
+        )
+
+
+class NoTransferLocationException(MESException):
+    """Raised when the last completed step of a WIP item defines no transfer location."""
+
+    status_code = 422
+    error_code = "NO_TRANSFER_LOCATION"
+
+    def __init__(self, identifier: str) -> None:
+        super().__init__(
+            message=f"Cannot transfer '{identifier}' to inventory - the step it last completed has no transfer location defined",
+            details={"identifier": identifier},
+        )

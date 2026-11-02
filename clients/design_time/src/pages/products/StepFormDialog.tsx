@@ -2,13 +2,15 @@
  * Step Create / Edit dialog — creates or edits a route step.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useCreateRouteStep, useUpdateRouteStep, useDispositions } from "../../hooks/useProductDef";
+import { useStorageLocations } from "../../hooks/useInventory";
+import LocationSearchDialog from "../../components/LocationSearchDialog";
 import type { RouteStep } from "../../types";
 import EquipmentRequirementsEditor from "./EquipmentRequirementsEditor";
 import MaterialRequirementsEditor from "./MaterialRequirementsEditor";
@@ -22,6 +24,7 @@ const schema = z.object({
   expected_cycle_time_sec: z.number().min(0).nullable().optional(),
   erp_operation_number: z.string().max(50).nullable().optional(),
   is_initial_step: z.boolean().optional(),
+  transfer_location_id: z.string().nullable().optional(),
   input_disposition_ids: z.array(z.string()).default([]),
   output_disposition_ids: z.array(z.string()).default([]),
 });
@@ -40,6 +43,8 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
   const updateMut = useUpdateRouteStep();
   const { data: dispResp } = useDispositions();
   const dispositions = dispResp?.data ?? [];
+  const { data: locResp } = useStorageLocations();
+  const [locationSearchOpen, setLocationSearchOpen] = useState(false);
 
   const {
     register,
@@ -58,6 +63,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
       expected_cycle_time_sec: null,
       erp_operation_number: null,
       is_initial_step: false,
+      transfer_location_id: null,
       input_disposition_ids: [],
       output_disposition_ids: [],
     },
@@ -72,6 +78,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
         expected_cycle_time_sec: step.expected_cycle_time_sec,
         erp_operation_number: step.erp_operation_number,
         is_initial_step: step.is_initial_step,
+        transfer_location_id: step.transfer_location_id ?? null,
         input_disposition_ids: (step.input_dispositions ?? []).map((d) => d.id),
         output_disposition_ids: (step.output_dispositions ?? []).map((d) => d.id),
       });
@@ -81,6 +88,8 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
   // Only routing-category dispositions may be wired into the input/output
   // lists; hold/scrap dispositions are workflow concerns, not graph edges.
   const routeDispositions = dispositions.filter((d) => d.category === "route");
+  const transferLocationId = watch("transfer_location_id") ?? null;
+  const transferLocation = (locResp?.data ?? []).find((l) => l.id === transferLocationId);
   const inputIds = watch("input_disposition_ids") ?? [];
   const outputIds = watch("output_disposition_ids") ?? [];
 
@@ -100,6 +109,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
       const payload = {
         ...data,
         is_initial_step: !!data.is_initial_step,
+        transfer_location_id: data.transfer_location_id ?? null,
         input_disposition_ids: data.input_disposition_ids ?? [],
         output_disposition_ids: data.output_disposition_ids ?? [],
       };
@@ -117,6 +127,7 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
   const mutError = createMut.error || updateMut.error;
 
   return (
+    <>
     <Dialog open onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center overflow-auto p-4">
@@ -296,6 +307,41 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
                 )}
               </div>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Transfer Location <span className="text-gray-400">(optional)</span>
+              </label>
+              <div className="mt-1 flex gap-2">
+                <input
+                  readOnly
+                  aria-label="Transfer location"
+                  value={transferLocation ? `${transferLocation.code} - ${transferLocation.name}` : ""}
+                  placeholder="None"
+                  className="block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm shadow-sm"
+                />
+                <button
+                  type="button"
+                  aria-label="Find transfer location"
+                  onClick={() => setLocationSearchOpen(true)}
+                  className="rounded-md border border-gray-300 bg-white px-3 text-gray-600 hover:bg-gray-50"
+                >
+                  <MagnifyingGlassIcon className="h-5 w-5" />
+                </button>
+                {transferLocationId && (
+                  <button
+                    type="button"
+                    aria-label="Clear transfer location"
+                    onClick={() => setValue("transfer_location_id", null, { shouldDirty: true })}
+                    className="rounded-md border border-gray-300 bg-white px-3 text-gray-600 hover:bg-gray-50"
+                  >
+                    <XMarkIcon className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                WIP completed from this step can be transferred to this inventory location.
+              </p>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
@@ -316,5 +362,11 @@ export default function StepFormDialog({ routeId, step, onClose }: Props) {
         </DialogPanel>
       </div>
     </Dialog>
+    <LocationSearchDialog
+      open={locationSearchOpen}
+      onClose={() => setLocationSearchOpen(false)}
+      onSelect={(loc) => setValue("transfer_location_id", loc.id, { shouldDirty: true })}
+    />
+    </>
   );
 }

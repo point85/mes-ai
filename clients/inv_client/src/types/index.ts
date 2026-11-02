@@ -1,10 +1,10 @@
 /* INV-CLIENT TypeScript types — mirrors server Pydantic schemas for inventory management.
    Follows the patterns from wip_client (trimmed types) and dt_client (storage locations).
-   Supports tracking by lot number or serial number. */
+   Supports tracking by lot number (lot) or by serial number (unit; quantity is always one EA). */
 
 // ── Tracking Methods ────────────────────────────────────────────────
 
-export const TRACKING_METHODS = ["lot", "serial"] as const;
+export const TRACKING_METHODS = ["lot", "unit"] as const;
 export type TrackingMethod = (typeof TRACKING_METHODS)[number];
 
 // ── Storage Location (from dt-client) ────────────────────────────────
@@ -73,6 +73,7 @@ export interface Material {
   material_type: string;
   uom_id: string;
   uom_symbol: string | null;
+  tracking_method: TrackingMethod;
   revision: string | null;
   shelf_life_days: number | null;
   is_active: boolean;
@@ -102,9 +103,9 @@ export interface MaterialLot {
 export interface MaterialLotCreate {
   material_id: string;
   lot_number: string;
-  tracking_method: TrackingMethod;
+  tracking_method?: TrackingMethod;
   serial_number?: string | null;
-  quantity_on_hand: number;
+  quantity_on_hand?: number;
   received_date?: string | null;
   expiry_date?: string | null;
   supplier?: string | null;
@@ -149,6 +150,7 @@ export const TRANSACTION_TYPES = [
   "transfer",
   "consume",
   "adjust",
+  "ship",
 ] as const;
 
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
@@ -177,7 +179,7 @@ export interface InventoryTransaction {
 export interface ReceivePayload {
   material_lot_id: string;
   to_location_id: string;
-  quantity: number;
+  quantity?: number;
   reason?: string;
   reference_id?: string;
   reference_type?: string;
@@ -187,7 +189,7 @@ export interface PutawayPayload {
   material_lot_id: string;
   from_location_id: string;
   to_location_id: string;
-  quantity: number;
+  quantity?: number;
   reason?: string;
 }
 
@@ -217,6 +219,12 @@ export interface ConsumePayload {
   reference_id?: string;
   reference_type?: string;
   step_id?: string;
+}
+
+export interface ShipPayload {
+  material_lot_id: string;
+  from_location_id: string;
+  reason?: string | null;
 }
 
 export interface AdjustPayload {

@@ -600,6 +600,7 @@ export async function runImport(
             material_type: normaliseMaterialType(s(m.material_type, "raw")),
             uom_id: uomId ?? undefined,
             shelf_life_days: m.shelf_life_days != null ? n(m.shelf_life_days) : null,
+            ...(m.tracking != null ? { tracking: m.tracking === "unit" ? "unit" as const : "lot" as const } : {}),
           });
           res.updated++;
         } else {
@@ -615,6 +616,7 @@ export async function runImport(
           material_type: normaliseMaterialType(s(m.material_type, "raw")),
           uom_id: fallbackUomId,
           shelf_life_days: m.shelf_life_days != null ? n(m.shelf_life_days) : null,
+          tracking: m.tracking === "unit" ? "unit" : "lot",
         });
         idMap.set(m.id, created.id);
         res.created++;

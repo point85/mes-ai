@@ -64,7 +64,7 @@ export function MaterialLotSearchPanel({ lots, materials, selectedLotId, onSelec
     <div className="space-y-4">
       <form onSubmit={find} className="flex flex-col items-end gap-3 rounded-lg bg-white p-4 shadow-md sm:flex-row">
         <div className="w-full flex-1">
-          <label htmlFor="ops-lot-name-filter" className="mb-1 block text-sm font-medium text-gray-700">Lot Number</label>
+          <label htmlFor="ops-lot-name-filter" className="mb-1 block text-sm font-medium text-gray-700">Lot / Serial #</label>
           <input id="ops-lot-name-filter" type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} className="input-field" />
         </div>
         <div className="w-full flex-1">
@@ -80,8 +80,8 @@ export function MaterialLotSearchPanel({ lots, materials, selectedLotId, onSelec
         {results.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <MagnifyingGlassIcon className="mx-auto h-12 w-12 text-gray-300" />
-            <p className="mt-2 text-lg">No material lots found</p>
-            <p className="mt-1 text-sm">{!searched ? "Enter search criteria and click Find to display material lots" : "No lots match the current filters"}</p>
+            <p className="mt-2 text-lg">            No inventory items found</p>
+                        <p className="mt-1 text-sm">{!searched ? "Enter search criteria and click Find to display inventory items" : "No lots or units match the current filters"}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -89,7 +89,7 @@ export function MaterialLotSearchPanel({ lots, materials, selectedLotId, onSelec
               <thead className="bg-gray-50">
                 <tr>
                   <th className={`${headerClass} text-left`}>Select</th>
-                  <th className={`${headerClass} text-left`}>Lot Number</th>
+                  <th className={`${headerClass} text-left`}>Lot / Serial #</th>
                   <th className={`${headerClass} text-left`}>Material</th>
                   <th className={`${headerClass} text-left`}>Location</th>
                   <th className={`${headerClass} text-right`}>On Hand</th>
@@ -108,7 +108,7 @@ export function MaterialLotSearchPanel({ lots, materials, selectedLotId, onSelec
                     <td className="px-4 py-3 text-sm">
                       <button type="button" onClick={(e) => { e.stopPropagation(); setLocationLot(lot); setLocationDialogOpen(true); }} title="View storage locations" aria-label={`View storage locations for ${lot.lot_number}`} className="text-indigo-600 hover:text-indigo-900"><MapPinIcon className="h-4 w-4" /></button>
                     </td>
-                    <td className="px-4 py-3 text-sm text-right font-mono text-gray-900">{lot.quantity_on_hand.toLocaleString()}{materialUom(lot) ? ` ${materialUom(lot)}` : ""}</td>
+                    <td className="px-4 py-3 text-sm text-right font-mono text-gray-900">{lot.tracking_method === "unit" ? "" : `${lot.quantity_on_hand.toLocaleString()}${materialUom(lot) ? ` ${materialUom(lot)}` : ""}`}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{lot.status}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{lot.received_date ? new Date(lot.received_date).toLocaleDateString() : "—"}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{lot.expiry_date ? new Date(lot.expiry_date).toLocaleDateString() : "—"}</td>

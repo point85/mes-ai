@@ -70,7 +70,8 @@ class DashboardService:
                 "completed": 0, "scrapped": 0,
             }
             for row in unit_result:
-                unit_counts[row.status] = row.cnt
+                key = "completed" if row.status == "finished" else row.status
+                unit_counts[key] = unit_counts.get(key, 0) + row.cnt
 
             # Lot counts by status
             lot_stmt = (
@@ -83,7 +84,8 @@ class DashboardService:
             )
             lot_result = await session.execute(lot_stmt)
             for row in lot_result:
-                unit_counts[row.status] = unit_counts.get(row.status, 0) + int(row.total_qty)
+                key = "completed" if row.status == "finished" else row.status
+                unit_counts[key] = unit_counts.get(key, 0) + int(row.total_qty)
 
             total = order.quantity_ordered or 1
             pct = round(

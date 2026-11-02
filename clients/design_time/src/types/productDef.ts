@@ -160,6 +160,7 @@ export interface RouteStep {
   expected_cycle_time_sec: number | null;
   erp_operation_number: string | null;
   is_initial_step: boolean;
+  transfer_location_id?: string | null;
   input_dispositions: Disposition[];
   output_dispositions: Disposition[];
   is_active: boolean;
@@ -175,6 +176,7 @@ export interface RouteStepCreate {
   expected_cycle_time_sec?: number | null;
   erp_operation_number?: string | null;
   is_initial_step?: boolean;
+  transfer_location_id?: string | null;
   input_disposition_ids?: string[];
   output_disposition_ids?: string[];
 }
@@ -187,6 +189,7 @@ export interface RouteStepUpdate {
   expected_cycle_time_sec?: number | null;
   erp_operation_number?: string | null;
   is_initial_step?: boolean;
+  transfer_location_id?: string | null;
   input_disposition_ids?: string[];
   output_disposition_ids?: string[];
 }

@@ -14,9 +14,6 @@ export function formatLocationName(location: StorageLocation | undefined, id: st
  */
 export function formatLotLabel(lot: MaterialLot | undefined, id: string): string {
   if (!lot) return id.slice(0, 8);
-  if (lot.tracking_method === "serial") {
-    return `${lot.lot_number} [SN: ${lot.serial_number}]`;
-  }
   return lot.lot_number;
 }
 
@@ -25,7 +22,7 @@ export function formatLotLabel(lot: MaterialLot | undefined, id: string): string
  */
 export function getTrackingBadgeClass(method: TrackingMethod | null | undefined): string {
   if (!method) return "text-gray-400";
-  return method === "serial" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700";
+  return method === "unit" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700";
 }
 
 /**
@@ -39,6 +36,7 @@ export function getTransactionTypeClass(type: TransactionType | string): string 
     transfer: "bg-indigo-100 text-indigo-700",
     consume: "bg-red-100 text-red-700",
     adjust: "bg-gray-100 text-gray-700",
+    ship: "bg-teal-100 text-teal-700",
   };
   return colors[type] || "bg-gray-100 text-gray-700";
 }

@@ -14,7 +14,7 @@ export interface Unit {
   current_step_id: string | null;
   current_step_name: string | null;
   current_equipment_id: string | null;
-  status: "queued" | "in_process" | "completed" | "scrapped" | "on_hold";
+  status: "queued" | "in_process" | "completed" | "finished" | "scrapped" | "on_hold";
   is_active: boolean;
   hold_reason: string | null;
   release_reason: string | null;
@@ -33,7 +33,7 @@ export interface Lot {
   current_step_id: string | null;
   current_step_name: string | null;
   current_equipment_id: string | null;
-  status: "queued" | "in_process" | "completed" | "scrapped" | "on_hold";
+  status: "queued" | "in_process" | "completed" | "finished" | "scrapped" | "on_hold";
   is_active: boolean;
   uom_symbol: string | null;
   hold_reason: string | null;
@@ -224,6 +224,7 @@ export interface Material {
   material_type: string;
   uom_id: string;
   uom_symbol: string | null;
+  tracking_method: "lot" | "unit";
   revision: string | null;
   shelf_life_days: number | null;
   is_active: boolean;
@@ -235,6 +236,7 @@ export interface MaterialLot {
   id: string;
   material_id: string;
   lot_number: string;
+  tracking_method: "lot" | "unit";
   quantity_on_hand: number;
   quantity_reserved: number;
   status: string;

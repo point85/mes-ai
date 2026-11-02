@@ -16,6 +16,7 @@ import {
   receiveInventory,
   putawayInventory,
   adjustInventory,
+  shipInventory,
 } from "../api";
 import type {
   InventoryTransaction,
@@ -28,6 +29,7 @@ import type {
   ReceivePayload,
   PutawayPayload,
   AdjustPayload,
+  ShipPayload,
 } from "../types";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -37,10 +39,11 @@ const TYPE_COLORS: Record<string, string> = {
   transfer: "bg-indigo-100 text-indigo-700",
   consume: "bg-red-100 text-red-700",
   adjust: "bg-gray-100 text-gray-700",
+  ship: "bg-teal-100 text-teal-700",
 };
 
 type PageTab = "operations" | "log";
-type OpType = "receive" | "putaway" | "adjust";
+type OpType = "receive" | "putaway" | "adjust" | "ship";
 type LocationField = "from_location_id" | "to_location_id" | "location_id";
 
 const LOCATION_TYPE_LABELS: Record<LocationType, string> = { receiving: "Receiving", storage: "Storage", rip: "Raw-in-Process", staging: "Staging", shipping: "Shipping" };
@@ -49,6 +52,7 @@ const OP_LABELS: { id: OpType; label: string; color: string }[] = [
   { id: "receive", label: "Receive", color: "bg-green-600 hover:bg-green-700" },
   { id: "putaway", label: "Transfer", color: "bg-blue-600 hover:bg-blue-700" },
   { id: "adjust", label: "Adjust", color: "bg-gray-600 hover:bg-gray-700" },
+  { id: "ship", label: "Ship", color: "bg-teal-600 hover:bg-teal-700" },
 ];
 
 function extractError(err: unknown): string {
@@ -193,6 +197,7 @@ export function InventoryPage() {
       const payload = Object.fromEntries(
         Object.entries(dialogData).filter(([, v]) => v !== "" && v !== undefined)
       );
+      if (operationIsUnit) delete payload.quantity;
       switch (opDialog) {
         case "receive": {
           const receivedDate = lotDetails.received_date || null;
@@ -202,7 +207,7 @@ export function InventoryPage() {
           if (!lotId) {
             // A lot created by an earlier attempt whose receive step failed is reused instead of duplicated.
             if (!pendingNewLotId.current) {
-              const created = await createMaterialLot({ material_id: newLotMaterialId, lot_number: newLotNumber.trim(), tracking_method: "lot", quantity_on_hand: dialogData.quantity ?? 0, received_date: receivedDate, expiry_date: expiryDate, supplier });
+              const created = await createMaterialLot({ material_id: newLotMaterialId, lot_number: newLotNumber.trim(), ...(operationIsUnit ? {} : { quantity_on_hand: dialogData.quantity ?? 0 }), received_date: receivedDate, expiry_date: expiryDate, supplier });
               pendingNewLotId.current = created.id;
             }
             lotId = pendingNewLotId.current;
@@ -223,6 +228,12 @@ export function InventoryPage() {
           break;
         }
         case "putaway": await putawayInventory({ ...payload, material_lot_id: selectedLotId } as unknown as PutawayPayload); break;
+        case "ship": {
+          await shipInventory({ ...payload, material_lot_id: selectedLotId } as unknown as ShipPayload);
+          setSelectedLotId(null);
+          await loadRefData();
+          break;
+        }
         case "adjust": await adjustInventory({ ...payload, material_lot_id: selectedLotId } as unknown as AdjustPayload); await loadRefData(); break;
       }
       setOpDialog(null); resetOpForm();
@@ -242,7 +253,7 @@ export function InventoryPage() {
     if (type === "receive") {
       if (selectedLotId) defaults.to_location_id = locations.find((l) => l.location_type === "receiving")?.id ?? "";
     }
-    else if (type === "putaway") {
+    else if (type === "putaway" || type === "ship") {
       setLotBalances([]);
       if (selectedLotId) {
         fetchInventoryBalances({ material_lot_id: selectedLotId })
@@ -274,6 +285,10 @@ export function InventoryPage() {
   const operationMaterialId = selectedLotId ? lotMap.get(selectedLotId)?.material_id : newLotMaterialId;
   const operationMaterial = materials.find((material) => material.id === operationMaterialId);
   const operationMaterialUom = operationMaterial?.uom_symbol;
+  // Unit-tracked (serial number) inventory is always one EA, so quantity and UoM are never shown.
+  const operationIsUnit = (selectedLotId ? lotMap.get(selectedLotId)?.tracking_method : operationMaterial?.tracking_method) === "unit";
+  const selectedLotIsFinished = !!selectedLotId && lotMap.get(selectedLotId)?.status === "finished";
+  const selectedLotIsUnit = !!selectedLotId && lotMap.get(selectedLotId)?.tracking_method === "unit";
 
   const changeReceivedDate = (receivedDate: string) => {
     const shelfLifeDays = operationMaterial?.shelf_life_days;
@@ -285,7 +300,9 @@ export function InventoryPage() {
     }
     setLotDetails({ ...lotDetails, received_date: receivedDate, expiry_date: expiryDate });
   };
-  const canExecute = opDialog === "receive"
+  const canExecute = opDialog === "ship"
+    ? !!selectedLotId && !!dialogData.from_location_id
+    : opDialog === "receive"
     ? !!dialogData.to_location_id && (!!selectedLotId || (!!newLotMaterialId && !!newLotNumber.trim()))
     : opDialog === "putaway"
       ? !!selectedLotId && !!dialogData.from_location_id && !!dialogData.to_location_id
@@ -312,8 +329,8 @@ export function InventoryPage() {
       {/* Action bar — Operations tab only */}
       {tab === "operations" && <div className="bg-white rounded-lg shadow-md p-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {OP_LABELS.map((op) => (
-            <button key={op.id} onClick={() => openDialog(op.id)} disabled={(op.id === "putaway" || op.id === "adjust") && !selectedLotId} title={(op.id === "putaway" || op.id === "adjust") && !selectedLotId ? "Find and select a material lot first" : undefined} className={`flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${op.color}`}>
+          {OP_LABELS.filter((op) => !(op.id === "adjust" && selectedLotIsUnit) && !(op.id === "ship" && !selectedLotIsFinished)).map((op) => (
+            <button key={op.id} onClick={() => openDialog(op.id)} disabled={(op.id === "putaway" || op.id === "adjust" || op.id === "ship") && !selectedLotId || (op.id === "receive" && selectedLotIsUnit)} title={(op.id === "putaway" || op.id === "adjust") && !selectedLotId ? "Find and select a material lot first" : op.id === "receive" && selectedLotIsUnit ? "Unit-tracked inventory has already been received" : undefined} className={`flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${op.color}`}>
               {op.label}
             </button>
           ))}
@@ -328,7 +345,7 @@ export function InventoryPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {opDialog === "receive" && !selectedLotId && <>
                     <div>
-                      <label htmlFor="new-lot-number" className="mb-1 block text-sm font-medium text-gray-700">Lot Number *</label>
+                      <label htmlFor="new-lot-number" className="mb-1 block text-sm font-medium text-gray-700">{operationIsUnit ? "Serial Number" : "Lot Number"} *</label>
                       <input id="new-lot-number" type="text" value={newLotNumber} onChange={(e) => { setNewLotNumber(e.target.value); pendingNewLotId.current = null; }} required className="input-field" />
                     </div>
                     <div>
@@ -351,7 +368,7 @@ export function InventoryPage() {
                     </select>
                   </div>
                 )}
-                {opDialog === "putaway" && <>
+                {(opDialog === "putaway" || opDialog === "ship") && <>
                   <div>
                     <label htmlFor="putaway-from" className="mb-1 block text-sm font-medium text-gray-700">From Location *</label>
                     <select id="putaway-from" value={dialogData.from_location_id ?? ""} onChange={(e) => changePutawayFrom(e.target.value)} required className="input-field">
@@ -359,18 +376,18 @@ export function InventoryPage() {
                       {lotBalances.map((b) => { const loc = locationMap.get(b.location_id); return <option key={b.id} value={b.location_id}>{loc ? `${loc.code} - ${loc.name}` : b.location_id.slice(0, 8)}</option>; })}
                     </select>
                   </div>
-                  {renderLocationPicker("to_location_id", "To Location", ["storage", "rip", "staging"])}
+                  {opDialog === "putaway" && renderLocationPicker("to_location_id", "To Location", ["storage", "rip", "staging"])}
                 </>}
-                <div className="flex items-end gap-3">
+                {!operationIsUnit && opDialog !== "ship" && <div className="flex items-end gap-3">
                   <div className="min-w-0 flex-1"><label htmlFor="operation-quantity" className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label><input id="operation-quantity" type="number" name="quantity" value={dialogData.quantity ?? ""} onChange={(e) => setDialogData({ ...dialogData, quantity: Number(e.target.value) })} required min={opDialog === "adjust" ? "0" : "0.01"} step="any" className="input-field" /></div>
                   {opDialog !== null && <div className="w-28 shrink-0"><span className="mb-1 block text-sm font-medium text-gray-700">UoM</span><div aria-label="Unit of measure" className="input-field flex items-center bg-gray-50 text-gray-500">{operationMaterialUom ?? "—"}</div></div>}
-                </div>
+                                  </div>}
                 {opDialog === "receive" && <>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Received Date</label><input type="date" name="received_date" value={lotDetails.received_date} onChange={(e) => changeReceivedDate(e.target.value)} className="input-field" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label><input type="date" name="expiry_date" value={lotDetails.expiry_date} onChange={(e) => setLotDetails({ ...lotDetails, expiry_date: e.target.value })} className="input-field" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label><input type="text" name="supplier" value={lotDetails.supplier} onChange={(e) => setLotDetails({ ...lotDetails, supplier: e.target.value })} className="input-field" /></div>
                 </>}
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">{opDialog === "receive" || opDialog === "putaway" ? "Reference" : "Reason"}</label><textarea name="reason" value={dialogData.reason ?? ""} onChange={(e) => setDialogData({ ...dialogData, reason: e.target.value })} rows={2} className="input-field" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">{opDialog === "receive" || opDialog === "putaway" || opDialog === "ship" ? "Reference" : "Reason"}</label><textarea name="reason" value={dialogData.reason ?? ""} onChange={(e) => setDialogData({ ...dialogData, reason: e.target.value })} rows={2} className="input-field" /></div>
                 <div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => { setOpDialog(null); resetOpForm(); }} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button><button type="submit" disabled={loading || !canExecute} className="btn-primary">{loading ? "Processing..." : "Execute"}</button></div>
               </form>
             </Dialog.Panel>
@@ -489,13 +506,13 @@ function LogTab({ transactions: allTransactions, loading, locationMap, lotMap, l
     return performed >= rangeStart && performed < rangeEnd;
   });
   const locName = (id: string | null) => { if (!id) return "—"; const loc = locationMap.get(id); return loc ? `${loc.code} (${loc.location_type})` : id.slice(0, 8); };
-  const lotLabel = (id: string) => { const lot = lotMap.get(id); if (!lot) return id.slice(0, 8); return lot.tracking_method === "serial" ? `${lot.lot_number} [SN: ${lot.serial_number}]` : lot.lot_number; };
-  const trackingBadge = (method: any) => { if (!method) return <span className="text-gray-400">—</span>; return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${method === "serial" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>{method === "serial" ? "Serial" : "Lot"}</span>; };
+  const lotLabel = (id: string) => { const lot = lotMap.get(id); if (!lot) return id.slice(0, 8); return lot.lot_number; };
+  const trackingBadge = (method: any) => { if (!method) return <span className="text-gray-400">—</span>; return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${method === "unit" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>{method === "unit" ? "Unit" : "Lot"}</span>; };
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 bg-white p-4 rounded-lg shadow-md"><div className="flex items-center gap-2"><label htmlFor="log-date-range" className="text-sm font-medium text-gray-700">Date</label><select id="log-date-range" value={dateRange} onChange={(e) => setDateRange(e.target.value as DateRange)} className="input-field">{DATE_RANGE_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></div><button onClick={loadTransactions} disabled={loading} className="ml-auto flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"><ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button></div>
       <div className="rounded-lg bg-white shadow-md overflow-hidden">
-        {loading ? <div className="p-8 text-center text-gray-500"><ArrowPathIcon className="mx-auto h-8 w-8 animate-spin text-indigo-600" /><p className="mt-2">Loading transactions...</p></div> : transactions.length === 0 ? <div className="p-8 text-center text-gray-500"><MagnifyingGlassIcon className="mx-auto h-12 w-12 text-gray-300" /><p className="mt-2 text-lg">No transactions found</p><p className="mt-1 text-sm">Perform operations to see transactions</p></div> : <div className="overflow-x-auto"><table className="min-w-full divide-y divide-gray-200"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material Lot</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From Location</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To Location</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performed At</th></tr></thead><tbody className="bg-white divide-y divide-gray-200">{transactions.map((txn: InventoryTransaction) => <tr key={txn.id} className="hover:bg-gray-50"><td className="px-4 py-3 text-sm"><span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[txn.transaction_type] || "bg-gray-100 text-gray-700"}`}>{txn.transaction_type}</span></td><td className="px-4 py-3 text-sm text-gray-900">{lotLabel(txn.material_lot_id)}</td><td className="px-4 py-3 text-sm">{trackingBadge(txn.material_lot_tracking_method)}</td><td className="px-4 py-3 text-sm text-gray-600">{locName(txn.from_location_id)}</td><td className="px-4 py-3 text-sm text-gray-600">{locName(txn.to_location_id)}</td><td className="px-4 py-3 text-sm text-right font-mono text-gray-900">{txn.quantity.toLocaleString()}</td><td className="px-4 py-3 text-sm text-gray-500">{txn.reference_type && txn.reference_id ? <> {txn.reference_type}: {txn.reference_id.slice(0, 8)} </> : <span className="text-gray-400">—</span>}</td><td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{txn.reason ?? "—"}</td><td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{new Date(txn.performed_at).toLocaleString()}</td></tr>)}</tbody></table></div>}
+        {loading ? <div className="p-8 text-center text-gray-500"><ArrowPathIcon className="mx-auto h-8 w-8 animate-spin text-indigo-600" /><p className="mt-2">Loading transactions...</p></div> : transactions.length === 0 ? <div className="p-8 text-center text-gray-500"><MagnifyingGlassIcon className="mx-auto h-12 w-12 text-gray-300" /><p className="mt-2 text-lg">No transactions found</p><p className="mt-1 text-sm">Perform operations to see transactions</p></div> : <div className="overflow-x-auto"><table className="min-w-full divide-y divide-gray-200"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inventory Item</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From Location</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To Location</th><th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th><th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performed At</th></tr></thead><tbody className="bg-white divide-y divide-gray-200">{transactions.map((txn: InventoryTransaction) => <tr key={txn.id} className="hover:bg-gray-50"><td className="px-4 py-3 text-sm"><span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[txn.transaction_type] || "bg-gray-100 text-gray-700"}`}>{txn.transaction_type}</span></td><td className="px-4 py-3 text-sm text-gray-900">{lotLabel(txn.material_lot_id)}</td><td className="px-4 py-3 text-sm">{trackingBadge(lotMap.get(txn.material_lot_id)?.tracking_method)}</td><td className="px-4 py-3 text-sm text-gray-600">{locName(txn.from_location_id)}</td><td className="px-4 py-3 text-sm text-gray-600">{locName(txn.to_location_id)}</td><td className="px-4 py-3 text-sm text-right font-mono text-gray-900">{lotMap.get(txn.material_lot_id)?.tracking_method === "unit" ? "" : txn.quantity.toLocaleString()}</td><td className="px-4 py-3 text-sm text-gray-500">{txn.reference_type && txn.reference_id ? <> {txn.reference_type}: {txn.reference_id.slice(0, 8)} </> : <span className="text-gray-400">—</span>}</td><td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{txn.reason ?? "—"}</td><td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{new Date(txn.performed_at).toLocaleString()}</td></tr>)}</tbody></table></div>}
       </div>
     </div>
   );

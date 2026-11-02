@@ -229,6 +229,7 @@ class RouteStepCreate(BaseModel):
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50, description="ERP operation number for outbound reporting")
     is_initial_step: bool = Field(False, description="Mark as the route's entry point")
+    transfer_location_id: UUID | None = Field(None, description="Storage location WIP completed from this step is transferred to")
     input_disposition_ids: list[UUID] = Field(default_factory=list)
     output_disposition_ids: list[UUID] = Field(default_factory=list)
 
@@ -251,6 +252,7 @@ class RouteStepRead(BaseModel):
     expected_cycle_time_sec: float | None = None
     erp_operation_number: str | None = None
     is_initial_step: bool = False
+    transfer_location_id: UUID | None = None
     input_dispositions: list[DispositionRead] = Field(default_factory=list)
     output_dispositions: list[DispositionRead] = Field(default_factory=list)
     is_active: bool
@@ -275,6 +277,7 @@ class RouteStepUpdate(BaseModel):
     expected_cycle_time_sec: float | None = Field(None, ge=0)
     erp_operation_number: str | None = Field(None, max_length=50)
     is_initial_step: bool | None = None
+    transfer_location_id: UUID | None = None
     input_disposition_ids: list[UUID] | None = None
     output_disposition_ids: list[UUID] | None = None
 

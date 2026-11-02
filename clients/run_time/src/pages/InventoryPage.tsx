@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, XMarkIcon, PlusIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, XMarkIcon, PlusIcon, PencilSquareIcon, DocumentTextIcon, CubeIcon, Square3Stack3DIcon } from "@heroicons/react/24/outline";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import {
   fetchInventoryTransactions,
-  fetchInventoryBalances,
+  fetchAllInventoryBalances,
   fetchStorageLocations,
+  fetchAllMaterialLotsIncludingShipped,
   fetchMaterialLots,
   createMaterialLot,
   updateMaterialLot,
@@ -13,8 +14,19 @@ import {
   moveInventory,
   consumeInventory,
   adjustInventory,
+  shipInventory,
 } from "../api/runtime";
+import { printInventoryHistoryReport } from "../components/InventoryHistoryReport";
+import ReceiveDialog from "../components/ReceiveDialog";
 import type { InventoryTransaction, InventoryBalance, StorageLocation, MaterialLot, Material } from "../types";
+
+function TrackingIcon({ method }: { method?: string }) {
+  return method === "unit" ? (
+    <span title="Unit (serial number)"><CubeIcon className="h-4 w-4 text-indigo-600" aria-label="Unit" /></span>
+  ) : (
+    <span title="Lot"><Square3Stack3DIcon className="h-4 w-4 text-amber-600" aria-label="Lot" /></span>
+  );
+}
 
 // ── Constants ────────────────────────────────────────────────────
 
@@ -24,6 +36,7 @@ const TXN_TYPES = [
   { label: "Move", value: "move" },
   { label: "Consume", value: "consume" },
   { label: "Adjust", value: "adjust" },
+  { label: "Ship", value: "ship" },
 ];
 
 const TYPE_COLORS: Record<string, string> = {
@@ -31,16 +44,18 @@ const TYPE_COLORS: Record<string, string> = {
   move: "bg-purple-100 text-purple-700",
   consume: "bg-red-100 text-red-700",
   adjust: "bg-gray-100 text-gray-700",
+  ship: "bg-teal-100 text-teal-700",
 };
 
 type PageTab = "operations" | "balances" | "log" | "lots";
-type OpType = "receive" | "move" | "consume" | "adjust";
+type OpType = "receive" | "move" | "consume" | "adjust" | "ship";
 
 const OP_LABELS: { id: OpType; label: string; color: string }[] = [
   { id: "receive", label: "Receive", color: "bg-green-600 hover:bg-green-700" },
   { id: "move", label: "Move", color: "bg-purple-600 hover:bg-purple-700" },
   { id: "consume", label: "Consume", color: "bg-red-600 hover:bg-red-700" },
   { id: "adjust", label: "Adjust", color: "bg-gray-600 hover:bg-gray-700" },
+  { id: "ship", label: "Ship", color: "bg-teal-600 hover:bg-teal-700" },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -68,9 +83,9 @@ export default function InventoryPage() {
   const [materialMap, setMaterialMap] = useState<Map<string, Material>>(new Map());
 
   const loadRefData = useCallback(async () => {
-    const [locs, mLots, mats] = await Promise.all([fetchStorageLocations(), fetchMaterialLots(), fetchMaterials()]);
+    const [locs, mLots, mats] = await Promise.all([fetchStorageLocations(), fetchAllMaterialLotsIncludingShipped(), fetchMaterials()]);
     setLocations(locs);
-    setLots(mLots);
+    setLots(mLots.filter((l) => l.status !== "shipped"));
     setLocationMap(new Map(locs.map((l) => [l.id, l])));
     setLotMap(new Map(mLots.map((l) => [l.id, l])));
     setMaterialMap(new Map(mats.map((m) => [m.id, m])));
@@ -99,14 +114,14 @@ export default function InventoryPage() {
         {(["operations", "balances", "lots", "log"] as PageTab[]).map((t) => (
           <button
             key={t}
-            onClick={() => { setTab(t); if (t === "operations") loadRefData(); }}
+            onClick={() => { setTab(t); loadRefData(); }}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === t
                 ? "border-indigo-600 text-indigo-700"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {t === "log" ? "Transaction Log" : t === "balances" ? "Balances" : t === "lots" ? "Material Lots" : "Operations"}
+            {t === "log" ? "Transaction Log" : t === "balances" ? "Balances" : t === "lots" ? "Inventory Items" : "Operations"}
           </button>
         ))}
       </div>
@@ -121,7 +136,7 @@ export default function InventoryPage() {
         <TransactionLog locationMap={locationMap} locName={locName} lotLabel={lotLabel} />
       )}
       {tab === "lots" && (
-        <LotsPanel />
+        <LotsPanel onChanged={loadRefData} />
       )}
     </div>
   );
@@ -152,7 +167,16 @@ function OperationsPanel({
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
 
-  const availableLots = lots.filter((l) => l.status === "available" || l.status === "reserved");
+  const selectedLot = lots.find((l) => l.id === lotId);
+  // Unit-tracked (serial number) items are always one each, so quantity is never entered.
+  const hideQuantity = selectedLot?.tracking_method === "unit" || op === "ship";
+  const inStock = (l: MaterialLot) => l.status === "available" || l.status === "reserved";
+  const availableLots = lots.filter((l) => {
+    if (op === "ship") return l.status === "finished";
+    if (op === "receive") return inStock(l);
+    if (op === "adjust") return inStock(l) && l.tracking_method !== "unit";
+    return inStock(l) || l.status === "finished";
+  });
 
   const reset = () => {
     setLotId("");
@@ -175,7 +199,7 @@ function OperationsPanel({
     setError(null);
     setSuccess(null);
 
-    const qty = parseFloat(quantity);
+    const qty = hideQuantity ? 1 : parseFloat(quantity);
     if (isNaN(qty) || qty <= 0) {
       setError("Quantity must be a positive number");
       setSubmitting(false);
@@ -222,9 +246,17 @@ function OperationsPanel({
             reason: reason,
           });
           break;
+        case "ship":
+          await shipInventory({
+            material_lot_id: lotId,
+            from_location_id: fromLocId,
+            reason: reason || undefined,
+          });
+          break;
       }
       const lotName = lots.find((l) => l.id === lotId)?.lot_number ?? lotId.slice(0, 8);
-      setSuccess(`${op.charAt(0).toUpperCase() + op.slice(1)} of ${qty} for lot ${lotName} completed.`);
+      const opName = op.charAt(0).toUpperCase() + op.slice(1);
+      setSuccess(hideQuantity ? `${opName} of ${lotName} completed.` : `${opName} of ${qty} for lot ${lotName} completed.`);
       reset();
       onSuccess();
     } catch (err) {
@@ -236,7 +268,7 @@ function OperationsPanel({
 
   // Determine which fields to show per operation
   const needsFrom = op !== "receive";
-  const needsTo = op !== "consume" && op !== "adjust";
+  const needsTo = op !== "consume" && op !== "adjust" && op !== "ship";
   const fromLabel = op === "adjust" ? "Location" : "From Location";
 
   return (
@@ -278,17 +310,17 @@ function OperationsPanel({
 
         {/* Material Lot */}
         <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Material Lot</label>
+          <label className="block text-sm font-medium text-gray-600 mb-1">Inventory Item</label>
           <select
             value={lotId}
             onChange={(e) => setLotId(e.target.value)}
             required
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="">— Select lot —</option>
+            <option value="">— Select inventory item —</option>
             {availableLots.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.lot_number} (on-hand: {l.quantity_on_hand})
+                {l.tracking_method === "unit" ? l.lot_number : `${l.lot_number} (on-hand: ${l.quantity_on_hand})`}
               </option>
             ))}
           </select>
@@ -335,7 +367,7 @@ function OperationsPanel({
         )}
 
         {/* Quantity */}
-        <div>
+        {!hideQuantity && <div>
           <label className="block text-sm font-medium text-gray-600 mb-1">
             {op === "adjust" ? "New Quantity (absolute)" : "Quantity"}
           </label>
@@ -349,12 +381,12 @@ function OperationsPanel({
             placeholder={op === "adjust" ? "Set absolute quantity" : "Enter quantity"}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-        </div>
+        </div>}
 
         {/* Reason */}
         <div>
           <label className="block text-sm font-medium text-gray-600 mb-1">
-            Reason {op === "adjust" && <span className="text-red-500">*</span>}
+            {op === "ship" ? "Reference" : "Reason"} {op === "adjust" && <span className="text-red-500">*</span>}
           </label>
           <input
             type="text"
@@ -403,7 +435,7 @@ function BalancesPanel({
     setLoading(true);
     setError(null);
     try {
-      setBalances(await fetchInventoryBalances());
+      setBalances(await fetchAllInventoryBalances());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load balances");
     } finally {
@@ -423,6 +455,7 @@ function BalancesPanel({
   const locations = Array.from(locationMap.values()).sort((a, b) => a.code.localeCompare(b.code));
 
   const filtered = balances.filter((b) => {
+    if (!(Number(b.quantity_on_hand) > 0)) return false;
     if (search) {
       const lot = getLot(b.material_lot_id);
       const mat = getMaterial(b.material_lot_id);
@@ -431,6 +464,8 @@ function BalancesPanel({
         mat?.name ?? "",
         mat?.code ?? "",
         mat?.description ?? "",
+        locName(b.location_id),
+        locationMap.get(b.location_id)?.name ?? "",
       ].join(" ").toLowerCase();
       if (!haystack.includes(search.toLowerCase())) return false;
     }
@@ -450,7 +485,7 @@ function BalancesPanel({
       <div className="flex items-center gap-3 flex-wrap">
         <input
           type="text"
-          placeholder="Search by lot number…"
+          placeholder="Search by lot, serial #, material, or location…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-56"
@@ -481,7 +516,8 @@ function BalancesPanel({
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Lot #</th>
+                <th className="w-10 px-4 py-3"></th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Lot / Serial #</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Material</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Location</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">On Hand</th>
@@ -490,9 +526,9 @@ function BalancesPanel({
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
               {loading ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">Loading…</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">Loading…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">{search || locationFilter ? "No matches found." : "No inventory balances found."}</td></tr>
+                <tr><td colSpan={6}  className="px-4 py-8 text-center text-sm text-gray-400">{search || locationFilter ? "No matches found." : "No inventory balances found."}</td></tr>
               ) : (
                 filtered.map((b) => {
                   const available = b.quantity_on_hand - b.quantity_reserved;
@@ -500,6 +536,7 @@ function BalancesPanel({
                   const mat = getMaterial(b.material_lot_id);
                   return (
                     <tr key={b.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2"><TrackingIcon method={lot?.tracking_method} /></td>
                       <td className="px-4 py-2 text-sm font-mono font-medium text-gray-900">{lot?.lot_number ?? b.material_lot_id.slice(0, 8)}</td>
                       <td className="px-4 py-2 text-sm text-gray-700">
                         {mat ? (
@@ -510,9 +547,9 @@ function BalancesPanel({
                         ) : "—"}
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-600">{locName(b.location_id)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right font-mono">{b.quantity_on_hand}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 text-right font-mono">                      {lot?.tracking_method === "unit" ? "" : b.quantity_on_hand}</td>
                       <td className={`px-4 py-2 text-sm text-right font-mono font-semibold ${available > 0 ? "text-green-700" : "text-red-600"}`}>
-                        {available}
+                                              {lot?.tracking_method === "unit" ? "" : available}
                       </td>
                     </tr>
                   );
@@ -588,7 +625,7 @@ function TransactionLog({
       <div className="flex items-center gap-3 flex-wrap">
         <input
           type="text"
-          placeholder="Search by lot number…"
+          placeholder="Search by lot or serial #…"
           value={lotSearch}
           onChange={(e) => setLotSearch(e.target.value)}
           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-48"
@@ -630,7 +667,7 @@ function TransactionLog({
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Time</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Material Lot</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Inventory Item</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">From</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">To</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Qty</th>
@@ -674,7 +711,7 @@ function TransactionLog({
 
 // ── Material Lots Panel ──────────────────────────────────────────
 
-const LOT_STATUSES = ["available", "reserved", "consumed", "expired"] as const;
+const LOT_STATUSES = ["available", "reserved", "consumed", "expired", "finished", "shipped"] as const;
 type LotStatus = typeof LOT_STATUSES[number];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -682,6 +719,8 @@ const STATUS_COLORS: Record<string, string> = {
   reserved: "bg-blue-100 text-blue-700",
   consumed: "bg-gray-100 text-gray-600",
   expired: "bg-red-100 text-red-700",
+  finished: "bg-teal-100 text-teal-700",
+  shipped: "bg-slate-100 text-slate-600",
 };
 
 interface LotFormState {
@@ -740,6 +779,9 @@ function LotFormDialog({ lot, materials, onClose, onSaved }: LotFormDialogProps)
     () => [...materials].sort((a, b) => a.code.localeCompare(b.code)),
     [materials]
   );
+  const isUnit = isEdit
+    ? lot!.tracking_method === "unit"
+    : materials.find((m) => m.id === form.material_id)?.tracking_method === "unit";
 
   const set = (field: keyof LotFormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -751,13 +793,13 @@ function LotFormDialog({ lot, materials, onClose, onSaved }: LotFormDialogProps)
     if (!form.lot_number.trim()) { setError("Lot number is required"); return; }
     if (form.lot_number.includes(" ")) { setError("Lot number must not contain spaces"); return; }
     const qty = parseFloat(form.quantity_on_hand);
-    if (isNaN(qty) || qty < 0) { setError("Quantity must be ≥ 0"); return; }
+    if (!isUnit && (isNaN(qty) || qty < 0)) { setError("Quantity must be ≥ 0"); return; }
 
     setSaving(true);
     try {
       const payload = {
         lot_number: form.lot_number.trim(),
-        quantity_on_hand: qty,
+        ...(isUnit ? {} : { quantity_on_hand: qty }),
         received_date: form.received_date || null,
         expiry_date: form.expiry_date || null,
         supplier: form.supplier.trim() || null,
@@ -784,7 +826,7 @@ function LotFormDialog({ lot, materials, onClose, onSaved }: LotFormDialogProps)
         <DialogPanel className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <DialogTitle className="text-lg font-semibold text-gray-900">
-              {isEdit ? "Edit Material Lot" : "New Material Lot"}
+              {isEdit ? "Edit Inventory Item" : "New Inventory Item"}
             </DialogTitle>
             <button onClick={onClose} className="rounded p-1 text-gray-400 hover:text-gray-600">
               <XMarkIcon className="h-5 w-5" />
@@ -818,7 +860,7 @@ function LotFormDialog({ lot, materials, onClose, onSaved }: LotFormDialogProps)
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Lot Number</label>
+                <label className="block text-sm font-medium text-gray-700">{isUnit ? "Serial Number" : "Lot Number"}</label>
                 <input
                   value={form.lot_number}
                   onChange={set("lot_number")}
@@ -826,7 +868,7 @@ function LotFormDialog({ lot, materials, onClose, onSaved }: LotFormDialogProps)
                   placeholder="LOT-2026-0001"
                 />
               </div>
-              <div>
+              {!isUnit && <div>
                 <label className="block text-sm font-medium text-gray-700">Quantity on Hand</label>
                 <input
                   type="number"
@@ -836,7 +878,7 @@ function LotFormDialog({ lot, materials, onClose, onSaved }: LotFormDialogProps)
                   onChange={set("quantity_on_hand")}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
-              </div>
+              </div>}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -917,14 +959,15 @@ function LotFormDialog({ lot, materials, onClose, onSaved }: LotFormDialogProps)
   );
 }
 
-function LotsPanel() {
+function LotsPanel({ onChanged }: { onChanged: () => void }) {
   const [lots, setLots] = useState<MaterialLot[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [materialFilter, setMaterialFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [dialogLot, setDialogLot] = useState<MaterialLot | null | "new">(null);
+  const [dialogLot, setDialogLot] = useState<MaterialLot | null>(null);
+  const [receiveOpen, setReceiveOpen] = useState(false);
 
   const matById = useMemo(() => {
     const map = new Map<string, Material>();
@@ -943,7 +986,7 @@ function LotsPanel() {
       setLots(lotsData);
       setMaterials(matsData);
     } catch {
-      setError("Failed to load material lots.");
+      setError("Failed to load inventory items.");
     } finally {
       setLoading(false);
     }
@@ -952,6 +995,14 @@ function LotsPanel() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleReport = async (lot: MaterialLot) => {
+    try {
+      await printInventoryHistoryReport(lot, matById.get(lot.material_id));
+    } catch {
+      setError("Failed to generate the inventory history report.");
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -989,11 +1040,11 @@ function LotsPanel() {
 
         <div className="ml-auto">
           <button
-            onClick={() => setDialogLot("new")}
-            className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500"
+            onClick={() => setReceiveOpen(true)}
+            className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-green-700"
           >
             <PlusIcon className="h-4 w-4" />
-            New Lot
+            Receive
           </button>
         </div>
       </div>
@@ -1010,7 +1061,8 @@ function LotsPanel() {
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wide text-xs">Lot #</th>
+              <th className="w-10 px-4 py-3"></th>
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wide text-xs">Lot / Serial #</th>
               <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wide text-xs">Material</th>
               <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase tracking-wide text-xs">On Hand</th>
               <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wide text-xs">Status</th>
@@ -1022,21 +1074,22 @@ function LotsPanel() {
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
             {loading && lots.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
             ) : lots.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">
-                {materialFilter || statusFilter ? "No lots match the current filters." : "No material lots found. Create one to get started."}
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                {materialFilter || statusFilter ? "No inventory items match the current filters." : "No inventory items found. Create one to get started."}
               </td></tr>
             ) : (
               lots.map((lot) => {
                 const mat = matById.get(lot.material_id);
                 return (
                   <tr key={lot.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-2"><TrackingIcon method={lot.tracking_method} /></td>
                     <td className="px-4 py-2 font-mono font-medium text-gray-900">{lot.lot_number}</td>
                     <td className="px-4 py-2 text-gray-700">
                       {mat ? <><span className="font-medium">{mat.code}</span> — {mat.name}</> : lot.material_id}
                     </td>
-                    <td className="px-4 py-2 text-right font-mono text-gray-900">{lot.quantity_on_hand}</td>
+                    <td className="px-4 py-2 text-right font-mono text-gray-900">{lot.tracking_method === "unit" ? "" : lot.quantity_on_hand}</td>
                     <td className="px-4 py-2">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[lot.status] ?? "bg-gray-100 text-gray-600"}`}>
                         {lot.status === "available" && <CheckCircleIcon className="mr-1 h-3 w-3" />}
@@ -1047,13 +1100,22 @@ function LotsPanel() {
                     <td className="px-4 py-2 text-gray-600">{lot.received_date ? toDateInput(lot.received_date) : "—"}</td>
                     <td className="px-4 py-2 text-gray-600">{lot.expiry_date ? toDateInput(lot.expiry_date) : "—"}</td>
                     <td className="px-4 py-2 text-gray-600 max-w-[160px] truncate">{lot.supplier ?? "—"}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 whitespace-nowrap">
                       <button
                         onClick={() => setDialogLot(lot)}
-                        className="flex items-center gap-1 rounded px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50"
+                        className="inline-flex items-center rounded p-1.5 text-indigo-600 hover:bg-indigo-50"
+                        title="Edit"
+                        aria-label="Edit"
                       >
-                        <PencilSquareIcon className="h-3.5 w-3.5" />
-                        Edit
+                        <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleReport(lot)}
+                        className="ml-1 inline-flex items-center rounded p-1.5 text-indigo-600 hover:bg-indigo-50"
+                        title="Report"
+                        aria-label="Report"
+                      >
+                        <DocumentTextIcon className="h-4 w-4" />
                       </button>
                     </td>
                   </tr>
@@ -1066,12 +1128,13 @@ function LotsPanel() {
 
       {dialogLot !== null && (
         <LotFormDialog
-          lot={dialogLot === "new" ? null : dialogLot}
+          lot={dialogLot}
           materials={materials}
           onClose={() => setDialogLot(null)}
-          onSaved={load}
+          onSaved={() => { load(); onChanged(); }}
         />
       )}
+      <ReceiveDialog open={receiveOpen} onClose={() => setReceiveOpen(false)} onReceived={() => { onChanged(); return load(); }} />
     </div>
   );
 }

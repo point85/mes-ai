@@ -22,6 +22,31 @@ function unwrapList<T>(res: { data: { data: T[] } }): T[] {
   return res.data.data;
 }
 
+async function fetchAllPages<T>(path: string, extraParams: Record<string, string> = {}): Promise<T[]> {
+  const items: T[] = [];
+  let cursor: string | undefined;
+
+  while (true) {
+    const response = await api.get<{
+      data: T[];
+      meta?: { pagination?: { cursor: string | null; has_more: boolean } };
+    }>(path, { params: { ...extraParams, limit: 200, ...(cursor ? { cursor } : {}) } });
+    items.push(...response.data.data);
+
+    const pagination = response.data.meta?.pagination;
+    if (!pagination) {
+      throw new Error(`Missing pagination metadata for ${path}`);
+    }
+    if (!pagination.has_more) {
+      return items;
+    }
+    if (!pagination.cursor || pagination.cursor === cursor) {
+      throw new Error(`Invalid pagination cursor for ${path}`);
+    }
+    cursor = pagination.cursor;
+  }
+}
+
 // ── Units ────────────────────────────────────────────────────────
 
 export const fetchUnits = (params?: { status?: string; order_id?: string; equipment_id?: string }) =>
@@ -222,10 +247,25 @@ export const fetchMaterial = (id: string) =>
 export const fetchMaterialLots = (materialId?: string, status?: string) =>
   api.get("/material-lots", { params: { ...(materialId ? { material_id: materialId } : {}), ...(status ? { status } : {}) } }).then(unwrapList<MaterialLot>);
 
+export const fetchAllMaterialLots = () =>
+  fetchAllPages<MaterialLot>("/material-lots");
+
+// The server omits shipped items unless asked for explicitly.
+export const fetchAllMaterialLotsIncludingShipped = async () => {
+  const [active, shipped] = await Promise.all([
+    fetchAllPages<MaterialLot>("/material-lots"),
+    fetchAllPages<MaterialLot>("/material-lots", { status: "shipped" }),
+  ]);
+  return [...active, ...shipped];
+};
+
+export const fetchMaterialLotByNumber = (lotNumber: string) =>
+  api.get(`/material-lots/by-number/${encodeURIComponent(lotNumber)}`).then(unwrap<MaterialLot>);
+
 export const createMaterialLot = (payload: {
   material_id: string;
   lot_number: string;
-  quantity_on_hand: number;
+  quantity_on_hand?: number;
   received_date?: string | null;
   expiry_date?: string | null;
   supplier?: string | null;
@@ -244,7 +284,7 @@ export const consumeMaterial = (materialLotId: string, payload: {
   unit_id?: string;
   lot_id?: string;
   step_id?: string;
-  quantity_consumed: number;
+  quantity_consumed?: number;
 }) => api.post(`/material-lots/${materialLotId}/consume`, payload).then(unwrap<MaterialConsumption>);
 
 export const fetchConsumedMaterials = (wipType: "unit" | "lot", wipId: string) =>
@@ -266,13 +306,16 @@ export const fetchInventoryBalances = (params?: {
 }) =>
   api.get("/inventory/balances", { params: { limit: 200, ...params } }).then(unwrapList<InventoryBalance>);
 
+export const fetchAllInventoryBalances = () =>
+  fetchAllPages<InventoryBalance>("/inventory/balances");
+
 export const fetchStorageLocations = () =>
   api.get("/storage-locations", { params: { limit: 200 } }).then(unwrapList<StorageLocation>);
 
 export const receiveInventory = (payload: {
   material_lot_id: string;
   to_location_id: string;
-  quantity: number;
+  quantity?: number;
   reason?: string;
   reference_id?: string;
   reference_type?: string;
@@ -325,14 +368,14 @@ export const moveInventory = (payload: {
   material_lot_id: string;
   from_location_id: string;
   to_location_id: string;
-  quantity: number;
+  quantity?: number;
   reason?: string;
 }) => api.post("/inventory/move", payload).then(unwrap<InventoryTransaction>);
 
 export const consumeInventory = (payload: {
   material_lot_id: string;
   from_location_id: string;
-  quantity: number;
+  quantity?: number;
   reason?: string;
   reference_id?: string;
   reference_type?: string;
@@ -345,6 +388,32 @@ export const adjustInventory = (payload: {
   quantity: number;
   reason: string;
 }) => api.post("/inventory/adjust", payload).then(unwrap<InventoryTransaction>);
+
+export const shipInventory = (payload: {
+  material_lot_id: string;
+  from_location_id: string;
+  reason?: string;
+}) => api.post("/inventory/ship", payload).then(unwrap<InventoryTransaction>);
+
+// ── Transfer a WIP unit/lot into inventory ───────────────────────
+
+export interface TransferInfo {
+  available: boolean;
+  transferred: boolean;
+  location_id: string | null;
+  location_code: string | null;
+  location_name: string | null;
+}
+
+const wipPath = (wipType: "unit" | "lot") => (wipType === "unit" ? "units" : "lots");
+
+export const fetchTransferInfo = (wipType: "unit" | "lot", id: string) =>
+  api.get(`/${wipPath(wipType)}/${id}/transfer-info`).then(unwrap<TransferInfo>);
+
+export const transferToInventory = (wipType: "unit" | "lot", id: string) =>
+  api
+    .post(`/${wipPath(wipType)}/${id}/transfer-to-inventory`)
+    .then(unwrap<{ material_lot_id: string; lot_number: string; quantity: number }>);
 
 // ── Physical Model (S95 hierarchy for equipment status tree) ─────
 

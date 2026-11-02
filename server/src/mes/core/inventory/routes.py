@@ -34,6 +34,7 @@ from mes.framework.db import get_db_session
 
 from .schemas import (
     AdjustRequest,
+    ShipRequest,
     ConsumeInventoryRequest,
     InventoryBalanceRead,
     InventoryTransactionRead,
@@ -165,7 +166,7 @@ async def list_inventory_balances(
 async def list_inventory_transactions(
     material_lot_id: UUID | None = Query(None, description="Filter by material lot ID"),
     location_id: UUID | None = Query(None, description="Filter by location ID (source or destination)"),
-    transaction_type: str | None = Query(None, description="Filter by type: receive, transfer, pick, move, consume, adjust"),
+    transaction_type: str | None = Query(None, description="Filter by type: receive, transfer, pick, move, consume, adjust, ship"),
     params: PaginationParams = Depends(get_pagination_params),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(require_permission("inventory.read")),
@@ -287,6 +288,23 @@ async def consume_inventory(
         reference_id=body.reference_id,
         reference_type=body.reference_type,
         step_id=body.step_id,
+    )
+    await session.commit()
+    return success_response(InventoryTransactionRead.model_validate(txn).model_dump())
+
+
+@router.post("/inventory/ship", status_code=201)
+async def ship_inventory(
+    body: ShipRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("inventory.create")),
+):
+    """Ship a finished inventory item (WIP transferred off its route) out of inventory."""
+    txn = await txn_svc.ship(
+        session,
+        material_lot_id=body.material_lot_id,
+        from_location_id=body.from_location_id,
+        reason=body.reason,
     )
     await session.commit()
     return success_response(InventoryTransactionRead.model_validate(txn).model_dump())

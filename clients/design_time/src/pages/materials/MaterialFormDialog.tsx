@@ -26,6 +26,7 @@ const materialSchema = z.object({
   material_type: z.enum(["raw", "intermediate", "finished"]),
   uom_id: z.string().min(1, "UoM is required"),
   shelf_life_days: z.coerce.number().int().positive().nullable().optional(),
+  tracking: z.enum(["lot", "unit"]),
 });
 
 type MaterialFormData = z.infer<typeof materialSchema>;
@@ -58,6 +59,7 @@ export default function MaterialFormDialog({ material, onClose }: Props) {
       material_type: "raw",
       uom_id: "",
       shelf_life_days: null,
+      tracking: "lot",
     },
   });
 
@@ -73,6 +75,7 @@ export default function MaterialFormDialog({ material, onClose }: Props) {
           | "finished",
         uom_id: material.uom_id,
         shelf_life_days: material.shelf_life_days,
+        tracking: material.tracking ?? "lot",
       });
     }
   }, [material, reset]);
@@ -192,6 +195,20 @@ export default function MaterialFormDialog({ material, onClose }: Props) {
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Tracking
+              </label>
+              <select
+                {...register("tracking")}
+                aria-label="Tracking"
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="lot">Lot (quantity per lot)</option>
+                <option value="unit">Unit (serial number, qty 1)</option>
+              </select>
             </div>
 
             <div>

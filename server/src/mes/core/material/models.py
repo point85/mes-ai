@@ -19,6 +19,11 @@ from mes.framework.db import BaseModel
 from mes.core.uom.models import UnitOfMeasure  # noqa: F401 — needed for relationship
 
 
+TRACKING_LOT = "lot"
+TRACKING_UNIT = "unit"
+TRACKING_VALUES = (TRACKING_LOT, TRACKING_UNIT)
+
+
 class MaterialDefinition(BaseModel):
     """
     A material that the factory uses, produces, or stores.
@@ -61,6 +66,10 @@ class MaterialDefinition(BaseModel):
         Integer, nullable=True,
         comment="Shelf life in days from receipt. Null means no expiry.",
     )
+    tracking: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="lot", server_default="lot",
+        comment="Inventory tracking: 'lot' (quantity per lot) or 'unit' (one serial-numbered unit, qty 1)",
+    )
 
     # ── Relationships ───────────────────────────────────────────────
     uom_rel: Mapped["UnitOfMeasure"] = relationship(
@@ -72,6 +81,11 @@ class MaterialDefinition(BaseModel):
     @property
     def uom_symbol(self) -> str | None:
         return self.uom_rel.symbol if self.uom_rel else None
+
+    @property
+    def tracking_method(self) -> str:
+        """'unit' (serial-number tracked, qty always 1) or 'lot', from the tracking attribute."""
+        return self.tracking or "lot"
 
     lots: Mapped[list["MaterialLot"]] = relationship(
         "MaterialLot", back_populates="material", cascade="all, delete-orphan",
@@ -118,7 +132,7 @@ class MaterialLot(BaseModel):
     )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="available",
-        comment="Lot status: available, reserved, consumed, expired",
+        comment="Lot status: available, reserved, consumed, expired, finished (WIP transferred off its route), shipped",
     )
     received_date: Mapped[date | None] = mapped_column(
         Date, nullable=True,
@@ -135,8 +149,22 @@ class MaterialLot(BaseModel):
 
     # ── Relationships ───────────────────────────────────────────────
     material: Mapped["MaterialDefinition"] = relationship(
-        "MaterialDefinition", back_populates="lots",
+        "MaterialDefinition", back_populates="lots", lazy="selectin",
     )
+
+    tracking_override: Mapped[str | None] = mapped_column(
+        String(10), nullable=True, default=None,
+        comment="Tracking method fixed when the lot was created from WIP (unit or lot); null uses the material default",
+    )
+
+    @property
+    def tracking_method(self) -> str:
+        return self.tracking_override or self.material.tracking_method
+
+    @property
+    def is_unit_tracked(self) -> bool:
+        return self.tracking_method == "unit"
+
     consumptions: Mapped[list["MaterialConsumption"]] = relationship(
         "MaterialConsumption", back_populates="material_lot",
         cascade="all, delete-orphan",

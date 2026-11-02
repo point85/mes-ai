@@ -10,6 +10,7 @@ Endpoints — Units:
 - POST   /api/v1/units/{unit_id}/start     Start processing at current step
 - POST   /api/v1/units/{unit_id}/complete  Complete current step
 - POST   /api/v1/units/{unit_id}/move      Move to next step
+- POST   /api/v1/units/{unit_id}/transfer-to-inventory  Receive a completed unit into inventory
 - POST   /api/v1/units/{unit_id}/hold      Place on hold
 - POST   /api/v1/units/{unit_id}/release-hold  Release from hold
 - POST   /api/v1/units/{unit_id}/scrap     Scrap the unit
@@ -24,6 +25,7 @@ Endpoints — Lots:
 - POST   /api/v1/lots/{lot_id}/start       Start processing
 - POST   /api/v1/lots/{lot_id}/complete    Complete current step
 - POST   /api/v1/lots/{lot_id}/move        Move to next step
+- POST   /api/v1/lots/{lot_id}/transfer-to-inventory  Receive a completed lot into inventory
 - POST   /api/v1/lots/{lot_id}/hold        Place on hold
 - POST   /api/v1/lots/{lot_id}/release-hold  Release from hold
 - POST   /api/v1/lots/{lot_id}/scrap       Scrap the lot
@@ -50,12 +52,30 @@ from .schemas import (
     UnitCreate, UnitRead, UnitHistoryRead,
     LotCreate, LotRead, LotHistoryRead,
     StartRequest, CompleteRequest, MoveRequest,
-    HoldRequest, ReleaseHoldRequest, ScrapRequest,
+    HoldRequest, ReleaseHoldRequest, ScrapRequest, TransferToInventoryRequest,
 )
 from .serial import SerialNumberService
 from .service import UnitService, LotService
+from .transfer import get_transfer_info, transfer_to_inventory
 
 router = APIRouter(prefix="/api/v1", tags=["WIP Tracking"])
+
+
+async def _transfer(
+    session: AsyncSession, kind: str, wip_id: UUID, body: TransferToInventoryRequest | None,
+):
+    material_lot, quantity, location_id = await transfer_to_inventory(
+        session, kind, wip_id, body.reason if body else None,  # type: ignore[arg-type]
+    )
+    await session.commit()
+    return success_response({
+        "material_lot_id": str(material_lot.id),
+        "material_id": str(material_lot.material_id),
+        "lot_number": material_lot.lot_number,
+        "location_id": str(location_id),
+        "quantity": quantity,
+        "tracking_method": material_lot.tracking_method,
+    })
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -189,6 +209,27 @@ async def move_unit(
     )
     await session.commit()
     return success_response(UnitRead.model_validate(unit).model_dump())
+
+
+@router.get("/units/{unit_id}/transfer-info")
+async def get_unit_transfer_info(
+    unit_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.read")),
+):
+    """Whether (and where) a unit can be transferred to inventory."""
+    return success_response(await get_transfer_info(session, "unit", unit_id))
+
+
+@router.post("/units/{unit_id}/transfer-to-inventory")
+async def transfer_unit_to_inventory(
+    unit_id: UUID,
+    body: TransferToInventoryRequest | None = None,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.update")),
+):
+    """Transfer a unit into the transfer location of the step it last completed."""
+    return await _transfer(session, "unit", unit_id, body)
 
 
 @router.post("/units/{unit_id}/hold")
@@ -383,6 +424,27 @@ async def move_lot(
     )
     await session.commit()
     return success_response(LotRead.model_validate(lot).model_dump())
+
+
+@router.get("/lots/{lot_id}/transfer-info")
+async def get_lot_transfer_info(
+    lot_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.read")),
+):
+    """Whether (and where) a lot can be transferred to inventory."""
+    return success_response(await get_transfer_info(session, "lot", lot_id))
+
+
+@router.post("/lots/{lot_id}/transfer-to-inventory")
+async def transfer_lot_to_inventory(
+    lot_id: UUID,
+    body: TransferToInventoryRequest | None = None,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(require_permission("wip.update")),
+):
+    """Transfer a lot into the transfer location of the step it last completed."""
+    return await _transfer(session, "lot", lot_id, body)
 
 
 @router.post("/lots/{lot_id}/hold")

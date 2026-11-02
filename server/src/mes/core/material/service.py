@@ -26,6 +26,7 @@ from .exceptions import (
     DuplicateMaterialCodeException,
     InsufficientQuantityException,
     MaterialLotNotAvailableException,
+    UnitTrackedRestrictionException,
 )
 from .models import MaterialConsumption, MaterialDefinition, MaterialLot
 
@@ -155,9 +156,12 @@ class MaterialLotService:
         material_id: UUID | None = None,
         material_code: str | None = None,
         status: str | None = None,
+        lot_number: str | None = None,
     ) -> tuple[Sequence[MaterialLot], str | None, bool]:
         """List active material lots with optional filters."""
         stmt = select(MaterialLot).where(MaterialLot.is_active.is_(True))
+        if lot_number is not None:
+            stmt = stmt.where(MaterialLot.lot_number == lot_number)
         if material_id is not None:
             stmt = stmt.where(MaterialLot.material_id == material_id)
         if material_code is not None:
@@ -166,6 +170,9 @@ class MaterialLotService:
             )
         if status is not None:
             stmt = stmt.where(MaterialLot.status == status)
+        else:
+            # Shipped items have left inventory; only an explicit status filter shows them.
+            stmt = stmt.where(MaterialLot.status != "shipped")
         return await paginate_query(session, stmt, MaterialLot, params)
 
     @staticmethod
@@ -201,6 +208,17 @@ class MaterialLotService:
             raise DuplicateLotNumberException(kwargs["lot_number"])
 
         lot = MaterialLot(**kwargs)
+        material = await session.get(MaterialDefinition, lot.material_id)
+        if material is None:
+            raise NotFoundException(
+                resource="MaterialDefinition", resource_id=str(lot.material_id),
+            )
+        # Attach the loaded material so tracking_method needs no lazy load when serialized.
+        lot.material = material
+        # Unit-tracked (serial number) inventory always has a quantity of one.
+        lot.quantity_on_hand = (
+            1.0 if lot.tracking_method == "unit" else (lot.quantity_on_hand or 0.0)
+        )
         session.add(lot)
         await session.flush()
 
@@ -225,7 +243,11 @@ class MaterialLotService:
         """Update a material lot. Only non-None values are applied."""
         lot = await MaterialLotService.get_lot(session, lot_id)
 
-        # Check lot_number uniqueness if changing
+        if lot.is_unit_tracked and kwargs.get("quantity_on_hand") is not None:
+            raise UnitTrackedRestrictionException(
+                lot.lot_number, "quantity cannot be changed",
+            )
+
         new_number = kwargs.get("lot_number")
         if new_number is not None and new_number != lot.lot_number:
             existing = await session.execute(
@@ -255,7 +277,7 @@ class MaterialLotService:
         unit_id: UUID | None = None,
         lot_wip_id: UUID | None = None,
         step_id: UUID | None = None,
-        quantity_consumed: float,
+        quantity_consumed: float | None = None,
         sync_balances: bool = True,
     ) -> MaterialConsumption:
         """
@@ -270,7 +292,16 @@ class MaterialLotService:
         """
         lot = await MaterialLotService.get_lot(session, lot_id)
 
-        if lot.status not in ("available", "reserved"):
+        if lot.is_unit_tracked:
+            if quantity_consumed is None:
+                quantity_consumed = 1.0
+            elif quantity_consumed != 1:
+                raise UnitTrackedRestrictionException(
+                    lot.lot_number, "exactly one unit is consumed",
+                )
+        elif quantity_consumed is None:
+            raise InsufficientQuantityException(lot.lot_number, 0.0, lot.quantity_on_hand)
+        if lot.status not in ("available", "reserved", "finished"):
             raise MaterialLotNotAvailableException(lot.lot_number, lot.status)
 
         available = lot.quantity_on_hand

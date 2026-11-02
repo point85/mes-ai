@@ -256,6 +256,7 @@ class ProductDefService:
                     expected_cycle_time_sec=src_step.expected_cycle_time_sec,
                     erp_operation_number=src_step.erp_operation_number,
                     is_initial_step=src_step.is_initial_step,
+                    transfer_location_id=src_step.transfer_location_id,
                 )
                 session.add(new_step)
                 await session.flush()
@@ -661,7 +662,7 @@ class ProductDefService:
         """Update a route step."""
         step = await ProductDefService.get_step(session, step_id)
         for key, value in kwargs.items():
-            if value is not None:
+            if value is not None or key == "transfer_location_id":
                 setattr(step, key, value)
         await session.flush()
         return step

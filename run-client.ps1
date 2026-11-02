@@ -59,7 +59,10 @@ param(
     [string]$WIP = "",
 
     [Parameter()]
-    [switch]$Help
+    [switch]$Help,
+
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Extra = @()
 )
 
 Set-StrictMode -Version Latest
@@ -103,9 +106,22 @@ EXAMPLES
 "@
 }
 
-if ($Help -or $Client -eq "") {
+if ($Help -or ($Client -eq "" -and $Extra.Count -eq 0)) {
     Show-Help
     exit 0
+}
+
+function Fail-WithHelp([string]$Message) {
+    [Console]::Error.WriteLine("Error: $Message")
+    Show-Help
+    exit 1
+}
+
+if ($Extra.Count -gt 0) {
+    Fail-WithHelp "Unknown argument(s): $($Extra -join ' ')."
+}
+if ($Client -eq "") {
+    Fail-WithHelp "Client argument is required."
 }
 
 # ---------------------------------------------------------------------------
@@ -122,8 +138,7 @@ $clientMap = @{
 
 $key = $Client.ToLower()
 if (-not $clientMap.ContainsKey($key)) {
-    Write-Error "Unknown client '$Client'.`nValid options: dt-client, rt-client, erp-sim, equipment-sim, wip-client, inv-client`nRun .\run-client.ps1 -Help for usage."
-    exit 1
+    Fail-WithHelp "Unknown client '$Client'. Valid options: dt-client, rt-client, erp-sim, equipment-sim, wip-client, inv-client."
 }
 
 $info        = $clientMap[$key]
@@ -134,8 +149,7 @@ $effectivePort = if ($Port -gt 0) { $Port } else { $info.DefaultPort }
 # Validate tracking type (wip-client program argument 1)
 $effectiveTracking = $WIP.ToLower()
 if ($effectiveTracking -notin @("", "lot", "unit")) {
-    Write-Error "Invalid -WIP '$WIP'. Valid values: lot, unit (or empty for the client default)."
-    exit 1
+    Fail-WithHelp "Invalid -WIP '$WIP'. Valid values: lot, unit (or empty for the client default)."
 }
 
 if (-not (Test-Path $clientDir)) {

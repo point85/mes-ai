@@ -99,6 +99,22 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
         </tr>
       `).join("");
 
+  // Inventory transactions (transfer to inventory, ship, ...)
+  const invTxns = rec.inventory_transactions ?? [];
+  const invLabel = (t: { transaction_type: string; to_location: string | null; reason: string | null }) =>
+    t.transaction_type === "receive" ? "Transfer to Inventory"
+      : t.transaction_type.charAt(0).toUpperCase() + t.transaction_type.slice(1);
+  const invHtml = invTxns.length === 0
+    ? `<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:8px;">Not transferred to inventory</td></tr>`
+    : invTxns.map((t, i) => `
+        <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f9fafb"};">
+          <td style="padding:6px 10px;font-weight:600;">${invLabel(t)}</td>
+          <td style="padding:6px 10px;">${t.from_location ?? "—"}</td>
+          <td style="padding:6px 10px;">${t.to_location ?? "—"}</td>
+          <td style="padding:6px 10px;">${t.reason ?? "—"}</td>
+          <td style="padding:6px 10px;">${fmt(t.performed_at)}</td>
+        </tr>`).join("");
+
   // Data points
   const dataHtml = rec.data_points.length === 0
     ? `<tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:8px;">No data points collected</td></tr>`
@@ -194,6 +210,21 @@ function buildHtml(rec: GenealogyRecord, title: string, generatedAt: string): st
         <th ${thStyle}>Consumed At</th>
       </tr></thead>
       <tbody>${matsHtml}</tbody>
+    </table>
+  </div>
+
+  <!-- Inventory transactions -->
+  <div ${sectionStyle}>
+    <h2 ${headingStyle}>Inventory Transactions (${invTxns.length})</h2>
+    <table>
+      <thead><tr>
+        <th ${thStyle}>Transaction</th>
+        <th ${thStyle}>From</th>
+        <th ${thStyle}>To</th>
+        <th ${thStyle}>Reference</th>
+        <th ${thStyle}>Date</th>
+      </tr></thead>
+      <tbody>${invHtml}</tbody>
     </table>
   </div>
 

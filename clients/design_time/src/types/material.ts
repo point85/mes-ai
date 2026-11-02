@@ -13,6 +13,7 @@ export interface Material {
   uom_id: string;
   uom_symbol: string | null;
   shelf_life_days: number | null;
+  tracking: "lot" | "unit";
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -25,6 +26,7 @@ export interface MaterialCreate {
   material_type?: string;
   uom_id: string;
   shelf_life_days?: number | null;
+  tracking?: "lot" | "unit";
 }
 
 export interface MaterialUpdate {
@@ -34,6 +36,7 @@ export interface MaterialUpdate {
   material_type?: string;
   uom_id?: string;
   shelf_life_days?: number | null;
+  tracking?: "lot" | "unit";
 }
 
 // ─── Material Lot ─────────────────────────────────────────────────────

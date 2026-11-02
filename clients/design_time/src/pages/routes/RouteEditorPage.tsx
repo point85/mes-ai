@@ -763,6 +763,7 @@ export default function RouteEditorPage() {
                 expected_cycle_time_sec: s.expected_cycle_time_sec,
                 erp_operation_number: s.erp_operation_number,
                 is_initial_step: s.is_initial_step,
+                transfer_location_id: s.transfer_location_id ?? null,
                 input_disposition_ids: s.input_dispositions.map((d) => d.id),
                 output_disposition_ids: s.output_dispositions.map((d) => d.id),
               });

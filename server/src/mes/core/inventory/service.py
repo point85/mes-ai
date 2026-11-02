@@ -48,6 +48,45 @@ def _get_material_lot_svc():  # noqa: ANN202
 logger = logging.getLogger("mes.inventory")
 
 
+async def _resolve_quantity(
+    session: AsyncSession, material_lot_id: UUID, quantity: float | None,
+) -> float:
+    """
+    Unit-tracked (serial number) inventory always moves one at a time, so the
+    quantity is implied. Lot-tracked inventory requires an explicit quantity.
+    """
+    from mes.core.material.models import MaterialLot
+
+    lot = await session.get(MaterialLot, material_lot_id)
+    if lot is not None and lot.is_unit_tracked:
+        if quantity is not None and quantity != 1:
+            raise InvalidTransactionException(
+                f"Unit-tracked '{lot.lot_number}' always has a quantity of one",
+            )
+        return 1.0
+    if quantity is None:
+        raise InvalidTransactionException("quantity is required")
+    return quantity
+
+
+async def _is_unit_in_stock(session: AsyncSession, material_lot_id: UUID) -> bool:
+    """True when the lot is unit-tracked and was already received (in stock or consumed)."""
+    from mes.core.material.models import MaterialLot
+
+    lot = await session.get(MaterialLot, material_lot_id)
+    if lot is None or not lot.is_unit_tracked:
+        return False
+    if lot.status in ("consumed", "shipped"):
+        return True
+    total = (await session.execute(
+        select(func.coalesce(func.sum(InventoryBalance.quantity_on_hand), 0.0)).where(
+            InventoryBalance.material_lot_id == material_lot_id,
+            InventoryBalance.is_active.is_(True),
+        )
+    )).scalar_one()
+    return float(total) > 0
+
+
 # ═══════════════════════════════════════════════════════════════════
 # StorageLocation CRUD
 # ═══════════════════════════════════════════════════════════════════
@@ -260,7 +299,7 @@ class InventoryTransactionService:
         *,
         material_lot_id: UUID,
         to_location_id: UUID,
-        quantity: float,
+        quantity: float | None = None,
         reason: str | None = None,
         reference_id: UUID | None = None,
         reference_type: str | None = None,
@@ -269,8 +308,16 @@ class InventoryTransactionService:
         Receive material into a location. Creates or increments the
         InventoryBalance at the destination location.
         """
+        quantity = await _resolve_quantity(session, material_lot_id, quantity)
+
         # Validate destination exists
         await StorageLocationService.get_location(session, to_location_id)
+
+        # A unit lives in exactly one location, so it can only be received once.
+        if await _is_unit_in_stock(session, material_lot_id):
+            raise InvalidTransactionException(
+                "Unit-tracked inventory has already been received",
+            )
 
         # Update balance at destination
         balance = await InventoryBalanceService._get_or_create_balance(
@@ -314,7 +361,7 @@ class InventoryTransactionService:
         material_lot_id: UUID,
         from_location_id: UUID,
         to_location_id: UUID,
-        quantity: float,
+        quantity: float | None = None,
         reason: str | None = None,
     ) -> InventoryTransaction:
         """
@@ -341,7 +388,7 @@ class InventoryTransactionService:
         material_lot_id: UUID,
         from_location_id: UUID,
         to_location_id: UUID,
-        quantity: float,
+        quantity: float | None = None,
         reason: str | None = None,
         reference_id: UUID | None = None,
         reference_type: str | None = None,
@@ -371,7 +418,7 @@ class InventoryTransactionService:
         material_lot_id: UUID,
         from_location_id: UUID,
         to_location_id: UUID,
-        quantity: float,
+        quantity: float | None = None,
         reason: str | None = None,
         reference_id: UUID | None = None,
         reference_type: str | None = None,
@@ -400,7 +447,7 @@ class InventoryTransactionService:
         *,
         material_lot_id: UUID,
         from_location_id: UUID,
-        quantity: float,
+        quantity: float | None = None,
         reason: str | None = None,
         reference_id: UUID | None = None,
         reference_type: str | None = None,
@@ -416,6 +463,8 @@ class InventoryTransactionService:
         maintained in a single API call.
         """
         await StorageLocationService.get_location(session, from_location_id)
+
+        quantity = await _resolve_quantity(session, material_lot_id, quantity)
 
         # Decrement source balance
         source_balance = await InventoryBalanceService._get_or_create_balance(
@@ -468,6 +517,67 @@ class InventoryTransactionService:
         )
         return txn
 
+    # ─── Ship ────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def ship(
+        session: AsyncSession,
+        *,
+        material_lot_id: UUID,
+        from_location_id: UUID,
+        reason: str | None = None,
+    ) -> InventoryTransaction:
+        """
+        Ship a finished item (WIP transferred off its route) out of inventory.
+        Removes the quantity held at the location; once nothing remains the
+        item becomes ``shipped`` and no longer shows in inventory.
+        """
+        from mes.core.material.models import MaterialLot
+
+        await StorageLocationService.get_location(session, from_location_id)
+
+        lot = await session.get(MaterialLot, material_lot_id)
+        if lot is None:
+            raise NotFoundException(
+                resource="MaterialLot", resource_id=str(material_lot_id),
+            )
+        if lot.status != "finished":
+            raise InvalidTransactionException(
+                f"Only finished inventory can be shipped; '{lot.lot_number}' is {lot.status}",
+            )
+
+        balance = await InventoryBalanceService.get_balance(
+            session, material_lot_id, from_location_id,
+        )
+        quantity = balance.quantity_on_hand if balance is not None else 0.0
+        if balance is None or quantity <= 0:
+            raise InsufficientInventoryException(str(from_location_id), 1.0, 0.0)
+        balance.quantity_on_hand = 0.0
+
+        now = datetime.now(timezone.utc)
+        txn = InventoryTransaction(
+            transaction_type="ship",
+            material_lot_id=material_lot_id,
+            from_location_id=from_location_id,
+            to_location_id=None,
+            quantity=quantity,
+            reason=reason,
+            performed_at=now,
+            performed_at_utc=now.replace(tzinfo=None),
+        )
+        session.add(txn)
+        await session.flush()
+        await InventoryBalanceService.sync_lot_total(session, material_lot_id)
+        if lot.quantity_on_hand <= 0:
+            lot.status = "shipped"
+            await session.flush()
+
+        logger.info(
+            "Shipped qty=%.3f of lot %s from location %s",
+            quantity, material_lot_id, from_location_id,
+        )
+        return txn
+
     # ─── Adjust ──────────────────────────────────────────────────────
 
     @staticmethod
@@ -484,6 +594,15 @@ class InventoryTransactionService:
         and records the delta as a transaction.
         """
         await StorageLocationService.get_location(session, location_id)
+
+        from mes.core.material.models import MaterialLot
+        from mes.core.material.exceptions import UnitTrackedRestrictionException
+
+        lot = await session.get(MaterialLot, material_lot_id)
+        if lot is not None and lot.is_unit_tracked:
+            raise UnitTrackedRestrictionException(
+                lot.lot_number, "inventory cannot be adjusted",
+            )
 
         balance = await InventoryBalanceService._get_or_create_balance(
             session, material_lot_id, location_id,
@@ -526,7 +645,7 @@ class InventoryTransactionService:
         material_lot_id: UUID,
         from_location_id: UUID,
         to_location_id: UUID,
-        quantity: float,
+        quantity: float | None,
         reason: str | None = None,
         reference_id: UUID | None = None,
         reference_type: str | None = None,
@@ -536,6 +655,8 @@ class InventoryTransactionService:
         Internal helper for putaway/pick/move — decrements source,
         increments destination, creates transaction record.
         """
+        quantity = await _resolve_quantity(session, material_lot_id, quantity)
+
         if from_location_id == to_location_id:
             raise InvalidTransactionException(
                 "Source and destination locations must be different",
