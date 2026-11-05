@@ -18,7 +18,7 @@ Usage in routes:
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 import jwt
@@ -98,7 +98,7 @@ async def get_current_user(
     return user
 
 
-def require_permission(required_permission: str) -> Callable:
+def require_permission(required_permission: str) -> Callable[..., Awaitable[User]]:
     """
     Factory function returning a FastAPI dependency that checks
     the current user has the specified permission.

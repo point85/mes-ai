@@ -162,12 +162,8 @@ The implementation was built iteratively: expected MES capabilities were researc
 AI-assisted testing was part of that process from the beginning. The project includes broad server-side unit test coverage along with end-to-end SQA coverage for key design-time and runtime workflows. The aim is not to claim that AI replaces engineering judgment, but to show that AI can materially improve the speed and reach of implementation, testing, and customization work.
 
 ## What's New
-Version 1.9.0 focused on WIP and inventory compatibility:
-- Added unit-tracked inventory items
-- Added WIP transfer from a route step to a specified inventory location to finish it
-- Added a ship transaction for finished WIP as an inventory item
-- Created an inventory history report
-- Updated rt-client functionality with inv-client and wip-client changes
+Changes in version 1.9.1:
+- Enhanced the runtime dashboard to include production trends, loss drill-down and configurable alerts
 - Fixed Dependabot vulnerabilities
 
 Please send any comments or suggestions to point85.apps@gmail.com.

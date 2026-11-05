@@ -23,7 +23,7 @@ export default function App() {
 
   return (
     <Layout activeTab={activeTab} onTabChange={setActiveTab} wsConnected={connected}>
-      <div className={activeTab === "dashboard"  ? undefined : "hidden"}><DashboardPage events={events} /></div>
+      <div className={activeTab === "dashboard"  ? undefined : "hidden"}><DashboardPage /></div>
       <div className={activeTab === "wip"         ? undefined : "hidden"}><WipPage /></div>
       <div className={activeTab === "orders"      ? undefined : "hidden"}><OrdersPage /></div>
       <div className={activeTab === "inventory"   ? undefined : "hidden"}><InventoryPage /></div>

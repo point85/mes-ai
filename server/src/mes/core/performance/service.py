@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -25,6 +25,12 @@ from .events import equipment_state_changed, oee_calculated, production_counter_
 from .models import EquipmentStateLog, ProductionCounter, Reason
 
 logger = logging.getLogger("mes.performance")
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 class ReasonService:
@@ -363,7 +369,8 @@ class OEEService:
         equipment_id: UUID,
         period_start: datetime,
         period_end: datetime,
-    ) -> dict:
+        publish_event: bool = True,
+    ) -> dict[str, Any]:
         """
         Calculate OEE for an equipment over a time period.
 
@@ -385,17 +392,20 @@ class OEEService:
         # ── 1. Availability from state logs ─────────────────────────
         stmt = select(EquipmentStateLog).where(
             EquipmentStateLog.equipment_id == equipment_id,
-            EquipmentStateLog.started_at >= period_start,
-            EquipmentStateLog.started_at <= period_end,
+            EquipmentStateLog.started_at < period_end,
+            or_(
+                EquipmentStateLog.ended_at.is_(None),
+                EquipmentStateLog.ended_at > period_start,
+            ),
         )
         result = await session.execute(stmt)
         logs = result.scalars().all()
 
         buckets: dict[str, float] = defaultdict(float)
         for log in logs:
-            end = log.ended_at or period_end
-            duration = (end - log.started_at).total_seconds()
-            buckets[log.oee_bucket] += duration
+            start = max(_as_utc(log.started_at), _as_utc(period_start))
+            end = min(_as_utc(log.ended_at) if log.ended_at else _as_utc(period_end), _as_utc(period_end))
+            buckets[log.oee_bucket] += max(0.0, (end - start).total_seconds())
 
         uptime_value_add = buckets.get("uptime_value_add", 0)
         uptime_non_value = buckets.get("uptime_non_value", 0)
@@ -427,7 +437,7 @@ class OEEService:
         total_count = total_good + total_reject + total_rework
 
         # ── 3. Ideal Cycle Time (from EquipmentMaterial or counter) ─
-        ideal_cycle_time = await OEEService._resolve_ideal_cycle_time(
+        ideal_cycle_time = await OEEService.resolve_ideal_cycle_time(
             session, equipment_id, row.avg_cycle_time,
         )
 
@@ -451,10 +461,11 @@ class OEEService:
         speed_loss_sec = max(0, run_time - theoretical_production_time) if run_time > 0 else 0
 
         # Emit event
-        await event_bus.publish(oee_calculated(
-            equipment_id=str(equipment_id),
-            oee=round(oee, 4),
-        ))
+        if publish_event:
+            await event_bus.publish(oee_calculated(
+                equipment_id=str(equipment_id),
+                oee=round(oee, 4),
+            ))
 
         return {
             "equipment_id": equipment_id,
@@ -484,7 +495,7 @@ class OEEService:
         }
 
     @staticmethod
-    async def _resolve_ideal_cycle_time(
+    async def resolve_ideal_cycle_time(
         session: AsyncSession,
         equipment_id: UUID,
         counter_avg_cycle_time: float | None,

@@ -318,19 +318,128 @@ export interface OrderProgress {
   order_number: string;
   product_id: string;
   status: string;
+  priority: number;
   quantity_ordered: number;
   quantity_completed: number;
   quantity_scrapped: number;
-  units_queued: number;
-  units_in_process: number;
+  pct_complete: number;
+  wip_counts: {
+    queued: number;
+    in_process: number;
+    on_hold: number;
+    completed: number;
+    scrapped: number;
+  };
+}
+
+export interface DashboardTrendPoint {
+  date: string;
+  good: number;
+  reject: number;
+  rework: number;
+  oee: number | null;
+}
+
+export interface DashboardTrends {
+  period_start: string;
+  period_end: string;
+  days: number;
+  equipment_id: string | null;
+  order_id: string | null;
+  source: "counters" | "wip" | "none";
+  series: DashboardTrendPoint[];
+}
+
+export interface DashboardLineStatus {
+  line_id: string;
+  line_name: string;
+  equipment_count: number;
+  equipment: Array<{
+    equipment_id: string;
+    name: string;
+    work_cell: string;
+    state: string | null;
+    dispatch_category: string;
+    queue_depth: number;
+    max_queue_depth: number | null;
+  }>;
+}
+
+export interface DashboardShiftSummary {
+  units_started: number;
   units_completed: number;
-  units_on_hold: number;
   units_scrapped: number;
-  lots_queued: number;
-  lots_in_process: number;
+  lots_started: number;
   lots_completed: number;
-  lots_on_hold: number;
   lots_scrapped: number;
+}
+
+export interface DashboardLossBreakdown {
+  period_start: string;
+  period_end: string;
+  equipment_id: string | null;
+  source: "counters" | "wip" | "none";
+  by_reason: Array<{
+    reason_code: string | null;
+    reason_name: string;
+    loss_type: string;
+    minutes: number;
+  }>;
+  by_order: Array<{
+    order_id: string | null;
+    order_number: string;
+    created_at: string | null;
+    good: number;
+    reject: number;
+    rework: number;
+  }>;
+  by_shift_date: Array<{
+    date: string;
+    good: number;
+    reject: number;
+    rework: number;
+  }>;
+}
+
+export type DashboardAlertMetric = "oee_below" | "scrap_rate_above" | "downtime_minutes_above" | "current_downtime_above";
+
+export interface DashboardAlertRule {
+  id: string;
+  name: string;
+  metric: DashboardAlertMetric;
+  threshold: number;
+  window_minutes: number;
+  equipment_id: string | null;
+  is_enabled: boolean;
+  created_at: string;
+}
+
+export interface DashboardAlert {
+  rule_id: string;
+  rule_name: string;
+  metric: DashboardAlertMetric;
+  equipment_id: string | null;
+  observed_value: number;
+  threshold: number;
+  window_start: string;
+  window_end: string;
+  message: string;
+}
+
+export interface DashboardAlertTestInput {
+  downtime_minutes?: number;
+  run_minutes?: number;
+  ideal_cycle_time_sec?: number;
+  good_count?: number;
+  reject_count?: number;
+  rework_count?: number;
+}
+
+export interface DashboardAlertTestResult {
+  would_trigger: boolean;
+  observed_value: number;
+  threshold: number;
+  message: string;
 }
 
 export interface MESEvent {

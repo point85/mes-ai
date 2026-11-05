@@ -164,7 +164,26 @@ All routes are versioned under `/api/v1/`. The OpenAPI spec is available at `/do
 | `/api/v1/demo/` | Demo data seeding (development only) |
 | `/health` | Server health and current auth mode |
 
-### 6.2 Response Envelope
+### 6.2 Dashboard Analytics
+
+The Runtime dashboard exposes historical production and loss views through:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/v1/dashboard/production-trends?days=30&equipment_id=&order_id=` | Daily good/reject/rework counts; includes OEE when scoped to one equipment |
+| `GET` | `/api/v1/dashboard/loss-breakdown?days=7&equipment_id=` | Downtime by reason, quality loss by order, and production totals by shift date |
+| `GET` | `/api/v1/dashboard/alert-rules` | List configured threshold rules |
+| `POST` | `/api/v1/dashboard/alert-rules` | Create an OEE, scrap/rework-rate, or downtime threshold rule |
+| `PATCH` | `/api/v1/dashboard/alert-rules/{rule_id}` | Enable or disable a rule |
+| `DELETE` | `/api/v1/dashboard/alert-rules/{rule_id}` | Soft-delete a rule |
+| `GET` | `/api/v1/dashboard/alerts` | Evaluate enabled rules and return currently active alerts |
+
+Trend and order/shift breakdown counts use production counters, which are recorded by
+`shift_date`; they are daily totals rather than sub-shift time series. Downtime alerts
+use state-log timestamps and rolling minute windows. Dashboard alerts are evaluated
+when requested and displayed in-app; this does not send email, SMS, or push notifications.
+
+### 6.3 Response Envelope
 
 All successful responses use a standard envelope:
 
@@ -178,7 +197,7 @@ List responses:
 { "status": "success", "data": [...], "total": <int> }
 ```
 
-### 6.3 Auth Endpoints
+### 6.4 Auth Endpoints
 
 Defined in `server/src/mes/framework/auth/routes.py`. See §11 for full authentication documentation.
 

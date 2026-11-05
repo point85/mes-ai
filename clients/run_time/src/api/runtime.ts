@@ -9,6 +9,9 @@ import type {
   GenealogyRecord,
   EquipmentStateLog, ProductionCounter, StateChangeRequest, CounterCreateUpdate,
   DispatchStrategyInfo, DispatchEvaluateResponse,
+  DashboardAlert, DashboardAlertMetric, DashboardAlertRule, DashboardLossBreakdown,
+  DashboardAlertTestInput, DashboardAlertTestResult,
+  DashboardLineStatus, DashboardShiftSummary, DashboardTrends, OrderProgress,
 } from "../types";
 
 const api = axios.create({ baseURL: "/api/v1" });
@@ -224,14 +227,71 @@ export const createUnit = (payload: {
 
 // ── Dashboard ────────────────────────────────────────────────────
 
-export const fetchOrderProgress = (status?: string) =>
-  api.get("/dashboard/order-progress", { params: status ? { status } : {} }).then(unwrap<unknown[]>);
+export const fetchOrderProgress = (status?: string, includeInactive = false, createdWithinHours?: number) =>
+  api.get("/dashboard/order-progress", {
+    params: {
+      ...(status ? { status } : {}),
+      ...(includeInactive ? { include_inactive: true } : {}),
+      ...(createdWithinHours ? { created_within_hours: createdWithinHours } : {}),
+    },
+  }).then(unwrapList<OrderProgress>);
 
 export const fetchLineStatus = () =>
-  api.get("/dashboard/line-status").then(unwrap<unknown[]>);
+  api.get("/dashboard/line-status").then(unwrapList<DashboardLineStatus>);
 
-export const fetchShiftSummary = (hours = 8) =>
-  api.get("/dashboard/shift-summary", { params: { hours } }).then(unwrap<unknown>);
+export const fetchShiftSummary = (hours = 8, equipmentId?: string, orderId?: string) =>
+  api.get("/dashboard/shift-summary", {
+    params: {
+      hours,
+      ...(equipmentId ? { equipment_id: equipmentId } : {}),
+      ...(orderId ? { order_id: orderId } : {}),
+    },
+  }).then(unwrap<DashboardShiftSummary>);
+
+export const fetchProductionTrends = (params: {
+  days: number;
+  equipment_id?: string;
+  order_id?: string;
+}) =>
+  api.get("/dashboard/production-trends", { params }).then(unwrap<DashboardTrends>);
+
+export const fetchLossBreakdown = (params: { days: number; equipment_id?: string; order_id?: string }) =>
+  api.get("/dashboard/loss-breakdown", { params }).then(unwrap<DashboardLossBreakdown>);
+
+export const fetchDashboardAlertRules = () =>
+  api.get("/dashboard/alert-rules").then(unwrapList<DashboardAlertRule>);
+
+export const fetchDashboardAlerts = () =>
+  api.get("/dashboard/alerts").then(unwrapList<DashboardAlert>);
+
+export const createDashboardAlertRule = (payload: {
+  name: string;
+  metric: DashboardAlertMetric;
+  threshold: number;
+  window_minutes: number;
+  equipment_id?: string;
+}) =>
+  api.post("/dashboard/alert-rules", payload).then(unwrap<DashboardAlertRule>);
+
+export const updateDashboardAlertRule = (ruleId: string, payload: {
+  name: string;
+  metric: DashboardAlertMetric;
+  threshold: number;
+  window_minutes: number;
+  equipment_id?: string;
+}) =>
+  api.put(`/dashboard/alert-rules/${ruleId}`, payload).then(unwrap<DashboardAlertRule>);
+
+export const setDashboardAlertRuleEnabled = (ruleId: string, isEnabled: boolean) =>
+  api.patch(`/dashboard/alert-rules/${ruleId}`, { is_enabled: isEnabled })
+    .then(unwrap<DashboardAlertRule>);
+
+export const deleteDashboardAlertRule = (ruleId: string) =>
+  api.delete(`/dashboard/alert-rules/${ruleId}`);
+
+export const testDashboardAlertRule = (ruleId: string, payload: DashboardAlertTestInput) =>
+  api.post(`/dashboard/alert-rules/${ruleId}/test`, payload)
+    .then(unwrap<DashboardAlertTestResult>);
 
 // ── Material Consumption ─────────────────────────────────────────
 
